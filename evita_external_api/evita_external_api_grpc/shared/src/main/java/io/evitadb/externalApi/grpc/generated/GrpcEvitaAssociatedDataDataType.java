@@ -235,156 +235,204 @@ private static final long serialVersionUID = 0L;
     BYTE_RANGE(17),
     /**
      * <pre>
+     * Represents Locale data type.
+     * </pre>
+     *
+     * <code>LOCALE = 18;</code>
+     */
+    LOCALE(18),
+    /**
+     * <pre>
+     * Represents Currency data type.
+     * </pre>
+     *
+     * <code>CURRENCY = 19;</code>
+     */
+    CURRENCY(19),
+    /**
+     * <pre>
+     * Represents UUID data type.
+     * </pre>
+     *
+     * <code>UUID = 20;</code>
+     */
+    UUID(20),
+    /**
+     * <pre>
      * Represents ComplexDataObject data type.
      * </pre>
      *
-     * <code>COMPLEX_DATA_OBJECT = 18;</code>
+     * <code>COMPLEX_DATA_OBJECT = 21;</code>
      */
-    COMPLEX_DATA_OBJECT(18),
+    COMPLEX_DATA_OBJECT(21),
     /**
      * <pre>
      * Represents string array data type.
      * </pre>
      *
-     * <code>STRING_ARRAY = 19;</code>
+     * <code>STRING_ARRAY = 50;</code>
      */
-    STRING_ARRAY(19),
+    STRING_ARRAY(50),
     /**
      * <pre>
      * Represents byte array data type.
      * </pre>
      *
-     * <code>BYTE_ARRAY = 20;</code>
+     * <code>BYTE_ARRAY = 51;</code>
      */
-    BYTE_ARRAY(20),
+    BYTE_ARRAY(51),
     /**
      * <pre>
      * Represents short array data type.
      * </pre>
      *
-     * <code>SHORT_ARRAY = 21;</code>
+     * <code>SHORT_ARRAY = 52;</code>
      */
-    SHORT_ARRAY(21),
+    SHORT_ARRAY(52),
     /**
      * <pre>
      * Represents integer array data type.
      * </pre>
      *
-     * <code>INTEGER_ARRAY = 22;</code>
+     * <code>INTEGER_ARRAY = 53;</code>
      */
-    INTEGER_ARRAY(22),
+    INTEGER_ARRAY(53),
     /**
      * <pre>
      * Represents long array data type.
      * </pre>
      *
-     * <code>LONG_ARRAY = 23;</code>
+     * <code>LONG_ARRAY = 54;</code>
      */
-    LONG_ARRAY(23),
+    LONG_ARRAY(54),
     /**
      * <pre>
      * Represents boolean array data type.
      * </pre>
      *
-     * <code>BOOLEAN_ARRAY = 24;</code>
+     * <code>BOOLEAN_ARRAY = 55;</code>
      */
-    BOOLEAN_ARRAY(24),
+    BOOLEAN_ARRAY(55),
     /**
      * <pre>
      * Represents character array data type.
      * </pre>
      *
-     * <code>CHARACTER_ARRAY = 25;</code>
+     * <code>CHARACTER_ARRAY = 56;</code>
      */
-    CHARACTER_ARRAY(25),
+    CHARACTER_ARRAY(56),
     /**
      * <pre>
      * Represents BigDecimal array data type.
      * </pre>
      *
-     * <code>BIG_DECIMAL_ARRAY = 26;</code>
+     * <code>BIG_DECIMAL_ARRAY = 57;</code>
      */
-    BIG_DECIMAL_ARRAY(26),
+    BIG_DECIMAL_ARRAY(57),
     /**
      * <pre>
      * Represents OffsetDateTime array data type.
      * </pre>
      *
-     * <code>OFFSET_DATE_TIME_ARRAY = 27;</code>
+     * <code>OFFSET_DATE_TIME_ARRAY = 58;</code>
      */
-    OFFSET_DATE_TIME_ARRAY(27),
+    OFFSET_DATE_TIME_ARRAY(58),
     /**
      * <pre>
      * Represents LocalDateTime array data type.
      * </pre>
      *
-     * <code>LOCAL_DATE_TIME_ARRAY = 28;</code>
+     * <code>LOCAL_DATE_TIME_ARRAY = 59;</code>
      */
-    LOCAL_DATE_TIME_ARRAY(28),
+    LOCAL_DATE_TIME_ARRAY(59),
     /**
      * <pre>
      * Represents LocalDate array data type.
      * </pre>
      *
-     * <code>LOCAL_DATE_ARRAY = 29;</code>
+     * <code>LOCAL_DATE_ARRAY = 60;</code>
      */
-    LOCAL_DATE_ARRAY(29),
+    LOCAL_DATE_ARRAY(60),
     /**
      * <pre>
      * Represents LocalTime array data type.
      * </pre>
      *
-     * <code>LOCAL_TIME_ARRAY = 30;</code>
+     * <code>LOCAL_TIME_ARRAY = 61;</code>
      */
-    LOCAL_TIME_ARRAY(30),
+    LOCAL_TIME_ARRAY(61),
     /**
      * <pre>
      * Represents DateTimeRange array data type.
      * </pre>
      *
-     * <code>DATE_TIME_RANGE_ARRAY = 31;</code>
+     * <code>DATE_TIME_RANGE_ARRAY = 62;</code>
      */
-    DATE_TIME_RANGE_ARRAY(31),
+    DATE_TIME_RANGE_ARRAY(62),
     /**
      * <pre>
      * Represents BigDecimalNumberRange array data type.
      * </pre>
      *
-     * <code>BIG_DECIMAL_RANGE_ARRAY = 32;</code>
+     * <code>BIG_DECIMAL_RANGE_ARRAY = 63;</code>
      */
-    BIG_DECIMAL_RANGE_ARRAY(32),
+    BIG_DECIMAL_RANGE_ARRAY(63),
     /**
      * <pre>
      * Represents LongNumberRange array data type.
      * </pre>
      *
-     * <code>LONG_RANGE_ARRAY = 33;</code>
+     * <code>LONG_RANGE_ARRAY = 64;</code>
      */
-    LONG_RANGE_ARRAY(33),
+    LONG_RANGE_ARRAY(64),
     /**
      * <pre>
      * Represents IntegerNumberRange array data type.
      * </pre>
      *
-     * <code>INTEGER_RANGE_ARRAY = 34;</code>
+     * <code>INTEGER_RANGE_ARRAY = 65;</code>
      */
-    INTEGER_RANGE_ARRAY(34),
+    INTEGER_RANGE_ARRAY(65),
     /**
      * <pre>
      * Represents ShortNumberRange array data type.
      * </pre>
      *
-     * <code>SHORT_RANGE_ARRAY = 35;</code>
+     * <code>SHORT_RANGE_ARRAY = 66;</code>
      */
-    SHORT_RANGE_ARRAY(35),
+    SHORT_RANGE_ARRAY(66),
     /**
      * <pre>
      * Represents ByteNumberRange array data type.
      * </pre>
      *
-     * <code>BYTE_RANGE_ARRAY = 36;</code>
+     * <code>BYTE_RANGE_ARRAY = 67;</code>
      */
-    BYTE_RANGE_ARRAY(36),
+    BYTE_RANGE_ARRAY(67),
+    /**
+     * <pre>
+     * Represents Locale array data type.
+     * </pre>
+     *
+     * <code>LOCALE_ARRAY = 68;</code>
+     */
+    LOCALE_ARRAY(68),
+    /**
+     * <pre>
+     * Represents Currency array data type.
+     * </pre>
+     *
+     * <code>CURRENCY_ARRAY = 69;</code>
+     */
+    CURRENCY_ARRAY(69),
+    /**
+     * <pre>
+     * Represents UUID array data type.
+     * </pre>
+     *
+     * <code>UUID_ARRAY = 70;</code>
+     */
+    UUID_ARRAY(70),
     UNRECOGNIZED(-1),
     ;
 
@@ -534,156 +582,204 @@ private static final long serialVersionUID = 0L;
     public static final int BYTE_RANGE_VALUE = 17;
     /**
      * <pre>
+     * Represents Locale data type.
+     * </pre>
+     *
+     * <code>LOCALE = 18;</code>
+     */
+    public static final int LOCALE_VALUE = 18;
+    /**
+     * <pre>
+     * Represents Currency data type.
+     * </pre>
+     *
+     * <code>CURRENCY = 19;</code>
+     */
+    public static final int CURRENCY_VALUE = 19;
+    /**
+     * <pre>
+     * Represents UUID data type.
+     * </pre>
+     *
+     * <code>UUID = 20;</code>
+     */
+    public static final int UUID_VALUE = 20;
+    /**
+     * <pre>
      * Represents ComplexDataObject data type.
      * </pre>
      *
-     * <code>COMPLEX_DATA_OBJECT = 18;</code>
+     * <code>COMPLEX_DATA_OBJECT = 21;</code>
      */
-    public static final int COMPLEX_DATA_OBJECT_VALUE = 18;
+    public static final int COMPLEX_DATA_OBJECT_VALUE = 21;
     /**
      * <pre>
      * Represents string array data type.
      * </pre>
      *
-     * <code>STRING_ARRAY = 19;</code>
+     * <code>STRING_ARRAY = 50;</code>
      */
-    public static final int STRING_ARRAY_VALUE = 19;
+    public static final int STRING_ARRAY_VALUE = 50;
     /**
      * <pre>
      * Represents byte array data type.
      * </pre>
      *
-     * <code>BYTE_ARRAY = 20;</code>
+     * <code>BYTE_ARRAY = 51;</code>
      */
-    public static final int BYTE_ARRAY_VALUE = 20;
+    public static final int BYTE_ARRAY_VALUE = 51;
     /**
      * <pre>
      * Represents short array data type.
      * </pre>
      *
-     * <code>SHORT_ARRAY = 21;</code>
+     * <code>SHORT_ARRAY = 52;</code>
      */
-    public static final int SHORT_ARRAY_VALUE = 21;
+    public static final int SHORT_ARRAY_VALUE = 52;
     /**
      * <pre>
      * Represents integer array data type.
      * </pre>
      *
-     * <code>INTEGER_ARRAY = 22;</code>
+     * <code>INTEGER_ARRAY = 53;</code>
      */
-    public static final int INTEGER_ARRAY_VALUE = 22;
+    public static final int INTEGER_ARRAY_VALUE = 53;
     /**
      * <pre>
      * Represents long array data type.
      * </pre>
      *
-     * <code>LONG_ARRAY = 23;</code>
+     * <code>LONG_ARRAY = 54;</code>
      */
-    public static final int LONG_ARRAY_VALUE = 23;
+    public static final int LONG_ARRAY_VALUE = 54;
     /**
      * <pre>
      * Represents boolean array data type.
      * </pre>
      *
-     * <code>BOOLEAN_ARRAY = 24;</code>
+     * <code>BOOLEAN_ARRAY = 55;</code>
      */
-    public static final int BOOLEAN_ARRAY_VALUE = 24;
+    public static final int BOOLEAN_ARRAY_VALUE = 55;
     /**
      * <pre>
      * Represents character array data type.
      * </pre>
      *
-     * <code>CHARACTER_ARRAY = 25;</code>
+     * <code>CHARACTER_ARRAY = 56;</code>
      */
-    public static final int CHARACTER_ARRAY_VALUE = 25;
+    public static final int CHARACTER_ARRAY_VALUE = 56;
     /**
      * <pre>
      * Represents BigDecimal array data type.
      * </pre>
      *
-     * <code>BIG_DECIMAL_ARRAY = 26;</code>
+     * <code>BIG_DECIMAL_ARRAY = 57;</code>
      */
-    public static final int BIG_DECIMAL_ARRAY_VALUE = 26;
+    public static final int BIG_DECIMAL_ARRAY_VALUE = 57;
     /**
      * <pre>
      * Represents OffsetDateTime array data type.
      * </pre>
      *
-     * <code>OFFSET_DATE_TIME_ARRAY = 27;</code>
+     * <code>OFFSET_DATE_TIME_ARRAY = 58;</code>
      */
-    public static final int OFFSET_DATE_TIME_ARRAY_VALUE = 27;
+    public static final int OFFSET_DATE_TIME_ARRAY_VALUE = 58;
     /**
      * <pre>
      * Represents LocalDateTime array data type.
      * </pre>
      *
-     * <code>LOCAL_DATE_TIME_ARRAY = 28;</code>
+     * <code>LOCAL_DATE_TIME_ARRAY = 59;</code>
      */
-    public static final int LOCAL_DATE_TIME_ARRAY_VALUE = 28;
+    public static final int LOCAL_DATE_TIME_ARRAY_VALUE = 59;
     /**
      * <pre>
      * Represents LocalDate array data type.
      * </pre>
      *
-     * <code>LOCAL_DATE_ARRAY = 29;</code>
+     * <code>LOCAL_DATE_ARRAY = 60;</code>
      */
-    public static final int LOCAL_DATE_ARRAY_VALUE = 29;
+    public static final int LOCAL_DATE_ARRAY_VALUE = 60;
     /**
      * <pre>
      * Represents LocalTime array data type.
      * </pre>
      *
-     * <code>LOCAL_TIME_ARRAY = 30;</code>
+     * <code>LOCAL_TIME_ARRAY = 61;</code>
      */
-    public static final int LOCAL_TIME_ARRAY_VALUE = 30;
+    public static final int LOCAL_TIME_ARRAY_VALUE = 61;
     /**
      * <pre>
      * Represents DateTimeRange array data type.
      * </pre>
      *
-     * <code>DATE_TIME_RANGE_ARRAY = 31;</code>
+     * <code>DATE_TIME_RANGE_ARRAY = 62;</code>
      */
-    public static final int DATE_TIME_RANGE_ARRAY_VALUE = 31;
+    public static final int DATE_TIME_RANGE_ARRAY_VALUE = 62;
     /**
      * <pre>
      * Represents BigDecimalNumberRange array data type.
      * </pre>
      *
-     * <code>BIG_DECIMAL_RANGE_ARRAY = 32;</code>
+     * <code>BIG_DECIMAL_RANGE_ARRAY = 63;</code>
      */
-    public static final int BIG_DECIMAL_RANGE_ARRAY_VALUE = 32;
+    public static final int BIG_DECIMAL_RANGE_ARRAY_VALUE = 63;
     /**
      * <pre>
      * Represents LongNumberRange array data type.
      * </pre>
      *
-     * <code>LONG_RANGE_ARRAY = 33;</code>
+     * <code>LONG_RANGE_ARRAY = 64;</code>
      */
-    public static final int LONG_RANGE_ARRAY_VALUE = 33;
+    public static final int LONG_RANGE_ARRAY_VALUE = 64;
     /**
      * <pre>
      * Represents IntegerNumberRange array data type.
      * </pre>
      *
-     * <code>INTEGER_RANGE_ARRAY = 34;</code>
+     * <code>INTEGER_RANGE_ARRAY = 65;</code>
      */
-    public static final int INTEGER_RANGE_ARRAY_VALUE = 34;
+    public static final int INTEGER_RANGE_ARRAY_VALUE = 65;
     /**
      * <pre>
      * Represents ShortNumberRange array data type.
      * </pre>
      *
-     * <code>SHORT_RANGE_ARRAY = 35;</code>
+     * <code>SHORT_RANGE_ARRAY = 66;</code>
      */
-    public static final int SHORT_RANGE_ARRAY_VALUE = 35;
+    public static final int SHORT_RANGE_ARRAY_VALUE = 66;
     /**
      * <pre>
      * Represents ByteNumberRange array data type.
      * </pre>
      *
-     * <code>BYTE_RANGE_ARRAY = 36;</code>
+     * <code>BYTE_RANGE_ARRAY = 67;</code>
      */
-    public static final int BYTE_RANGE_ARRAY_VALUE = 36;
+    public static final int BYTE_RANGE_ARRAY_VALUE = 67;
+    /**
+     * <pre>
+     * Represents Locale array data type.
+     * </pre>
+     *
+     * <code>LOCALE_ARRAY = 68;</code>
+     */
+    public static final int LOCALE_ARRAY_VALUE = 68;
+    /**
+     * <pre>
+     * Represents Currency array data type.
+     * </pre>
+     *
+     * <code>CURRENCY_ARRAY = 69;</code>
+     */
+    public static final int CURRENCY_ARRAY_VALUE = 69;
+    /**
+     * <pre>
+     * Represents UUID array data type.
+     * </pre>
+     *
+     * <code>UUID_ARRAY = 70;</code>
+     */
+    public static final int UUID_ARRAY_VALUE = 70;
 
 
     public final int getNumber() {
@@ -728,25 +824,31 @@ private static final long serialVersionUID = 0L;
         case 15: return INTEGER_RANGE;
         case 16: return SHORT_RANGE;
         case 17: return BYTE_RANGE;
-        case 18: return COMPLEX_DATA_OBJECT;
-        case 19: return STRING_ARRAY;
-        case 20: return BYTE_ARRAY;
-        case 21: return SHORT_ARRAY;
-        case 22: return INTEGER_ARRAY;
-        case 23: return LONG_ARRAY;
-        case 24: return BOOLEAN_ARRAY;
-        case 25: return CHARACTER_ARRAY;
-        case 26: return BIG_DECIMAL_ARRAY;
-        case 27: return OFFSET_DATE_TIME_ARRAY;
-        case 28: return LOCAL_DATE_TIME_ARRAY;
-        case 29: return LOCAL_DATE_ARRAY;
-        case 30: return LOCAL_TIME_ARRAY;
-        case 31: return DATE_TIME_RANGE_ARRAY;
-        case 32: return BIG_DECIMAL_RANGE_ARRAY;
-        case 33: return LONG_RANGE_ARRAY;
-        case 34: return INTEGER_RANGE_ARRAY;
-        case 35: return SHORT_RANGE_ARRAY;
-        case 36: return BYTE_RANGE_ARRAY;
+        case 18: return LOCALE;
+        case 19: return CURRENCY;
+        case 20: return UUID;
+        case 21: return COMPLEX_DATA_OBJECT;
+        case 50: return STRING_ARRAY;
+        case 51: return BYTE_ARRAY;
+        case 52: return SHORT_ARRAY;
+        case 53: return INTEGER_ARRAY;
+        case 54: return LONG_ARRAY;
+        case 55: return BOOLEAN_ARRAY;
+        case 56: return CHARACTER_ARRAY;
+        case 57: return BIG_DECIMAL_ARRAY;
+        case 58: return OFFSET_DATE_TIME_ARRAY;
+        case 59: return LOCAL_DATE_TIME_ARRAY;
+        case 60: return LOCAL_DATE_ARRAY;
+        case 61: return LOCAL_TIME_ARRAY;
+        case 62: return DATE_TIME_RANGE_ARRAY;
+        case 63: return BIG_DECIMAL_RANGE_ARRAY;
+        case 64: return LONG_RANGE_ARRAY;
+        case 65: return INTEGER_RANGE_ARRAY;
+        case 66: return SHORT_RANGE_ARRAY;
+        case 67: return BYTE_RANGE_ARRAY;
+        case 68: return LOCALE_ARRAY;
+        case 69: return CURRENCY_ARRAY;
+        case 70: return UUID_ARRAY;
         default: return null;
       }
     }

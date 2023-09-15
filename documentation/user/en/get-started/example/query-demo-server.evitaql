@@ -1,0 +1,13 @@
+query(
+    collection('Brand'),
+    filterBy(
+        and(
+            attributeStartsWith('name', 'A'),
+            entityLocaleEquals('en')
+        )
+    ),
+    orderBy(
+        attributeNatural('name', ASC)
+    ),
+    require(entityFetchAll())
+)

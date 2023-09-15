@@ -14,7 +14,8 @@ proofreading: 'needed'
 
 A schema can be programmatically defined this way:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
 [Imperative schema definition via Java API](/documentation/user/en/use/api/example/imperative-schema-definition.java)
 </SourceCodeTabs>
 
@@ -25,7 +26,8 @@ annotations that describe the entity structure you want to work with in your pro
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> to define an entity schema
 for you:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java">
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java" local>
+
 [Declarative schema definition via Java API](/documentation/user/en/use/api/example/declarative-schema-definition.java)
 </SourceCodeTabs>
 
@@ -113,7 +115,8 @@ that is annotated with following annotations:
 
 For a better idea, let's demonstrate a sample of the interface design of the product entity.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" local>
+
 [Example of the model interface](/documentation/user/en/use/api/example/declarative-model-example.java)
 </SourceCodeTabs>
 
@@ -151,13 +154,15 @@ You can define a new catalog schema or update an existing one using the
 [catalog schema API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)
 at the `https://your-server:5555/gql/test-catalog/schema` URL:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
 [Imperative catalog schema definition via GraphQL API](/documentation/user/en/use/api/example/imperative-catalog-schema-definition.graphql)
 </SourceCodeTabs>
 
 or update the schema of a specific entity collection at the same URL using a GraphQL mutation of the selected collection like this:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
 [Imperative collection schema definition via GraphQL API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.graphql)
 </SourceCodeTabs>
 
@@ -188,14 +193,16 @@ You can define a new catalog schema or update an existing one using the
 [catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)
 at the `https://your-server:5555/rest/test-catalog/schema` URL:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
 [Imperative catalog schema definition via REST API](/documentation/user/en/use/api/example/imperative-catalog-schema-definition.rest)
 </SourceCodeTabs>
 
 or update the schema of a specific entity collection at e.g. an `https://your-server:5555/rest/test-catalog/product/schema` URL 
 for the collection `Product` using a REST mutation of the selected collection like this:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
 [Imperative collection schema definition via REST API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.rest)
 </SourceCodeTabs>
 

@@ -127,7 +127,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			.ifPresentOrElse(
 				existingSchema -> ofNullable(whichIs)
 					.ifPresent(schemaBuilder -> {
-							final InternalEntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), existingSchema);
+							final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), existingSchema).cooperatingWith(() -> this);
 							whichIs.accept(builder);
 							builder.toMutation()
 								.ifPresent(
@@ -141,7 +141,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 				() -> {
 					final Stream<ModifyEntitySchemaMutation> entityMutation = ofNullable(whichIs)
 						.map(schemaBuilder -> {
-							final InternalEntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), EntitySchema._internalBuild(entityType));
+							final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), EntitySchema._internalBuild(entityType)).cooperatingWith(() -> this);
 							whichIs.accept(builder);
 							return builder.toMutation().stream();
 						})

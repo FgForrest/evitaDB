@@ -55,9 +55,11 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -711,6 +713,151 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				.withDescription("Some description.")
 				.updateVia(evitaClient.createReadWriteSession(someCatalogName));
 			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode(EvitaClient evitaClient) {
+		final String someCatalogName = "differentCatalog";
+		try {
+			evitaClient.defineCatalog(someCatalogName)
+				.withDescription("This is a tutorial catalog.")
+				.updateViaNewSession(evitaClient);
+
+			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+			evitaClient.updateCatalog(
+				someCatalogName,
+				session -> {
+					session.createNewEntity("Brand", 1)
+						.setAttribute("name", Locale.ENGLISH, "Lenovo")
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
+					assertTrue(brand.isPresent());
+
+					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					assertTrue(nameAttribute.isPresent());
+					assertTrue(nameAttribute.get().isLocalized());
+
+					// now create an example category tree
+					session.createNewEntity("Category", 10)
+						.setAttribute("name", Locale.ENGLISH, "Electronics")
+						.upsertVia(session);
+
+					session.createNewEntity("Category", 11)
+						.setAttribute("name", Locale.ENGLISH, "Laptops")
+						// laptops will be a child category of electronics
+						.setParent(10)
+						.upsertVia(session);
+
+					// finally, create a product
+					session.createNewEntity("Product")
+						// with a few attributes
+						.setAttribute("name", Locale.ENGLISH, "ThinkPad P15 Gen 1")
+						.setAttribute("cores", 8)
+						.setAttribute("graphics", "NVIDIA Quadro RTX 4000 with Max-Q Design")
+						// and price for sale
+						.setPrice(
+							1, "basic",
+							Currency.getInstance("USD"),
+							new BigDecimal("1420"), new BigDecimal("20"), new BigDecimal("1704"),
+							true
+						)
+						// link it to the manufacturer
+						.setReference(
+							"brand", "Brand",
+							Cardinality.EXACTLY_ONE,
+							1
+						)
+						// and to the laptop category
+						.setReference(
+							"categories", "Category",
+							Cardinality.ZERO_OR_MORE,
+							11
+						)
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
+					assertTrue(product.isPresent());
+
+					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					assertTrue(productNameAttribute.isPresent());
+					assertTrue(productNameAttribute.get().isLocalized());
+				}
+			);
+
+		} finally {
+			evitaClient.deleteCatalogIfExists(someCatalogName);
+		}
+	}
+
+	@Test
+	@UseDataSet(EVITA_CLIENT_DATA_SET)
+	void shouldAllowCreatingCatalogAndEntityCollectionsSchemas(EvitaClient evitaClient) {
+		final String someCatalogName = "differentCatalog";
+		try {
+			evitaClient.defineCatalog(someCatalogName)
+				.withDescription("This is a tutorial catalog.")
+				// define brand schema
+				.withEntitySchema(
+					"Brand",
+					whichIs -> whichIs.withDescription("A manufacturer of products.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+				)
+				// define category schema
+				.withEntitySchema(
+					"Category",
+					whichIs -> whichIs.withDescription("A category of products.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+						.withHierarchy()
+				)
+				// define product schema
+				.withEntitySchema(
+					"Product",
+					whichIs -> whichIs.withDescription("A product in inventory.")
+						.withAttribute(
+							"name", String.class,
+							thatIs -> thatIs.localized().filterable().sortable()
+						)
+						.withAttribute(
+							"cores", Integer.class,
+							thatIs -> thatIs.withDescription("Number of CPU cores.")
+								.filterable()
+						)
+						.withAttribute(
+							"graphics", String.class,
+							thatIs -> thatIs.withDescription("Graphics card.")
+								.filterable()
+						)
+						.withPrice()
+						.withReferenceToEntity(
+							"brand", "Brand", Cardinality.EXACTLY_ONE,
+							thatIs -> thatIs.indexed()
+						)
+						.withReferenceToEntity(
+							"categories", "Category", Cardinality.ZERO_OR_MORE,
+							thatIs -> thatIs.indexed()
+						)
+				)
+				// and now push all the definitions (mutations) to the server
+				.updateViaNewSession(evitaClient);
+
+			assertTrue(evitaClient.getCatalogNames().contains(someCatalogName));
+			evitaClient.queryCatalog(someCatalogName, session -> {
+				final Set<String> allEntityTypes = session.getAllEntityTypes();
+				assertTrue(allEntityTypes.contains("Brand"));
+				assertTrue(allEntityTypes.contains("Category"));
+				assertTrue(allEntityTypes.contains("Product"));
+			});
 		} finally {
 			evitaClient.deleteCatalogIfExists(someCatalogName);
 		}

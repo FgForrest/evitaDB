@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -73,7 +72,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResp
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			restApiHandlingContext,
 			this.entityJsonSerializer,
-			referenceNameToFieldName
+			referenceNameToFieldName::get
 		);
 	}
 
@@ -90,7 +89,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResp
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
 			.recordPage(serializeRecordPage(response));
 		if (!response.getExtraResults().isEmpty()) {
@@ -98,7 +97,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResp
 				.extraResults(extraResultsJsonSerializer.serialize(response.getExtraResults()));
 		}
 
-		return restApiHandlingContext.getObjectMapper().valueToTree(queryResponseBuilder.build());
+		return queryResponseBuilder.build();
 	}
 
 	@Nonnull

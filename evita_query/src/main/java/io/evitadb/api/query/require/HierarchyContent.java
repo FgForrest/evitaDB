@@ -52,9 +52,15 @@ import static java.util.Optional.of;
  *
  * ```
  * hierarchyContent()
- * hierarchyContent(CATEGORY)
- * hierarchyContent(CATEGORY, 'stocks', entityBody())
- * hierarchyContent(CATEGORY, stopAt(distance(4)), entityBody())
+ * hierarchyContent('stocks', entityBody())
+ * hierarchyContent('stocks', stopAt(distance(4)), entityBody())
+ * ```
+ *
+ * If you need to fetch hierarchy for referenced entities - you need to wrap the `hierarchyContent` inside
+ * the `referenceContent` requirement as follows:
+ *
+ * ```
+ * referenceContent('categories', hierarchyContent())
  * ```
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

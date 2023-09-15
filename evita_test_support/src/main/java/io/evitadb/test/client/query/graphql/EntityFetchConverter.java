@@ -50,6 +50,7 @@ import io.evitadb.utils.StringUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -144,11 +145,8 @@ public class EntityFetchConverter extends RequireConverter {
 			final List<AttributeSchemaContract> attributesToFetch;
 
 			if (!attributeContent.isAllRequested()) {
-				final Set<String> requiredAttributeNames = Set.of(attributeContent.getAttributeNames());
-				attributesToFetch = entitySchema.getAttributes()
-					.values()
-					.stream()
-					.filter(it -> requiredAttributeNames.contains(it.getName()))
+				attributesToFetch = Arrays.stream(attributeContent.getAttributeNames())
+					.map(it -> entitySchema.getAttribute(it).orElse(null))
 					.toList();
 			} else {
 				attributesToFetch = entitySchema.getAttributes()
@@ -215,11 +213,8 @@ public class EntityFetchConverter extends RequireConverter {
 			final List<AssociatedDataSchemaContract> associatedDataToFetch;
 
 			if (!associatedDataContent.isAllRequested()) {
-				final Set<String> requiredAssociatedDataNames = Set.of(associatedDataContent.getAssociatedDataNames());
-				associatedDataToFetch = entitySchema.getAssociatedData()
-					.values()
-					.stream()
-					.filter(it -> requiredAssociatedDataNames.contains(it.getName()))
+				associatedDataToFetch = Arrays.stream(associatedDataContent.getAssociatedDataNames())
+					.map(it -> entitySchema.getAssociatedData(it).orElse(null))
 					.toList();
 			} else {
 				associatedDataToFetch = entitySchema.getAssociatedData()

@@ -39,6 +39,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
@@ -69,22 +70,17 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 				getRequestBodyContentType(serverExchange).orElse(null),
 				getPreferredResponseContentType(serverExchange).orElse(null)
 			)) {
-			final EndpointResponse<R> response = doHandleRequest(exchange);
+			beforeRequestHandled(exchange);
 
+			final EndpointResponse<R> response = doHandleRequest(exchange);
 			if (response instanceof NotFoundEndpointResponse) {
 				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
 			} else if (response instanceof SuccessEndpointResponse<R> successResponse) {
-				final R body = successResponse.getBody();
-				if (body == null) {
-					sendSuccessResponse(exchange);
+				final R result = successResponse.getResult();
+				if (result == null) {
+					sendEmptySuccessResponse(exchange);
 				} else {
-					final String serializedBody;
-					if (body instanceof String) {
-						serializedBody = (String) body;
-					} else {
-						serializedBody = serializeResult(exchange, body);
-					}
-					sendSuccessResponse(exchange, serializedBody);
+					sendSuccessResponseWithBody(exchange, result);
 				}
 			} else {
 				throw createInternalError("Unsupported response `" + response.getClass().getName() + "`.");
@@ -92,11 +88,21 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 		}
 	}
 
+	/**
+	 * Creates new instance of endpoint exchange for given HTTP server exchange.
+	 */
 	@Nonnull
 	protected abstract E createEndpointExchange(@Nonnull HttpServerExchange serverExchange,
 												@Nonnull String method,
 	                                            @Nullable String requestBodyMediaType,
 	                                            @Nullable String preferredResponseMediaType);
+
+	/**
+	 * Hook method called before actual endpoint handling logic is executed. Default implementation does nothing.
+	 */
+	protected void beforeRequestHandled(@Nonnull E exchange) {
+		// default implementation does nothing
+	}
 
 	/**
 	 * Actual endpoint logic.
@@ -277,22 +283,26 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 	}
 
 	/**
-	 * Serializes object with response data into preferred media type.
+	 * Serializes a result object into the preferred media type.
+	 *
+	 * @param exchange      endpoint exchange
+	 * @param outputStream  output stream to write serialized data to
+	 * @param result        result data from handler to write to response
 	 */
-	@Nonnull
-	protected String serializeResult(@Nonnull E exchange, @Nonnull R responseData) {
+	protected void writeResult(@Nonnull E exchange, @Nonnull OutputStream outputStream, @Nonnull R result) {
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
-	private void sendSuccessResponse(@Nonnull E exchange) {
+	private void sendEmptySuccessResponse(@Nonnull E exchange) {
 		exchange.serverExchange().setStatusCode(StatusCodes.NO_CONTENT);
 		exchange.serverExchange().endExchange();
 	}
 
-	private void sendSuccessResponse(@Nonnull E exchange, @Nonnull String data) {
+	private void sendSuccessResponseWithBody(@Nonnull E exchange, @Nonnull R result) {
 		exchange.serverExchange().setStatusCode(StatusCodes.OK);
 		exchange.serverExchange().getResponseHeaders().put(Headers.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
-		exchange.serverExchange().getResponseSender().send(data);
+		writeResult(exchange, exchange.serverExchange().getOutputStream(), result);
+		exchange.serverExchange().endExchange();
 	}
 
 }

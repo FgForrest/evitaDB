@@ -1,0 +1,27 @@
+{
+  queryBrand(
+    filterBy: {
+      entityPrimaryKeyInSet: [
+        64703
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributesGlobal: attributes {
+          code
+        }
+        attributesCs: attributes(locale: cs) {
+          name
+        }
+        attributesDe: attributes(locale: de) {
+          name
+        }
+        attributesEn: attributes(locale: en) {
+          name
+        }
+      }
+    }
+  }
+}

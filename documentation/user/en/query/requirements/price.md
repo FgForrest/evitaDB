@@ -14,3 +14,5 @@ This article will contain copy of:
 once it's proof-read.
 
 ## Price type
+
+TBD

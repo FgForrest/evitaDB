@@ -31,8 +31,11 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
+import io.evitadb.externalApi.graphql.GraphQLProvider;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,10 +54,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_CREATED;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MANUFACTURED;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_MARKET_SHARE;
-import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -74,6 +74,13 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 	private static final String PRODUCT_LIST_PATH = "data.listProduct";
 	public static final String CATEGORY_LIST_PATH = "data.listCategory";
 
+	private static final String GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST = GRAPHQL_THOUSAND_PRODUCTS + "forEmptyList";
+
+	@DataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST, openWebApi = GraphQLProvider.CODE, readOnly = false, destroyAfterClass = true)
+	protected DataCarrier setUpForEmptyList(Evita evita) {
+		return super.setUpData(evita, 0);
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by primary key")
@@ -90,7 +97,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 					.e(EntityDescriptor.LOCALES.name(), List.of())
-					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 						.e(TYPENAME_FIELD, AttributesDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
@@ -180,6 +187,53 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 			.body(PRODUCT_LIST_PATH, equalTo(expectedBody));
 	}
 
+
+	@Test
+	@UseDataSet(value = GRAPHQL_THOUSAND_PRODUCTS_FOR_EMPTY_LIST, destroyAfterTest = true)
+	@DisplayName("Should return empty attributes and associated data for missing locale")
+	void shouldReturnEmptyAttributesAndAssociatedDataForMissingLocale(Evita evita, GraphQLTester tester) {
+		// insert new entity without locale
+		final int primaryKey = insertMinimalEmptyProduct(tester);
+
+		// verify that GQL can return null on `attributes`/`associatedData` field for missing locale even though
+		// inner data may be non-nullable
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listProduct(
+	                        filterBy: {
+	                            entityPrimaryKeyInSet: %d
+	                        }
+	                    ) {
+	                        primaryKey
+	                        attributes(locale: en) {
+                                name
+                                code
+                            },
+                            associatedData(locale: en) {
+								labels
+                            }
+	                    }
+	                }
+					""",
+				primaryKey
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_LIST_PATH,
+				equalTo(List.of(
+					map()
+						.e(EntityDescriptor.PRIMARY_KEY.name(), primaryKey)
+						.e(EntityDescriptor.ATTRIBUTES.name(), null)
+						.e(EntityDescriptor.ASSOCIATED_DATA.name(), null)
+						.build()
+				))
+			);
+	}
+
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return products by non-localized attribute")
@@ -196,8 +250,8 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
+					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 						.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE, String.class))
 						.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))
@@ -340,8 +394,8 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 				map()
 					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toLanguageTag()))
-					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+					.e(EntityDescriptor.LOCALES.name(), List.of(Locale.ENGLISH.toString()))
+					.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 					.e(EntityDescriptor.ATTRIBUTES.name(), map()
 						.e(ATTRIBUTE_URL, entity.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH))
 						.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH))

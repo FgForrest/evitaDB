@@ -25,7 +25,10 @@ package io.evitadb.externalApi.rest.io;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.externalApi.http.EndpointExchange;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -35,16 +38,63 @@ import javax.annotation.Nullable;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record RestEndpointExchange(@Nonnull HttpServerExchange serverExchange,
-                                   @Nullable EvitaSessionContract session,
-                                   @Nonnull String httpMethod,
-                                   @Nullable String requestBodyContentType,
-                                   @Nullable String preferredResponseContentType) implements EndpointExchange {
+@RequiredArgsConstructor
+public class RestEndpointExchange implements EndpointExchange {
+
+	@Nonnull private final HttpServerExchange serverExchange;
+	@Nullable private EvitaSessionContract session;
+	@Nonnull private final String httpMethod;
+	@Nullable private final String requestBodyContentType;
+	@Nullable private final String preferredResponseContentType;
+
+	@Nonnull
+	@Override
+	public HttpServerExchange serverExchange() {
+		return serverExchange;
+	}
+
+	@Nonnull
+	public EvitaSessionContract session() {
+		Assert.isPremiseValid(
+			session != null,
+			() -> new RestInternalError("Session is not available for this exchange.")
+		);
+		return session;
+	}
+
+	/**
+	 * Sets a session for this exchange. Can be set only once to avoid overwriting errors.
+	 */
+	public void session(@Nonnull EvitaSessionContract session) {
+		Assert.isPremiseValid(
+			this.session == null,
+			() -> new RestInternalError("Session cannot overwritten when already set.")
+		);
+		this.session = session;
+	}
+
+	@Nonnull
+	@Override
+	public String httpMethod() {
+		return httpMethod;
+	}
+
+	@Nullable
+	@Override
+	public String requestBodyContentType() {
+		return requestBodyContentType;
+	}
+
+	@Nullable
+	@Override
+	public String preferredResponseContentType() {
+		return preferredResponseContentType;
+	}
 
 	@Override
 	public void close() throws Exception {
-		if (session() != null) {
-			session().close();
+		if (session != null) {
+			session.close();
 		}
 	}
 }

@@ -43,7 +43,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDes
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.QueryTelemetryDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.builder.CatalogRestBuildingContext;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.dto.DataChunkType;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkAggregateDescriptor;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.model.DataChunkUnionDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.HierarchyOfDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
@@ -67,7 +67,6 @@ import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.*;
-import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
@@ -120,11 +119,11 @@ public class FullResponseObjectBuilder {
 	@Nonnull
 	private OpenApiTypeReference buildDataChunkObject(@Nonnull EntitySchemaContract entitySchema,
 	                                                  boolean localized) {
-		final OpenApiUnion dataChunkObject = DataChunkAggregateDescriptor.THIS
+		final OpenApiUnion dataChunkObject = DataChunkUnionDescriptor.THIS
 			.to(unionBuilderTransformer)
 			.name(constructEntityDataChunkAggregateObjectName(entitySchema, localized))
 			.type(OpenApiObjectUnionType.ONE_OF)
-			.discriminator(DataChunkAggregateDescriptor.DISCRIMINATOR.name())
+			.discriminator(DataChunkUnionDescriptor.DISCRIMINATOR.name())
 			.object(buildRecordPageObject(entitySchema, localized))
 			.object(buildRecordStripObject(entitySchema, localized))
 			.build();
@@ -172,7 +171,7 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private OpenApiProperty createDataChunkDiscriminatorProperty() {
-		return DataChunkAggregateDescriptor.DISCRIMINATOR
+		return DataChunkUnionDescriptor.DISCRIMINATOR
 			.to(propertyBuilderTransformer)
 			.type(nonNull(typeRefTo(DataChunkType.class.getSimpleName())))
 			.build();

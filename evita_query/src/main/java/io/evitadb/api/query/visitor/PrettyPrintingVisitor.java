@@ -26,6 +26,7 @@ package io.evitadb.api.query.visitor;
 import io.evitadb.api.query.BaseConstraint;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.ConstraintWithSuffix;
@@ -286,61 +287,71 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	private void printContainer(ConstraintContainer<?> constraint) {
-		if (constraint.getChildren().length == 0 && constraint.getAdditionalChildren().length == 0) {
+		if (constraint.getExplicitChildren().length == 0 && constraint.getExplicitAdditionalChildren().length == 0) {
 			printLeaf(constraint);
 			return;
 		}
 
 		level++;
-		if (constraint.isApplicable()) {
-			final Constraint<?>[] children = constraint.getChildren();
-			final int childrenLength = children.length;
 
-			final Constraint<?>[] additionalChildren = constraint.getAdditionalChildren();
-			final int additionalChildrenLength = additionalChildren.length;
+		final Constraint<?>[] children = constraint.getChildren();
+		final int childrenLength = children.length;
 
-			final Serializable[] arguments = constraint.getArguments();
-			final int argumentsLength = arguments.length;
+		final Constraint<?>[] additionalChildren = constraint.getAdditionalChildren();
+		final int additionalChildrenLength = additionalChildren.length;
 
-			// print arguments
-			for (int i = 0; i < argumentsLength; i++) {
-				final Serializable argument = arguments[i];
+		final Serializable[] arguments = constraint.getArguments();
+		final int argumentsLength = arguments.length;
 
-				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
-					continue;
-				}
+		// print arguments
+		for (int i = 0; i < argumentsLength; i++) {
+			final Serializable argument = arguments[i];
 
-				result.append(newLine());
-				indent(indent, level);
-				if (extractParameters) {
-					result.append('?');
-					ofNullable(parameters).ifPresent(it -> it.add(argument));
-				} else {
-					result.append(BaseConstraint.convertToString(argument));
-				}
-				if (i + 1 < childrenLength || additionalChildrenLength > 0 || childrenLength > 0) {
-					nextArgument();
-				}
+			if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+				continue;
 			}
 
-			// print additional children
-			for (int i = 0; i < additionalChildren.length; i++) {
-				final Constraint<?> additionalChild = additionalChildren[i];
-				additionalChild.accept(this);
-				if (i + 1 < additionalChildren.length || childrenLength > 0) {
-					nextConstraint();
-				}
+			result.append(newLine());
+			indent(indent, level);
+			if (extractParameters) {
+				result.append('?');
+				ofNullable(parameters).ifPresent(it -> it.add(argument));
+			} else {
+				result.append(BaseConstraint.convertToString(argument));
 			}
-
-			// print children
-			for (int i = 0; i < childrenLength; i++) {
-				final Constraint<?> child = children[i];
-				child.accept(this);
-				if (i + 1 < childrenLength) {
-					nextConstraint();
-				}
+			if (i + 1 < childrenLength || additionalChildrenLength > 0 || childrenLength > 0) {
+				nextArgument();
 			}
 		}
+
+		// print additional children
+		for (int i = 0; i < additionalChildren.length; i++) {
+			final Constraint<?> additionalChild = additionalChildren[i];
+
+			if (constraint instanceof ConstraintContainerWithSuffix ccws && ccws.isAdditionalChildImplicitForSuffix(additionalChild)) {
+				continue;
+			}
+
+			additionalChild.accept(this);
+			if (i + 1 < additionalChildren.length || childrenLength > 0) {
+				nextConstraint();
+			}
+		}
+
+		// print children
+		for (int i = 0; i < childrenLength; i++) {
+			final Constraint<?> child = children[i];
+
+			if (constraint instanceof ConstraintContainerWithSuffix ccws && ccws.isChildImplicitForSuffix(child)) {
+				continue;
+			}
+
+			child.accept(this);
+			if (i + 1 < childrenLength) {
+				nextConstraint();
+			}
+		}
+
 		level--;
 		result.append(newLine());
 		indent(indent, level);
@@ -358,24 +369,22 @@ public class PrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	private void printLeaf(Constraint<?> constraint) {
-		if (constraint.isApplicable()) {
-			final Serializable[] arguments = constraint.getArguments();
-			for (int i = 0; i < arguments.length; i++) {
-				final Serializable argument = arguments[i];
+		final Serializable[] arguments = constraint.getArguments();
+		for (int i = 0; i < arguments.length; i++) {
+			final Serializable argument = arguments[i];
 
-				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
-					continue;
-				}
+			if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+				continue;
+			}
 
-				if (extractParameters) {
-					result.append('?');
-					ofNullable(parameters).ifPresent(it -> it.add(argument));
-				} else {
-					result.append(BaseConstraint.convertToString(argument));
-				}
-				if (i + 1 < arguments.length) {
-					result.append(", ");
-				}
+			if (extractParameters) {
+				result.append('?');
+				ofNullable(parameters).ifPresent(it -> it.add(argument));
+			} else {
+				result.append(BaseConstraint.convertToString(argument));
+			}
+			if (i + 1 < arguments.length) {
+				result.append(", ");
 			}
 		}
 		result.append(ARG_CLOSING);

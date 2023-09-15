@@ -1,9 +1,13 @@
 {
   queryProduct(
-    orderBy: {
-      attributeEanNatural: ASC,
-      attributeCatalogNumberNatural: DESC
-    }
+    orderBy: [
+      {
+        attributeEanNatural: ASC
+      },
+      {
+        attributeCatalogNumberNatural: DESC
+      }
+    ]
   ) {
     recordPage {
       data {

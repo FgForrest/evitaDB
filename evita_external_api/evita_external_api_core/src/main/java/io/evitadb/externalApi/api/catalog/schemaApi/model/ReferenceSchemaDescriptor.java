@@ -199,24 +199,24 @@ public interface ReferenceSchemaDescriptor extends NamedSchemaWithDeprecationDes
 	ObjectDescriptor THIS_GENERIC = ObjectDescriptor.builder()
 		.name("ReferenceSchema")
 		.description("""
-				This is the definition object for reference that is stored along with
-				entity. Definition objects allow to describe the structure of the entity type so that
-				in any time everyone can consult complete structure of the entity type.
-				
-				The references refer to other entities (of same or different entity type).
-				Allows entity filtering (but not sorting) of the entities by using `facet_{name}_inSet` query
-				and statistics computation if when requested. Reference
-				is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and entity type and can be
-				part of multiple reference groups, that are also represented by int and entity type.
-				
-				Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
-				of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
-				to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
-				group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
-				Evita.
-				
-				References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
-				""")
+			This is the definition object for reference that is stored along with
+			entity. Definition objects allow to describe the structure of the entity type so that
+			in any time everyone can consult complete structure of the entity type.
+			
+			The references refer to other entities (of same or different entity type).
+			Allows entity filtering (but not sorting) of the entities by using `facet_{name}_inSet` query
+			and statistics computation if when requested. Reference
+			is uniquely represented by int positive number (max. 2<sup>63</sup>-1) and entity type and can be
+			part of multiple reference groups, that are also represented by int and entity type.
+			
+			Reference id in one entity is unique and belongs to single reference group id. Among multiple entities reference may be part
+			of different reference groups. Referenced entity type may represent type of another Evita entity or may refer
+			to anything unknown to Evita that posses unique int key and is maintained by external systems (fe. tag assignment,
+			group assignment, category assignment, stock assignment and so on). Not all these data needs to be present in
+			Evita.
+			
+			References may carry additional key-value data linked to this entity relation (fe. item count present on certain stock).
+			""")
 		.staticFields(List.of(
 			NAME,
 			NAME_VARIANTS,

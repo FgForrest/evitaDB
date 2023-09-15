@@ -83,13 +83,13 @@ public class CatalogSchemaObjectBuilder {
 	}
 
 	/**
-	 * Builds entity schema object.
+	 * Builds catalog schema object.
 	 *
 	 * @return schema for entity schema object
 	 */
 	@Nonnull
 	public OpenApiTypeReference build() {
-		// build specific entity schema object
+		// build specific catalog schema object
 		final OpenApiObject.Builder catalogSchemaObjectBuilder = CatalogSchemaDescriptor.THIS
 			.to(objectBuilderTransformer);
 

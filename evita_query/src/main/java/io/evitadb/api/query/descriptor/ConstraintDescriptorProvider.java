@@ -66,7 +66,7 @@ public class ConstraintDescriptorProvider {
 		CONSTRAINT_DESCRIPTORS.forEach(descriptor -> {
 			final Set<ConstraintDescriptor> descriptors = constraintDescriptorsToClass.computeIfAbsent(
 				descriptor.constraintClass(),
-				k -> createHashSet(2)
+				k -> new TreeSet<>(Comparator.comparing(ConstraintDescriptor::type).thenComparing(ConstraintDescriptor::fullName))
 			);
 			descriptors.add(descriptor);
 		});

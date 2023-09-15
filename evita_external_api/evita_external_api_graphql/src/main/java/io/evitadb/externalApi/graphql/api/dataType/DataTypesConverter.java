@@ -51,6 +51,7 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static graphql.schema.GraphQLList.list;
 import static graphql.schema.GraphQLNonNull.nonNull;
@@ -92,6 +93,7 @@ public class DataTypesConverter {
         SCALAR_MAPPINGS.put(ComplexDataObject.class, COMPLEX_DATA_OBJECT);
         SCALAR_MAPPINGS.put(Locale.class, LOCALE);
         SCALAR_MAPPINGS.put(Currency.class, CURRENCY);
+        SCALAR_MAPPINGS.put(UUID.class, UUID);
         SCALAR_MAPPINGS.put(Any.class, ANY);
         SCALAR_MAPPINGS.put(GenericObject.class, OBJECT);
     }

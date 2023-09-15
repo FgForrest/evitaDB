@@ -187,8 +187,22 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 106: {
-            io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
+            io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder subBuilder = null;
             if (valueCase_ == 13) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcUuid) value_).toBuilder();
+            }
+            value_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuid.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcUuid) value_);
+              value_ = subBuilder.buildPartial();
+            }
+            valueCase_ = 13;
+            break;
+          }
+          case 402: {
+            io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
+            if (valueCase_ == 50) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_).toBuilder();
             }
             value_ =
@@ -197,12 +211,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 13;
+            valueCase_ = 50;
             break;
           }
-          case 114: {
+          case 410: {
             io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder subBuilder = null;
-            if (valueCase_ == 14) {
+            if (valueCase_ == 51) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_).toBuilder();
             }
             value_ =
@@ -211,12 +225,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 14;
+            valueCase_ = 51;
             break;
           }
-          case 122: {
+          case 418: {
             io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder subBuilder = null;
-            if (valueCase_ == 15) {
+            if (valueCase_ == 52) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_).toBuilder();
             }
             value_ =
@@ -225,12 +239,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 15;
+            valueCase_ = 52;
             break;
           }
-          case 130: {
+          case 426: {
             io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder subBuilder = null;
-            if (valueCase_ == 16) {
+            if (valueCase_ == 53) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_).toBuilder();
             }
             value_ =
@@ -239,12 +253,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 16;
+            valueCase_ = 53;
             break;
           }
-          case 138: {
+          case 434: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder subBuilder = null;
-            if (valueCase_ == 17) {
+            if (valueCase_ == 54) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_).toBuilder();
             }
             value_ =
@@ -253,12 +267,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 17;
+            valueCase_ = 54;
             break;
           }
-          case 146: {
+          case 442: {
             io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder subBuilder = null;
-            if (valueCase_ == 18) {
+            if (valueCase_ == 55) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_).toBuilder();
             }
             value_ =
@@ -267,12 +281,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 18;
+            valueCase_ = 55;
             break;
           }
-          case 154: {
+          case 450: {
             io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder subBuilder = null;
-            if (valueCase_ == 19) {
+            if (valueCase_ == 56) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_).toBuilder();
             }
             value_ =
@@ -281,12 +295,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 19;
+            valueCase_ = 56;
             break;
           }
-          case 162: {
+          case 458: {
             io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder subBuilder = null;
-            if (valueCase_ == 20) {
+            if (valueCase_ == 57) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_).toBuilder();
             }
             value_ =
@@ -295,12 +309,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 20;
+            valueCase_ = 57;
             break;
           }
-          case 170: {
+          case 466: {
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder subBuilder = null;
-            if (valueCase_ == 21) {
+            if (valueCase_ == 58) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_).toBuilder();
             }
             value_ =
@@ -309,12 +323,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 21;
+            valueCase_ = 58;
             break;
           }
-          case 178: {
+          case 474: {
             io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder subBuilder = null;
-            if (valueCase_ == 22) {
+            if (valueCase_ == 59) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_).toBuilder();
             }
             value_ =
@@ -323,12 +337,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 22;
+            valueCase_ = 59;
             break;
           }
-          case 186: {
+          case 482: {
             io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder subBuilder = null;
-            if (valueCase_ == 23) {
+            if (valueCase_ == 60) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_).toBuilder();
             }
             value_ =
@@ -337,12 +351,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 23;
+            valueCase_ = 60;
             break;
           }
-          case 194: {
+          case 490: {
             io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder subBuilder = null;
-            if (valueCase_ == 24) {
+            if (valueCase_ == 61) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_).toBuilder();
             }
             value_ =
@@ -351,16 +365,30 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_);
               value_ = subBuilder.buildPartial();
             }
-            valueCase_ = 24;
+            valueCase_ = 61;
             break;
           }
-          case 240: {
+          case 498: {
+            io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder subBuilder = null;
+            if (valueCase_ == 62) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_).toBuilder();
+            }
+            value_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcUuidArray.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_);
+              value_ = subBuilder.buildPartial();
+            }
+            valueCase_ = 62;
+            break;
+          }
+          case 800: {
             int rawValue = input.readEnum();
 
             type_ = rawValue;
             break;
           }
-          case 250: {
+          case 810: {
             com.google.protobuf.Int32Value.Builder subBuilder = null;
             if (version_ != null) {
               subBuilder = version_.toBuilder();
@@ -422,18 +450,20 @@ private static final long serialVersionUID = 0L;
     OFFSETDATETIMEVALUE(10),
     LOCALEVALUE(11),
     CURRENCYVALUE(12),
-    STRINGARRAYVALUE(13),
-    INTEGERARRAYVALUE(14),
-    LONGARRAYVALUE(15),
-    BOOLEANARRAYVALUE(16),
-    BIGDECIMALARRAYVALUE(17),
-    DATETIMERANGEARRAYVALUE(18),
-    INTEGERNUMBERRANGEARRAYVALUE(19),
-    LONGNUMBERRANGEARRAYVALUE(20),
-    BIGDECIMALNUMBERRANGEARRAYVALUE(21),
-    OFFSETDATETIMEARRAYVALUE(22),
-    LOCALEARRAYVALUE(23),
-    CURRENCYARRAYVALUE(24),
+    UUIDVALUE(13),
+    STRINGARRAYVALUE(50),
+    INTEGERARRAYVALUE(51),
+    LONGARRAYVALUE(52),
+    BOOLEANARRAYVALUE(53),
+    BIGDECIMALARRAYVALUE(54),
+    DATETIMERANGEARRAYVALUE(55),
+    INTEGERNUMBERRANGEARRAYVALUE(56),
+    LONGNUMBERRANGEARRAYVALUE(57),
+    BIGDECIMALNUMBERRANGEARRAYVALUE(58),
+    OFFSETDATETIMEARRAYVALUE(59),
+    LOCALEARRAYVALUE(60),
+    CURRENCYARRAYVALUE(61),
+    UUIDARRAYVALUE(62),
     VALUE_NOT_SET(0);
     private final int value;
     private ValueCase(int value) {
@@ -463,18 +493,20 @@ private static final long serialVersionUID = 0L;
         case 10: return OFFSETDATETIMEVALUE;
         case 11: return LOCALEVALUE;
         case 12: return CURRENCYVALUE;
-        case 13: return STRINGARRAYVALUE;
-        case 14: return INTEGERARRAYVALUE;
-        case 15: return LONGARRAYVALUE;
-        case 16: return BOOLEANARRAYVALUE;
-        case 17: return BIGDECIMALARRAYVALUE;
-        case 18: return DATETIMERANGEARRAYVALUE;
-        case 19: return INTEGERNUMBERRANGEARRAYVALUE;
-        case 20: return LONGNUMBERRANGEARRAYVALUE;
-        case 21: return BIGDECIMALNUMBERRANGEARRAYVALUE;
-        case 22: return OFFSETDATETIMEARRAYVALUE;
-        case 23: return LOCALEARRAYVALUE;
-        case 24: return CURRENCYARRAYVALUE;
+        case 13: return UUIDVALUE;
+        case 50: return STRINGARRAYVALUE;
+        case 51: return INTEGERARRAYVALUE;
+        case 52: return LONGARRAYVALUE;
+        case 53: return BOOLEANARRAYVALUE;
+        case 54: return BIGDECIMALARRAYVALUE;
+        case 55: return DATETIMERANGEARRAYVALUE;
+        case 56: return INTEGERNUMBERRANGEARRAYVALUE;
+        case 57: return LONGNUMBERRANGEARRAYVALUE;
+        case 58: return BIGDECIMALNUMBERRANGEARRAYVALUE;
+        case 59: return OFFSETDATETIMEARRAYVALUE;
+        case 60: return LOCALEARRAYVALUE;
+        case 61: return CURRENCYARRAYVALUE;
+        case 62: return UUIDARRAYVALUE;
         case 0: return VALUE_NOT_SET;
         default: return null;
       }
@@ -985,30 +1017,73 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcCurrency.getDefaultInstance();
   }
 
-  public static final int STRINGARRAYVALUE_FIELD_NUMBER = 13;
+  public static final int UUIDVALUE_FIELD_NUMBER = 13;
   /**
    * <pre>
-   * Array of string values.
+   * UUID value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
-   * @return Whether the stringArrayValue field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+   * @return Whether the uuidValue field is set.
    */
   @java.lang.Override
-  public boolean hasStringArrayValue() {
+  public boolean hasUuidValue() {
     return valueCase_ == 13;
   }
   /**
    * <pre>
+   * UUID value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+   * @return The uuidValue.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuid getUuidValue() {
+    if (valueCase_ == 13) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * UUID value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getUuidValueOrBuilder() {
+    if (valueCase_ == 13) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+  }
+
+  public static final int STRINGARRAYVALUE_FIELD_NUMBER = 50;
+  /**
+   * <pre>
    * Array of string values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
+   * @return Whether the stringArrayValue field is set.
+   */
+  @java.lang.Override
+  public boolean hasStringArrayValue() {
+    return valueCase_ == 50;
+  }
+  /**
+   * <pre>
+   * Array of string values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
    * @return The stringArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue() {
-    if (valueCase_ == 13) {
+    if (valueCase_ == 50) {
        return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
@@ -1018,40 +1093,40 @@ private static final long serialVersionUID = 0L;
    * Array of string values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder getStringArrayValueOrBuilder() {
-    if (valueCase_ == 13) {
+    if (valueCase_ == 50) {
        return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
   }
 
-  public static final int INTEGERARRAYVALUE_FIELD_NUMBER = 14;
+  public static final int INTEGERARRAYVALUE_FIELD_NUMBER = 51;
   /**
    * <pre>
    * Array of integer values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
    * @return Whether the integerArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasIntegerArrayValue() {
-    return valueCase_ == 14;
+    return valueCase_ == 51;
   }
   /**
    * <pre>
    * Array of integer values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
    * @return The integerArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue() {
-    if (valueCase_ == 14) {
+    if (valueCase_ == 51) {
        return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
@@ -1061,40 +1136,40 @@ private static final long serialVersionUID = 0L;
    * Array of integer values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder getIntegerArrayValueOrBuilder() {
-    if (valueCase_ == 14) {
+    if (valueCase_ == 51) {
        return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
   }
 
-  public static final int LONGARRAYVALUE_FIELD_NUMBER = 15;
+  public static final int LONGARRAYVALUE_FIELD_NUMBER = 52;
   /**
    * <pre>
    * Array of long values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
    * @return Whether the longArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasLongArrayValue() {
-    return valueCase_ == 15;
+    return valueCase_ == 52;
   }
   /**
    * <pre>
    * Array of long values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
    * @return The longArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue() {
-    if (valueCase_ == 15) {
+    if (valueCase_ == 52) {
        return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
@@ -1104,40 +1179,40 @@ private static final long serialVersionUID = 0L;
    * Array of long values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder getLongArrayValueOrBuilder() {
-    if (valueCase_ == 15) {
+    if (valueCase_ == 52) {
        return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
   }
 
-  public static final int BOOLEANARRAYVALUE_FIELD_NUMBER = 16;
+  public static final int BOOLEANARRAYVALUE_FIELD_NUMBER = 53;
   /**
    * <pre>
    * Array of boolean values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
    * @return Whether the booleanArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasBooleanArrayValue() {
-    return valueCase_ == 16;
+    return valueCase_ == 53;
   }
   /**
    * <pre>
    * Array of boolean values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
    * @return The booleanArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue() {
-    if (valueCase_ == 16) {
+    if (valueCase_ == 53) {
        return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
@@ -1147,40 +1222,40 @@ private static final long serialVersionUID = 0L;
    * Array of boolean values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder getBooleanArrayValueOrBuilder() {
-    if (valueCase_ == 16) {
+    if (valueCase_ == 53) {
        return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
   }
 
-  public static final int BIGDECIMALARRAYVALUE_FIELD_NUMBER = 17;
+  public static final int BIGDECIMALARRAYVALUE_FIELD_NUMBER = 54;
   /**
    * <pre>
    * Array of BigDecimal values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
    * @return Whether the bigDecimalArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasBigDecimalArrayValue() {
-    return valueCase_ == 17;
+    return valueCase_ == 54;
   }
   /**
    * <pre>
    * Array of BigDecimal values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
    * @return The bigDecimalArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue() {
-    if (valueCase_ == 17) {
+    if (valueCase_ == 54) {
        return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
@@ -1190,40 +1265,40 @@ private static final long serialVersionUID = 0L;
    * Array of BigDecimal values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder getBigDecimalArrayValueOrBuilder() {
-    if (valueCase_ == 17) {
+    if (valueCase_ == 54) {
        return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
   }
 
-  public static final int DATETIMERANGEARRAYVALUE_FIELD_NUMBER = 18;
+  public static final int DATETIMERANGEARRAYVALUE_FIELD_NUMBER = 55;
   /**
    * <pre>
    * Array of DateTimeRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
    * @return Whether the dateTimeRangeArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasDateTimeRangeArrayValue() {
-    return valueCase_ == 18;
+    return valueCase_ == 55;
   }
   /**
    * <pre>
    * Array of DateTimeRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
    * @return The dateTimeRangeArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue() {
-    if (valueCase_ == 18) {
+    if (valueCase_ == 55) {
        return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
@@ -1233,40 +1308,40 @@ private static final long serialVersionUID = 0L;
    * Array of DateTimeRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder getDateTimeRangeArrayValueOrBuilder() {
-    if (valueCase_ == 18) {
+    if (valueCase_ == 55) {
        return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
   }
 
-  public static final int INTEGERNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 19;
+  public static final int INTEGERNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 56;
   /**
    * <pre>
    * Array of IntegerNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
    * @return Whether the integerNumberRangeArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasIntegerNumberRangeArrayValue() {
-    return valueCase_ == 19;
+    return valueCase_ == 56;
   }
   /**
    * <pre>
    * Array of IntegerNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
    * @return The integerNumberRangeArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue() {
-    if (valueCase_ == 19) {
+    if (valueCase_ == 56) {
        return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
@@ -1276,40 +1351,40 @@ private static final long serialVersionUID = 0L;
    * Array of IntegerNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder getIntegerNumberRangeArrayValueOrBuilder() {
-    if (valueCase_ == 19) {
+    if (valueCase_ == 56) {
        return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
   }
 
-  public static final int LONGNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 20;
+  public static final int LONGNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 57;
   /**
    * <pre>
    * Array of LongNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
    * @return Whether the longNumberRangeArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasLongNumberRangeArrayValue() {
-    return valueCase_ == 20;
+    return valueCase_ == 57;
   }
   /**
    * <pre>
    * Array of LongNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
    * @return The longNumberRangeArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue() {
-    if (valueCase_ == 20) {
+    if (valueCase_ == 57) {
        return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
@@ -1319,40 +1394,40 @@ private static final long serialVersionUID = 0L;
    * Array of LongNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder getLongNumberRangeArrayValueOrBuilder() {
-    if (valueCase_ == 20) {
+    if (valueCase_ == 57) {
        return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
   }
 
-  public static final int BIGDECIMALNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 21;
+  public static final int BIGDECIMALNUMBERRANGEARRAYVALUE_FIELD_NUMBER = 58;
   /**
    * <pre>
    * Array of BigDecimalNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
    * @return Whether the bigDecimalNumberRangeArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasBigDecimalNumberRangeArrayValue() {
-    return valueCase_ == 21;
+    return valueCase_ == 58;
   }
   /**
    * <pre>
    * Array of BigDecimalNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
    * @return The bigDecimalNumberRangeArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue() {
-    if (valueCase_ == 21) {
+    if (valueCase_ == 58) {
        return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
@@ -1362,40 +1437,40 @@ private static final long serialVersionUID = 0L;
    * Array of BigDecimalNumberRange values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder getBigDecimalNumberRangeArrayValueOrBuilder() {
-    if (valueCase_ == 21) {
+    if (valueCase_ == 58) {
        return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
   }
 
-  public static final int OFFSETDATETIMEARRAYVALUE_FIELD_NUMBER = 22;
+  public static final int OFFSETDATETIMEARRAYVALUE_FIELD_NUMBER = 59;
   /**
    * <pre>
    * Array of OffsetDateTime values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
    * @return Whether the offsetDateTimeArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasOffsetDateTimeArrayValue() {
-    return valueCase_ == 22;
+    return valueCase_ == 59;
   }
   /**
    * <pre>
    * Array of OffsetDateTime values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
    * @return The offsetDateTimeArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue() {
-    if (valueCase_ == 22) {
+    if (valueCase_ == 59) {
        return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
@@ -1405,40 +1480,40 @@ private static final long serialVersionUID = 0L;
    * Array of OffsetDateTime values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder getOffsetDateTimeArrayValueOrBuilder() {
-    if (valueCase_ == 22) {
+    if (valueCase_ == 59) {
        return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
   }
 
-  public static final int LOCALEARRAYVALUE_FIELD_NUMBER = 23;
+  public static final int LOCALEARRAYVALUE_FIELD_NUMBER = 60;
   /**
    * <pre>
    * Array of Locale values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
    * @return Whether the localeArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasLocaleArrayValue() {
-    return valueCase_ == 23;
+    return valueCase_ == 60;
   }
   /**
    * <pre>
    * Array of Locale values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
    * @return The localeArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue() {
-    if (valueCase_ == 23) {
+    if (valueCase_ == 60) {
        return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
@@ -1448,40 +1523,40 @@ private static final long serialVersionUID = 0L;
    * Array of Locale values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder getLocaleArrayValueOrBuilder() {
-    if (valueCase_ == 23) {
+    if (valueCase_ == 60) {
        return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
   }
 
-  public static final int CURRENCYARRAYVALUE_FIELD_NUMBER = 24;
+  public static final int CURRENCYARRAYVALUE_FIELD_NUMBER = 61;
   /**
    * <pre>
    * Array of Currency values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
    * @return Whether the currencyArrayValue field is set.
    */
   @java.lang.Override
   public boolean hasCurrencyArrayValue() {
-    return valueCase_ == 24;
+    return valueCase_ == 61;
   }
   /**
    * <pre>
    * Array of Currency values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
    * @return The currencyArrayValue.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue() {
-    if (valueCase_ == 24) {
+    if (valueCase_ == 61) {
        return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
@@ -1491,24 +1566,67 @@ private static final long serialVersionUID = 0L;
    * Array of Currency values.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder getCurrencyArrayValueOrBuilder() {
-    if (valueCase_ == 24) {
+    if (valueCase_ == 61) {
        return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
   }
 
-  public static final int TYPE_FIELD_NUMBER = 30;
+  public static final int UUIDARRAYVALUE_FIELD_NUMBER = 62;
+  /**
+   * <pre>
+   * Array of UUID values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+   * @return Whether the uuidArrayValue field is set.
+   */
+  @java.lang.Override
+  public boolean hasUuidArrayValue() {
+    return valueCase_ == 62;
+  }
+  /**
+   * <pre>
+   * Array of UUID values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+   * @return The uuidArrayValue.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidArray getUuidArrayValue() {
+    if (valueCase_ == 62) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Array of UUID values.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder getUuidArrayValueOrBuilder() {
+    if (valueCase_ == 62) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance();
+  }
+
+  public static final int TYPE_FIELD_NUMBER = 100;
   private int type_;
   /**
    * <pre>
    * The type of the stored value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
    * @return The enum numeric value on the wire for type.
    */
   @java.lang.Override public int getTypeValue() {
@@ -1519,7 +1637,7 @@ private static final long serialVersionUID = 0L;
    * The type of the stored value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
    * @return The type.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType() {
@@ -1528,7 +1646,7 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.UNRECOGNIZED : result;
   }
 
-  public static final int VERSION_FIELD_NUMBER = 31;
+  public static final int VERSION_FIELD_NUMBER = 101;
   private com.google.protobuf.Int32Value version_;
   /**
    * <pre>
@@ -1536,7 +1654,7 @@ private static final long serialVersionUID = 0L;
    *			optimistic locking i.e. avoiding parallel modifications.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value version = 31;</code>
+   * <code>.google.protobuf.Int32Value version = 101;</code>
    * @return Whether the version field is set.
    */
   @java.lang.Override
@@ -1549,7 +1667,7 @@ private static final long serialVersionUID = 0L;
    *			optimistic locking i.e. avoiding parallel modifications.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value version = 31;</code>
+   * <code>.google.protobuf.Int32Value version = 101;</code>
    * @return The version.
    */
   @java.lang.Override
@@ -1562,7 +1680,7 @@ private static final long serialVersionUID = 0L;
    *			optimistic locking i.e. avoiding parallel modifications.
    * </pre>
    *
-   * <code>.google.protobuf.Int32Value version = 31;</code>
+   * <code>.google.protobuf.Int32Value version = 101;</code>
    */
   @java.lang.Override
   public com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder() {
@@ -1623,46 +1741,52 @@ private static final long serialVersionUID = 0L;
       output.writeMessage(12, (io.evitadb.externalApi.grpc.generated.GrpcCurrency) value_);
     }
     if (valueCase_ == 13) {
-      output.writeMessage(13, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_);
+      output.writeMessage(13, (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_);
     }
-    if (valueCase_ == 14) {
-      output.writeMessage(14, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_);
+    if (valueCase_ == 50) {
+      output.writeMessage(50, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_);
     }
-    if (valueCase_ == 15) {
-      output.writeMessage(15, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_);
+    if (valueCase_ == 51) {
+      output.writeMessage(51, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_);
     }
-    if (valueCase_ == 16) {
-      output.writeMessage(16, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_);
+    if (valueCase_ == 52) {
+      output.writeMessage(52, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_);
     }
-    if (valueCase_ == 17) {
-      output.writeMessage(17, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_);
+    if (valueCase_ == 53) {
+      output.writeMessage(53, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_);
     }
-    if (valueCase_ == 18) {
-      output.writeMessage(18, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_);
+    if (valueCase_ == 54) {
+      output.writeMessage(54, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_);
     }
-    if (valueCase_ == 19) {
-      output.writeMessage(19, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_);
+    if (valueCase_ == 55) {
+      output.writeMessage(55, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_);
     }
-    if (valueCase_ == 20) {
-      output.writeMessage(20, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_);
+    if (valueCase_ == 56) {
+      output.writeMessage(56, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_);
     }
-    if (valueCase_ == 21) {
-      output.writeMessage(21, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_);
+    if (valueCase_ == 57) {
+      output.writeMessage(57, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_);
     }
-    if (valueCase_ == 22) {
-      output.writeMessage(22, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_);
+    if (valueCase_ == 58) {
+      output.writeMessage(58, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_);
     }
-    if (valueCase_ == 23) {
-      output.writeMessage(23, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_);
+    if (valueCase_ == 59) {
+      output.writeMessage(59, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_);
     }
-    if (valueCase_ == 24) {
-      output.writeMessage(24, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_);
+    if (valueCase_ == 60) {
+      output.writeMessage(60, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_);
+    }
+    if (valueCase_ == 61) {
+      output.writeMessage(61, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_);
+    }
+    if (valueCase_ == 62) {
+      output.writeMessage(62, (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_);
     }
     if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.STRING.getNumber()) {
-      output.writeEnum(30, type_);
+      output.writeEnum(100, type_);
     }
     if (version_ != null) {
-      output.writeMessage(31, getVersion());
+      output.writeMessage(101, getVersion());
     }
     unknownFields.writeTo(output);
   }
@@ -1725,59 +1849,67 @@ private static final long serialVersionUID = 0L;
     }
     if (valueCase_ == 13) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(13, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_);
+        .computeMessageSize(13, (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_);
     }
-    if (valueCase_ == 14) {
+    if (valueCase_ == 50) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(14, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_);
+        .computeMessageSize(50, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_);
     }
-    if (valueCase_ == 15) {
+    if (valueCase_ == 51) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(15, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_);
+        .computeMessageSize(51, (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_);
     }
-    if (valueCase_ == 16) {
+    if (valueCase_ == 52) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(16, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_);
+        .computeMessageSize(52, (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_);
     }
-    if (valueCase_ == 17) {
+    if (valueCase_ == 53) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(17, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_);
+        .computeMessageSize(53, (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_);
     }
-    if (valueCase_ == 18) {
+    if (valueCase_ == 54) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(18, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_);
+        .computeMessageSize(54, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_);
     }
-    if (valueCase_ == 19) {
+    if (valueCase_ == 55) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(19, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_);
+        .computeMessageSize(55, (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_);
     }
-    if (valueCase_ == 20) {
+    if (valueCase_ == 56) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(20, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_);
+        .computeMessageSize(56, (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_);
     }
-    if (valueCase_ == 21) {
+    if (valueCase_ == 57) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(21, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_);
+        .computeMessageSize(57, (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_);
     }
-    if (valueCase_ == 22) {
+    if (valueCase_ == 58) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(22, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_);
+        .computeMessageSize(58, (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_);
     }
-    if (valueCase_ == 23) {
+    if (valueCase_ == 59) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(23, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_);
+        .computeMessageSize(59, (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_);
     }
-    if (valueCase_ == 24) {
+    if (valueCase_ == 60) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(24, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_);
+        .computeMessageSize(60, (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_);
+    }
+    if (valueCase_ == 61) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(61, (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_);
+    }
+    if (valueCase_ == 62) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(62, (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_);
     }
     if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.STRING.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(30, type_);
+        .computeEnumSize(100, type_);
     }
     if (version_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(31, getVersion());
+        .computeMessageSize(101, getVersion());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -1851,52 +1983,60 @@ private static final long serialVersionUID = 0L;
             .equals(other.getCurrencyValue())) return false;
         break;
       case 13:
+        if (!getUuidValue()
+            .equals(other.getUuidValue())) return false;
+        break;
+      case 50:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
         break;
-      case 14:
+      case 51:
         if (!getIntegerArrayValue()
             .equals(other.getIntegerArrayValue())) return false;
         break;
-      case 15:
+      case 52:
         if (!getLongArrayValue()
             .equals(other.getLongArrayValue())) return false;
         break;
-      case 16:
+      case 53:
         if (!getBooleanArrayValue()
             .equals(other.getBooleanArrayValue())) return false;
         break;
-      case 17:
+      case 54:
         if (!getBigDecimalArrayValue()
             .equals(other.getBigDecimalArrayValue())) return false;
         break;
-      case 18:
+      case 55:
         if (!getDateTimeRangeArrayValue()
             .equals(other.getDateTimeRangeArrayValue())) return false;
         break;
-      case 19:
+      case 56:
         if (!getIntegerNumberRangeArrayValue()
             .equals(other.getIntegerNumberRangeArrayValue())) return false;
         break;
-      case 20:
+      case 57:
         if (!getLongNumberRangeArrayValue()
             .equals(other.getLongNumberRangeArrayValue())) return false;
         break;
-      case 21:
+      case 58:
         if (!getBigDecimalNumberRangeArrayValue()
             .equals(other.getBigDecimalNumberRangeArrayValue())) return false;
         break;
-      case 22:
+      case 59:
         if (!getOffsetDateTimeArrayValue()
             .equals(other.getOffsetDateTimeArrayValue())) return false;
         break;
-      case 23:
+      case 60:
         if (!getLocaleArrayValue()
             .equals(other.getLocaleArrayValue())) return false;
         break;
-      case 24:
+      case 61:
         if (!getCurrencyArrayValue()
             .equals(other.getCurrencyArrayValue())) return false;
+        break;
+      case 62:
+        if (!getUuidArrayValue()
+            .equals(other.getUuidArrayValue())) return false;
         break;
       case 0:
       default:
@@ -1970,52 +2110,60 @@ private static final long serialVersionUID = 0L;
         hash = (53 * hash) + getCurrencyValue().hashCode();
         break;
       case 13:
+        hash = (37 * hash) + UUIDVALUE_FIELD_NUMBER;
+        hash = (53 * hash) + getUuidValue().hashCode();
+        break;
+      case 50:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getStringArrayValue().hashCode();
         break;
-      case 14:
+      case 51:
         hash = (37 * hash) + INTEGERARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getIntegerArrayValue().hashCode();
         break;
-      case 15:
+      case 52:
         hash = (37 * hash) + LONGARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getLongArrayValue().hashCode();
         break;
-      case 16:
+      case 53:
         hash = (37 * hash) + BOOLEANARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getBooleanArrayValue().hashCode();
         break;
-      case 17:
+      case 54:
         hash = (37 * hash) + BIGDECIMALARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getBigDecimalArrayValue().hashCode();
         break;
-      case 18:
+      case 55:
         hash = (37 * hash) + DATETIMERANGEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getDateTimeRangeArrayValue().hashCode();
         break;
-      case 19:
+      case 56:
         hash = (37 * hash) + INTEGERNUMBERRANGEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getIntegerNumberRangeArrayValue().hashCode();
         break;
-      case 20:
+      case 57:
         hash = (37 * hash) + LONGNUMBERRANGEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getLongNumberRangeArrayValue().hashCode();
         break;
-      case 21:
+      case 58:
         hash = (37 * hash) + BIGDECIMALNUMBERRANGEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getBigDecimalNumberRangeArrayValue().hashCode();
         break;
-      case 22:
+      case 59:
         hash = (37 * hash) + OFFSETDATETIMEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getOffsetDateTimeArrayValue().hashCode();
         break;
-      case 23:
+      case 60:
         hash = (37 * hash) + LOCALEARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getLocaleArrayValue().hashCode();
         break;
-      case 24:
+      case 61:
         hash = (37 * hash) + CURRENCYARRAYVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getCurrencyArrayValue().hashCode();
+        break;
+      case 62:
+        hash = (37 * hash) + UUIDARRAYVALUE_FIELD_NUMBER;
+        hash = (53 * hash) + getUuidArrayValue().hashCode();
         break;
       case 0:
       default:
@@ -2262,87 +2410,101 @@ private static final long serialVersionUID = 0L;
         }
       }
       if (valueCase_ == 13) {
+        if (uuidValueBuilder_ == null) {
+          result.value_ = value_;
+        } else {
+          result.value_ = uuidValueBuilder_.build();
+        }
+      }
+      if (valueCase_ == 50) {
         if (stringArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = stringArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 14) {
+      if (valueCase_ == 51) {
         if (integerArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = integerArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 15) {
+      if (valueCase_ == 52) {
         if (longArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = longArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 16) {
+      if (valueCase_ == 53) {
         if (booleanArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = booleanArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 17) {
+      if (valueCase_ == 54) {
         if (bigDecimalArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = bigDecimalArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 18) {
+      if (valueCase_ == 55) {
         if (dateTimeRangeArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = dateTimeRangeArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 19) {
+      if (valueCase_ == 56) {
         if (integerNumberRangeArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = integerNumberRangeArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 20) {
+      if (valueCase_ == 57) {
         if (longNumberRangeArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = longNumberRangeArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 21) {
+      if (valueCase_ == 58) {
         if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = bigDecimalNumberRangeArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 22) {
+      if (valueCase_ == 59) {
         if (offsetDateTimeArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = offsetDateTimeArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 23) {
+      if (valueCase_ == 60) {
         if (localeArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = localeArrayValueBuilder_.build();
         }
       }
-      if (valueCase_ == 24) {
+      if (valueCase_ == 61) {
         if (currencyArrayValueBuilder_ == null) {
           result.value_ = value_;
         } else {
           result.value_ = currencyArrayValueBuilder_.build();
+        }
+      }
+      if (valueCase_ == 62) {
+        if (uuidArrayValueBuilder_ == null) {
+          result.value_ = value_;
+        } else {
+          result.value_ = uuidArrayValueBuilder_.build();
         }
       }
       result.type_ = type_;
@@ -2457,6 +2619,10 @@ private static final long serialVersionUID = 0L;
           mergeCurrencyValue(other.getCurrencyValue());
           break;
         }
+        case UUIDVALUE: {
+          mergeUuidValue(other.getUuidValue());
+          break;
+        }
         case STRINGARRAYVALUE: {
           mergeStringArrayValue(other.getStringArrayValue());
           break;
@@ -2503,6 +2669,10 @@ private static final long serialVersionUID = 0L;
         }
         case CURRENCYARRAYVALUE: {
           mergeCurrencyArrayValue(other.getCurrencyArrayValue());
+          break;
+        }
+        case UUIDARRAYVALUE: {
+          mergeUuidArrayValue(other.getUuidArrayValue());
           break;
         }
         case VALUE_NOT_SET: {
@@ -4262,36 +4432,213 @@ private static final long serialVersionUID = 0L;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> uuidValueBuilder_;
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     * @return Whether the uuidValue field is set.
+     */
+    @java.lang.Override
+    public boolean hasUuidValue() {
+      return valueCase_ == 13;
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     * @return The uuidValue.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid getUuidValue() {
+      if (uuidValueBuilder_ == null) {
+        if (valueCase_ == 13) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+      } else {
+        if (valueCase_ == 13) {
+          return uuidValueBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    public Builder setUuidValue(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (uuidValueBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        value_ = value;
+        onChanged();
+      } else {
+        uuidValueBuilder_.setMessage(value);
+      }
+      valueCase_ = 13;
+      return this;
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    public Builder setUuidValue(
+        io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder builderForValue) {
+      if (uuidValueBuilder_ == null) {
+        value_ = builderForValue.build();
+        onChanged();
+      } else {
+        uuidValueBuilder_.setMessage(builderForValue.build());
+      }
+      valueCase_ = 13;
+      return this;
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    public Builder mergeUuidValue(io.evitadb.externalApi.grpc.generated.GrpcUuid value) {
+      if (uuidValueBuilder_ == null) {
+        if (valueCase_ == 13 &&
+            value_ != io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance()) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcUuid.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcUuid) value_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          value_ = value;
+        }
+        onChanged();
+      } else {
+        if (valueCase_ == 13) {
+          uuidValueBuilder_.mergeFrom(value);
+        }
+        uuidValueBuilder_.setMessage(value);
+      }
+      valueCase_ = 13;
+      return this;
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    public Builder clearUuidValue() {
+      if (uuidValueBuilder_ == null) {
+        if (valueCase_ == 13) {
+          valueCase_ = 0;
+          value_ = null;
+          onChanged();
+        }
+      } else {
+        if (valueCase_ == 13) {
+          valueCase_ = 0;
+          value_ = null;
+        }
+        uuidValueBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder getUuidValueBuilder() {
+      return getUuidValueFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getUuidValueOrBuilder() {
+      if ((valueCase_ == 13) && (uuidValueBuilder_ != null)) {
+        return uuidValueBuilder_.getMessageOrBuilder();
+      } else {
+        if (valueCase_ == 13) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * UUID value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuidValue = 13;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+        getUuidValueFieldBuilder() {
+      if (uuidValueBuilder_ == null) {
+        if (!(valueCase_ == 13)) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+        }
+        uuidValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_,
+                getParentForChildren(),
+                isClean());
+        value_ = null;
+      }
+      valueCase_ = 13;
+      onChanged();;
+      return uuidValueBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder> stringArrayValueBuilder_;
     /**
      * <pre>
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      * @return Whether the stringArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasStringArrayValue() {
-      return valueCase_ == 13;
+      return valueCase_ == 50;
     }
     /**
      * <pre>
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      * @return The stringArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue() {
       if (stringArrayValueBuilder_ == null) {
-        if (valueCase_ == 13) {
+        if (valueCase_ == 50) {
           return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 13) {
+        if (valueCase_ == 50) {
           return stringArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
@@ -4302,7 +4649,7 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     public Builder setStringArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStringArray value) {
       if (stringArrayValueBuilder_ == null) {
@@ -4314,7 +4661,7 @@ private static final long serialVersionUID = 0L;
       } else {
         stringArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 13;
+      valueCase_ = 50;
       return this;
     }
     /**
@@ -4322,7 +4669,7 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     public Builder setStringArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder builderForValue) {
@@ -4332,7 +4679,7 @@ private static final long serialVersionUID = 0L;
       } else {
         stringArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 13;
+      valueCase_ = 50;
       return this;
     }
     /**
@@ -4340,11 +4687,11 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     public Builder mergeStringArrayValue(io.evitadb.externalApi.grpc.generated.GrpcStringArray value) {
       if (stringArrayValueBuilder_ == null) {
-        if (valueCase_ == 13 &&
+        if (valueCase_ == 50 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcStringArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_)
               .mergeFrom(value).buildPartial();
@@ -4353,12 +4700,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 13) {
+        if (valueCase_ == 50) {
           stringArrayValueBuilder_.mergeFrom(value);
         }
         stringArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 13;
+      valueCase_ = 50;
       return this;
     }
     /**
@@ -4366,17 +4713,17 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     public Builder clearStringArrayValue() {
       if (stringArrayValueBuilder_ == null) {
-        if (valueCase_ == 13) {
+        if (valueCase_ == 50) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 13) {
+        if (valueCase_ == 50) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -4389,7 +4736,7 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder getStringArrayValueBuilder() {
       return getStringArrayValueFieldBuilder().getBuilder();
@@ -4399,14 +4746,14 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder getStringArrayValueOrBuilder() {
-      if ((valueCase_ == 13) && (stringArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 50) && (stringArrayValueBuilder_ != null)) {
         return stringArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 13) {
+        if (valueCase_ == 50) {
           return (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
@@ -4417,13 +4764,13 @@ private static final long serialVersionUID = 0L;
      * Array of string values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 50;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcStringArray, io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder> 
         getStringArrayValueFieldBuilder() {
       if (stringArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 13)) {
+        if (!(valueCase_ == 50)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcStringArray.getDefaultInstance();
         }
         stringArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -4433,7 +4780,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 13;
+      valueCase_ = 50;
       onChanged();;
       return stringArrayValueBuilder_;
     }
@@ -4445,30 +4792,30 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      * @return Whether the integerArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasIntegerArrayValue() {
-      return valueCase_ == 14;
+      return valueCase_ == 51;
     }
     /**
      * <pre>
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      * @return The integerArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue() {
       if (integerArrayValueBuilder_ == null) {
-        if (valueCase_ == 14) {
+        if (valueCase_ == 51) {
           return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 14) {
+        if (valueCase_ == 51) {
           return integerArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
@@ -4479,7 +4826,7 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     public Builder setIntegerArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerArray value) {
       if (integerArrayValueBuilder_ == null) {
@@ -4491,7 +4838,7 @@ private static final long serialVersionUID = 0L;
       } else {
         integerArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 14;
+      valueCase_ = 51;
       return this;
     }
     /**
@@ -4499,7 +4846,7 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     public Builder setIntegerArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder builderForValue) {
@@ -4509,7 +4856,7 @@ private static final long serialVersionUID = 0L;
       } else {
         integerArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 14;
+      valueCase_ = 51;
       return this;
     }
     /**
@@ -4517,11 +4864,11 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     public Builder mergeIntegerArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerArray value) {
       if (integerArrayValueBuilder_ == null) {
-        if (valueCase_ == 14 &&
+        if (valueCase_ == 51 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_)
               .mergeFrom(value).buildPartial();
@@ -4530,12 +4877,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 14) {
+        if (valueCase_ == 51) {
           integerArrayValueBuilder_.mergeFrom(value);
         }
         integerArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 14;
+      valueCase_ = 51;
       return this;
     }
     /**
@@ -4543,17 +4890,17 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     public Builder clearIntegerArrayValue() {
       if (integerArrayValueBuilder_ == null) {
-        if (valueCase_ == 14) {
+        if (valueCase_ == 51) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 14) {
+        if (valueCase_ == 51) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -4566,7 +4913,7 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder getIntegerArrayValueBuilder() {
       return getIntegerArrayValueFieldBuilder().getBuilder();
@@ -4576,14 +4923,14 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder getIntegerArrayValueOrBuilder() {
-      if ((valueCase_ == 14) && (integerArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 51) && (integerArrayValueBuilder_ != null)) {
         return integerArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 14) {
+        if (valueCase_ == 51) {
           return (io.evitadb.externalApi.grpc.generated.GrpcIntegerArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
@@ -4594,13 +4941,13 @@ private static final long serialVersionUID = 0L;
      * Array of integer values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 51;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder> 
         getIntegerArrayValueFieldBuilder() {
       if (integerArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 14)) {
+        if (!(valueCase_ == 51)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerArray.getDefaultInstance();
         }
         integerArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -4610,7 +4957,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 14;
+      valueCase_ = 51;
       onChanged();;
       return integerArrayValueBuilder_;
     }
@@ -4622,30 +4969,30 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      * @return Whether the longArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasLongArrayValue() {
-      return valueCase_ == 15;
+      return valueCase_ == 52;
     }
     /**
      * <pre>
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      * @return The longArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue() {
       if (longArrayValueBuilder_ == null) {
-        if (valueCase_ == 15) {
+        if (valueCase_ == 52) {
           return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 15) {
+        if (valueCase_ == 52) {
           return longArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
@@ -4656,7 +5003,7 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     public Builder setLongArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongArray value) {
       if (longArrayValueBuilder_ == null) {
@@ -4668,7 +5015,7 @@ private static final long serialVersionUID = 0L;
       } else {
         longArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 15;
+      valueCase_ = 52;
       return this;
     }
     /**
@@ -4676,7 +5023,7 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     public Builder setLongArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder builderForValue) {
@@ -4686,7 +5033,7 @@ private static final long serialVersionUID = 0L;
       } else {
         longArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 15;
+      valueCase_ = 52;
       return this;
     }
     /**
@@ -4694,11 +5041,11 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     public Builder mergeLongArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongArray value) {
       if (longArrayValueBuilder_ == null) {
-        if (valueCase_ == 15 &&
+        if (valueCase_ == 52 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcLongArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_)
               .mergeFrom(value).buildPartial();
@@ -4707,12 +5054,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 15) {
+        if (valueCase_ == 52) {
           longArrayValueBuilder_.mergeFrom(value);
         }
         longArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 15;
+      valueCase_ = 52;
       return this;
     }
     /**
@@ -4720,17 +5067,17 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     public Builder clearLongArrayValue() {
       if (longArrayValueBuilder_ == null) {
-        if (valueCase_ == 15) {
+        if (valueCase_ == 52) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 15) {
+        if (valueCase_ == 52) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -4743,7 +5090,7 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder getLongArrayValueBuilder() {
       return getLongArrayValueFieldBuilder().getBuilder();
@@ -4753,14 +5100,14 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder getLongArrayValueOrBuilder() {
-      if ((valueCase_ == 15) && (longArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 52) && (longArrayValueBuilder_ != null)) {
         return longArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 15) {
+        if (valueCase_ == 52) {
           return (io.evitadb.externalApi.grpc.generated.GrpcLongArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
@@ -4771,13 +5118,13 @@ private static final long serialVersionUID = 0L;
      * Array of long values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 52;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongArray, io.evitadb.externalApi.grpc.generated.GrpcLongArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder> 
         getLongArrayValueFieldBuilder() {
       if (longArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 15)) {
+        if (!(valueCase_ == 52)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcLongArray.getDefaultInstance();
         }
         longArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -4787,7 +5134,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 15;
+      valueCase_ = 52;
       onChanged();;
       return longArrayValueBuilder_;
     }
@@ -4799,30 +5146,30 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      * @return Whether the booleanArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasBooleanArrayValue() {
-      return valueCase_ == 16;
+      return valueCase_ == 53;
     }
     /**
      * <pre>
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      * @return The booleanArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue() {
       if (booleanArrayValueBuilder_ == null) {
-        if (valueCase_ == 16) {
+        if (valueCase_ == 53) {
           return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 16) {
+        if (valueCase_ == 53) {
           return booleanArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
@@ -4833,7 +5180,7 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     public Builder setBooleanArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBooleanArray value) {
       if (booleanArrayValueBuilder_ == null) {
@@ -4845,7 +5192,7 @@ private static final long serialVersionUID = 0L;
       } else {
         booleanArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 16;
+      valueCase_ = 53;
       return this;
     }
     /**
@@ -4853,7 +5200,7 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     public Builder setBooleanArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder builderForValue) {
@@ -4863,7 +5210,7 @@ private static final long serialVersionUID = 0L;
       } else {
         booleanArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 16;
+      valueCase_ = 53;
       return this;
     }
     /**
@@ -4871,11 +5218,11 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     public Builder mergeBooleanArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBooleanArray value) {
       if (booleanArrayValueBuilder_ == null) {
-        if (valueCase_ == 16 &&
+        if (valueCase_ == 53 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_)
               .mergeFrom(value).buildPartial();
@@ -4884,12 +5231,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 16) {
+        if (valueCase_ == 53) {
           booleanArrayValueBuilder_.mergeFrom(value);
         }
         booleanArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 16;
+      valueCase_ = 53;
       return this;
     }
     /**
@@ -4897,17 +5244,17 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     public Builder clearBooleanArrayValue() {
       if (booleanArrayValueBuilder_ == null) {
-        if (valueCase_ == 16) {
+        if (valueCase_ == 53) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 16) {
+        if (valueCase_ == 53) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -4920,7 +5267,7 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder getBooleanArrayValueBuilder() {
       return getBooleanArrayValueFieldBuilder().getBuilder();
@@ -4930,14 +5277,14 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder getBooleanArrayValueOrBuilder() {
-      if ((valueCase_ == 16) && (booleanArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 53) && (booleanArrayValueBuilder_ != null)) {
         return booleanArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 16) {
+        if (valueCase_ == 53) {
           return (io.evitadb.externalApi.grpc.generated.GrpcBooleanArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
@@ -4948,13 +5295,13 @@ private static final long serialVersionUID = 0L;
      * Array of boolean values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 16;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 53;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBooleanArray, io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder> 
         getBooleanArrayValueFieldBuilder() {
       if (booleanArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 16)) {
+        if (!(valueCase_ == 53)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcBooleanArray.getDefaultInstance();
         }
         booleanArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -4964,7 +5311,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 16;
+      valueCase_ = 53;
       onChanged();;
       return booleanArrayValueBuilder_;
     }
@@ -4976,30 +5323,30 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      * @return Whether the bigDecimalArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasBigDecimalArrayValue() {
-      return valueCase_ == 17;
+      return valueCase_ == 54;
     }
     /**
      * <pre>
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      * @return The bigDecimalArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue() {
       if (bigDecimalArrayValueBuilder_ == null) {
-        if (valueCase_ == 17) {
+        if (valueCase_ == 54) {
           return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 17) {
+        if (valueCase_ == 54) {
           return bigDecimalArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
@@ -5010,7 +5357,7 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     public Builder setBigDecimalArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray value) {
       if (bigDecimalArrayValueBuilder_ == null) {
@@ -5022,7 +5369,7 @@ private static final long serialVersionUID = 0L;
       } else {
         bigDecimalArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 17;
+      valueCase_ = 54;
       return this;
     }
     /**
@@ -5030,7 +5377,7 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     public Builder setBigDecimalArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder builderForValue) {
@@ -5040,7 +5387,7 @@ private static final long serialVersionUID = 0L;
       } else {
         bigDecimalArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 17;
+      valueCase_ = 54;
       return this;
     }
     /**
@@ -5048,11 +5395,11 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     public Builder mergeBigDecimalArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray value) {
       if (bigDecimalArrayValueBuilder_ == null) {
-        if (valueCase_ == 17 &&
+        if (valueCase_ == 54 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_)
               .mergeFrom(value).buildPartial();
@@ -5061,12 +5408,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 17) {
+        if (valueCase_ == 54) {
           bigDecimalArrayValueBuilder_.mergeFrom(value);
         }
         bigDecimalArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 17;
+      valueCase_ = 54;
       return this;
     }
     /**
@@ -5074,17 +5421,17 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     public Builder clearBigDecimalArrayValue() {
       if (bigDecimalArrayValueBuilder_ == null) {
-        if (valueCase_ == 17) {
+        if (valueCase_ == 54) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 17) {
+        if (valueCase_ == 54) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -5097,7 +5444,7 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder getBigDecimalArrayValueBuilder() {
       return getBigDecimalArrayValueFieldBuilder().getBuilder();
@@ -5107,14 +5454,14 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder getBigDecimalArrayValueOrBuilder() {
-      if ((valueCase_ == 17) && (bigDecimalArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 54) && (bigDecimalArrayValueBuilder_ != null)) {
         return bigDecimalArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 17) {
+        if (valueCase_ == 54) {
           return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
@@ -5125,13 +5472,13 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimal values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 17;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 54;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder> 
         getBigDecimalArrayValueFieldBuilder() {
       if (bigDecimalArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 17)) {
+        if (!(valueCase_ == 54)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray.getDefaultInstance();
         }
         bigDecimalArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -5141,7 +5488,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 17;
+      valueCase_ = 54;
       onChanged();;
       return bigDecimalArrayValueBuilder_;
     }
@@ -5153,30 +5500,30 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      * @return Whether the dateTimeRangeArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasDateTimeRangeArrayValue() {
-      return valueCase_ == 18;
+      return valueCase_ == 55;
     }
     /**
      * <pre>
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      * @return The dateTimeRangeArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue() {
       if (dateTimeRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 18) {
+        if (valueCase_ == 55) {
           return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 18) {
+        if (valueCase_ == 55) {
           return dateTimeRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
@@ -5187,7 +5534,7 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     public Builder setDateTimeRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray value) {
       if (dateTimeRangeArrayValueBuilder_ == null) {
@@ -5199,7 +5546,7 @@ private static final long serialVersionUID = 0L;
       } else {
         dateTimeRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 18;
+      valueCase_ = 55;
       return this;
     }
     /**
@@ -5207,7 +5554,7 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     public Builder setDateTimeRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder builderForValue) {
@@ -5217,7 +5564,7 @@ private static final long serialVersionUID = 0L;
       } else {
         dateTimeRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 18;
+      valueCase_ = 55;
       return this;
     }
     /**
@@ -5225,11 +5572,11 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     public Builder mergeDateTimeRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray value) {
       if (dateTimeRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 18 &&
+        if (valueCase_ == 55 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_)
               .mergeFrom(value).buildPartial();
@@ -5238,12 +5585,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 18) {
+        if (valueCase_ == 55) {
           dateTimeRangeArrayValueBuilder_.mergeFrom(value);
         }
         dateTimeRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 18;
+      valueCase_ = 55;
       return this;
     }
     /**
@@ -5251,17 +5598,17 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     public Builder clearDateTimeRangeArrayValue() {
       if (dateTimeRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 18) {
+        if (valueCase_ == 55) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 18) {
+        if (valueCase_ == 55) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -5274,7 +5621,7 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder getDateTimeRangeArrayValueBuilder() {
       return getDateTimeRangeArrayValueFieldBuilder().getBuilder();
@@ -5284,14 +5631,14 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder getDateTimeRangeArrayValueOrBuilder() {
-      if ((valueCase_ == 18) && (dateTimeRangeArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 55) && (dateTimeRangeArrayValueBuilder_ != null)) {
         return dateTimeRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 18) {
+        if (valueCase_ == 55) {
           return (io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
@@ -5302,13 +5649,13 @@ private static final long serialVersionUID = 0L;
      * Array of DateTimeRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 18;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 55;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder> 
         getDateTimeRangeArrayValueFieldBuilder() {
       if (dateTimeRangeArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 18)) {
+        if (!(valueCase_ == 55)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray.getDefaultInstance();
         }
         dateTimeRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -5318,7 +5665,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 18;
+      valueCase_ = 55;
       onChanged();;
       return dateTimeRangeArrayValueBuilder_;
     }
@@ -5330,30 +5677,30 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      * @return Whether the integerNumberRangeArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasIntegerNumberRangeArrayValue() {
-      return valueCase_ == 19;
+      return valueCase_ == 56;
     }
     /**
      * <pre>
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      * @return The integerNumberRangeArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue() {
       if (integerNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 19) {
+        if (valueCase_ == 56) {
           return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 19) {
+        if (valueCase_ == 56) {
           return integerNumberRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
@@ -5364,7 +5711,7 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     public Builder setIntegerNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray value) {
       if (integerNumberRangeArrayValueBuilder_ == null) {
@@ -5376,7 +5723,7 @@ private static final long serialVersionUID = 0L;
       } else {
         integerNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 19;
+      valueCase_ = 56;
       return this;
     }
     /**
@@ -5384,7 +5731,7 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     public Builder setIntegerNumberRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder builderForValue) {
@@ -5394,7 +5741,7 @@ private static final long serialVersionUID = 0L;
       } else {
         integerNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 19;
+      valueCase_ = 56;
       return this;
     }
     /**
@@ -5402,11 +5749,11 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     public Builder mergeIntegerNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray value) {
       if (integerNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 19 &&
+        if (valueCase_ == 56 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_)
               .mergeFrom(value).buildPartial();
@@ -5415,12 +5762,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 19) {
+        if (valueCase_ == 56) {
           integerNumberRangeArrayValueBuilder_.mergeFrom(value);
         }
         integerNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 19;
+      valueCase_ = 56;
       return this;
     }
     /**
@@ -5428,17 +5775,17 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     public Builder clearIntegerNumberRangeArrayValue() {
       if (integerNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 19) {
+        if (valueCase_ == 56) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 19) {
+        if (valueCase_ == 56) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -5451,7 +5798,7 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder getIntegerNumberRangeArrayValueBuilder() {
       return getIntegerNumberRangeArrayValueFieldBuilder().getBuilder();
@@ -5461,14 +5808,14 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder getIntegerNumberRangeArrayValueOrBuilder() {
-      if ((valueCase_ == 19) && (integerNumberRangeArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 56) && (integerNumberRangeArrayValueBuilder_ != null)) {
         return integerNumberRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 19) {
+        if (valueCase_ == 56) {
           return (io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
@@ -5479,13 +5826,13 @@ private static final long serialVersionUID = 0L;
      * Array of IntegerNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 19;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 56;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder> 
         getIntegerNumberRangeArrayValueFieldBuilder() {
       if (integerNumberRangeArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 19)) {
+        if (!(valueCase_ == 56)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray.getDefaultInstance();
         }
         integerNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -5495,7 +5842,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 19;
+      valueCase_ = 56;
       onChanged();;
       return integerNumberRangeArrayValueBuilder_;
     }
@@ -5507,30 +5854,30 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      * @return Whether the longNumberRangeArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasLongNumberRangeArrayValue() {
-      return valueCase_ == 20;
+      return valueCase_ == 57;
     }
     /**
      * <pre>
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      * @return The longNumberRangeArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue() {
       if (longNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 20) {
+        if (valueCase_ == 57) {
           return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 20) {
+        if (valueCase_ == 57) {
           return longNumberRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
@@ -5541,7 +5888,7 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     public Builder setLongNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray value) {
       if (longNumberRangeArrayValueBuilder_ == null) {
@@ -5553,7 +5900,7 @@ private static final long serialVersionUID = 0L;
       } else {
         longNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 20;
+      valueCase_ = 57;
       return this;
     }
     /**
@@ -5561,7 +5908,7 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     public Builder setLongNumberRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder builderForValue) {
@@ -5571,7 +5918,7 @@ private static final long serialVersionUID = 0L;
       } else {
         longNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 20;
+      valueCase_ = 57;
       return this;
     }
     /**
@@ -5579,11 +5926,11 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     public Builder mergeLongNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray value) {
       if (longNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 20 &&
+        if (valueCase_ == 57 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_)
               .mergeFrom(value).buildPartial();
@@ -5592,12 +5939,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 20) {
+        if (valueCase_ == 57) {
           longNumberRangeArrayValueBuilder_.mergeFrom(value);
         }
         longNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 20;
+      valueCase_ = 57;
       return this;
     }
     /**
@@ -5605,17 +5952,17 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     public Builder clearLongNumberRangeArrayValue() {
       if (longNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 20) {
+        if (valueCase_ == 57) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 20) {
+        if (valueCase_ == 57) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -5628,7 +5975,7 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder getLongNumberRangeArrayValueBuilder() {
       return getLongNumberRangeArrayValueFieldBuilder().getBuilder();
@@ -5638,14 +5985,14 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder getLongNumberRangeArrayValueOrBuilder() {
-      if ((valueCase_ == 20) && (longNumberRangeArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 57) && (longNumberRangeArrayValueBuilder_ != null)) {
         return longNumberRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 20) {
+        if (valueCase_ == 57) {
           return (io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
@@ -5656,13 +6003,13 @@ private static final long serialVersionUID = 0L;
      * Array of LongNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 20;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 57;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder> 
         getLongNumberRangeArrayValueFieldBuilder() {
       if (longNumberRangeArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 20)) {
+        if (!(valueCase_ == 57)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray.getDefaultInstance();
         }
         longNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -5672,7 +6019,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 20;
+      valueCase_ = 57;
       onChanged();;
       return longNumberRangeArrayValueBuilder_;
     }
@@ -5684,30 +6031,30 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      * @return Whether the bigDecimalNumberRangeArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasBigDecimalNumberRangeArrayValue() {
-      return valueCase_ == 21;
+      return valueCase_ == 58;
     }
     /**
      * <pre>
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      * @return The bigDecimalNumberRangeArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue() {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 21) {
+        if (valueCase_ == 58) {
           return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 21) {
+        if (valueCase_ == 58) {
           return bigDecimalNumberRangeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
@@ -5718,7 +6065,7 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     public Builder setBigDecimalNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray value) {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
@@ -5730,7 +6077,7 @@ private static final long serialVersionUID = 0L;
       } else {
         bigDecimalNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 21;
+      valueCase_ = 58;
       return this;
     }
     /**
@@ -5738,7 +6085,7 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     public Builder setBigDecimalNumberRangeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder builderForValue) {
@@ -5748,7 +6095,7 @@ private static final long serialVersionUID = 0L;
       } else {
         bigDecimalNumberRangeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 21;
+      valueCase_ = 58;
       return this;
     }
     /**
@@ -5756,11 +6103,11 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     public Builder mergeBigDecimalNumberRangeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray value) {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 21 &&
+        if (valueCase_ == 58 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_)
               .mergeFrom(value).buildPartial();
@@ -5769,12 +6116,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 21) {
+        if (valueCase_ == 58) {
           bigDecimalNumberRangeArrayValueBuilder_.mergeFrom(value);
         }
         bigDecimalNumberRangeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 21;
+      valueCase_ = 58;
       return this;
     }
     /**
@@ -5782,17 +6129,17 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     public Builder clearBigDecimalNumberRangeArrayValue() {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (valueCase_ == 21) {
+        if (valueCase_ == 58) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 21) {
+        if (valueCase_ == 58) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -5805,7 +6152,7 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder getBigDecimalNumberRangeArrayValueBuilder() {
       return getBigDecimalNumberRangeArrayValueFieldBuilder().getBuilder();
@@ -5815,14 +6162,14 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder getBigDecimalNumberRangeArrayValueOrBuilder() {
-      if ((valueCase_ == 21) && (bigDecimalNumberRangeArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 58) && (bigDecimalNumberRangeArrayValueBuilder_ != null)) {
         return bigDecimalNumberRangeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 21) {
+        if (valueCase_ == 58) {
           return (io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
@@ -5833,13 +6180,13 @@ private static final long serialVersionUID = 0L;
      * Array of BigDecimalNumberRange values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 21;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 58;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder> 
         getBigDecimalNumberRangeArrayValueFieldBuilder() {
       if (bigDecimalNumberRangeArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 21)) {
+        if (!(valueCase_ == 58)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray.getDefaultInstance();
         }
         bigDecimalNumberRangeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -5849,7 +6196,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 21;
+      valueCase_ = 58;
       onChanged();;
       return bigDecimalNumberRangeArrayValueBuilder_;
     }
@@ -5861,30 +6208,30 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      * @return Whether the offsetDateTimeArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasOffsetDateTimeArrayValue() {
-      return valueCase_ == 22;
+      return valueCase_ == 59;
     }
     /**
      * <pre>
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      * @return The offsetDateTimeArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue() {
       if (offsetDateTimeArrayValueBuilder_ == null) {
-        if (valueCase_ == 22) {
+        if (valueCase_ == 59) {
           return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 22) {
+        if (valueCase_ == 59) {
           return offsetDateTimeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
@@ -5895,7 +6242,7 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     public Builder setOffsetDateTimeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray value) {
       if (offsetDateTimeArrayValueBuilder_ == null) {
@@ -5907,7 +6254,7 @@ private static final long serialVersionUID = 0L;
       } else {
         offsetDateTimeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 22;
+      valueCase_ = 59;
       return this;
     }
     /**
@@ -5915,7 +6262,7 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     public Builder setOffsetDateTimeArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder builderForValue) {
@@ -5925,7 +6272,7 @@ private static final long serialVersionUID = 0L;
       } else {
         offsetDateTimeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 22;
+      valueCase_ = 59;
       return this;
     }
     /**
@@ -5933,11 +6280,11 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     public Builder mergeOffsetDateTimeArrayValue(io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray value) {
       if (offsetDateTimeArrayValueBuilder_ == null) {
-        if (valueCase_ == 22 &&
+        if (valueCase_ == 59 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_)
               .mergeFrom(value).buildPartial();
@@ -5946,12 +6293,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 22) {
+        if (valueCase_ == 59) {
           offsetDateTimeArrayValueBuilder_.mergeFrom(value);
         }
         offsetDateTimeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 22;
+      valueCase_ = 59;
       return this;
     }
     /**
@@ -5959,17 +6306,17 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     public Builder clearOffsetDateTimeArrayValue() {
       if (offsetDateTimeArrayValueBuilder_ == null) {
-        if (valueCase_ == 22) {
+        if (valueCase_ == 59) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 22) {
+        if (valueCase_ == 59) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -5982,7 +6329,7 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder getOffsetDateTimeArrayValueBuilder() {
       return getOffsetDateTimeArrayValueFieldBuilder().getBuilder();
@@ -5992,14 +6339,14 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder getOffsetDateTimeArrayValueOrBuilder() {
-      if ((valueCase_ == 22) && (offsetDateTimeArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 59) && (offsetDateTimeArrayValueBuilder_ != null)) {
         return offsetDateTimeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 22) {
+        if (valueCase_ == 59) {
           return (io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
@@ -6010,13 +6357,13 @@ private static final long serialVersionUID = 0L;
      * Array of OffsetDateTime values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 22;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 59;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder> 
         getOffsetDateTimeArrayValueFieldBuilder() {
       if (offsetDateTimeArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 22)) {
+        if (!(valueCase_ == 59)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray.getDefaultInstance();
         }
         offsetDateTimeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -6026,7 +6373,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 22;
+      valueCase_ = 59;
       onChanged();;
       return offsetDateTimeArrayValueBuilder_;
     }
@@ -6038,30 +6385,30 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      * @return Whether the localeArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasLocaleArrayValue() {
-      return valueCase_ == 23;
+      return valueCase_ == 60;
     }
     /**
      * <pre>
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      * @return The localeArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue() {
       if (localeArrayValueBuilder_ == null) {
-        if (valueCase_ == 23) {
+        if (valueCase_ == 60) {
           return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 23) {
+        if (valueCase_ == 60) {
           return localeArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
@@ -6072,7 +6419,7 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     public Builder setLocaleArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLocaleArray value) {
       if (localeArrayValueBuilder_ == null) {
@@ -6084,7 +6431,7 @@ private static final long serialVersionUID = 0L;
       } else {
         localeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 23;
+      valueCase_ = 60;
       return this;
     }
     /**
@@ -6092,7 +6439,7 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     public Builder setLocaleArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder builderForValue) {
@@ -6102,7 +6449,7 @@ private static final long serialVersionUID = 0L;
       } else {
         localeArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 23;
+      valueCase_ = 60;
       return this;
     }
     /**
@@ -6110,11 +6457,11 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     public Builder mergeLocaleArrayValue(io.evitadb.externalApi.grpc.generated.GrpcLocaleArray value) {
       if (localeArrayValueBuilder_ == null) {
-        if (valueCase_ == 23 &&
+        if (valueCase_ == 60 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_)
               .mergeFrom(value).buildPartial();
@@ -6123,12 +6470,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 23) {
+        if (valueCase_ == 60) {
           localeArrayValueBuilder_.mergeFrom(value);
         }
         localeArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 23;
+      valueCase_ = 60;
       return this;
     }
     /**
@@ -6136,17 +6483,17 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     public Builder clearLocaleArrayValue() {
       if (localeArrayValueBuilder_ == null) {
-        if (valueCase_ == 23) {
+        if (valueCase_ == 60) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 23) {
+        if (valueCase_ == 60) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -6159,7 +6506,7 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder getLocaleArrayValueBuilder() {
       return getLocaleArrayValueFieldBuilder().getBuilder();
@@ -6169,14 +6516,14 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder getLocaleArrayValueOrBuilder() {
-      if ((valueCase_ == 23) && (localeArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 60) && (localeArrayValueBuilder_ != null)) {
         return localeArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 23) {
+        if (valueCase_ == 60) {
           return (io.evitadb.externalApi.grpc.generated.GrpcLocaleArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
@@ -6187,13 +6534,13 @@ private static final long serialVersionUID = 0L;
      * Array of Locale values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 23;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 60;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcLocaleArray, io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder> 
         getLocaleArrayValueFieldBuilder() {
       if (localeArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 23)) {
+        if (!(valueCase_ == 60)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcLocaleArray.getDefaultInstance();
         }
         localeArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -6203,7 +6550,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 23;
+      valueCase_ = 60;
       onChanged();;
       return localeArrayValueBuilder_;
     }
@@ -6215,30 +6562,30 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      * @return Whether the currencyArrayValue field is set.
      */
     @java.lang.Override
     public boolean hasCurrencyArrayValue() {
-      return valueCase_ == 24;
+      return valueCase_ == 61;
     }
     /**
      * <pre>
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      * @return The currencyArrayValue.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue() {
       if (currencyArrayValueBuilder_ == null) {
-        if (valueCase_ == 24) {
+        if (valueCase_ == 61) {
           return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
       } else {
-        if (valueCase_ == 24) {
+        if (valueCase_ == 61) {
           return currencyArrayValueBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
@@ -6249,7 +6596,7 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     public Builder setCurrencyArrayValue(io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray value) {
       if (currencyArrayValueBuilder_ == null) {
@@ -6261,7 +6608,7 @@ private static final long serialVersionUID = 0L;
       } else {
         currencyArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 24;
+      valueCase_ = 61;
       return this;
     }
     /**
@@ -6269,7 +6616,7 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     public Builder setCurrencyArrayValue(
         io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder builderForValue) {
@@ -6279,7 +6626,7 @@ private static final long serialVersionUID = 0L;
       } else {
         currencyArrayValueBuilder_.setMessage(builderForValue.build());
       }
-      valueCase_ = 24;
+      valueCase_ = 61;
       return this;
     }
     /**
@@ -6287,11 +6634,11 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     public Builder mergeCurrencyArrayValue(io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray value) {
       if (currencyArrayValueBuilder_ == null) {
-        if (valueCase_ == 24 &&
+        if (valueCase_ == 61 &&
             value_ != io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance()) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_)
               .mergeFrom(value).buildPartial();
@@ -6300,12 +6647,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (valueCase_ == 24) {
+        if (valueCase_ == 61) {
           currencyArrayValueBuilder_.mergeFrom(value);
         }
         currencyArrayValueBuilder_.setMessage(value);
       }
-      valueCase_ = 24;
+      valueCase_ = 61;
       return this;
     }
     /**
@@ -6313,17 +6660,17 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     public Builder clearCurrencyArrayValue() {
       if (currencyArrayValueBuilder_ == null) {
-        if (valueCase_ == 24) {
+        if (valueCase_ == 61) {
           valueCase_ = 0;
           value_ = null;
           onChanged();
         }
       } else {
-        if (valueCase_ == 24) {
+        if (valueCase_ == 61) {
           valueCase_ = 0;
           value_ = null;
         }
@@ -6336,7 +6683,7 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder getCurrencyArrayValueBuilder() {
       return getCurrencyArrayValueFieldBuilder().getBuilder();
@@ -6346,14 +6693,14 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder getCurrencyArrayValueOrBuilder() {
-      if ((valueCase_ == 24) && (currencyArrayValueBuilder_ != null)) {
+      if ((valueCase_ == 61) && (currencyArrayValueBuilder_ != null)) {
         return currencyArrayValueBuilder_.getMessageOrBuilder();
       } else {
-        if (valueCase_ == 24) {
+        if (valueCase_ == 61) {
           return (io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray) value_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
@@ -6364,13 +6711,13 @@ private static final long serialVersionUID = 0L;
      * Array of Currency values.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 24;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 61;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder> 
         getCurrencyArrayValueFieldBuilder() {
       if (currencyArrayValueBuilder_ == null) {
-        if (!(valueCase_ == 24)) {
+        if (!(valueCase_ == 61)) {
           value_ = io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray.getDefaultInstance();
         }
         currencyArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -6380,9 +6727,186 @@ private static final long serialVersionUID = 0L;
                 isClean());
         value_ = null;
       }
-      valueCase_ = 24;
+      valueCase_ = 61;
       onChanged();;
       return currencyArrayValueBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuidArray, io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder> uuidArrayValueBuilder_;
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     * @return Whether the uuidArrayValue field is set.
+     */
+    @java.lang.Override
+    public boolean hasUuidArrayValue() {
+      return valueCase_ == 62;
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     * @return The uuidArrayValue.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidArray getUuidArrayValue() {
+      if (uuidArrayValueBuilder_ == null) {
+        if (valueCase_ == 62) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance();
+      } else {
+        if (valueCase_ == 62) {
+          return uuidArrayValueBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    public Builder setUuidArrayValue(io.evitadb.externalApi.grpc.generated.GrpcUuidArray value) {
+      if (uuidArrayValueBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        value_ = value;
+        onChanged();
+      } else {
+        uuidArrayValueBuilder_.setMessage(value);
+      }
+      valueCase_ = 62;
+      return this;
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    public Builder setUuidArrayValue(
+        io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder builderForValue) {
+      if (uuidArrayValueBuilder_ == null) {
+        value_ = builderForValue.build();
+        onChanged();
+      } else {
+        uuidArrayValueBuilder_.setMessage(builderForValue.build());
+      }
+      valueCase_ = 62;
+      return this;
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    public Builder mergeUuidArrayValue(io.evitadb.externalApi.grpc.generated.GrpcUuidArray value) {
+      if (uuidArrayValueBuilder_ == null) {
+        if (valueCase_ == 62 &&
+            value_ != io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance()) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcUuidArray.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          value_ = value;
+        }
+        onChanged();
+      } else {
+        if (valueCase_ == 62) {
+          uuidArrayValueBuilder_.mergeFrom(value);
+        }
+        uuidArrayValueBuilder_.setMessage(value);
+      }
+      valueCase_ = 62;
+      return this;
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    public Builder clearUuidArrayValue() {
+      if (uuidArrayValueBuilder_ == null) {
+        if (valueCase_ == 62) {
+          valueCase_ = 0;
+          value_ = null;
+          onChanged();
+        }
+      } else {
+        if (valueCase_ == 62) {
+          valueCase_ = 0;
+          value_ = null;
+        }
+        uuidArrayValueBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder getUuidArrayValueBuilder() {
+      return getUuidArrayValueFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder getUuidArrayValueOrBuilder() {
+      if ((valueCase_ == 62) && (uuidArrayValueBuilder_ != null)) {
+        return uuidArrayValueBuilder_.getMessageOrBuilder();
+      } else {
+        if (valueCase_ == 62) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Array of UUID values.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuidArray uuidArrayValue = 62;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcUuidArray, io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder> 
+        getUuidArrayValueFieldBuilder() {
+      if (uuidArrayValueBuilder_ == null) {
+        if (!(valueCase_ == 62)) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcUuidArray.getDefaultInstance();
+        }
+        uuidArrayValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcUuidArray, io.evitadb.externalApi.grpc.generated.GrpcUuidArray.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidArrayOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcUuidArray) value_,
+                getParentForChildren(),
+                isClean());
+        value_ = null;
+      }
+      valueCase_ = 62;
+      onChanged();;
+      return uuidArrayValueBuilder_;
     }
 
     private int type_ = 0;
@@ -6391,7 +6915,7 @@ private static final long serialVersionUID = 0L;
      * The type of the stored value.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
      * @return The enum numeric value on the wire for type.
      */
     @java.lang.Override public int getTypeValue() {
@@ -6402,7 +6926,7 @@ private static final long serialVersionUID = 0L;
      * The type of the stored value.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
      * @param value The enum numeric value on the wire for type to set.
      * @return This builder for chaining.
      */
@@ -6417,7 +6941,7 @@ private static final long serialVersionUID = 0L;
      * The type of the stored value.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
      * @return The type.
      */
     @java.lang.Override
@@ -6431,7 +6955,7 @@ private static final long serialVersionUID = 0L;
      * The type of the stored value.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
      * @param value The type to set.
      * @return This builder for chaining.
      */
@@ -6449,7 +6973,7 @@ private static final long serialVersionUID = 0L;
      * The type of the stored value.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 30;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 100;</code>
      * @return This builder for chaining.
      */
     public Builder clearType() {
@@ -6468,7 +6992,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      * @return Whether the version field is set.
      */
     public boolean hasVersion() {
@@ -6480,7 +7004,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      * @return The version.
      */
     public com.google.protobuf.Int32Value getVersion() {
@@ -6496,7 +7020,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     public Builder setVersion(com.google.protobuf.Int32Value value) {
       if (versionBuilder_ == null) {
@@ -6517,7 +7041,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     public Builder setVersion(
         com.google.protobuf.Int32Value.Builder builderForValue) {
@@ -6536,7 +7060,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     public Builder mergeVersion(com.google.protobuf.Int32Value value) {
       if (versionBuilder_ == null) {
@@ -6559,7 +7083,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     public Builder clearVersion() {
       if (versionBuilder_ == null) {
@@ -6578,7 +7102,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     public com.google.protobuf.Int32Value.Builder getVersionBuilder() {
       
@@ -6591,7 +7115,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     public com.google.protobuf.Int32ValueOrBuilder getVersionOrBuilder() {
       if (versionBuilder_ != null) {
@@ -6607,7 +7131,7 @@ private static final long serialVersionUID = 0L;
      *			optimistic locking i.e. avoiding parallel modifications.
      * </pre>
      *
-     * <code>.google.protobuf.Int32Value version = 31;</code>
+     * <code>.google.protobuf.Int32Value version = 101;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 

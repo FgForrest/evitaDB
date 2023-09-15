@@ -394,7 +394,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			// if the mutation implements entity schema mutation apply it on the appropriate schema
 			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 				final String entityType = modifyEntitySchemaMutation.getEntityType();
-				final EntityCollection entityCollection = getOrCreateCollectionForEntity(entityType, session);
+				final EntityCollection entityCollection = getCollectionForEntityOrThrowException(entityType);
 				entityCollection.updateSchema(updatedSchema, modifyEntitySchemaMutation.getSchemaMutations());
 			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
 				final EntityCollection collectionToRemove = entityCollections.remove(removeEntitySchemaMutation.getName());
@@ -406,7 +406,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					if (session.isTransactionOpen()) {
 						collectionToRemove.removeLayer();
 					}
-					updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(updatedSchema);
+					updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
+						updatedSchema,
+						entityType -> getEntitySchema(entityType).orElse(null)
+					);
 				}
 			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
 				this.ioService.verifyEntityType(
@@ -419,14 +422,20 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				);
 				this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
 				this.entityCollections.put(newCollection.getEntityType(), newCollection);
-				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(updatedSchema);
+				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
+					updatedSchema,
+					entityType -> getEntitySchema(entityType).orElse(null)
+				);
 			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
 				if (renameEntitySchemaMutation.isOverwriteTarget() && entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
 					replaceEntityCollectionInternal(session, renameEntitySchemaMutation);
 				} else {
 					renameEntityCollectionInternal(session, renameEntitySchemaMutation);
 				}
-				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(updatedSchema);
+				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
+					updatedSchema,
+					entityType -> getEntitySchema(entityType).orElse(null)
+				);
 			} else {
 				updatedSchema = Objects.requireNonNull(theMutation.mutate(updatedSchema));
 			}

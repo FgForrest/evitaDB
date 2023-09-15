@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -58,6 +57,7 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 		final Collection<CatalogContract> catalogs = restApiHandlingContext.getEvita().getCatalogs();
 		return new SuccessEndpointResponse<>(catalogs);
 	}
+
 	@Nonnull
 	@Override
 	public Set<String> getSupportedHttpMethods() {
@@ -72,7 +72,7 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
 		return catalogJsonSerializer.serialize(catalogs);
 	}
 }

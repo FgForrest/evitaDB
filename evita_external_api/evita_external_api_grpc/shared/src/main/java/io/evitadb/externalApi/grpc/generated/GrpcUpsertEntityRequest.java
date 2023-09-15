@@ -76,11 +76,11 @@ private static final long serialVersionUID = 0L;
           }
           case 26: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
-              positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.QueryParam>();
+              positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>();
               mutable_bitField0_ |= 0x00000001;
             }
             positionalQueryParams_.add(
-                input.readMessage(io.evitadb.externalApi.grpc.generated.QueryParam.parser(), extensionRegistry));
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcQueryParam.parser(), extensionRegistry));
             break;
           }
           case 34: {
@@ -89,7 +89,7 @@ private static final long serialVersionUID = 0L;
                   NamedQueryParamsDefaultEntryHolder.defaultEntry);
               mutable_bitField0_ |= 0x00000002;
             }
-            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
+            com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
             namedQueryParams__ = input.readMessage(
                 NamedQueryParamsDefaultEntryHolder.defaultEntry.getParserForType(), extensionRegistry);
             namedQueryParams_.getMutableMap().put(
@@ -228,16 +228,16 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int POSITIONALQUERYPARAMS_FIELD_NUMBER = 3;
-  private java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> positionalQueryParams_;
+  private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> positionalQueryParams_;
   /**
    * <pre>
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> getPositionalQueryParamsList() {
+  public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getPositionalQueryParamsList() {
     return positionalQueryParams_;
   }
   /**
@@ -245,10 +245,10 @@ private static final long serialVersionUID = 0L;
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
-  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> 
+  public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList() {
     return positionalQueryParams_;
   }
@@ -257,7 +257,7 @@ private static final long serialVersionUID = 0L;
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
   public int getPositionalQueryParamsCount() {
@@ -268,10 +268,10 @@ private static final long serialVersionUID = 0L;
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.QueryParam getPositionalQueryParams(int index) {
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getPositionalQueryParams(int index) {
     return positionalQueryParams_.get(index);
   }
   /**
@@ -279,10 +279,10 @@ private static final long serialVersionUID = 0L;
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder getPositionalQueryParamsOrBuilder(
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder getPositionalQueryParamsOrBuilder(
       int index) {
     return positionalQueryParams_.get(index);
   }
@@ -290,18 +290,18 @@ private static final long serialVersionUID = 0L;
   public static final int NAMEDQUERYPARAMS_FIELD_NUMBER = 4;
   private static final class NamedQueryParamsDefaultEntryHolder {
     static final com.google.protobuf.MapEntry<
-        java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> defaultEntry =
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> defaultEntry =
             com.google.protobuf.MapEntry
-            .<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>newDefaultInstance(
+            .<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>newDefaultInstance(
                 io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcUpsertEntityRequest_NamedQueryParamsEntry_descriptor, 
                 com.google.protobuf.WireFormat.FieldType.STRING,
                 "",
                 com.google.protobuf.WireFormat.FieldType.MESSAGE,
-                io.evitadb.externalApi.grpc.generated.QueryParam.getDefaultInstance());
+                io.evitadb.externalApi.grpc.generated.GrpcQueryParam.getDefaultInstance());
   }
   private com.google.protobuf.MapField<
-      java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> namedQueryParams_;
-  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
+      java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> namedQueryParams_;
+  private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
   internalGetNamedQueryParams() {
     if (namedQueryParams_ == null) {
       return com.google.protobuf.MapField.emptyMapField(
@@ -318,7 +318,7 @@ private static final long serialVersionUID = 0L;
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
 
   @java.lang.Override
@@ -332,7 +332,7 @@ private static final long serialVersionUID = 0L;
    */
   @java.lang.Override
   @java.lang.Deprecated
-  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> getNamedQueryParams() {
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getNamedQueryParams() {
     return getNamedQueryParamsMap();
   }
   /**
@@ -340,11 +340,11 @@ private static final long serialVersionUID = 0L;
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
   @java.lang.Override
 
-  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> getNamedQueryParamsMap() {
+  public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getNamedQueryParamsMap() {
     return internalGetNamedQueryParams().getMap();
   }
   /**
@@ -352,15 +352,15 @@ private static final long serialVersionUID = 0L;
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
   @java.lang.Override
 
-  public io.evitadb.externalApi.grpc.generated.QueryParam getNamedQueryParamsOrDefault(
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrDefault(
       java.lang.String key,
-      io.evitadb.externalApi.grpc.generated.QueryParam defaultValue) {
+      io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
     if (key == null) { throw new NullPointerException("map key"); }
-    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> map =
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> map =
         internalGetNamedQueryParams().getMap();
     return map.containsKey(key) ? map.get(key) : defaultValue;
   }
@@ -369,14 +369,14 @@ private static final long serialVersionUID = 0L;
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
   @java.lang.Override
 
-  public io.evitadb.externalApi.grpc.generated.QueryParam getNamedQueryParamsOrThrow(
+  public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrThrow(
       java.lang.String key) {
     if (key == null) { throw new NullPointerException("map key"); }
-    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> map =
+    java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> map =
         internalGetNamedQueryParams().getMap();
     if (!map.containsKey(key)) {
       throw new java.lang.IllegalArgumentException();
@@ -433,9 +433,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, positionalQueryParams_.get(i));
     }
-    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> entry
+    for (java.util.Map.Entry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> entry
          : internalGetNamedQueryParams().getMap().entrySet()) {
-      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
+      com.google.protobuf.MapEntry<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
       namedQueryParams__ = NamedQueryParamsDefaultEntryHolder.defaultEntry.newBuilderForType()
           .setKey(entry.getKey())
           .setValue(entry.getValue())
@@ -1077,26 +1077,26 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> positionalQueryParams_ =
+    private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> positionalQueryParams_ =
       java.util.Collections.emptyList();
     private void ensurePositionalQueryParamsIsMutable() {
       if (!((bitField0_ & 0x00000001) != 0)) {
-        positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.QueryParam>(positionalQueryParams_);
+        positionalQueryParams_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcQueryParam>(positionalQueryParams_);
         bitField0_ |= 0x00000001;
        }
     }
 
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.QueryParam, io.evitadb.externalApi.grpc.generated.QueryParam.Builder, io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> positionalQueryParamsBuilder_;
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> positionalQueryParamsBuilder_;
 
     /**
      * <pre>
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam> getPositionalQueryParamsList() {
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getPositionalQueryParamsList() {
       if (positionalQueryParamsBuilder_ == null) {
         return java.util.Collections.unmodifiableList(positionalQueryParams_);
       } else {
@@ -1108,7 +1108,7 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public int getPositionalQueryParamsCount() {
       if (positionalQueryParamsBuilder_ == null) {
@@ -1122,9 +1122,9 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.QueryParam getPositionalQueryParams(int index) {
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getPositionalQueryParams(int index) {
       if (positionalQueryParamsBuilder_ == null) {
         return positionalQueryParams_.get(index);
       } else {
@@ -1136,10 +1136,10 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder setPositionalQueryParams(
-        int index, io.evitadb.externalApi.grpc.generated.QueryParam value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
       if (positionalQueryParamsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1157,10 +1157,10 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder setPositionalQueryParams(
-        int index, io.evitadb.externalApi.grpc.generated.QueryParam.Builder builderForValue) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder builderForValue) {
       if (positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
         positionalQueryParams_.set(index, builderForValue.build());
@@ -1175,9 +1175,9 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public Builder addPositionalQueryParams(io.evitadb.externalApi.grpc.generated.QueryParam value) {
+    public Builder addPositionalQueryParams(io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
       if (positionalQueryParamsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1195,10 +1195,10 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder addPositionalQueryParams(
-        int index, io.evitadb.externalApi.grpc.generated.QueryParam value) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
       if (positionalQueryParamsBuilder_ == null) {
         if (value == null) {
           throw new NullPointerException();
@@ -1216,10 +1216,10 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder addPositionalQueryParams(
-        io.evitadb.externalApi.grpc.generated.QueryParam.Builder builderForValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder builderForValue) {
       if (positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
         positionalQueryParams_.add(builderForValue.build());
@@ -1234,10 +1234,10 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder addPositionalQueryParams(
-        int index, io.evitadb.externalApi.grpc.generated.QueryParam.Builder builderForValue) {
+        int index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder builderForValue) {
       if (positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
         positionalQueryParams_.add(index, builderForValue.build());
@@ -1252,10 +1252,10 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder addAllPositionalQueryParams(
-        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.QueryParam> values) {
+        java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParam> values) {
       if (positionalQueryParamsBuilder_ == null) {
         ensurePositionalQueryParamsIsMutable();
         com.google.protobuf.AbstractMessageLite.Builder.addAll(
@@ -1271,7 +1271,7 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder clearPositionalQueryParams() {
       if (positionalQueryParamsBuilder_ == null) {
@@ -1288,7 +1288,7 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
     public Builder removePositionalQueryParams(int index) {
       if (positionalQueryParamsBuilder_ == null) {
@@ -1305,9 +1305,9 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.QueryParam.Builder getPositionalQueryParamsBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder getPositionalQueryParamsBuilder(
         int index) {
       return getPositionalQueryParamsFieldBuilder().getBuilder(index);
     }
@@ -1316,9 +1316,9 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder getPositionalQueryParamsOrBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder getPositionalQueryParamsOrBuilder(
         int index) {
       if (positionalQueryParamsBuilder_ == null) {
         return positionalQueryParams_.get(index);  } else {
@@ -1330,9 +1330,9 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> 
+    public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
          getPositionalQueryParamsOrBuilderList() {
       if (positionalQueryParamsBuilder_ != null) {
         return positionalQueryParamsBuilder_.getMessageOrBuilderList();
@@ -1345,41 +1345,41 @@ private static final long serialVersionUID = 0L;
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.QueryParam.Builder addPositionalQueryParamsBuilder() {
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder addPositionalQueryParamsBuilder() {
       return getPositionalQueryParamsFieldBuilder().addBuilder(
-          io.evitadb.externalApi.grpc.generated.QueryParam.getDefaultInstance());
+          io.evitadb.externalApi.grpc.generated.GrpcQueryParam.getDefaultInstance());
     }
     /**
      * <pre>
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public io.evitadb.externalApi.grpc.generated.QueryParam.Builder addPositionalQueryParamsBuilder(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder addPositionalQueryParamsBuilder(
         int index) {
       return getPositionalQueryParamsFieldBuilder().addBuilder(
-          index, io.evitadb.externalApi.grpc.generated.QueryParam.getDefaultInstance());
+          index, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.getDefaultInstance());
     }
     /**
      * <pre>
      * The positional query parameters.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.QueryParam positionalQueryParams = 3;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
      */
-    public java.util.List<io.evitadb.externalApi.grpc.generated.QueryParam.Builder> 
+    public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder> 
          getPositionalQueryParamsBuilderList() {
       return getPositionalQueryParamsFieldBuilder().getBuilderList();
     }
     private com.google.protobuf.RepeatedFieldBuilderV3<
-        io.evitadb.externalApi.grpc.generated.QueryParam, io.evitadb.externalApi.grpc.generated.QueryParam.Builder, io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder> 
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
         getPositionalQueryParamsFieldBuilder() {
       if (positionalQueryParamsBuilder_ == null) {
         positionalQueryParamsBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
-            io.evitadb.externalApi.grpc.generated.QueryParam, io.evitadb.externalApi.grpc.generated.QueryParam.Builder, io.evitadb.externalApi.grpc.generated.QueryParamOrBuilder>(
+            io.evitadb.externalApi.grpc.generated.GrpcQueryParam, io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder, io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder>(
                 positionalQueryParams_,
                 ((bitField0_ & 0x00000001) != 0),
                 getParentForChildren(),
@@ -1390,8 +1390,8 @@ private static final long serialVersionUID = 0L;
     }
 
     private com.google.protobuf.MapField<
-        java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> namedQueryParams_;
-    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
+        java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> namedQueryParams_;
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
     internalGetNamedQueryParams() {
       if (namedQueryParams_ == null) {
         return com.google.protobuf.MapField.emptyMapField(
@@ -1399,7 +1399,7 @@ private static final long serialVersionUID = 0L;
       }
       return namedQueryParams_;
     }
-    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
+    private com.google.protobuf.MapField<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
     internalGetMutableNamedQueryParams() {
       onChanged();;
       if (namedQueryParams_ == null) {
@@ -1420,7 +1420,7 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
 
     @java.lang.Override
@@ -1434,7 +1434,7 @@ private static final long serialVersionUID = 0L;
      */
     @java.lang.Override
     @java.lang.Deprecated
-    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> getNamedQueryParams() {
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getNamedQueryParams() {
       return getNamedQueryParamsMap();
     }
     /**
@@ -1442,11 +1442,11 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
     @java.lang.Override
 
-    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> getNamedQueryParamsMap() {
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> getNamedQueryParamsMap() {
       return internalGetNamedQueryParams().getMap();
     }
     /**
@@ -1454,15 +1454,15 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
     @java.lang.Override
 
-    public io.evitadb.externalApi.grpc.generated.QueryParam getNamedQueryParamsOrDefault(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrDefault(
         java.lang.String key,
-        io.evitadb.externalApi.grpc.generated.QueryParam defaultValue) {
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam defaultValue) {
       if (key == null) { throw new NullPointerException("map key"); }
-      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> map =
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> map =
           internalGetNamedQueryParams().getMap();
       return map.containsKey(key) ? map.get(key) : defaultValue;
     }
@@ -1471,14 +1471,14 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
     @java.lang.Override
 
-    public io.evitadb.externalApi.grpc.generated.QueryParam getNamedQueryParamsOrThrow(
+    public io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrThrow(
         java.lang.String key) {
       if (key == null) { throw new NullPointerException("map key"); }
-      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> map =
+      java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> map =
           internalGetNamedQueryParams().getMap();
       if (!map.containsKey(key)) {
         throw new java.lang.IllegalArgumentException();
@@ -1496,7 +1496,7 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
 
     public Builder removeNamedQueryParams(
@@ -1510,7 +1510,7 @@ private static final long serialVersionUID = 0L;
      * Use alternate mutation accessors instead.
      */
     @java.lang.Deprecated
-    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam>
+    public java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
     getMutableNamedQueryParams() {
       return internalGetMutableNamedQueryParams().getMutableMap();
     }
@@ -1519,11 +1519,11 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
     public Builder putNamedQueryParams(
         java.lang.String key,
-        io.evitadb.externalApi.grpc.generated.QueryParam value) {
+        io.evitadb.externalApi.grpc.generated.GrpcQueryParam value) {
       if (key == null) { throw new NullPointerException("map key"); }
       if (value == null) {
   throw new NullPointerException("map value");
@@ -1538,11 +1538,11 @@ private static final long serialVersionUID = 0L;
      * The named query parameters.
      * </pre>
      *
-     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.QueryParam&gt; namedQueryParams = 4;</code>
+     * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
      */
 
     public Builder putAllNamedQueryParams(
-        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.QueryParam> values) {
+        java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam> values) {
       internalGetMutableNamedQueryParams().getMutableMap()
           .putAll(values);
       return this;

@@ -85,7 +85,8 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
-import io.evitadb.index.IndexKey;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -183,7 +184,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Contemporary stack for keeping results resolved for each level of the query.
 	 */
 	@Getter(AccessLevel.PROTECTED)
-	private final Deque<ProcessingScope> scope = new LinkedList<>();
+	private final Deque<ProcessingScope<? extends Index<?>>> scope = new LinkedList<>();
 	/**
 	 * Contains list of registered post processors. Formula post processor is used to transform final {@link Formula}
 	 * tree constructed in {@link FilterByVisitor} before computing the result. Post processors should analyze created
@@ -203,12 +204,12 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * is not used to resolve entire query filter.
 	 */
 	@Nonnull
-	private final List<TargetIndexes> targetIndexes;
+	private final List<TargetIndexes<?>> targetIndexes;
 	/**
 	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
 	 */
 	@Nonnull
-	private final TargetIndexes indexSetToUse;
+	private final TargetIndexes<? extends Index<?>> indexSetToUse;
 	/**
 	 * Field is set to TRUE when it's already known that filtering query contains query that uses data from
 	 * the {@link #indexSetToUse} - i.e. query implementing {@link IndexUsingConstraint}. This situation allows
@@ -263,6 +264,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			final GlobalEntityIndex entityIndex = queryContext.getGlobalEntityIndex(entityType);
 			theFormula = queryContext.analyse(
 				theFilterByVisitor.executeInContext(
+					GlobalEntityIndex.class,
 					Collections.singletonList(entityIndex),
 					null,
 					entityIndex.getEntitySchema(),
@@ -284,29 +286,32 @@ public class FilterByVisitor implements ConstraintVisitor {
 		return theFormula;
 	}
 
-	protected FilterByVisitor(
-		@Nonnull ProcessingScope processingScope,
+	protected <T extends Index<?>> FilterByVisitor(
+		@Nonnull ProcessingScope<T> processingScope,
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes> targetIndexes,
-		@Nonnull TargetIndexes indexSetToUse,
+		@Nonnull List<TargetIndexes<T>> targetIndexes,
+		@Nonnull TargetIndexes<T> indexSetToUse,
 		boolean targetIndexQueriedByOtherConstraints
 	) {
 		this.stack.push(new LinkedList<>());
 		this.scope.push(processingScope);
 		this.queryContext = queryContext;
-		this.targetIndexes = targetIndexes;
+		//I just can't get generic to work here
+		//noinspection unchecked,rawtypes
+		this.targetIndexes = (List)targetIndexes;
 		this.indexSetToUse = indexSetToUse;
 		this.targetIndexQueriedByOtherConstraints = targetIndexQueriedByOtherConstraints;
 	}
 
-	public FilterByVisitor(
+	public <T extends Index<?>> FilterByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes> targetIndexes,
-		@Nonnull TargetIndexes indexSetToUse,
+		@Nonnull List<TargetIndexes<T>> targetIndexes,
+		@Nonnull TargetIndexes<T> indexSetToUse,
 		boolean targetIndexQueriedByOtherConstraints
 	) {
 		this(
-			new ProcessingScope(
+			new ProcessingScope<>(
+				indexSetToUse.getIndexType(),
 				indexSetToUse.getIndexes(),
 				AttributeContent.ALL_ATTRIBUTES,
 				queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
@@ -514,11 +519,11 @@ public class FilterByVisitor implements ConstraintVisitor {
 	/**
 	 * Returns extension of {@link ProcessingScope} that is set for current context.
 	 *
-	 * @see #executeInContext(List, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
+	 * @see #executeInContext(Class, List, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, Function, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
 	 */
 	@Nonnull
-	public ProcessingScope getProcessingScope() {
-		final ProcessingScope processingScope;
+	public ProcessingScope<? extends Index<?>> getProcessingScope() {
+		final ProcessingScope<? extends Index<?>> processingScope;
 		if (scope.isEmpty()) {
 			throw new EvitaInternalError("Scope should never be empty");
 		} else {
@@ -534,7 +539,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * @return entity indexes that contains parts of indexed data
 	 */
 	@Nonnull
-	public List<EntityIndex> getReferencedRecordEntityIndexes(@Nonnull ReferenceHaving referenceHaving) {
+	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(@Nonnull ReferenceHaving referenceHaving) {
 		final String referenceName = referenceHaving.getReferenceName();
 		final EntitySchemaContract entitySchema = getProcessingScope().getEntitySchema();
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
@@ -542,7 +547,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final boolean referencesHierarchicalEntity = isReferencingHierarchicalEntity(referenceSchema);
 		final Formula referencedRecordIdFormula = getReferencedRecordIdFormula(entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()));
 		final Bitmap referencedRecordIds = referencedRecordIdFormula.compute();
-		final List<EntityIndex> result = new ArrayList<>(referencedRecordIds.size());
+		final List<ReducedEntityIndex> result = new ArrayList<>(referencedRecordIds.size());
 		for (Integer referencedRecordId : referencedRecordIds) {
 			ofNullable(getReferencedEntityIndex(entitySchema, referenceName, referencesHierarchicalEntity, referencedRecordId))
 				.ifPresent(result::add);
@@ -568,15 +573,17 @@ public class FilterByVisitor implements ConstraintVisitor {
 		final String referenceName = referenceSchema.getName();
 		isTrue(referenceSchema.isIndexed(), () -> new ReferenceNotIndexedException(referenceName, entitySchema));
 
-		final EntityIndex entityIndex = getIndex(
+		final ReferencedTypeEntityIndex entityIndex = getIndex(
 			entitySchema.getName(),
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName)
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, referenceName),
+			ReferencedTypeEntityIndex.class
 		);
 		if (entityIndex == null) {
 			return EmptyFormula.INSTANCE;
 		}
 
 		return executeInContext(
+			ReferencedTypeEntityIndex.class,
 			Collections.singletonList(entityIndex),
 			ReferenceContent.ALL_REFERENCES,
 			entityIndex.getEntitySchema(),
@@ -596,8 +603,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Stream<EntityIndex> getEntityIndexStream() {
-		final Deque<ProcessingScope> scope = getScope();
-		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream(EntityIndex.class);
+		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
+		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
 	}
 
 	/**
@@ -615,7 +622,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nullable
-	public EntityIndex getReferencedEntityIndex(
+	public ReducedEntityIndex getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int referencedEntityId
@@ -633,7 +640,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Argument `referencesHierarchicalEntity` should be evaluated first by {@link #isReferencingHierarchicalEntity(ReferenceSchemaContract)} method.
 	 */
 	@Nullable
-	public EntityIndex getReferencedEntityIndex(
+	public ReducedEntityIndex getReferencedEntityIndex(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull String referenceName,
 		boolean referencesHierarchicalEntity,
@@ -645,7 +652,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_HIERARCHY_NODE,
 					new ReferenceKey(referenceName, referencedEntityId)
-				)
+				),
+				ReducedEntityIndex.class
 			);
 		} else {
 			return getQueryContext().getIndex(
@@ -653,7 +661,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_ENTITY,
 					new ReferenceKey(referenceName, referencedEntityId)
-				)
+				),
+				ReducedEntityIndex.class
 			);
 		}
 	}
@@ -671,8 +680,9 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T> T executeInContextAndIsolatedFormulaStack(
-		@Nonnull List<EntityIndex> targetIndexes,
+	public final <T, S extends Index<?>> T executeInContextAndIsolatedFormulaStack(
+		@Nonnull Class<S> indexType,
+		@Nonnull Supplier<List<S>> targetIndexSupplier,
 		@Nullable EntityContentRequire requirements,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -686,7 +696,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 		try {
 			this.stack.push(new LinkedList<>());
 			return executeInContext(
-				targetIndexes,
+				indexType,
+				targetIndexSupplier,
 				requirements,
 				entitySchema,
 				referenceSchema,
@@ -706,8 +717,9 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T> T executeInContext(
-		@Nonnull List<EntityIndex> targetIndexes,
+	public final <T, S extends EntityIndex> T executeInContext(
+		@Nonnull Class<S> indexType,
+		@Nonnull List<S> targetIndexes,
 		@Nullable EntityContentRequire requirements,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
@@ -720,8 +732,47 @@ public class FilterByVisitor implements ConstraintVisitor {
 	) {
 		try {
 			this.scope.push(
-				new ProcessingScope(
+				new ProcessingScope<>(
+					indexType,
 					targetIndexes,
+					requirements,
+					entitySchema,
+					referenceSchema,
+					nestedQueryFormulaEnricher,
+					entityNestedQueryComparator,
+					attributeSchemaAccessor,
+					attributeValueAccessor,
+					suppressedConstraints
+				)
+			);
+			return lambda.get();
+		} finally {
+			this.scope.pop();
+		}
+	}
+
+	/**
+	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
+	 */
+	@SafeVarargs
+	public final <T, S extends Index<?>> T executeInContext(
+		@Nonnull Class<S> indexType,
+		@Nonnull Supplier<List<S>> targetIndexSupplier,
+		@Nullable EntityContentRequire requirements,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema,
+		@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Supplier<T> lambda,
+		@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
+	) {
+		try {
+			this.scope.push(
+				new ProcessingScope<>(
+					indexType,
+					targetIndexSupplier,
 					requirements,
 					entitySchema,
 					referenceSchema,
@@ -864,7 +915,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * of all {@link EntityIndex#getAllPrimaryKeys()} would produce the correct result for passed query).
 	 */
 	@Nullable
-	public TargetIndexes findTargetIndexSet(@Nonnull FilterConstraint filterConstraint) {
+	public TargetIndexes<?> findTargetIndexSet(@Nonnull FilterConstraint filterConstraint) {
 		return targetIndexes
 			.stream()
 			.filter(it -> it.getRepresentedConstraint() == filterConstraint)
@@ -931,12 +982,24 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * implementations to exchange indexes that are being used, suppressing certain query evaluation or accessing
 	 * attribute schema information.
 	 */
-	public static class ProcessingScope {
+	public static class ProcessingScope<T extends Index<?>> {
+		/**
+		 * Contains the type of {@link Index} that is being used in the current scope in {@link #indexes} list.
+		 * All indexes must be assignable to this type
+		 */
+		@Nonnull @Getter
+		private final Class<T> indexType;
+		/**
+		 * Allows to lazily compute and access the list of {@link #indexes} and avoid paying a performance penalty if
+		 * the list is not necessary.
+		 * Might be null if the list of {@link #indexes} is known since the start.
+		 */
+		@Nullable
+		private final Supplier<List<T>> indexSupplier;
 		/**
 		 * Contains set of indexes, that should be used for accessing final indexes.
 		 */
-		@Nonnull
-		private final List<Index<?>> indexes;
+		private List<T> indexes;
 		/**
 		 * Suppressed constraints contains set of {@link FilterConstraint} that will not be evaluated by this visitor
 		 * in current scope.
@@ -1007,7 +1070,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 
 		@SafeVarargs
 		public ProcessingScope(
-			@Nonnull List<? extends Index<?>> targetIndexes,
+			@Nonnull Class<T> indexType,
+			@Nonnull List<T> targetIndexes,
 			@Nullable EntityContentRequire requirements,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
@@ -1017,6 +1081,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
 			this(
+				indexType,
 				targetIndexes,
 				requirements,
 				entitySchema,
@@ -1031,7 +1096,8 @@ public class FilterByVisitor implements ConstraintVisitor {
 
 		@SafeVarargs
 		public ProcessingScope(
-			@Nonnull List<? extends Index<?>> targetIndexes,
+			@Nonnull Class<T> indexType,
+			@Nonnull List<T> targetIndexes,
 			@Nullable EntityContentRequire requirements,
 			@Nonnull EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
@@ -1041,6 +1107,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
 		) {
+			this.indexType = indexType;
 			this.attributeSchemaAccessor = attributeSchemaAccessor;
 			this.attributeValueAccessor = attributeValueAccessor;
 			if (suppressedConstraints.length > 0) {
@@ -1054,21 +1121,62 @@ public class FilterByVisitor implements ConstraintVisitor {
 			this.referenceSchema = referenceSchema;
 			this.nestedQueryFormulaEnricher = nestedQueryFormulaEnricher == null ? Function.identity() : nestedQueryFormulaEnricher;
 			this.entityNestedQueryComparator = entityNestedQueryComparator;
-			this.indexes = new ArrayList<>(targetIndexes.size());
-			this.indexes.addAll(targetIndexes);
+			this.indexSupplier = null;
+			this.indexes = targetIndexes;
+		}
+
+		@SafeVarargs
+		public ProcessingScope(
+			@Nonnull Class<T> indexType,
+			@Nonnull Supplier<List<T>> targetIndexSupplier,
+			@Nullable EntityContentRequire requirements,
+			@Nonnull EntitySchemaContract entitySchema,
+			@Nullable ReferenceSchemaContract referenceSchema,
+			@Nullable Function<FilterConstraint, FilterConstraint> nestedQueryFormulaEnricher,
+			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
+			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
+		) {
+			this.indexType = indexType;
+			this.attributeSchemaAccessor = attributeSchemaAccessor;
+			this.attributeValueAccessor = attributeValueAccessor;
+			if (suppressedConstraints.length > 0) {
+				this.suppressedConstraints = new HashSet<>(suppressedConstraints.length);
+				this.suppressedConstraints.addAll(Arrays.asList(suppressedConstraints));
+			} else {
+				this.suppressedConstraints = Collections.emptySet();
+			}
+			this.requirements = requirements;
+			this.entitySchema = entitySchema;
+			this.referenceSchema = referenceSchema;
+			this.nestedQueryFormulaEnricher = nestedQueryFormulaEnricher == null ? Function.identity() : nestedQueryFormulaEnricher;
+			this.entityNestedQueryComparator = entityNestedQueryComparator;
+			this.indexSupplier = targetIndexSupplier;
+			this.indexes = null;
+		}
+
+		/**
+		 * Returns indexes that should be used for searching.
+		 */
+		public List<T> getIndexes() {
+			if (indexes == null) {
+				this.indexes = this.indexSupplier.get();
+			}
+			return indexes;
 		}
 
 		/**
 		 * Returns stream of indexes that should be used for searching.
 		 */
-		public <S extends IndexKey, T extends Index<S>> Stream<T> getIndexStream(Class<T> indexType) {
-			return indexes.stream().filter(indexType::isInstance).map(indexType::cast);
+		public Stream<T> getIndexStream() {
+			return getIndexes().stream();
 		}
 
 		/**
 		 * Returns true if passed query should be ignored.
 		 */
-		public boolean isSuppressed(Class<? extends FilterConstraint> constraint) {
+		public boolean isSuppressed(@Nonnull Class<? extends FilterConstraint> constraint) {
 			return this.suppressedConstraints.contains(constraint);
 		}
 
@@ -1085,20 +1193,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 */
 		public void popConstraint() {
 			this.processedConstraints.pop();
-		}
-
-		/**
-		 * Returns parent of currently processed query.
-		 */
-		@Nullable
-		public FilterConstraint getParentConstraint() {
-			if (this.processedConstraints.size() > 1) {
-				final Iterator<FilterConstraint> it = this.processedConstraints.iterator();
-				it.next();
-				return it.next();
-			} else {
-				return null;
-			}
 		}
 
 		/**

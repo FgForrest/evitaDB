@@ -32,8 +32,8 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
-import io.evitadb.externalApi.rest.api.system.resolver.endpoint.SystemRestHandlingContext;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
+import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.NamingConvention;
 import lombok.extern.slf4j.Slf4j;
 
@@ -51,7 +51,7 @@ public class CatalogJsonSerializer {
 
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	public CatalogJsonSerializer(@Nonnull SystemRestHandlingContext restHandlingContext) {
+	public CatalogJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
 		this.objectJsonSerializer = new ObjectJsonSerializer(restHandlingContext.getObjectMapper());
 	}
 

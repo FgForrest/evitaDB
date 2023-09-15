@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi;
 
 import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
@@ -51,6 +52,7 @@ import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_URL;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -182,34 +184,16 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 	@UseDataSet(TestDataGenerator.REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return rich unknown entity list by multiple localized globally unique attribute")
 	void shouldReturnRichUnknownEntityListByMultipleLocalizedGloballyUniqueAttribute(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
-		final String urlAttribute1 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 5);
-		final String urlAttribute2 = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_URL, Locale.ENGLISH, 7);
-		final SealedEntity entityWithUrl1 = getEntity(
-			evita,
-			query(
-				filterBy(
-					entityLocaleEquals(Locale.ENGLISH),
-					attributeEquals(ATTRIBUTE_URL, urlAttribute1),
-					attributeIsNotNull(ATTRIBUTE_NAME)
-				),
-				require(
-					entityFetch(
-						attributeContentAll()
-					)
-				)
-			),
-			SealedEntity.class
-		);
-		final SealedEntity entityWithUrl2 = getEntity(
+		final EvitaResponse<SealedEntity> entities = queryEntities(
 			evita,
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
 					entityLocaleEquals(Locale.ENGLISH),
-					attributeEquals(ATTRIBUTE_URL, urlAttribute2),
 					attributeIsNotNull(ATTRIBUTE_NAME)
 				),
 				require(
+					page(1, 2),
 					entityFetch(
 						attributeContentAll()
 					)
@@ -217,6 +201,11 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			),
 			SealedEntity.class
 		);
+		assertEquals(2, entities.getRecordData().size());
+		final SealedEntity entityWithUrl1 = entities.getRecordData().get(0);
+		final String urlAttribute1 = entityWithUrl1.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+		final SealedEntity entityWithUrl2 = entities.getRecordData().get(1);
+		final String urlAttribute2 = entityWithUrl2.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")

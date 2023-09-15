@@ -44,6 +44,7 @@ import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -84,6 +85,7 @@ public class AnyCoercing extends ObjectCoercing {
 		SERIALIZATION_COERCING_MAPPINGS.put(LongNumberRange.class, GraphQLScalars.LONG_NUMBER_RANGE_COERCING);
 		SERIALIZATION_COERCING_MAPPINGS.put(Locale.class, GraphQLScalars.LOCALE_COERCING);
 		SERIALIZATION_COERCING_MAPPINGS.put(Currency.class, GraphQLScalars.CURRENCY_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(UUID.class, GraphQLScalars.UUID_COERCING);
 	}
 
 	@Override

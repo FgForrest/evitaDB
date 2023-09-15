@@ -3,9 +3,11 @@
     filterBy: {
       entityLocaleEquals: cs
     },
-    orderBy: {
-      attributeNameNatural: ASC
-    }
+    orderBy: [
+      {
+        attributeNameNatural: ASC
+      }
+    ]
   ) {
     recordPage {
       data {

@@ -98,6 +98,12 @@ public interface ProductInterface extends EntityClassifier {
 	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
 	Optional<Boolean> getOptionallyAvailable();
 
+	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	Optional<List<String>> getMarketsIfAvailable();
+
+	@AssociatedData(name = AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	Optional<List<String>> getMarketsAssociatedDataIfAvailable();
+
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSet();
 

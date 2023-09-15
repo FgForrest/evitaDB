@@ -1,5 +1,5 @@
 final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-final List<QueryParam> params = new ArrayList<>();
+final List<GrpcQueryParam> params = new ArrayList<>();
 params.add(QueryConverter.convertQueryParam("Product"));
 params.add(QueryConverter.convertQueryParam("url"));
 params.add(QueryConverter.convertQueryParam("www"));

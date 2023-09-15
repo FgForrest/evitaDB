@@ -71,6 +71,7 @@ import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -142,6 +143,81 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	void tearDown() {
 		evita.close();
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_INDEXING_TEST);
+	}
+
+	@Test
+	void shouldAllowCreatingCatalogAndEntityCollectionsInPrototypingMode() {
+		final String someCatalogName = "differentCatalog";
+		try {
+			evita.defineCatalog(someCatalogName)
+				.withDescription("This is a tutorial catalog.")
+				.updateViaNewSession(evita);
+
+			assertTrue(evita.getCatalogNames().contains(someCatalogName));
+			evita.updateCatalog(
+				someCatalogName,
+				session -> {
+					session.createNewEntity("Brand", 1)
+						.setAttribute("name", Locale.ENGLISH, "Lenovo")
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
+					assertTrue(brand.isPresent());
+
+					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					assertTrue(nameAttribute.isPresent());
+					assertTrue(nameAttribute.get().isLocalized());
+
+					// now create an example category tree
+					session.createNewEntity("Category", 10)
+						.setAttribute("name", Locale.ENGLISH, "Electronics")
+						.upsertVia(session);
+
+					session.createNewEntity("Category", 11)
+						.setAttribute("name", Locale.ENGLISH, "Laptops")
+						// laptops will be a child category of electronics
+						.setParent(10)
+						.upsertVia(session);
+
+					// finally, create a product
+					session.createNewEntity("Product")
+						// with a few attributes
+						.setAttribute("name", Locale.ENGLISH, "ThinkPad P15 Gen 1")
+						.setAttribute("cores", 8)
+						.setAttribute("graphics", "NVIDIA Quadro RTX 4000 with Max-Q Design")
+						// and price for sale
+						.setPrice(
+							1, "basic",
+							Currency.getInstance("USD"),
+							new BigDecimal("1420"), new BigDecimal("20"), new BigDecimal("1704"),
+							true
+						)
+						// link it to the manufacturer
+						.setReference(
+							"brand", "Brand",
+							Cardinality.EXACTLY_ONE,
+							1
+						)
+						// and to the laptop category
+						.setReference(
+							"categories", "Category",
+							Cardinality.ZERO_OR_MORE,
+							11
+						)
+						.upsertVia(session);
+
+					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
+					assertTrue(product.isPresent());
+
+					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					assertTrue(productNameAttribute.isPresent());
+					assertTrue(productNameAttribute.get().isLocalized());
+				}
+			);
+
+		} finally {
+			evita.deleteCatalogIfExists(someCatalogName);
+		}
 	}
 
 	@Test

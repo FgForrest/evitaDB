@@ -35,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -61,7 +62,7 @@ public class Accumulator {
 	/**
 	 * Mutable container for gradually added children.
 	 */
-	@Getter private final List<Accumulator> children = new LinkedList<>();
+	@Getter private final LinkedList<Accumulator> children = new LinkedList<>();
 	/**
 	 * Counter for the children that would be returned in case the level predicate didn't stop the traversal.
 	 */
@@ -107,7 +108,14 @@ public class Accumulator {
 	 * Adds information about this hierarchy node children statistics.
 	 */
 	public void add(@Nonnull Accumulator childNode) {
-		this.children.add(childNode);
+		if (!this.children.isEmpty() && this.children.getLast().getEntity().getPrimaryKey() > childNode.getEntity().getPrimaryKey()) {
+			// we need to keep the children sorted by their primary key in ascending order
+			int index = Collections.binarySearch(this.children, childNode, Comparator.comparingInt(o -> o.getEntity().getPrimaryKey()));
+			Assert.isPremiseValid(index < 0, "Child node already exists in the accumulator!");
+			this.children.add(-index - 1, childNode);
+		} else {
+			this.children.add(childNode);
+		}
 		this.queriedEntitiesFormula = null;
 	}
 

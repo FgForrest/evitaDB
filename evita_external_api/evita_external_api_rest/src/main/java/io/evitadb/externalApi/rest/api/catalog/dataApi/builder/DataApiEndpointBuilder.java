@@ -45,8 +45,8 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.DeleteE
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.GetEntityHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.GetUnknownEntityHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.ListEntitiesHandler;
-import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.ListUnknownEntitiesHandler;
+import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.QueryEntitiesHandler;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint.UpsertEntityHandler;
 import io.evitadb.externalApi.rest.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationPathParameterTransformer;
@@ -67,8 +67,8 @@ import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_CURRENCY_ENUM;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CURRENCY_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityFullResponseObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityListRequestBodyObjectName;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityObjectName;
@@ -334,7 +334,7 @@ public class DataApiEndpointBuilder {
 
 		// build locale argument
 		if (!entitySchema.getLocales().isEmpty()) {
-			final OpenApiTypeReference localeEnum = typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchema));
+			final OpenApiTypeReference localeEnum = typeRefTo(LOCALE_ENUM.name());
 
 			if (!localized) {
 				final OpenApiEndpointParameter dataInLocalesParameter = FetchEntityEndpointHeaderDescriptor.DATA_IN_LOCALES
@@ -355,7 +355,7 @@ public class DataApiEndpointBuilder {
 		if (!entitySchema.getCurrencies().isEmpty()) {
 			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY
 				.to(operationQueryParameterBuilderTransformer)
-				.type(typeRefTo(ENTITY_CURRENCY_ENUM.name(entitySchema)))
+				.type(typeRefTo(CURRENCY_ENUM.name()))
 				.build());
 			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_IN_PRICE_LISTS.to(operationQueryParameterBuilderTransformer).build());
 			parameters.add(GetEntityEndpointHeaderDescriptor.PRICE_VALID_IN.to(operationQueryParameterBuilderTransformer).build());

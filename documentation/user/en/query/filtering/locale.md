@@ -89,6 +89,7 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 (*en_US*) localization. To select the products with English localization, we can issue this query:
 
 <SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Listing product with English locale](/documentation/user/en/query/filtering/examples/locale/locale.evitaql)
 </SourceCodeTabs>
 
@@ -101,7 +102,7 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 ##### List of all products with English localization in category
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of all products with English localization](/documentation/user/en/query/filtering/examples/locale/locale.evitaql.md)</MDInclude>
 
@@ -132,6 +133,7 @@ you can use the require constraint [`data-in-locale`](../requirements/fetching.m
 But when we request products in Czech locale:
 
 <SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Listing product with English locale](/documentation/user/en/query/filtering/examples/locale/locale_missing.evitaql)
 </SourceCodeTabs>
 
@@ -144,7 +146,7 @@ But when we request products in Czech locale:
 ##### List of all products with Czech localization in category
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of all products with Czech localization](/documentation/user/en/query/filtering/examples/locale/locale_missing.evitaql.md)</MDInclude>
 

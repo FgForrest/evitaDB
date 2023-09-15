@@ -43,6 +43,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiArray.arrayOf;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEnum.enumFrom;
@@ -188,6 +189,12 @@ class OpenApiScalarTest {
 	void shouldCreateCurrencySchema() {
 		final var expectedSchema = "type: string format: iso-4217 example: CZK";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(Currency.class).toSchema()));
+	}
+
+	@Test
+	void shouldCreateUuidSchema() {
+		final var expectedSchema = "type: string format: uuid example: 01081e6f-851f-46b1-9f8f-075b582b5d2e";
+		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(UUID.class).toSchema()));
 	}
 
 	@Test

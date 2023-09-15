@@ -36,6 +36,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 
 import static io.evitadb.dataType.EvitaDataTypes.formatValue;
 import static io.evitadb.dataType.EvitaDataTypes.getWrappingPrimitiveClass;
@@ -99,6 +100,12 @@ class EvitaDataTypesTest {
 	void shouldFormatCurrency() {
 		final Currency czkCurrency = Currency.getInstance("CZK");
 		assertEquals("'CZK'", formatValue(czkCurrency));
+	}
+
+	@Test
+	void shouldFormatUUID() {
+		final UUID uuid = UUID.randomUUID();
+		assertEquals("'" + uuid + "'", formatValue(uuid));
 	}
 
 	@Test
@@ -458,6 +465,20 @@ class EvitaDataTypesTest {
 		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType(new BigDecimal("8.78"), Locale.class));
 		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType("", Locale.class));
 		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType("-cs", Locale.class));
+	}
+
+	@Test
+	void shouldConvertToUuid() {
+		final UUID uuid = UUID.randomUUID();
+		assertEquals(uuid, EvitaDataTypes.toTargetType(uuid, UUID.class));
+		assertEquals(uuid, EvitaDataTypes.toTargetType(uuid.toString(), UUID.class));
+	}
+
+	@Test
+	void shouldFailToConvertToUuid() {
+		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType("WHATEVER", UUID.class));
+		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType(new BigDecimal("8.78"), UUID.class));
+		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType("", UUID.class));
 	}
 
 }

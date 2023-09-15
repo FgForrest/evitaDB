@@ -79,20 +79,24 @@ public class ComplexDataObjectToJsonConverter implements DataItemVisitor {
 
 	@Override
 	public void visit(@Nonnull DataItemArray arrayItem) {
+		final ArrayNode newArrayNode = objectMapper.getNodeFactory().arrayNode(arrayItem.children().length);
+
 		if (rootNode == null) {
 			// if we have no root create it
-			rootNode = objectMapper.createArrayNode();
+			rootNode = newArrayNode;
 			stack.push(rootNode);
 		} else {
 			final JsonNode stackNode = stack.peek();
 			// if its "map" node
 			// create appropriate node type as a children in it
 			if (stackNode instanceof ObjectNode objectNode) {
-				stack.push(objectNode.putArray(propertyNameStack.peek()));
+				objectNode.putIfAbsent(propertyNameStack.peek(), newArrayNode);
+				stack.push(newArrayNode);
 			} else if (stackNode instanceof ArrayNode arrayNode) {
 				// if it's "array" node
 				// create appropriate node type as a children in it
-				stack.push(arrayNode.addArray());
+				arrayNode.add(newArrayNode);
+				stack.push(newArrayNode);
 			} else {
 				// otherwise throw exception (this should never occur)
 				throw new IllegalStateException("Unexpected node on stack: " + stackNode);

@@ -1,232 +1,232 @@
 ```json
 [
   {
-    "level" : 1,
-    "entity" : {
-      "primaryKey" : 66466,
-      "parentPrimaryKey" : null,
-      "attributes" : {
-        "code" : "portables"
+    "level": 1,
+    "entity": {
+      "primaryKey": 66466,
+      "parentPrimaryKey": null,
+      "attributes": {
+        "code": "portables"
       }
     },
-    "queriedEntityCount" : 1396,
-    "childrenCount" : 3
+    "queriedEntityCount": 1396,
+    "childrenCount": 3
   },
   {
-    "level" : 1,
-    "entity" : {
-      "primaryKey" : 66467,
-      "parentPrimaryKey" : null,
-      "attributes" : {
-        "code" : "laptops"
+    "level": 1,
+    "entity": {
+      "primaryKey": 66467,
+      "parentPrimaryKey": null,
+      "attributes": {
+        "code": "laptops"
       }
     },
-    "queriedEntityCount" : 2314,
-    "childrenCount" : 6
+    "queriedEntityCount": 2314,
+    "childrenCount": 6
   },
   {
-    "level" : 1,
-    "entity" : {
-      "primaryKey" : 66468,
-      "parentPrimaryKey" : null,
-      "attributes" : {
-        "code" : "accessories"
+    "level": 1,
+    "entity": {
+      "primaryKey": 66468,
+      "parentPrimaryKey": null,
+      "attributes": {
+        "code": "accessories"
       }
     },
-    "queriedEntityCount" : 501,
-    "childrenCount" : 6
+    "queriedEntityCount": 501,
+    "childrenCount": 6
   },
   {
-    "level" : 2,
-    "entity" : {
-      "primaryKey" : 66482,
-      "parentPrimaryKey" : 66468,
-      "attributes" : {
-        "code" : "audio"
+    "level": 2,
+    "entity": {
+      "primaryKey": 66480,
+      "parentPrimaryKey": 66468,
+      "attributes": {
+        "code": "christmas-electronics"
       }
     },
-    "queriedEntityCount" : 116,
-    "childrenCount" : 4
+    "queriedEntityCount": 10,
+    "childrenCount": 0
   },
   {
-    "level" : 3,
-    "entity" : {
-      "primaryKey" : 66488,
-      "parentPrimaryKey" : 66482,
-      "attributes" : {
-        "code" : "wireless-headphones"
+    "level": 2,
+    "entity": {
+      "primaryKey": 66481,
+      "parentPrimaryKey": 66468,
+      "attributes": {
+        "code": "smart-wearable"
       }
     },
-    "queriedEntityCount" : 73,
-    "childrenCount" : 4
+    "queriedEntityCount": 285,
+    "childrenCount": 3
   },
   {
-    "level" : 4,
-    "entity" : {
-      "primaryKey" : 66494,
-      "parentPrimaryKey" : 66488,
-      "attributes" : {
-        "code" : "true-wireless"
+    "level": 2,
+    "entity": {
+      "primaryKey": 66482,
+      "parentPrimaryKey": 66468,
+      "attributes": {
+        "code": "audio"
       }
     },
-    "queriedEntityCount" : 38,
-    "childrenCount" : 0
+    "queriedEntityCount": 116,
+    "childrenCount": 4
   },
   {
-    "level" : 4,
-    "entity" : {
-      "primaryKey" : 66495,
-      "parentPrimaryKey" : 66488,
-      "attributes" : {
-        "code" : "over-ear"
+    "level": 3,
+    "entity": {
+      "primaryKey": 66488,
+      "parentPrimaryKey": 66482,
+      "attributes": {
+        "code": "wireless-headphones"
       }
     },
-    "queriedEntityCount" : 11,
-    "childrenCount" : 0
+    "queriedEntityCount": 73,
+    "childrenCount": 4
   },
   {
-    "level" : 4,
-    "entity" : {
-      "primaryKey" : 66496,
-      "parentPrimaryKey" : 66488,
-      "attributes" : {
-        "code" : "on-ear"
+    "level": 4,
+    "entity": {
+      "primaryKey": 66494,
+      "parentPrimaryKey": 66488,
+      "attributes": {
+        "code": "true-wireless"
       }
     },
-    "queriedEntityCount" : 18,
-    "childrenCount" : 0
+    "queriedEntityCount": 38,
+    "childrenCount": 0
   },
   {
-    "level" : 4,
-    "entity" : {
-      "primaryKey" : 66497,
-      "parentPrimaryKey" : 66488,
-      "attributes" : {
-        "code" : "earbuds"
+    "level": 4,
+    "entity": {
+      "primaryKey": 66495,
+      "parentPrimaryKey": 66488,
+      "attributes": {
+        "code": "over-ear"
       }
     },
-    "queriedEntityCount" : 6,
-    "childrenCount" : 0
+    "queriedEntityCount": 11,
+    "childrenCount": 0
   },
   {
-    "level" : 3,
-    "entity" : {
-      "primaryKey" : 66489,
-      "parentPrimaryKey" : 66482,
-      "attributes" : {
-        "code" : "wired-heaphones"
+    "level": 4,
+    "entity": {
+      "primaryKey": 66496,
+      "parentPrimaryKey": 66488,
+      "attributes": {
+        "code": "on-ear"
       }
     },
-    "queriedEntityCount" : 8,
-    "childrenCount" : 3
+    "queriedEntityCount": 18,
+    "childrenCount": 0
   },
   {
-    "level" : 3,
-    "entity" : {
-      "primaryKey" : 66490,
-      "parentPrimaryKey" : 66482,
-      "attributes" : {
-        "code" : "microphones"
+    "level": 4,
+    "entity": {
+      "primaryKey": 66497,
+      "parentPrimaryKey": 66488,
+      "attributes": {
+        "code": "earbuds"
       }
     },
-    "queriedEntityCount" : 15,
-    "childrenCount" : 0
+    "queriedEntityCount": 6,
+    "childrenCount": 0
   },
   {
-    "level" : 3,
-    "entity" : {
-      "primaryKey" : 66491,
-      "parentPrimaryKey" : 66482,
-      "attributes" : {
-        "code" : "repro"
+    "level": 3,
+    "entity": {
+      "primaryKey": 66489,
+      "parentPrimaryKey": 66482,
+      "attributes": {
+        "code": "wired-heaphones"
       }
     },
-    "queriedEntityCount" : 20,
-    "childrenCount" : 0
+    "queriedEntityCount": 8,
+    "childrenCount": 3
   },
   {
-    "level" : 2,
-    "entity" : {
-      "primaryKey" : 66480,
-      "parentPrimaryKey" : 66468,
-      "attributes" : {
-        "code" : "christmas-electronics"
+    "level": 3,
+    "entity": {
+      "primaryKey": 66490,
+      "parentPrimaryKey": 66482,
+      "attributes": {
+        "code": "microphones"
       }
     },
-    "queriedEntityCount" : 10,
-    "childrenCount" : 0
+    "queriedEntityCount": 15,
+    "childrenCount": 0
   },
   {
-    "level" : 2,
-    "entity" : {
-      "primaryKey" : 66481,
-      "parentPrimaryKey" : 66468,
-      "attributes" : {
-        "code" : "smart-wearable"
+    "level": 3,
+    "entity": {
+      "primaryKey": 66491,
+      "parentPrimaryKey": 66482,
+      "attributes": {
+        "code": "repro"
       }
     },
-    "queriedEntityCount" : 285,
-    "childrenCount" : 3
+    "queriedEntityCount": 20,
+    "childrenCount": 0
   },
   {
-    "level" : 2,
-    "entity" : {
-      "primaryKey" : 66483,
-      "parentPrimaryKey" : 66468,
-      "attributes" : {
-        "code" : "monitors"
+    "level": 2,
+    "entity": {
+      "primaryKey": 66483,
+      "parentPrimaryKey": 66468,
+      "attributes": {
+        "code": "monitors"
       }
     },
-    "queriedEntityCount" : 50,
-    "childrenCount" : 0
+    "queriedEntityCount": 50,
+    "childrenCount": 0
   },
   {
-    "level" : 2,
-    "entity" : {
-      "primaryKey" : 66484,
-      "parentPrimaryKey" : 66468,
-      "attributes" : {
-        "code" : "keyboards"
+    "level": 2,
+    "entity": {
+      "primaryKey": 66484,
+      "parentPrimaryKey": 66468,
+      "attributes": {
+        "code": "keyboards"
       }
     },
-    "queriedEntityCount" : 20,
-    "childrenCount" : 1
+    "queriedEntityCount": 20,
+    "childrenCount": 1
   },
   {
-    "level" : 2,
-    "entity" : {
-      "primaryKey" : 66537,
-      "parentPrimaryKey" : 66468,
-      "attributes" : {
-        "code" : "mouses"
+    "level": 2,
+    "entity": {
+      "primaryKey": 66537,
+      "parentPrimaryKey": 66468,
+      "attributes": {
+        "code": "mouses"
       }
     },
-    "queriedEntityCount" : 20,
-    "childrenCount" : 0
+    "queriedEntityCount": 20,
+    "childrenCount": 0
   },
   {
-    "level" : 1,
-    "entity" : {
-      "primaryKey" : 66469,
-      "parentPrimaryKey" : null,
-      "attributes" : {
-        "code" : "vouchers"
+    "level": 1,
+    "entity": {
+      "primaryKey": 66469,
+      "parentPrimaryKey": null,
+      "attributes": {
+        "code": "vouchers"
       }
     },
-    "queriedEntityCount" : 12,
-    "childrenCount" : 1
+    "queriedEntityCount": 12,
+    "childrenCount": 1
   },
   {
-    "level" : 1,
-    "entity" : {
-      "primaryKey" : 66470,
-      "parentPrimaryKey" : null,
-      "attributes" : {
-        "code" : "prepared-products"
+    "level": 1,
+    "entity": {
+      "primaryKey": 66470,
+      "parentPrimaryKey": null,
+      "attributes": {
+        "code": "prepared-products"
       }
     },
-    "queriedEntityCount" : 92,
-    "childrenCount" : 0
+    "queriedEntityCount": 92,
+    "childrenCount": 0
   }
 ]
 ```

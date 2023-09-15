@@ -152,7 +152,8 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	 */
 	@Nonnull
 	public static CatalogSchema _internalBuildWithUpdatedVersion(
-		@Nonnull CatalogSchemaContract baseSchema
+		@Nonnull CatalogSchemaContract baseSchema,
+		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	) {
 		return new CatalogSchema(
 				baseSchema.version() + 1,
@@ -161,7 +162,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getDescription(),
 				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
-				entityType -> baseSchema.getEntitySchema(entityType).orElse(null)
+				entitySchemaAccessor
 			);
 	}
 

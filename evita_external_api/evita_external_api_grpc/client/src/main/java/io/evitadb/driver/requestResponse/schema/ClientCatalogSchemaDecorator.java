@@ -24,12 +24,17 @@
 package io.evitadb.driver.requestResponse.schema;
 
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -54,6 +59,30 @@ public class ClientCatalogSchemaDecorator extends CatalogSchemaDecorator {
 	                                    @Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor) {
 		super(delegate);
 		this.entitySchemaAccessor = entitySchemaAccessor;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder openForWrite() {
+		return new InternalCatalogSchemaBuilder(
+			this
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder openForWriteWithMutations(@Nonnull LocalCatalogSchemaMutation... schemaMutations) {
+		return new InternalCatalogSchemaBuilder(
+			this, Arrays.asList(schemaMutations)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogSchemaBuilder openForWriteWithMutations(@Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations) {
+		return new InternalCatalogSchemaBuilder(
+			this, schemaMutations
+		);
 	}
 
 	@Nonnull

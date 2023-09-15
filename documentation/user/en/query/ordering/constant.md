@@ -24,6 +24,7 @@ constraint in the filter part of the query. It uses the specified array of entit
 returned by the query.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Entities sorted by order of the filtered primary keys](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql)
 </SourceCodeTabs>
 
@@ -37,7 +38,7 @@ was issued.
 ##### List of products sorted by order of entity primary keys in filter
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Entities sorted by order of the filtered primary keys](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-in-filter.evitaql.md)</MDInclude>
 
@@ -76,6 +77,7 @@ The constraint allows output entities to be sorted by entity primary keys in the
 Nth arguments of this constraint.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Entities sorted by the specified order of the primary keys](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql)
 </SourceCodeTabs>
 
@@ -92,7 +94,7 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity primary keys
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Entities sorted by the specified order of the primary keys](/documentation/user/en/query/ordering/examples/constant/entity-primary-key-exact.evitaql.md)</MDInclude>
 
@@ -134,6 +136,7 @@ in the filter part of the query, referring to the attribute with the same name a
 constraint. It uses the specified array of attribute values to sort the result returned by the query.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Entities sorted by order `code` attribute of the filtered entities](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql)
 </SourceCodeTabs>
 
@@ -147,7 +150,7 @@ constraint of the query that was issued.
 ##### List of products sorted by order of attribute `code` in filter
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Entities sorted by order `code` attribute of the filtered entities](/documentation/user/en/query/ordering/examples/constant/attribute-set-in-filter.evitaql.md)</MDInclude>
 
@@ -193,6 +196,7 @@ The constraint allows output entities to be sorted by attribute values in the ex
 Nth arguments of this constraint.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Entities sorted by the specified order of the attribute `code` values](/documentation/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql)
 </SourceCodeTabs>
 
@@ -209,7 +213,7 @@ the rest of the query result.
 ##### List of products sorted by the exact order of entity attribute `code`
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Entities sorted by the specified order of the attribute `code` values](/documentation/user/en/query/ordering/examples/constant/attribute-set-exact.evitaql.md)</MDInclude>
 

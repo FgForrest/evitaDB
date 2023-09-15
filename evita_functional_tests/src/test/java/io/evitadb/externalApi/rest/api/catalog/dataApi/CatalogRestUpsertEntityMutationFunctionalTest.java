@@ -50,6 +50,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -68,6 +69,7 @@ import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -611,32 +613,55 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	@Test
 	@UseDataSet(value = REST_THOUSAND_PRODUCTS_FOR_UPDATE, destroyAfterTest = true)
 	@DisplayName("Should update product with price inner handling mutation")
-	void shouldUpdateProductWithPriceInnerRecordHandlingMutation(RestTester tester, List<SealedEntity> originalProductEntities) {
-		final SealedEntity entity = originalProductEntities.stream()
-			.filter(it -> it.getPrimaryKey().equals(3))
-			.findFirst()
-			.orElseThrow();
+	void shouldUpdateProductWithPriceInnerRecordHandlingMutation(RestTester tester, Evita evita, List<SealedEntity> originalProductEntities) {
+		final int pk = findEntityPk(
+			originalProductEntities,
+			it -> it.getPriceInnerRecordHandling() != PriceInnerRecordHandling.SUM
+		);
+//		final SealedEntity entity = originalProductEntities.stream()
+//			.filter(it -> it.getPriceInnerRecordHandling() != PriceInnerRecordHandling.NONE)
+//			.findFirst()
+//			.orElseThrow();
+//		final PriceContract price = entity.getPrices().iterator().next();
 
-		final Map<String, Object> expectedBody = map()
-			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
-			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
-			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name())
-			.e(EntityDescriptor.PRICES.name(), List.of(
-				map()
-					.e(PriceDescriptor.PRICE_ID.name(), 9)
-					.e(PriceDescriptor.PRICE_LIST.name(), "basic")
-					.e(PriceDescriptor.CURRENCY.name(), "USD")
-					.e(PriceDescriptor.INNER_RECORD_ID.name(), null)
-					.e(PriceDescriptor.SELLABLE.name(), true)
-					.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), "77.99")
-					.e(PriceDescriptor.TAX_RATE.name(), "21")
-					.e(PriceDescriptor.PRICE_WITH_TAX.name(), "94.37")
-					.e(PriceDescriptor.VALIDITY.name(), null)
-					.build()
-			))
-			.build();
+//		final Map<String, Object> expectedBody = map()
+//			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+//			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+//			.e(EntityDescriptor.VERSION.name(), entity.version() + 1)
+//			.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toLanguageTag(), Locale.ENGLISH.toLanguageTag()))
+//			.e(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name())
+//			.e(EntityDescriptor.PRICES.name(), List.of(
+//				map()
+//					.e(PriceDescriptor.PRICE_ID.name(), price.priceId())
+//					.e(PriceDescriptor.PRICE_LIST.name(), price.priceList())
+//					.e(PriceDescriptor.CURRENCY.name(), price.currency())
+//					.e(PriceDescriptor.INNER_RECORD_ID.name(), price.innerRecordId())
+//					.e(PriceDescriptor.SELLABLE.name(), price.sellable())
+//					.e(PriceDescriptor.PRICE_WITHOUT_TAX.name(), price.priceWithoutTax())
+//					.e(PriceDescriptor.TAX_RATE.name(), price.taxRate())
+//					.e(PriceDescriptor.PRICE_WITH_TAX.name(), price.priceWithTax())
+//					.e(PriceDescriptor.VALIDITY.name(), price.validity())
+//					.build()
+//			))
+//			.build();
+
+		final SealedEntity entity = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(entityPrimaryKeyInSet(pk)),
+				require(
+					entityFetch(priceContentRespectingFilter())
+				)
+			),
+			SealedEntity.class
+		);
+		assertNotNull(entity);
+
+		final Map<String, Object> expectedBody = new LinkedHashMap<>(createEntityDto(entity));
+		expectedBody.put(EntityDescriptor.VERSION.name(), entity.version() + 1);
+		expectedBody.put(EntityDescriptor.PRICE_INNER_RECORD_HANDLING.name(), PriceInnerRecordHandling.SUM.name());
+
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
@@ -653,9 +678,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
                     ],
 					"require": {
 					    "entityFetch": {
-					        "priceContent": {
-					            "contentMode": "RESPECTING_FILTER"
-				            }
+					        "priceContentAll": true
 				        }
 					  }
 					}
@@ -671,14 +694,11 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.requestBody("""
 				{
 					"filterBy": {
-						"entityPrimaryKeyInSet": [%d],
-						"priceInPriceLists": ["basic"]
+						"entityPrimaryKeyInSet": [%d]
 					},
 					"require": {
 						"entityFetch": {
-							"priceContent": {
-								"contentMode": "RESPECTING_FILTER"
-							}
+							"priceContentAll": true
 				        }
 					}
 				}

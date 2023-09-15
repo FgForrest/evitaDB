@@ -79,26 +79,34 @@ public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> ex
                                                           @Nullable String preferredResponseMediaType) {
         return new RestEndpointExchange(
             serverExchange,
-            createSession(),
             httpMethod,
             requestBodyMediaType,
             preferredResponseMediaType
         );
     }
 
+    @Override
+    protected void beforeRequestHandled(@Nonnull RestEndpointExchange exchange) {
+        // tries to create evita session for this exchange
+        createSession(exchange).ifPresent(exchange::session);
+    }
+
+    /**
+     * Tries to create a {@link EvitaSessionContract} automatically from context.
+     */
     @Nullable
-    private EvitaSessionContract createSession() {
+    protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
         if (!(restApiHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
             // we don't have any catalog to create session on
-            return null;
+            return Optional.empty();
         }
 
         final Evita evita = restApiHandlingContext.getEvita();
         final String catalogName = catalogRestHandlingContext.getCatalogSchema().getName();
         if (modifiesData()) {
-            return evita.createReadWriteSession(catalogName);
+            return Optional.of(evita.createReadWriteSession(catalogName));
         } else {
-            return evita.createReadOnlySession(catalogName);
+            return Optional.of(evita.createReadOnlySession(catalogName));
         }
     }
 

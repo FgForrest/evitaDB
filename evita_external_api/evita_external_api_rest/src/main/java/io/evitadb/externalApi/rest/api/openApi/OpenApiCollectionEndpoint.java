@@ -48,7 +48,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.ENTITY_LOCALE_ENUM;
+import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
@@ -168,7 +168,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 				pathBuilder.paramItem(newPathParameter()
 					.name(EndpointHeaderDescriptor.LOCALIZED.name())
 					.description(EndpointHeaderDescriptor.LOCALIZED.description())
-					.type(typeRefTo(ENTITY_LOCALE_ENUM.name(entitySchema)))
+					.type(typeRefTo(LOCALE_ENUM.name()))
 					.build());
 			}
 			pathBuilder.staticItem(entitySchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
@@ -176,7 +176,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 
 			this.localized = localized;
-			this.path = pathBuilder.getPathBuilder();
+			this.path = pathBuilder.getPath();
 			this.parameters.addAll(pathBuilder.getPathParameters());
 			return this;
 		}

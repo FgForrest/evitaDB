@@ -109,8 +109,6 @@ public class ExternalApiServer implements AutoCloseable {
 	@Getter private final ApiOptions apiOptions;
 	private final Map<String, ExternalApiProvider<?>> registeredApiProviders;
 
-	private final Object monitor = new Object();
-
 	/**
 	 * Finds all implementations of {@link ExternalApiProviderRegistrar} using {@link ServiceLoader} from the classpath.
 	 */
@@ -439,7 +437,7 @@ public class ExternalApiServer implements AutoCloseable {
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
 			final AbstractApiConfiguration configuration = apiOptions.endpoints().get(registeredApiProvider.getCode());
 			for (HostDefinition host : configuration.getHost()) {
-				final HostKey hostKey = new HostKey(host, !configuration.isForceUnencrypted());
+				final HostKey hostKey = new HostKey(host, configuration.isTlsEnabled());
 				if (!registeredApiProvider.isManagedByUndertow() || registeredApiProvider.getApiHandler() == null) {
 					continue;
 				}
@@ -470,10 +468,10 @@ public class ExternalApiServer implements AutoCloseable {
 					)
 						.setNext(fallbackHandler);
 
-					if (configuration.isForceUnencrypted()) {
-						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), compressionHandler);
-					} else {
+					if (configuration.isTlsEnabled()) {
 						undertowBuilder.addHttpsListener(host.port(), host.host().getHostAddress(), sslContext, compressionHandler);
+					} else {
+						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), compressionHandler);
 					}
 				}
 

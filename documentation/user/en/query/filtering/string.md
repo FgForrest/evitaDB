@@ -37,6 +37,7 @@ It's case-sensitive, works with national characters (since we're working with UT
 match of the searched string anywhere in the attribute value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products having a `epix` string in the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql)
 </SourceCodeTabs>
 
@@ -49,7 +50,7 @@ Returns a few products having a string *epix* in the attribute *code*.
 ##### Products having a `epix` string in the `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products having a `epix` string in the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql.md)</MDInclude>
 
@@ -97,6 +98,7 @@ It's case-sensitive, works with national characters (since we're working with UT
 match of the search string at the beginning of the attribute value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products having a `garmin` string at the beginning of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql)
 </SourceCodeTabs>
 
@@ -109,7 +111,7 @@ Returns a few pages of products that start with a *garmin* string in the *code* 
 ##### Products having a `garmin` string at the beginning of the `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products having a `garmin` string at the beginning of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql.md)</MDInclude>
 
@@ -157,6 +159,7 @@ It's case-sensitive, works with national characters (since we're working with UT
 match of the search string at the end of the attribute value.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [Products having a `solar` string at the end of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-ends-with.evitaql)
 </SourceCodeTabs>
 
@@ -169,7 +172,7 @@ Returns a few products that end with a *solar* string in the *code* attribute.
 ##### Products having a `solar` string at the end of the `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products having a `solar` string at the end of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-ends-with.evitaql.md)</MDInclude>
 

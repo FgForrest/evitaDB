@@ -34,15 +34,14 @@ public final class GrpcEntityMutations {
   static {
     java.lang.String[] descriptorData = {
       "\n\031GrpcEntityMutations.proto\022%io.evitadb." +
-      "externalApi.grpc.generated\032\036google/proto" +
-      "buf/wrappers.proto\"+\n\025GrpcSetParentMutat" +
-      "ion\022\022\n\nprimaryKey\030\001 \001(\005\"\032\n\030GrpcRemovePar" +
-      "entMutationB\014P\001\252\002\007EvitaDBb\006proto3"
+      "externalApi.grpc.generated\"+\n\025GrpcSetPar" +
+      "entMutation\022\022\n\nprimaryKey\030\001 \001(\005\"\032\n\030GrpcR" +
+      "emoveParentMutationB\014P\001\252\002\007EvitaDBb\006proto" +
+      "3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
         new com.google.protobuf.Descriptors.FileDescriptor[] {
-          com.google.protobuf.WrappersProto.getDescriptor(),
         });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcSetParentMutation_descriptor =
       getDescriptor().getMessageTypes().get(0);
@@ -56,7 +55,6 @@ public final class GrpcEntityMutations {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcRemoveParentMutation_descriptor,
         new java.lang.String[] { });
-    com.google.protobuf.WrappersProto.getDescriptor();
   }
 
   // @@protoc_insertion_point(outer_class_scope)

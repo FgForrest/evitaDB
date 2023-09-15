@@ -27,6 +27,7 @@ entityPrimaryKeyInSet(
 The constraint limits the list of returned entities by exactly specifying their entity primary keys. 
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
 [List of products filtered by entity primary key](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql)
 </SourceCodeTabs>
 
@@ -50,7 +51,7 @@ ordering constraint.
 ##### List of products filtered by entity primary key
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Entities filtered by the primary keys](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql.md)</MDInclude>
 

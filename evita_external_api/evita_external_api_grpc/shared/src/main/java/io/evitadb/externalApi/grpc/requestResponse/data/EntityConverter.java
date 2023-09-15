@@ -124,7 +124,7 @@ public class EntityConverter {
 						QueryConstraints.entityFetch(
 							ArrayUtils.mergeArrays(
 								it.getRequirements(),
-								new EntityContentRequire[] { QueryConstraints.hierarchyContent() }
+								new EntityContentRequire[]{QueryConstraints.hierarchyContent()}
 							)
 						)
 					)
@@ -212,6 +212,24 @@ public class EntityConverter {
 		@Nonnull SealedEntitySchema entitySchema,
 		@Nonnull GrpcReference grpcReference
 	) {
+		final GroupEntityReference group;
+		if (grpcReference.hasGroupReferencedEntityReference()) {
+			group = new GroupEntityReference(
+				grpcReference.getGroupReferencedEntityReference().getEntityType(),
+				grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
+				grpcReference.getGroupReferencedEntityReference().getVersion(),
+				false
+			);
+		} else if (grpcReference.hasGroupReferencedEntity()) {
+			group = new GroupEntityReference(
+				grpcReference.getGroupReferencedEntity().getEntityType(),
+				grpcReference.getGroupReferencedEntity().getPrimaryKey(),
+				grpcReference.getGroupReferencedEntity().getVersion(),
+				false
+			);
+		} else {
+			group = null;
+		}
 		return new Reference(
 			entitySchema,
 			grpcReference.getVersion(),
@@ -223,14 +241,7 @@ public class EntityConverter {
 				grpcReference.getReferencedEntityReference().getEntityType() :
 				grpcReference.getReferencedEntity().getEntityType(),
 			EvitaEnumConverter.toCardinality(grpcReference.getReferenceCardinality()),
-			grpcReference.hasGroupReferencedEntity() ?
-				new GroupEntityReference(
-					grpcReference.getGroupReferencedEntityReference().getEntityType(),
-					grpcReference.getGroupReferencedEntityReference().getPrimaryKey(),
-					grpcReference.getGroupReferencedEntityReference().getVersion(),
-					false
-				) :
-				null,
+			group,
 			toAttributeValues(
 				grpcReference.getGlobalAttributesMap(),
 				grpcReference.getLocalizedAttributesMap()
@@ -558,12 +569,6 @@ public class EntityConverter {
 		@Nonnull Map<String, GrpcLocalizedAttribute> localizedAttributesMap
 	) {
 		final List<AttributeValue> result = new ArrayList<>(globalAttributesMap.size() + localizedAttributesMap.size());
-		for (Entry<String, GrpcEvitaValue> entry : globalAttributesMap.entrySet()) {
-			final String attributeName = entry.getKey();
-			result.add(
-				toAttributeValue(new AttributeKey(attributeName), entry.getValue())
-			);
-		}
 		for (Entry<String, GrpcLocalizedAttribute> entry : localizedAttributesMap.entrySet()) {
 			final Locale locale = Locale.forLanguageTag(entry.getKey());
 			final GrpcLocalizedAttribute localizedAttributeSet = entry.getValue();
@@ -575,6 +580,12 @@ public class EntityConverter {
 					)
 				);
 			}
+		}
+		for (Entry<String, GrpcEvitaValue> entry : globalAttributesMap.entrySet()) {
+			final String attributeName = entry.getKey();
+			result.add(
+					toAttributeValue(new AttributeKey(attributeName), entry.getValue())
+			);
 		}
 		return result;
 	}
@@ -603,15 +614,6 @@ public class EntityConverter {
 		@Nonnull Map<String, GrpcLocalizedAssociatedData> localizedAssociatedDataMap
 	) {
 		final List<AssociatedDataValue> result = new ArrayList<>(globalAssociatedDataMap.size() + localizedAssociatedDataMap.size());
-		for (Entry<String, GrpcEvitaAssociatedDataValue> entry : globalAssociatedDataMap.entrySet()) {
-			final String associatedDataName = entry.getKey();
-			result.add(
-				toAssociatedDataValue(
-					new AssociatedDataKey(associatedDataName),
-					entry.getValue()
-				)
-			);
-		}
 		for (Entry<String, GrpcLocalizedAssociatedData> entry : localizedAssociatedDataMap.entrySet()) {
 			final Locale locale = Locale.forLanguageTag(entry.getKey());
 			final GrpcLocalizedAssociatedData localizedAssociatedDataSet = entry.getValue();
@@ -623,6 +625,15 @@ public class EntityConverter {
 					)
 				);
 			}
+		}
+		for (Entry<String, GrpcEvitaAssociatedDataValue> entry : globalAssociatedDataMap.entrySet()) {
+			final String associatedDataName = entry.getKey();
+			result.add(
+					toAssociatedDataValue(
+							new AssociatedDataKey(associatedDataName),
+							entry.getValue()
+					)
+			);
 		}
 		return result;
 	}
@@ -751,11 +762,18 @@ public class EntityConverter {
 				);
 			this.groupIndex = grpcReference.stream()
 				.filter(GrpcReference::hasGroupReferencedEntity)
-				.map(it -> toEntity(entitySchemaFetcher, evitaRequest, it.getGroupReferencedEntity(), SealedEntity.class))
+				.map(it -> {
+					final RequirementContext fetchCtx = Optional.ofNullable(evitaRequest.getReferenceEntityFetch().get(it.getReferenceName()))
+						.orElse(evitaRequest.getDefaultReferenceRequirement());
+					final GrpcSealedEntity referencedEntity = it.getGroupReferencedEntity();
+					final EvitaRequest referenceRequest = evitaRequest.deriveCopyWith(referencedEntity.getEntityType(), fetchCtx.entityGroupFetch());
+					return toEntity(entitySchemaFetcher, referenceRequest, referencedEntity, SealedEntity.class);
+				})
 				.collect(
 					Collectors.toMap(
 						it -> new EntityReference(it.getType(), it.getPrimaryKey()),
-						Function.identity()
+						Function.identity(),
+						(sealedEntity, sealedEntity2) -> sealedEntity
 					)
 				);
 		}

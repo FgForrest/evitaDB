@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.graphql.io;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionResult;
 import graphql.GraphQL;
@@ -55,6 +54,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
@@ -201,20 +201,17 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchang
         }
     }
 
-    @Nonnull
     @Override
-    protected String serializeResult(@Nonnull GraphQLWebEndpointExchange exchange, @Nonnull GraphQLResponse<?> response) {
-        final String json;
+    protected String writeResult(@Nonnull GraphQLWebEndpointExchange exchange,  @Nonnull OutputStream outputStream, @Nonnull GraphQLResponse<?> response) {
         try {
-            json = objectMapper.writeValueAsString(response);
-        } catch (JsonProcessingException e) {
+            objectMapper.writeValue(outputStream, response);
+        } catch (IOException e) {
             throw new GraphQLInternalError(
                 "Could not serialize GraphQL API response to JSON: " + e.getMessage(),
                 "Could not provide GraphQL API response.",
                 e
             );
         }
-        return json;
     }
 
     protected record GraphQLWebEndpointExchange(@Nonnull HttpServerExchange serverExchange,

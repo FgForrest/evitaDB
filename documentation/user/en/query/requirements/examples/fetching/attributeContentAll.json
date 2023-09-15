@@ -1,0 +1,24 @@
+```json
+{
+  "data": {
+    "queryBrand": {
+      "recordPage": {
+        "data": [
+          {
+            "primaryKey": 64703,
+            "attributes": {
+              "changed": "2023-06-25T21:36:22+02:00",
+              "code": "samsung",
+              "order": 0,
+              "relatedFiles": null,
+              "status": "ACTIVE",
+              "validity": null,
+              "visibility": "VISIBLE"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+```
