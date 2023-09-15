@@ -80,6 +80,7 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -116,6 +117,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
+@Slf4j
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	private final static int SEED = 42;
