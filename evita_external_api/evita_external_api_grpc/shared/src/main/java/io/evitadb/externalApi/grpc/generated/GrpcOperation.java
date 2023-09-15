@@ -20,6 +20,18 @@ public enum GrpcOperation
    * <code>REMOVE = 2;</code>
    */
   REMOVE(2),
+  /**
+   * <pre>
+   * todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
+   * </pre>
+   *
+   * <code>TRANSACTION_BEGIN = 3;</code>
+   */
+  TRANSACTION_BEGIN(3),
+  /**
+   * <code>TRANSACTION_END = 4;</code>
+   */
+  TRANSACTION_END(4),
   UNRECOGNIZED(-1),
   ;
 
@@ -35,6 +47,18 @@ public enum GrpcOperation
    * <code>REMOVE = 2;</code>
    */
   public static final int REMOVE_VALUE = 2;
+  /**
+   * <pre>
+   * todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
+   * </pre>
+   *
+   * <code>TRANSACTION_BEGIN = 3;</code>
+   */
+  public static final int TRANSACTION_BEGIN_VALUE = 3;
+  /**
+   * <code>TRANSACTION_END = 4;</code>
+   */
+  public static final int TRANSACTION_END_VALUE = 4;
 
 
   public final int getNumber() {
@@ -64,6 +88,8 @@ public enum GrpcOperation
       case 0: return CREATE;
       case 1: return UPDATE;
       case 2: return REMOVE;
+      case 3: return TRANSACTION_BEGIN;
+      case 4: return TRANSACTION_END;
       default: return null;
     }
   }

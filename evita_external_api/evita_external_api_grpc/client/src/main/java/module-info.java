@@ -19,4 +19,6 @@ module evita.java.driver {
 	requires evita.external.api.grpc.shared;
 	requires grpc.netty;
 	requires io.netty.handler;
+	requires reactive.grpc.common;
+	requires org.reactivestreams;
 }

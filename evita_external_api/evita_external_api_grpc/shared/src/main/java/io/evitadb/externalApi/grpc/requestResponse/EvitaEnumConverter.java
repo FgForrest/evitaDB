@@ -441,6 +441,8 @@ public class EvitaEnumConverter {
 			case CREATE -> GrpcOperation.CREATE;
 			case UPDATE -> GrpcOperation.UPDATE;
 			case REMOVE -> GrpcOperation.REMOVE;
+			case TRANSACTION_BEGIN -> GrpcOperation.TRANSACTION_BEGIN;
+			case TRANSACTION_END -> GrpcOperation.TRANSACTION_END;
 		};
 	}
 

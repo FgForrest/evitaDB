@@ -411,6 +411,9 @@ enum GrpcOperation {
   CREATE = 0;
   UPDATE = 1;
   REMOVE = 2;
+  // todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
+  TRANSACTION_BEGIN = 3;
+  TRANSACTION_END = 4;
 }
 
 enum GrpcCaptureArea {

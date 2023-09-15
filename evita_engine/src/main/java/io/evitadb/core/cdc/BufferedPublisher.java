@@ -24,21 +24,40 @@
 package io.evitadb.core.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.SubmissionPublisher;
 
 /**
- * TODO lho docs
+ * Pre-configured {@link SubmissionPublisher} for {@link ChangeCapture} objects.
+ * It is limited only to one subscriber to have control over internal buffer overflows as the {@link SubmissionPublisher}
+ * doesn't provide tools to control buffers for individual subscribers and thus submit new events only to such subscribers
+ * that have space in their buffers.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 class BufferedPublisher<C extends ChangeCapture> extends SubmissionPublisher<C> {
+
+	/**
+	 * Flag to validate that this publisher can serve only one subscriber.
+	 */
+	private boolean hasSubscriber;
 
 	public BufferedPublisher(@Nonnull Executor executor) {
 		// for now, we will use default buffer size as we don't have any information about what number to use otherwise
 		super(executor, Flow.defaultBufferSize());
+	}
+
+	@Override
+	public void subscribe(Subscriber<? super C> subscriber) {
+		if (hasSubscriber) {
+			throw new EvitaInvalidUsageException("Only one subscriber is supported.");
+		}
+		super.subscribe(subscriber);
+		hasSubscriber = true;
 	}
 }

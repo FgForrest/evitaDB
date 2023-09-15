@@ -145,142 +145,132 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldNotifyBasicSubscriber() {
+	void shouldNotifyBasicSubscriber() throws InterruptedException {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 
 		// subscriber is registered and wants one event when it happens
-		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(1);
+		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(5), 1);
 		publisher.subscribe(subscriber);
 
 		evita.defineCatalog("newCatalog1");
-
-		// subscriber received one requested event
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
-
 		evita.defineCatalog("newCatalog2");
 
-		// subscriber didn't ask for more events, so it didn't receive any new events
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
-		assertEquals(0, subscriber.getCatalogCreated("newCatalog2"));
-
-		// subscriber wants more events now
-		subscriber.request(1);
+		// subscriber wants more events now, should receive `newCatalog2` and future `newCatalog3`
+		subscriber.request(2);
 
 		evita.defineCatalog("newCatalog3");
-
-		// subscriber received the new requested event
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
-		assertEquals(0, subscriber.getCatalogCreated("newCatalog2"));
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
 
 		// subscriber should receive 2 future events
 		subscriber.request(2);
 
 		evita.defineCatalog("newCatalog4");
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog4"));
 		evita.defineCatalog("newCatalog5");
-		assertEquals(1, subscriber.getCatalogCreated("newCatalog5"));
 
 		// subscriber requested 2 events, this is third one, so it should be ignored
 		evita.defineCatalog("newCatalog6");
+
+		assertTrue(subscriber.getCountDownLatch().await(2000, TimeUnit.MILLISECONDS));
+		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
+
+		// subscriber received one requested event
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog3"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog4"));
+		assertEquals(1, subscriber.getCatalogCreated("newCatalog5"));
+		// subscriber didn't ask for more events, so it didn't receive any new events
 		assertEquals(0, subscriber.getCatalogCreated("newCatalog6"));
+
+		evita.deleteCatalogIfExists("newCatalog1");
+		evita.deleteCatalogIfExists("newCatalog2");
+		evita.deleteCatalogIfExists("newCatalog3");
+		evita.deleteCatalogIfExists("newCatalog4");
+		evita.deleteCatalogIfExists("newCatalog5");
+		evita.deleteCatalogIfExists("newCatalog6");
 	}
 
 	@Test
-	void shouldNotifyLateSubscribers() {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+	void shouldNotifyLateSubscribers() throws InterruptedException {
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 
 		// first subscriber is registered at the start, but it's not ready to receive events yet
-		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(0);
-		publisher.subscribe(subscriberWithDelayedRequest);
+		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 0);
+		publisher1.subscribe(subscriberWithDelayedRequest);
 
 		// should be ignored by both subscribers
 		evita.defineCatalog("newCatalog1");
 
 		// second subscriber is registered later but ready to receive events
-		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRegistration = new MockCatalogStructuralChangeSubscriber(1);
-		publisher.subscribe(subscriberWithDelayedRegistration);
+		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRegistration = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
+		publisher2.subscribe(subscriberWithDelayedRegistration);
 
 		// first subscriber is ready to receive events now, should get one
 		subscriberWithDelayedRequest.request(1);
 
 		evita.defineCatalog("newCatalog2");
 
+		assertTrue(subscriberWithDelayedRequest.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
+		assertTrue(subscriberWithDelayedRegistration.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
+
 		// both should receive one late event
-		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriberWithDelayedRequest.getCatalogCreated("newCatalog1"));
+		assertEquals(0, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
+		assertEquals(0, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
 		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
 	}
 
 	@Test
-	void shouldNotifyMultipleSubscriberWithDifferentRequests() {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-
+	void shouldNotifyMultipleSubscriberWithDifferentRequests() throws InterruptedException {
 		// subscribers want first future events
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
-		publisher.subscribe(subscriber1);
-		publisher.subscribe(subscriber2);
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
+		publisher1.subscribe(subscriber1);
+
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
+		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(2), 1);
+		publisher2.subscribe(subscriber2);
 
 		// first events should be received by both subscribers
 		evita.defineCatalog("newCatalog1");
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
 
 		// the next event is desired only by first subscriber
 		subscriber1.request(1);
 		evita.defineCatalog("newCatalog2");
-		assertEquals(1, subscriber1.getCatalogCreated("newCatalog2"));
-		assertEquals(0, subscriber2.getCatalogCreated("newCatalog2"));
 
 		// the next event is desired only by second subscriber
 		subscriber2.request(1);
 		evita.defineCatalog("newCatalog3");
+
+		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
+		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
+		Thread.sleep(100); // we need to manually wait to really make sure that no more events came
+
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
+		assertEquals(1, subscriber1.getCatalogCreated("newCatalog2"));
+		assertEquals(1, subscriber2.getCatalogCreated("newCatalog2"));
 		assertEquals(0, subscriber1.getCatalogCreated("newCatalog3"));
-		assertEquals(1, subscriber2.getCatalogCreated("newCatalog3"));
+		assertEquals(0, subscriber2.getCatalogCreated("newCatalog3"));
 	}
 
 	@Test
-	void shouldNotifyMultiplePublishers() {
+	void shouldNotifyMultiplePublishers() throws InterruptedException {
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
+		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher1.subscribe(subscriber1);
 
 		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
+		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher2.subscribe(subscriber2);
 
 		evita.defineCatalog("newCatalog1");
+
+		assertTrue(subscriber1.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
+		assertTrue(subscriber2.getCountDownLatch().await(1000, TimeUnit.MILLISECONDS));
+
 		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
 		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
-	}
-
-	@Test
-	void shouldNotifySubscribersOnTerminatingEvents() {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
-		publisher1.subscribe(subscriber1);
-
-		// should get receive ack from publisher on cancel
-		subscriber1.cancel();
-		assertEquals(1, subscriber1.getCompleted());
-
-		// should not receive any new events
-		evita.defineCatalog("newCatalog1");
-		assertEquals(0, subscriber1.getCatalogCreated("newCatalog1"));
-
-		// should not be able to cancel itself multiple times
-		assertThrows(EvitaInvalidUsageException.class, subscriber1::cancel);
-
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
-		publisher1.subscribe(subscriber2);
-
-		// should notify subscribers about termination
-		publisher1.close();
-		assertEquals(1, subscriber2.getCompleted());
-
-		// should do nothing on multiple closes
-		publisher1.close();
-		assertEquals(1, subscriber2.getCompleted());
 	}
 
 	@Test

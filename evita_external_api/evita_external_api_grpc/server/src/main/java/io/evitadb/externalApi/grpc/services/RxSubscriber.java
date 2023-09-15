@@ -21,20 +21,26 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.externalApi.grpc.services;
+
+import com.salesforce.reactivegrpc.common.AbstractSubscriberAndProducer;
+import com.salesforce.reactivegrpc.common.AbstractSubscriberAndServerProducer;
+import com.salesforce.reactivegrpc.common.Function;
+import org.reactivestreams.Subscription;
 
 /**
- * Enumeration of possible mutation types handled by evitaDB.
+ * TODO lho docs
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public enum Operation {
+public class RxSubscriber<G> extends AbstractSubscriberAndServerProducer<G> {
 
-	CREATE,
-	UPDATE,
-	REMOVE,
-	// todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
-	TRANSACTION_BEGIN,
-	TRANSACTION_END
+	public RxSubscriber(Function<Throwable, Throwable> prepareError) {
+		super(prepareError);
+	}
 
+	@Override
+	protected Subscription fuse(Subscription subscription) {
+		return subscription;
+	}
 }

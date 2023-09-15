@@ -114,15 +114,17 @@ public final class GrpcEnums {
       "\021\022\014\n\010FETCHING\020\022\022\027\n\023FETCHING_REFERENCES\020\023" +
       "\022\024\n\020FETCHING_PARENTS\020\024*H\n\023GrpcEntityExis" +
       "tence\022\r\n\tMAY_EXIST\020\000\022\022\n\016MUST_NOT_EXIST\020\001" +
-      "\022\016\n\nMUST_EXIST\020\002*3\n\rGrpcOperation\022\n\n\006CRE" +
-      "ATE\020\000\022\n\n\006UPDATE\020\001\022\n\n\006REMOVE\020\002*\'\n\017GrpcCap" +
-      "tureArea\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001*y\n\022GrpcCl" +
-      "assifierType\022\013\n\007CATALOG\020\000\022\n\n\006ENTITY\020\001\022\r\n" +
-      "\tATTRIBUTE\020\002\022\023\n\017ASSOCIATED_DATA\020\003\022\r\n\tREF" +
-      "ERENCE\020\004\022\027\n\023REFERENCE_ATTRIBUTE\020\005**\n\022Grp" +
-      "cCaptureContent\022\n\n\006HEADER\020\000\022\010\n\004BODY\020\001*:\n" +
-      "\027GrpcCaptureResponseType\022\023\n\017ACKNOWLEDGEM" +
-      "ENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
+      "\022\016\n\nMUST_EXIST\020\002*_\n\rGrpcOperation\022\n\n\006CRE" +
+      "ATE\020\000\022\n\n\006UPDATE\020\001\022\n\n\006REMOVE\020\002\022\025\n\021TRANSAC" +
+      "TION_BEGIN\020\003\022\023\n\017TRANSACTION_END\020\004*\'\n\017Grp" +
+      "cCaptureArea\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001*y\n\022Gr" +
+      "pcClassifierType\022\013\n\007CATALOG\020\000\022\n\n\006ENTITY\020" +
+      "\001\022\r\n\tATTRIBUTE\020\002\022\023\n\017ASSOCIATED_DATA\020\003\022\r\n" +
+      "\tREFERENCE\020\004\022\027\n\023REFERENCE_ATTRIBUTE\020\005**\n" +
+      "\022GrpcCaptureContent\022\n\n\006HEADER\020\000\022\010\n\004BODY\020" +
+      "\001*:\n\027GrpcCaptureResponseType\022\023\n\017ACKNOWLE" +
+      "DGEMENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252\002\007EvitaDBb\006pro" +
+      "to3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

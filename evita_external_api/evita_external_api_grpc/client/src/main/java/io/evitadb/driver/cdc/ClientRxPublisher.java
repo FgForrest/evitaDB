@@ -21,20 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.cdc;
+package io.evitadb.driver.cdc;
+
+import com.salesforce.reactivegrpc.common.AbstractClientStreamObserverAndPublisher;
+import com.salesforce.reactivegrpc.common.AbstractStreamObserverAndPublisher;
+import com.salesforce.reactivegrpc.common.Consumer;
+import io.grpc.stub.CallStreamObserver;
+
+import java.util.Queue;
 
 /**
- * Enumeration of possible mutation types handled by evitaDB.
+ * TODO lho docs
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public enum Operation {
+public class ClientRxPublisher<G> extends AbstractClientStreamObserverAndPublisher<G> {
 
-	CREATE,
-	UPDATE,
-	REMOVE,
-	// todo jno: is this what you had in mind when we talked about the need to signalize the begin and the end of the transaction?
-	TRANSACTION_BEGIN,
-	TRANSACTION_END
-
+	public ClientRxPublisher(Queue<G> queue) {
+		super(queue, null);
+	}
 }

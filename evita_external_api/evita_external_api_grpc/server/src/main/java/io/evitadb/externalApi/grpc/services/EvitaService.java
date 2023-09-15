@@ -28,22 +28,28 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 import io.evitadb.utils.UUIDUtil;
+import io.grpc.stub.CallStreamObserver;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
+import org.reactivestreams.FlowAdapters;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.Flow.Subscription;
 
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCaptureContent;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
@@ -274,7 +280,61 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		final ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> observer =
 			((ServerCallStreamObserver<GrpcRegisterSystemChangeCaptureResponse>) responseObserver);
 
-		publisher.subscribe(new ServerChangeSystemCaptureSubscriber(observer));
+		publisher.subscribe(new ChangeSystemCOnversionSubsriber(observer));
+	}
+
+	private static abstract class ConversionSubscriber<C extends ChangeCapture, G> implements Subscriber<C> {
+
+		private final Subscriber<G> delegate;
+
+		public ConversionSubscriber(@Nonnull CallStreamObserver<G> downstream) {
+			final RxSubscriber<G> bridge = new RxSubscriber<>(__ -> __);
+			bridge.subscribe(downstream);
+			this.delegate = FlowAdapters.toFlowSubscriber(bridge);
+		}
+
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			delegate.onSubscribe(subscription);
+		}
+
+		@Override
+		public void onNext(C item) {
+			delegate.onNext(convertCapture(item));
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			delegate.onError(throwable);
+		}
+
+		@Override
+		public void onComplete() {
+			delegate.onComplete();
+		}
+
+		/**
+		 * Converts internal incoming capture into gRPC equivalent to be send to client.
+		 * @param capture internal incoming capture
+		 * @return converted outgoing gRPC capture
+		 */
+		@Nonnull
+		protected abstract G convertCapture(@Nonnull C capture);
+	}
+
+	private static class ChangeSystemCOnversionSubsriber extends ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
+
+		public ChangeSystemCOnversionSubsriber(@Nonnull CallStreamObserver<GrpcRegisterSystemChangeCaptureResponse> downstream) {
+			super(downstream);
+		}
+
+		@Nonnull
+		@Override
+		protected GrpcRegisterSystemChangeCaptureResponse convertCapture(@Nonnull ChangeSystemCapture capture) {
+			return GrpcRegisterSystemChangeCaptureResponse.newBuilder()
+				.setCapture(ChangeCatalogCaptureConverter.toGrpcChangeSystemCapture(capture))
+				.build();
+		}
 	}
 
 }

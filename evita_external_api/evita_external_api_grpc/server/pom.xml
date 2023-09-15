@@ -65,6 +65,11 @@
 			<version>${bouncyCastle.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>com.salesforce.servicelibs</groupId>
+			<artifactId>reactive-grpc-common</artifactId>
+			<version>1.2.4</version>
+		</dependency>
+		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>grpc_workaround_build</artifactId>
 			<version>${project.parent.version}</version>

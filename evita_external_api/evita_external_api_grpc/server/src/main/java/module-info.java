@@ -57,6 +57,8 @@ module evita.external.api.grpc {
 
 	requires org.bouncycastle.pkix;
 	requires org.bouncycastle.provider;
+	requires reactive.grpc.common;
+	requires org.reactivestreams;
 	requires undertow.core;
 	requires grpc.netty;
 

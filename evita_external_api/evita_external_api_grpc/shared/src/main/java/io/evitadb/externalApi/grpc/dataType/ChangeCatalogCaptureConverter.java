@@ -71,6 +71,7 @@ public class ChangeCatalogCaptureConverter {
 
 	private static final DelegatingLocalMutationConverter ENTITY_LOCAL_MUTATION_CONVERTER = new DelegatingLocalMutationConverter();
 
+	// todo tpo this needs to be in separate converter, or this converter cannot be related to catalog captures
 	public static GrpcChangeSystemCapture toGrpcChangeSystemCapture(ChangeSystemCapture changeDataCapture) {
 		final GrpcChangeSystemCapture.Builder builder = GrpcChangeSystemCapture.newBuilder();
 		if (changeDataCapture.body() != null) {

@@ -29,6 +29,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.Flow.Subscription;
 
@@ -39,6 +40,8 @@ import java.util.concurrent.Flow.Subscription;
  */
 public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeSystemCapture> {
 
+	@Getter
+	private final CountDownLatch countDownLatch;
 	private final int initialRequestCount;
 	private Subscription subscription;
 
@@ -57,6 +60,11 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 	}
 
 	public MockCatalogStructuralChangeSubscriber(int initialRequestCount) {
+		this(null, initialRequestCount);
+	}
+
+	public MockCatalogStructuralChangeSubscriber(@Nonnull CountDownLatch countDownLatch, int initialRequestCount) {
+		this.countDownLatch = countDownLatch;
 		this.initialRequestCount = initialRequestCount;
 	}
 
@@ -102,7 +110,9 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 	@Override
 	public void onSubscribe(Subscription subscription) {
 		this.subscription = subscription;
-		this.subscription.request(initialRequestCount);
+		if (initialRequestCount > 0) {
+			this.subscription.request(initialRequestCount);
+		}
 	}
 
 	@Override
@@ -114,6 +124,9 @@ public class MockCatalogStructuralChangeSubscriber implements Subscriber<ChangeS
 				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 			case REMOVE -> catalogDeleted
 				.compute(item.catalog(), (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
+		}
+		if (countDownLatch != null) {
+			countDownLatch.countDown();
 		}
 	}
 

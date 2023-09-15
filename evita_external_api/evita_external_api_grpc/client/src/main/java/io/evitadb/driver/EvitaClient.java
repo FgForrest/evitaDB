@@ -29,6 +29,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
@@ -36,7 +37,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.driver.cdc.ClientChangeSystemCaptureProcessor;
+import io.evitadb.driver.cdc.ClientRxPublisher;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
@@ -46,6 +47,7 @@ import io.evitadb.driver.service.PooledChannelSupplier;
 import io.evitadb.driver.service.SharedChannelSupplier;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.grpc.dataType.ChangeCatalogCaptureConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceStub;
@@ -63,7 +65,9 @@ import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.reactivestreams.FlowAdapters;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -77,6 +81,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Flow.Subscriber;
+import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -288,16 +294,101 @@ public class EvitaClient implements EvitaContract {
 	@Override
 	public ChangeCapturePublisher<ChangeSystemCapture> registerSystemChangeCapture(@Nonnull ChangeSystemCaptureRequest request) {
 		// todo jno: use this as an inspiration for the implementation of the catalog changes
-		final ClientChangeSystemCaptureProcessor clientPublisher = new ClientChangeSystemCaptureProcessor();
+//		final ClientChangeSystemCaptureProcessor clientPublisher = new ClientChangeSystemCaptureProcessor(executor);
+
+//		final ClientRxPublisher<GrpcRegisterSystemChangeCaptureResponse> publisher = new ClientRxPublisher<>(null, null);
+
+		// todo lho proper queue
+		final ClientRxPublisher<GrpcRegisterSystemChangeCaptureResponse> publisher = new ClientRxPublisher<>(new LinkedBlockingQueue<>());
+		final ChangeSystemConversionPublisher changeSystemConversionPublisher = new ChangeSystemConversionPublisher(publisher);
+
 		executeWithStreamingEvitaService(stub ->
 			stub.registerSystemChangeCapture(
 				GrpcRegisterSystemChangeCaptureRequest.newBuilder()
 					.setContent(EvitaEnumConverter.toGrpcCaptureContent(request.content()))
 					.build(),
-				clientPublisher
+				publisher
 			)
 		);
-		return clientPublisher;
+		return changeSystemConversionPublisher;
+	}
+
+	private static abstract class ConversionPublisher<C extends ChangeCapture, G> implements ChangeCapturePublisher<C> {
+
+		private final ClientRxPublisher<G> delegate;
+
+		public ConversionPublisher(ClientRxPublisher<G> delegate) {
+			delegate.cancel();
+			this.delegate = delegate;
+		}
+
+		@Override
+		public void close() {
+			delegate.cancel();
+		}
+
+		@Override
+		public void subscribe(Subscriber<? super C> subscriber) {
+			delegate.subscribe(FlowAdapters.toSubscriber(createConversionSubscriber(subscriber)));
+		}
+
+		@Nullable
+		protected abstract ConversionSubscriber<C, G> createConversionSubscriber(@Nullable Subscriber<? super C> subscriber);
+	}
+
+	private static class ChangeSystemConversionPublisher extends ConversionPublisher<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
+
+		public ChangeSystemConversionPublisher(ClientRxPublisher<GrpcRegisterSystemChangeCaptureResponse> delegate) {
+			super(delegate);
+		}
+
+		@Nullable
+		@Override
+		protected ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> createConversionSubscriber(@Nullable Subscriber<? super ChangeSystemCapture> subscriber) {
+			return new ChangeSystemConversionSubscriber(subscriber);
+		}
+	}
+
+	private static class ChangeSystemConversionSubscriber extends ConversionSubscriber<ChangeSystemCapture, GrpcRegisterSystemChangeCaptureResponse> {
+
+		public ChangeSystemConversionSubscriber(@Nonnull Subscriber<? super ChangeSystemCapture> delegate) {
+			super(delegate);
+		}
+
+		@Nullable
+		@Override
+		protected ChangeSystemCapture convertCapture(@Nullable GrpcRegisterSystemChangeCaptureResponse item) {
+			return ChangeCatalogCaptureConverter.toChangeSystemCapture(item.getCapture());
+		}
+	}
+
+	@RequiredArgsConstructor
+	private static abstract class ConversionSubscriber<C, G> implements Subscriber<G> {
+
+		@Nonnull private final Subscriber<? super C> delegate;
+
+		@Override
+		public void onSubscribe(Subscription subscription) {
+			delegate.onSubscribe(subscription);
+		}
+
+		@Override
+		public void onNext(G item) {
+			delegate.onNext(convertCapture(item));
+		}
+
+		@Override
+		public void onError(Throwable throwable) {
+			delegate.onError(throwable);
+		}
+
+		@Override
+		public void onComplete() {
+			delegate.onComplete();
+		}
+
+		@Nullable
+		protected abstract C convertCapture(@Nullable G item);
 	}
 
 	@Nonnull
