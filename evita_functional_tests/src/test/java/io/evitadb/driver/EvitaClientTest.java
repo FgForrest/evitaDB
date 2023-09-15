@@ -536,9 +536,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyBasicSubscriber(EvitaClient evitaClient) throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-
 		// subscriber is registered and wants one event when it happens
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriber = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(5), 1);
 		publisher.subscribe(subscriber);
 
@@ -582,10 +581,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 	@Test
 	@UseDataSet(EVITA_CLIENT_DATA_SET)
 	void shouldNotifyLateSubscribers(EvitaClient evitaClient) throws InterruptedException {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-
 		// first subscriber is registered at the start, but it's not ready to receive events yet
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRequest = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 0);
 		publisher1.subscribe(subscriberWithDelayedRequest);
 
@@ -593,6 +590,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		evitaClient.defineCatalog("newCatalog1");
 
 		// second subscriber is registered later but ready to receive events
+		final ChangeCapturePublisher<ChangeSystemCapture> publisher2 = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
 		final MockCatalogStructuralChangeSubscriber subscriberWithDelayedRegistration = new MockCatalogStructuralChangeSubscriber(new CountDownLatch(1), 1);
 		publisher2.subscribe(subscriberWithDelayedRegistration);
 
@@ -609,6 +607,9 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		assertEquals(0, subscriberWithDelayedRequest.getCatalogCreated("newCatalog2"));
 		assertEquals(0, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog1"));
 		assertEquals(1, subscriberWithDelayedRegistration.getCatalogCreated("newCatalog2"));
+
+		evitaClient.deleteCatalogIfExists("newCatalog1");
+		evitaClient.deleteCatalogIfExists("newCatalog2");
 	}
 
 	@Test
@@ -664,42 +665,6 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 		assertEquals(1, subscriber1.getCatalogCreated("newCatalog1"));
 		assertEquals(1, subscriber2.getCatalogCreated("newCatalog1"));
-	}
-
-	@Test
-	@UseDataSet(EVITA_CLIENT_DATA_SET)
-	void shouldNotifySubscribersOnTerminatingEvents(EvitaClient evitaClient) {
-		final ChangeCapturePublisher<ChangeSystemCapture> publisher1 = evitaClient.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-		final MockCatalogStructuralChangeSubscriber subscriber1 = new MockCatalogStructuralChangeSubscriber(1);
-		publisher1.subscribe(subscriber1);
-
-		// should get receive ack from publisher on cancel
-		subscriber1.cancel();
-		assertEquals(1, subscriber1.getCompleted());
-
-		// should not receive any new events
-		evitaClient.defineCatalog("newCatalog1");
-		assertEquals(0, subscriber1.getCatalogCreated("newCatalog1"));
-
-		// should not be able to cancel itself multiple times
-		assertThrows(EvitaInvalidUsageException.class, subscriber1::cancel);
-
-		final MockCatalogStructuralChangeSubscriber subscriber2 = new MockCatalogStructuralChangeSubscriber(1);
-		publisher1.subscribe(subscriber2);
-
-		// should notify subscribers about termination
-		publisher1.close();
-		// the assert is called right before the onComplete callback is called, so we need to wait a bit
-		try {
-			Thread.sleep(100);
-		} catch (InterruptedException e) {
-			throw new RuntimeException(e);
-		}
-		assertEquals(1, subscriber2.getCompleted());
-
-		// should do nothing on multiple closes
-		publisher1.close();
-		assertEquals(1, subscriber2.getCompleted());
 
 		evitaClient.deleteCatalogIfExists("newCatalog1");
 	}

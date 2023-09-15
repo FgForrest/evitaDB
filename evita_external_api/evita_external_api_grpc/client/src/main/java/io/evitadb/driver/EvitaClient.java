@@ -318,7 +318,6 @@ public class EvitaClient implements EvitaContract {
 		private final ClientRxPublisher<G> delegate;
 
 		public ConversionPublisher(ClientRxPublisher<G> delegate) {
-			delegate.cancel();
 			this.delegate = delegate;
 		}
 
