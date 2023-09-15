@@ -39,7 +39,7 @@ public final class GrpcEnums {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_descriptor;
-  static final 
+  static final
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcEvitaAssociatedDataDataType_fieldAccessorTable;
 
@@ -140,7 +140,16 @@ public final class GrpcEnums {
       "\010FETCHING\020\022\022\027\n\023FETCHING_REFERENCES\020\023\022\024\n\020" +
       "FETCHING_PARENTS\020\024*H\n\023GrpcEntityExistenc" +
       "e\022\r\n\tMAY_EXIST\020\000\022\022\n\016MUST_NOT_EXIST\020\001\022\016\n\n" +
-      "MUST_EXIST\020\002B\014P\001\252\002\007EvitaDBb\006proto3"
+      "MUST_EXIST\020\002*_\n\rGrpcOperation\022\n\n\006CREATE\020" +
+      "\000\022\n\n\006UPDATE\020\001\022\n\n\006REMOVE\020\002\022\025\n\021TRANSACTION" +
+      "_BEGIN\020\003\022\023\n\017TRANSACTION_END\020\004*\'\n\017GrpcCap" +
+      "tureArea\022\n\n\006SCHEMA\020\000\022\010\n\004DATA\020\001*y\n\022GrpcCl" +
+      "assifierType\022\013\n\007CATALOG\020\000\022\n\n\006ENTITY\020\001\022\r\n" +
+      "\tATTRIBUTE\020\002\022\023\n\017ASSOCIATED_DATA\020\003\022\r\n\tREF" +
+      "ERENCE\020\004\022\027\n\023REFERENCE_ATTRIBUTE\020\005**\n\022Grp" +
+      "cCaptureContent\022\n\n\006HEADER\020\000\022\010\n\004BODY\020\001*:\n" +
+      "\027GrpcCaptureResponseType\022\023\n\017ACKNOWLEDGEM" +
+      "ENT\020\000\022\n\n\006CHANGE\020\001B\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

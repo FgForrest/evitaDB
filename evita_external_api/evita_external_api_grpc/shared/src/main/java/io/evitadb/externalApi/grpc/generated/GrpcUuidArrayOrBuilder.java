@@ -37,7 +37,7 @@ public interface GrpcUuidArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcUuid>
       getValueList();
   /**
    * <pre>
@@ -62,7 +62,7 @@ public interface GrpcUuidArrayOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcUuid value = 1;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder>
       getValueOrBuilderList();
   /**
    * <pre>

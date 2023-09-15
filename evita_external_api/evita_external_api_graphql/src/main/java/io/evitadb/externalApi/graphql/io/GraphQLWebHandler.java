@@ -202,7 +202,7 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchang
     }
 
     @Override
-    protected String writeResult(@Nonnull GraphQLWebEndpointExchange exchange,  @Nonnull OutputStream outputStream, @Nonnull GraphQLResponse<?> response) {
+    protected void writeResult(@Nonnull GraphQLWebEndpointExchange exchange,  @Nonnull OutputStream outputStream, @Nonnull GraphQLResponse<?> response) {
         try {
             objectMapper.writeValue(outputStream, response);
         } catch (IOException e) {
