@@ -87,7 +87,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
-		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?(\\s+local)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
