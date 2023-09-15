@@ -49,6 +49,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Extra
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.StringUtils;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -78,7 +79,7 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			restApiHandlingContext,
 			this.entityJsonSerializer,
-			Map.of()
+			StringUtils::toCamelCase
 		);
 	}
 
