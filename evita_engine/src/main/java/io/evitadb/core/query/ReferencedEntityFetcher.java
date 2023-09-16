@@ -748,6 +748,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
+				/* TODO JNO - this is extremely inefficient and needs to be cached, plus it doesn't work with entityPK anywhere!! */
 				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
 					.getReferences(referenceName)
 					.stream()
@@ -755,6 +756,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.toArray()
 			),
 			(referenceName, entityPk) -> toFormula(
+				/* TODO JNO - this is extremely inefficient and needs to be cached, plus it doesn't work with entityPK anywhere!! */
 				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
 					.getReferences(referenceName)
 					.stream()
