@@ -26,8 +26,12 @@ package io.evitadb.performance.externalApi.grpc.artificial;
 import io.evitadb.performance.externalApi.grpc.artificial.state.*;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
+
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class runs all tests in {@link GrpcArtificialEntitiesBenchmark} in throughput mode measurement.
@@ -35,6 +39,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @BenchmarkMode({Mode.Throughput})
+@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
+@Threads(Threads.MAX)
 public class GrpcArtificialEntitiesThroughputBenchmark extends GrpcArtificialEntitiesBenchmark {
 
 	@Override

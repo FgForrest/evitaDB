@@ -24,8 +24,6 @@
 package io.evitadb.performance.externalApi.grpc.artificial;
 
 import io.evitadb.performance.externalApi.grpc.artificial.state.*;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -50,8 +48,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures random read on single entity data.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void singleEntityRead(GrpcArtificialFullDatabaseBenchmarkState benchmarkState, GrpcArtificialSingleReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -69,8 +65,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures random read on page of entity data.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void paginatedEntityRead(GrpcArtificialFullDatabaseBenchmarkState benchmarkState, GrpcArtificialPageReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -88,8 +82,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeFiltering(GrpcArtificialAttributeBenchmarkState benchmarkState, GrpcArtificialAttributeFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -108,8 +100,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes and hierarchy placement in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeAndHierarchyFiltering(GrpcArtificialAttributeBenchmarkState benchmarkState, GrpcArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -128,8 +118,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures attribute histogram DTO computation in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeHistogramComputation(GrpcArtificialAttributeBenchmarkState benchmarkState, GrpcArtificialAttributeHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -147,8 +135,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by price data in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceFiltering(GrpcArtificialPriceBenchmarkState benchmarkState, GrpcArtificialPriceFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -166,8 +152,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by price and hierarchy placement data in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceAndHierarchyFiltering(GrpcArtificialPriceBenchmarkState benchmarkState, GrpcArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -186,8 +170,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures price histogram DTO computation in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceHistogramComputation(GrpcArtificialPriceBenchmarkState benchmarkState, GrpcArtificialPriceHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -205,8 +187,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering by facet references in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFiltering(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -224,8 +204,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering by facet references and hierarchical placement in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFiltering(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -245,8 +223,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and computing summary for the rest in the dataset. It also randomizes
 	 * the relation among the facet groups of the facets.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFilteringAndSummarizingCount(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -266,8 +242,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingCount(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -287,8 +261,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingImpact(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())
@@ -307,8 +279,6 @@ public abstract class GrpcArtificialEntitiesBenchmark {
 	 *
 	 * Test measures hierarchy statistics DTO computation in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void hierarchyStatisticsComputation(GrpcArtificialHierarchyBenchmarkState benchmarkState, GrpcArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getRequest())

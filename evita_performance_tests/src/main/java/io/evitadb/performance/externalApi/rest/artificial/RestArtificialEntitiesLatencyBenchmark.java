@@ -26,8 +26,10 @@ package io.evitadb.performance.externalApi.rest.artificial;
 import io.evitadb.performance.externalApi.rest.artificial.state.*;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.concurrent.TimeUnit;
@@ -38,6 +40,8 @@ import java.util.concurrent.TimeUnit;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @BenchmarkMode({Mode.AverageTime})
+@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
+@Threads(Threads.MAX)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class RestArtificialEntitiesLatencyBenchmark extends RestArtificialEntitiesBenchmark {
 
