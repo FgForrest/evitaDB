@@ -26,8 +26,6 @@ package io.evitadb.performance.artificial;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.performance.artificial.state.*;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -52,8 +50,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 * Test measures bulk write speed on random data.
 	 * Each iteration starts with empty data
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(1)
 	public void bulkInsertThroughput(ArtificialBulkWriteBenchmarkState benchmarkState, ArtificialBulkWriteState state) {
 		benchmarkState.getSession().upsertEntity(state.getProduct());
 	}
@@ -70,8 +66,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 * Test measures transactional write / overwrite speed on random data.
 	 * Each iteration starts with database that already contains few thousands records.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(1)
 	public void transactionalUpsertThroughput(ArtificialTransactionalWriteBenchmarkState benchmarkState, ArtificialTransactionalWriteState state) {
 		benchmarkState.getSession().upsertEntity(state.getProduct());
 	}
@@ -87,8 +81,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures random read on single entity data.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void singleEntityRead(ArtificialFullDatabaseBenchmarkState benchmarkState, ArtificialSingleReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityContract.class)
@@ -106,8 +98,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures random read on page of entity data.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void paginatedEntityRead(ArtificialFullDatabaseBenchmarkState benchmarkState, ArtificialPageReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityContract.class)
@@ -125,8 +115,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeFiltering(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -145,8 +133,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes and hierarchy placement in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeAndHierarchyFiltering(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -165,8 +151,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures attribute histogram DTO computation in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeHistogramComputation(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -184,8 +168,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by price data in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceFiltering(ArtificialPriceBenchmarkState benchmarkState, ArtificialPriceFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -203,8 +185,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by price and hierarchy placement data in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceAndHierarchyFiltering(ArtificialPriceBenchmarkState benchmarkState, ArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -223,8 +203,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures price histogram DTO computation in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceHistogramComputation(ArtificialPriceBenchmarkState benchmarkState, ArtificialPriceHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -242,8 +220,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering by facet references in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFiltering(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -261,8 +237,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering by facet references and hierarchical placement in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFiltering(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -282,8 +256,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and computing summary for the rest in the dataset. It also randomizes
 	 * the relation among the facet groups of the facets.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFilteringAndSummarizingCount(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -303,8 +275,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingCount(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -324,8 +294,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingImpact(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -344,8 +312,6 @@ public abstract class ArtificialEntitiesBenchmark {
 	 *
 	 * Test measures hierarchy statistics DTO computation in the dataset.
 	 */
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void hierarchyStatisticsComputation(ArtificialHierarchyBenchmarkState benchmarkState, ArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().query(state.getQuery(), EntityReferenceContract.class)

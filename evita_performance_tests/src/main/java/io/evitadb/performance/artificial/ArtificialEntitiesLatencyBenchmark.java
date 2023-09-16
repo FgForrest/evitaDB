@@ -26,8 +26,10 @@ package io.evitadb.performance.artificial;
 import io.evitadb.performance.artificial.state.*;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.concurrent.TimeUnit;
@@ -38,100 +40,117 @@ import java.util.concurrent.TimeUnit;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @BenchmarkMode({Mode.AverageTime})
+@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class ArtificialEntitiesLatencyBenchmark extends ArtificialEntitiesBenchmark {
 
 	@Benchmark
+	@Threads(1)
 	@Override
 	public void bulkInsertThroughput(ArtificialBulkWriteBenchmarkState benchmarkState, ArtificialBulkWriteState state) {
 		super.bulkInsertThroughput(benchmarkState, state);
 	}
 
 	@Benchmark
+	@Threads(1)
 	@Override
 	public void transactionalUpsertThroughput(ArtificialTransactionalWriteBenchmarkState benchmarkState, ArtificialTransactionalWriteState state) {
 		super.transactionalUpsertThroughput(benchmarkState, state);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void singleEntityRead(ArtificialFullDatabaseBenchmarkState benchmarkState, ArtificialSingleReadState state, Blackhole blackhole) {
 		super.singleEntityRead(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void paginatedEntityRead(ArtificialFullDatabaseBenchmarkState benchmarkState, ArtificialPageReadState state, Blackhole blackhole) {
 		super.paginatedEntityRead(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void attributeFiltering(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void attributeAndHierarchyFiltering(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.attributeAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void attributeHistogramComputation(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeHistogramState state, Blackhole blackhole) {
 		super.attributeHistogramComputation(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void priceFiltering(ArtificialPriceBenchmarkState benchmarkState, ArtificialPriceFilteringState state, Blackhole blackhole) {
 		super.priceFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void priceAndHierarchyFiltering(ArtificialPriceBenchmarkState benchmarkState, ArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.priceAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void priceHistogramComputation(ArtificialPriceBenchmarkState benchmarkState, ArtificialPriceHistogramState state, Blackhole blackhole) {
 		super.priceHistogramComputation(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void facetFiltering(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetFilteringState state, Blackhole blackhole) {
 		super.facetFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void facetAndHierarchyFiltering(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.facetAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void facetFilteringAndSummarizingCount(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetFilteringAndSummarizingCount(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void facetAndHierarchyFilteringAndSummarizingCount(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingCount(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void facetAndHierarchyFilteringAndSummarizingImpact(ArtificialFacetBenchmarkState benchmarkState, ArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingImpact(benchmarkState, state, blackhole);
 	}
 
 	@Benchmark
+	@Threads(Threads.MAX)
 	@Override
 	public void hierarchyStatisticsComputation(ArtificialHierarchyBenchmarkState benchmarkState, ArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
