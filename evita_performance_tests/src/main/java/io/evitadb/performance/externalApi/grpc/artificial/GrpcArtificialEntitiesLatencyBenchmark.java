@@ -24,6 +24,7 @@
 package io.evitadb.performance.externalApi.grpc.artificial;
 
 import io.evitadb.performance.externalApi.grpc.artificial.state.*;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
@@ -41,71 +42,85 @@ import java.util.concurrent.TimeUnit;
 public class GrpcArtificialEntitiesLatencyBenchmark extends GrpcArtificialEntitiesBenchmark {
 
 	@Override
+	@Benchmark
 	public void singleEntityRead(GrpcArtificialFullDatabaseBenchmarkState benchmarkState, GrpcArtificialSingleReadState state, Blackhole blackhole) {
 		super.singleEntityRead(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void paginatedEntityRead(GrpcArtificialFullDatabaseBenchmarkState benchmarkState, GrpcArtificialPageReadState state, Blackhole blackhole) {
 		super.paginatedEntityRead(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeFiltering(GrpcArtificialAttributeBenchmarkState benchmarkState, GrpcArtificialAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeAndHierarchyFiltering(GrpcArtificialAttributeBenchmarkState benchmarkState, GrpcArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.attributeAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeHistogramComputation(GrpcArtificialAttributeBenchmarkState benchmarkState, GrpcArtificialAttributeHistogramState state, Blackhole blackhole) {
 		super.attributeHistogramComputation(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceFiltering(GrpcArtificialPriceBenchmarkState benchmarkState, GrpcArtificialPriceFilteringState state, Blackhole blackhole) {
 		super.priceFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceAndHierarchyFiltering(GrpcArtificialPriceBenchmarkState benchmarkState, GrpcArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.priceAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceHistogramComputation(GrpcArtificialPriceBenchmarkState benchmarkState, GrpcArtificialPriceHistogramState state, Blackhole blackhole) {
 		super.priceHistogramComputation(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFiltering(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetFilteringState state, Blackhole blackhole) {
 		super.facetFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFiltering(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.facetAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFilteringAndSummarizingCount(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetFilteringAndSummarizingCount(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingCount(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingCount(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingImpact(GrpcArtificialFacetBenchmarkState benchmarkState, GrpcArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingImpact(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void hierarchyStatisticsComputation(GrpcArtificialHierarchyBenchmarkState benchmarkState, GrpcArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}

@@ -27,7 +27,6 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.performance.client.state.ClientSyntheticTestState.QueryWithExpectedType;
 import io.evitadb.performance.senesi.state.*;
-import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
@@ -54,7 +53,6 @@ public abstract class SenesiBenchmark {
 	 * Test measures bulk write speed on random data.
 	 * Each iteration starts with empty data
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(1)
 	public void bulkInsertThroughput(SenesiBulkWriteState state) {
@@ -73,7 +71,6 @@ public abstract class SenesiBenchmark {
 	 * Test measures transactional write / overwrite speed on random data.
 	 * Each iteration starts with database that already contains few thousands records.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(1)
 	public void transactionalUpsertThroughput(SenesiTransactionalWriteState state) {
@@ -91,7 +88,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures random read on single entity data.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void singleEntityRead(SenesiSingleReadState state, Blackhole blackhole) {
@@ -111,7 +107,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures random read on page of entity data.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void paginatedEntityRead(SenesiPageReadState state, Blackhole blackhole) {
@@ -131,7 +126,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void attributeFiltering(SenesiAttributeFilteringState state, Blackhole blackhole) {
@@ -151,7 +145,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes and hierarchy placement in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void attributeAndHierarchyFiltering(SenesiAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
@@ -172,7 +165,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures attribute histogram DTO computation in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void attributeHistogramComputation(SenesiAttributeHistogramState state, Blackhole blackhole) {
@@ -192,7 +184,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures filtering and ordering by price data in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void priceFiltering(SenesiPriceFilteringState state, Blackhole blackhole) {
@@ -212,7 +203,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures filtering and ordering by price and hierarchy placement data in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void priceAndHierarchyFiltering(SenesiPriceAndHierarchyFilteringState state, Blackhole blackhole) {
@@ -233,7 +223,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures price histogram DTO computation in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void priceHistogramComputation(SenesiPriceHistogramState state, Blackhole blackhole) {
@@ -253,7 +242,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures filtering by facet references in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void facetFiltering(SenesiFacetFilteringState state, Blackhole blackhole) {
@@ -273,7 +261,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures filtering by facet references and hierarchy placement in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void facetAndHierarchyFiltering(SenesiFacetAndHierarchyFilteringState state, Blackhole blackhole) {
@@ -295,7 +282,6 @@ public abstract class SenesiBenchmark {
 	 * Test measures filtering by facet references and computing summary for the rest in the dataset. It also randomizes
 	 * the relation among the facet groups of the facets.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void facetFilteringAndSummarizingCount(SenesiFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
@@ -317,7 +303,6 @@ public abstract class SenesiBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingCount(SenesiFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
@@ -339,7 +324,6 @@ public abstract class SenesiBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingImpact(SenesiFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
@@ -360,7 +344,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures hierarchy statistics DTO computation in the dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void hierarchyStatisticsComputation(SenesiHierarchyStatisticsComputationState state, Blackhole blackhole) {
@@ -379,7 +362,6 @@ public abstract class SenesiBenchmark {
 	 *
 	 * Test measures real-world traffic on the real-world dataset.
 	 */
-	@Benchmark
 	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
 	@Threads(Threads.MAX)
 	public void syntheticTest(SenesiSyntheticTestState state, Blackhole blackhole) {

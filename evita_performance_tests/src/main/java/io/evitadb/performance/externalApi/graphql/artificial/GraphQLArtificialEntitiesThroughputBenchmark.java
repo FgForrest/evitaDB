@@ -24,6 +24,7 @@
 package io.evitadb.performance.externalApi.graphql.artificial;
 
 import io.evitadb.performance.externalApi.graphql.artificial.state.*;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.infra.Blackhole;
@@ -37,71 +38,85 @@ import org.openjdk.jmh.infra.Blackhole;
 public class GraphQLArtificialEntitiesThroughputBenchmark extends GraphQLArtificialEntitiesBenchmark {
 
 	@Override
+	@Benchmark
 	public void singleEntityRead(GraphQLArtificialFullDatabaseBenchmarkState benchmarkState, GraphQLArtificialSingleReadState state, Blackhole blackhole) {
 		super.singleEntityRead(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void paginatedEntityRead(GraphQLArtificialFullDatabaseBenchmarkState benchmarkState, GraphQLArtificialPageReadState state, Blackhole blackhole) {
 		super.paginatedEntityRead(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeFiltering(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeAndHierarchyFiltering(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.attributeAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeHistogramComputation(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeHistogramState state, Blackhole blackhole) {
 		super.attributeHistogramComputation(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceFiltering(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceFilteringState state, Blackhole blackhole) {
 		super.priceFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceAndHierarchyFiltering(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.priceAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceHistogramComputation(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceHistogramState state, Blackhole blackhole) {
 		super.priceHistogramComputation(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFiltering(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetFilteringState state, Blackhole blackhole) {
 		super.facetFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFiltering(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.facetAndHierarchyFiltering(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetFilteringAndSummarizingCount(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingCount(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingImpact(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingImpact(benchmarkState, state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void hierarchyStatisticsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(benchmarkState, state, blackhole);
 	}
