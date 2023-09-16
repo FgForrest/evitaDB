@@ -457,13 +457,13 @@ have both an accessor, a mutator method (i.e. `get` and `set` methods for the pr
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/data/NonSerializedData.java</SourceClass>
 annotation, are serialized into a complex type. See the following example:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Associated data POJO](/documentation/user/en/use/examples/dto.java)
 </SourceCodeTabs>
 
 Storing a complex type to entity is executed as follows:
 
-<SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Storing associated data to an entity](/documentation/user/en/use/examples/storing.java)
 </SourceCodeTabs>
@@ -471,7 +471,7 @@ Storing a complex type to entity is executed as follows:
 As you can see, annotations can be placed either on methods or property fields, so that if you use
 [Lombok support](https://projectlombok.org/), you can still easily define the class as:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Associated data Lombok POJO](/documentation/user/en/use/examples/dto-lombok.java)
 </SourceCodeTabs>
 
@@ -484,7 +484,7 @@ is thrown.
 You can use collections in complex types, but the specific collection types must be extractable from the collection 
 generics in deserialization time. Look at the following example:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Associated data POJO with collections](/documentation/user/en/use/examples/dto-collection.java)
 </SourceCodeTabs>
 
@@ -524,7 +524,7 @@ void verifyProductStockAvailabilityIsProperlySerialized() {
 
 Retrieving a complex type from an entity is executed as follows:
 
-<SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java">
+<SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java" local>
 
 [Loading associated data from an entity](/documentation/user/en/use/examples/loading.java)
 </SourceCodeTabs>

@@ -9,15 +9,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         	Require(
         		EntityFetch(
         			AttributeContent("code"),
-        			ReferenceContentAllWithAttributes(
-        				AttributeContentAll(),
-        				EntityFetch(
-        					AttributeContent("code")
-        				),
-        				EntityGroupFetch(
-        					AttributeContent("code")
-        				)
-        			)
+        			ReferenceContentAllWithAttributes()
         		)
         	)
         )

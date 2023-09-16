@@ -955,6 +955,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 
 		this.fetchedEntities = collectedRequirements
+			.filter(it -> it.getValue().requiresInit())
 			.collect(
 				Collectors.toMap(
 					Entry::getKey,

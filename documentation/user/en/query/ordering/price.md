@@ -43,7 +43,7 @@ the following query:
 ##### List of products sorted by selling price
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of products sorted by selling price](/documentation/user/en/query/ordering/examples/price/price-natural.evitaql.md)</MDInclude>
 

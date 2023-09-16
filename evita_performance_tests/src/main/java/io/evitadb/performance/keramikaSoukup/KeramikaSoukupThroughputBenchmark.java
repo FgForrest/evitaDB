@@ -24,6 +24,7 @@
 package io.evitadb.performance.keramikaSoukup;
 
 import io.evitadb.performance.keramikaSoukup.state.*;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.infra.Blackhole;
@@ -37,86 +38,103 @@ import org.openjdk.jmh.infra.Blackhole;
 public class KeramikaSoukupThroughputBenchmark extends KeramikaSoukupBenchmark {
 
 	@Override
+	@Benchmark
 	public void bulkInsertThroughput(KeramikaSoukupBulkWriteState state) {
 		super.bulkInsertThroughput(state);
 	}
 
 	@Override
+	@Benchmark
 	public void transactionalUpsertThroughput(KeramikaSoukupTransactionalWriteState state) {
 		super.transactionalUpsertThroughput(state);
 	}
 
 	@Override
+	@Benchmark
 	public void singleEntityRead(KeramikaSoukupSingleReadState state, Blackhole blackhole) {
 		super.singleEntityRead(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void paginatedEntityRead(KeramikaSoukupPageReadState state, Blackhole blackhole) {
 		super.paginatedEntityRead(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeFiltering(KeramikaSoukupAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeAndHierarchyFiltering(KeramikaSoukupAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.attributeAndHierarchyFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeHistogramComputation(KeramikaSoukupAttributeHistogramState state, Blackhole blackhole) {
 		super.attributeHistogramComputation(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceFiltering(KeramikaSoukupPriceFilteringState state, Blackhole blackhole) {
 		super.priceFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceAndHierarchyFiltering(KeramikaSoukupPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.priceAndHierarchyFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceHistogramComputation(KeramikaSoukupPriceHistogramState state, Blackhole blackhole) {
 		super.priceHistogramComputation(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFiltering(KeramikaSoukupFacetFilteringState state, Blackhole blackhole) {
 		super.facetFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFiltering(KeramikaSoukupFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.facetAndHierarchyFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFilteringAndSummarizingCount(KeramikaSoukupFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetFilteringAndSummarizingCount(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingCount(KeramikaSoukupFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingCount(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingImpact(KeramikaSoukupFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingImpact(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void hierarchyStatisticsComputation(KeramikaSoukupHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void syntheticTest(KeramikaSoukupSyntheticTestState state, Blackhole blackhole) {
 		super.syntheticTest(state, blackhole);
 	}

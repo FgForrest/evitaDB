@@ -62,7 +62,7 @@ following query:
 ##### List of "Sony" products ordered by priority
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of "Sony" products ordered by priority](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.evitaql.md)</MDInclude>
 
@@ -115,7 +115,7 @@ brand "Google":
 ##### List of "Sony" or "Google" products ordered by priority
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List of "Sony" or "Google" products ordered by priority](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql.md)</MDInclude>
 
@@ -164,7 +164,7 @@ by the `orderInCategory` attribute on the reference to the category:
 ##### List products in "Accessories" category ordered by priority
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[List products in "Accessories" category ordered by priority](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql.md)</MDInclude>
 
@@ -295,7 +295,7 @@ entity, and secondarily by the `name` attribute of the referenced entity. Let's 
 ##### Get product with parameters ordered by their priority
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.evitaql.json.md)</MDInclude>
 

@@ -124,7 +124,7 @@ thousands of products.
 Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.java)
 </SourceCodeTabs>
 

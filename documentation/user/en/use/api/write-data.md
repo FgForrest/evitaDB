@@ -43,7 +43,7 @@ one writing the data, we can afford to do this.
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.java)
 </SourceCodeTabs>
@@ -57,7 +57,7 @@ moment on, multiple clients can open read-only or read-write sessions in paralle
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the 
 [system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
 </SourceCodeTabs>
@@ -71,7 +71,7 @@ moment on, multiple clients can send queries or mutations requests in parallel t
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the
 [system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
 </SourceCodeTabs>
@@ -125,7 +125,7 @@ Interfaces follow this structure:
 When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data 
 to the entity and then store the entity to the database:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.java)
 </SourceCodeTabs>
@@ -135,7 +135,7 @@ When you read existing entity from the catalog, you obtain read-only
 basically a contract interface with a few methods allowing you to convert it to the builder instance that can be used
 for updating the data:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.java)
 </SourceCodeTabs>

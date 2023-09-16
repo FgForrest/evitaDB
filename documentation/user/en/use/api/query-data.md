@@ -91,7 +91,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Java query example](/documentation/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
@@ -100,7 +100,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Java dirty query example](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
@@ -146,7 +146,7 @@ represented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass> 
 interface.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.java)
 </SourceCodeTabs>
@@ -180,7 +180,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.java)
 </SourceCodeTabs>
@@ -201,7 +201,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties 
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
 </SourceCodeTabs>
@@ -263,7 +263,7 @@ as they provide quick access to entities.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 
-[Java query example](/documentation/user/en/use/api/example/graphql-get-query-example.java)
+[Java query example](/documentation/user/en/use/api/example/graphql-get-query-example.graphql)
 </SourceCodeTabs>
 
 The `listCollectionName` queries support full filter and order parts of an evitaDB query as a query arguments and fetching
@@ -274,7 +274,7 @@ requirements are needed.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 
-[Java query example](/documentation/user/en/use/api/example/graphql-list-query-example.java)
+[Java query example](/documentation/user/en/use/api/example/graphql-list-query-example.graphql)
 </SourceCodeTabs>
 
 The `queryCollectionName` queries are full-featured queries, which are the main queries you should use when
@@ -285,7 +285,7 @@ one query.
 
 <SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
 
-[Java query example](/documentation/user/en/use/api/example/graphql-full-query-example.java)
+[Java query example](/documentation/user/en/use/api/example/graphql-full-query-example.graphql)
 </SourceCodeTabs>
 
 </LanguageSpecific>

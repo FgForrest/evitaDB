@@ -23,6 +23,25 @@
   {
     "children": [
       {
+        "entity": {
+          "primaryKey": 66480,
+          "attributes": {
+            "code": "christmas-electronics"
+          }
+        },
+        "queriedEntityCount": 10
+      },
+      {
+        "childrenCount": 3,
+        "entity": {
+          "primaryKey": 66481,
+          "attributes": {
+            "code": "smart-wearable"
+          }
+        },
+        "queriedEntityCount": 285
+      },
+      {
         "children": [
           {
             "children": [
@@ -109,25 +128,6 @@
           }
         },
         "queriedEntityCount": 116
-      },
-      {
-        "entity": {
-          "primaryKey": 66480,
-          "attributes": {
-            "code": "christmas-electronics"
-          }
-        },
-        "queriedEntityCount": 10
-      },
-      {
-        "childrenCount": 3,
-        "entity": {
-          "primaryKey": 66481,
-          "attributes": {
-            "code": "smart-wearable"
-          }
-        },
-        "queriedEntityCount": 285
       },
       {
         "entity": {

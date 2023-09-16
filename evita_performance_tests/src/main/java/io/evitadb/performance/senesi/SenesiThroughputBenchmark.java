@@ -24,6 +24,7 @@
 package io.evitadb.performance.senesi;
 
 import io.evitadb.performance.senesi.state.*;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.infra.Blackhole;
@@ -37,86 +38,103 @@ import org.openjdk.jmh.infra.Blackhole;
 public class SenesiThroughputBenchmark extends SenesiBenchmark {
 
 	@Override
+	@Benchmark
 	public void bulkInsertThroughput(SenesiBulkWriteState state) {
 		super.bulkInsertThroughput(state);
 	}
 
 	@Override
+	@Benchmark
 	public void transactionalUpsertThroughput(SenesiTransactionalWriteState state) {
 		super.transactionalUpsertThroughput(state);
 	}
 
 	@Override
+	@Benchmark
 	public void singleEntityRead(SenesiSingleReadState state, Blackhole blackhole) {
 		super.singleEntityRead(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void paginatedEntityRead(SenesiPageReadState state, Blackhole blackhole) {
 		super.paginatedEntityRead(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeFiltering(SenesiAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeAndHierarchyFiltering(SenesiAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.attributeAndHierarchyFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeHistogramComputation(SenesiAttributeHistogramState state, Blackhole blackhole) {
 		super.attributeHistogramComputation(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceFiltering(SenesiPriceFilteringState state, Blackhole blackhole) {
 		super.priceFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceAndHierarchyFiltering(SenesiPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.priceAndHierarchyFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceHistogramComputation(SenesiPriceHistogramState state, Blackhole blackhole) {
 		super.priceHistogramComputation(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFiltering(SenesiFacetFilteringState state, Blackhole blackhole) {
 		super.facetFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFiltering(SenesiFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.facetAndHierarchyFiltering(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFilteringAndSummarizingCount(SenesiFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetFilteringAndSummarizingCount(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingCount(SenesiFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingCount(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingImpact(SenesiFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingImpact(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void hierarchyStatisticsComputation(SenesiHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void syntheticTest(SenesiSyntheticTestState state, Blackhole blackhole) {
 		super.syntheticTest(state, blackhole);
 	}

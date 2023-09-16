@@ -24,6 +24,7 @@
 package io.evitadb.performance.signal;
 
 import io.evitadb.performance.signal.state.*;
+import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.infra.Blackhole;
@@ -37,86 +38,103 @@ import org.openjdk.jmh.infra.Blackhole;
 public class SignalThroughputBenchmark extends SignalBenchmark {
 
 	@Override
+	@Benchmark
 	public void bulkInsertThroughput_InMemory(SignalBulkWriteState state) {
 		super.bulkInsertThroughput_InMemory(state);
 	}
 
 	@Override
+	@Benchmark
 	public void transactionalUpsertThroughput_InMemory(SignalTransactionalWriteState state) {
 		super.transactionalUpsertThroughput_InMemory(state);
 	}
 
 	@Override
+	@Benchmark
 	public void singleEntityRead_InMemory(SignalSingleReadState state, Blackhole blackhole) {
 		super.singleEntityRead_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void paginatedEntityRead_InMemory(SignalPageReadState state, Blackhole blackhole) {
 		super.paginatedEntityRead_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeFiltering_InMemory(SignalAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeAndHierarchyFiltering_InMemory(SignalAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.attributeAndHierarchyFiltering_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void attributeHistogramComputation_InMemory(SignalAttributeHistogramState state, Blackhole blackhole) {
 		super.attributeHistogramComputation_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceFiltering_InMemory(SignalPriceFilteringState state, Blackhole blackhole) {
 		super.priceFiltering_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceAndHierarchyFiltering_InMemory(SignalPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.priceAndHierarchyFiltering_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void priceHistogramComputation_InMemory(SignalPriceHistogramState state, Blackhole blackhole) {
 		super.priceHistogramComputation_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFiltering_InMemory(SignalFacetFilteringState state, Blackhole blackhole) {
 		super.facetFiltering_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFiltering_InMemory(SignalFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		super.facetAndHierarchyFiltering_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetFilteringAndSummarizingCount_InMemory(SignalFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetFilteringAndSummarizingCount_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingCount_InMemory(SignalFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingCount_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void facetAndHierarchyFilteringAndSummarizingImpact_InMemory(SignalFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		super.facetAndHierarchyFilteringAndSummarizingImpact_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void hierarchyStatisticsComputation_InMemory(SignalHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		super.hierarchyStatisticsComputation_InMemory(state, blackhole);
 	}
 
 	@Override
+	@Benchmark
 	public void syntheticTest_InMemory(SignalSyntheticTestState state, Blackhole blackhole) {
 		super.syntheticTest_InMemory(state, blackhole);
 	}

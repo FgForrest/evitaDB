@@ -103,8 +103,10 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER
  */
 public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildingContext<SIMPLE_TYPE, OBJECT_TYPE>, SIMPLE_TYPE, OBJECT_TYPE, OBJECT_FIELD> {
 
+	protected static final String SINGLE_CHILD_CONSTRAINT_KEY = "_";
+
 	@Nonnull protected final CTX sharedContext;
-	@Nonnull private final ConstraintKeyBuilder keyBuilder;
+	@Nonnull protected final ConstraintKeyBuilder keyBuilder;
 	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 	/**
 	 * Map of additional builders for cross-building constraint schemas of different constraint types.
@@ -783,7 +785,12 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_RANGE) {
 			return buildWrapperRangeConstraintValue(buildContext, valueParameters, valueTypeSupplier);
 		} else if (constraintValueStructure == ConstraintValueStructure.CHILD) {
-			return buildChildConstraintValue(buildContext, childParameters.get(0));
+			final Map<String, SIMPLE_TYPE> childConstraint = buildChildConstraintValue(buildContext, childParameters.get(0));
+			Assert.isPremiseValid(
+				childConstraint.size() == 1,
+				() -> createSchemaBuildingError("`" + ConstraintValueStructure.CHILD + "` structure should have exactly one child constraint.")
+			);
+			return childConstraint.get(SINGLE_CHILD_CONSTRAINT_KEY);
 		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
 			return obtainWrapperObjectConstraintValue(
 				buildContext,
@@ -824,8 +831,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * Builds field value representing constraint value of constraint with single creator child parameter.
 	 */
 	@Nonnull
-	protected abstract SIMPLE_TYPE buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
-	                                                         @Nonnull ChildParameterDescriptor childParameter);
+	protected abstract Map<String, SIMPLE_TYPE> buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
+	                                                                      @Nonnull ChildParameterDescriptor childParameter);
 
 	/**
 	 * Builds field value representing constraint value of constraint with additional child parameter.
