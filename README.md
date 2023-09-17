@@ -18,8 +18,9 @@ examples and guides.</p>
 </p>
 
 <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/000000/blog.png" width="50px">
-      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px">
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/blog.png" width="50px">
+<img alt="Shows an illustrated sun in light mode and a moon with stars in dark mode." src="https://img.icons8.com/carbon-copy/100/888888/blog.png">
     </picture>
 
 <p align="center">
