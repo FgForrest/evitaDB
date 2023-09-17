@@ -17,6 +17,11 @@ examples and guides.</p>
   <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
 </p>
 
+<picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/blog.png" width="50px">
+    </picture>
+
 <p align="center">
   <a href="https://evitadb.io/en/blog" title="Blog">
     <picture>
