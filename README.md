@@ -17,17 +17,12 @@ examples and guides.</p>
   <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
 </p>
 
-<picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px">
-      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/blog.png" width="50px">
-<img alt="Shows an illustrated sun in light mode and a moon with stars in dark mode." src="https://img.icons8.com/carbon-copy/100/888888/blog.png">
-    </picture>
-
 <p align="center">
   <a href="https://evitadb.io/en/blog" title="Blog">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/blog.png" width="50px">
+      <img alt="Blog" src="https://img.icons8.com/carbon-copy/100/888888/blog.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -35,6 +30,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/saving-book.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/saving-book.png" width="50px">
+      <img alt="Documentation" src="https://img.icons8.com/carbon-copy/100/888888/saving-book.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -42,6 +38,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/microscope.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/microscope.png" width="50px">
+      <img alt="Research" src="https://img.icons8.com/carbon-copy/100/888888/microscope.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -49,6 +46,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/twitter.png" width="50px">
+      <img alt="Twitter" src="https://img.icons8.com/carbon-copy/100/888888/twitter.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -56,6 +54,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/discord-square.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/discord-square.png" width="50px">
+      <img alt="Discord" src="https://img.icons8.com/carbon-copy/100/888888/discord-square.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -63,6 +62,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/github.png" width="50px">
+      <img alt="GitHub" src="https://img.icons8.com/carbon-copy/100/888888/github.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -70,6 +70,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/fingerprint-scan.png" width="50px">
+      <img alt="PGP public key" src="https://img.icons8.com/carbon-copy/100/888888/fingerprint-scan.png" width="50px">
     </picture>
   </a>
   &nbsp;
@@ -77,6 +78,7 @@ examples and guides.</p>
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/statistics.png" width="50px">
       <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/statistics.png" width="50px">
+      <img alt="Latest performance results" src="https://img.icons8.com/carbon-copy/100/888888/statistics.png" width="50px">
     </picture>
   </a>
 </p>
