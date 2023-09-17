@@ -210,7 +210,7 @@ public class EvitaClient implements EvitaContract {
 				// terminated
 				Thread.currentThread().interrupt();
 			}
-		};;
+		};
 		this.active.set(true);
 	}
 
