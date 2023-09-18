@@ -268,10 +268,10 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 
 		level++;
 		if (constraint.isApplicable()) {
-			final Constraint<?>[] children = constraint.getChildren();
+			final Constraint<?>[] children = constraint.getExplicitChildren();
 			final int childrenLength = children.length;
 
-			final Constraint<?>[] additionalChildren = constraint.getAdditionalChildren();
+			final Constraint<?>[] additionalChildren = constraint.getExplicitAdditionalChildren();
 			final int additionalChildrenLength = additionalChildren.length;
 
 			final Serializable[] arguments = constraint.getArguments();

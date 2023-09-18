@@ -33,6 +33,7 @@ import java.io.Serializable;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
 import static io.evitadb.api.query.require.StatisticsBase.WITHOUT_USER_FILTER;
@@ -291,6 +292,39 @@ class PrettyPrintingVisitorTest {
 				"CATEGORY", REMOVE_EMPTY, "megaMenu", WITHOUT_USER_FILTER, 1, 100
 			},
 			result.parameters().toArray(new Serializable[0])
+		);
+	}
+
+	@Test
+	void shouldPrettyPrintQueryWithImplicitChildren() {
+		final String result = PrettyPrintingVisitor.toString(
+			query(
+				collection("PRODUCT"),
+				require(
+					referenceContentWithAttributes(
+						"brand",
+						filterBy(
+							attributeIs("visible", NULL)
+						)
+					)
+				)
+			),
+			"\t"
+		);
+		assertEquals(
+			"""
+            query(
+            \tcollection('PRODUCT'),
+            \trequire(
+            \t\treferenceContentWithAttributes(
+            \t\t\t'brand',
+            \t\t\tfilterBy(
+            \t\t\t\tattributeIs('visible', NULL)
+            \t\t\t)
+            \t\t)
+            \t)
+            )""",
+			result
 		);
 	}
 
