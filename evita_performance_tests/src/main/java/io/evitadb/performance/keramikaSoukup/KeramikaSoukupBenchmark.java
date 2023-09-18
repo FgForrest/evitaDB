@@ -27,12 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.performance.client.state.ClientSyntheticTestState.QueryWithExpectedType;
 import io.evitadb.performance.keramikaSoukup.state.*;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * This benchmarks contains test that use real anonymized client data from
@@ -53,9 +48,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 * Test measures bulk write speed on random data.
 	 * Each iteration starts with empty data
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(1)
 	public void bulkInsertThroughput(KeramikaSoukupBulkWriteState state) {
 		state.getSession().upsertEntity(state.getProduct());
 	}
@@ -72,9 +64,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 * Test measures transactional write / overwrite speed on random data.
 	 * Each iteration starts with database that already contains few thousands records.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(1)
 	public void transactionalUpsertThroughput(KeramikaSoukupTransactionalWriteState state) {
 		state.getSession().upsertEntity(state.getProduct());
 	}
@@ -90,9 +79,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures random read on single entity data.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void singleEntityRead(KeramikaSoukupSingleReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityContract.class)
@@ -110,9 +96,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures random read on page of entity data.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void paginatedEntityRead(KeramikaSoukupPageReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityContract.class)
@@ -130,9 +113,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeFiltering(KeramikaSoukupAttributeFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -150,9 +130,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes and hierarchy placement in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeAndHierarchyFiltering(KeramikaSoukupAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -171,9 +148,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures attribute histogram DTO computation in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeHistogramComputation(KeramikaSoukupAttributeHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -191,9 +165,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures filtering and ordering by price data in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceFiltering(KeramikaSoukupPriceFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -211,9 +182,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures filtering and ordering by price and hierarchy placement data in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceAndHierarchyFiltering(KeramikaSoukupPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -232,9 +200,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures price histogram DTO computation in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceHistogramComputation(KeramikaSoukupPriceHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -252,9 +217,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures filtering by facet references in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFiltering(KeramikaSoukupFacetFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -272,9 +234,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures filtering by facet references and hierarchy placement in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFiltering(KeramikaSoukupFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -294,9 +253,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 * Test measures filtering by facet references and computing summary for the rest in the dataset. It also randomizes
 	 * the relation among the facet groups of the facets.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFilteringAndSummarizingCount(KeramikaSoukupFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -316,9 +272,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingCount(KeramikaSoukupFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -338,9 +291,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingImpact(KeramikaSoukupFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -359,9 +309,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures hierarchy statistics DTO computation in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void hierarchyStatisticsComputation(KeramikaSoukupHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		blackhole.consume(
 			state.getSession().query(state.getQuery(), EntityReferenceContract.class)
@@ -378,9 +325,6 @@ public abstract class KeramikaSoukupBenchmark {
 	 *
 	 * Test measures real-world traffic on the real-world dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void syntheticTest(KeramikaSoukupSyntheticTestState state, Blackhole blackhole) {
 		final QueryWithExpectedType queryWithExpectedType = state.getQueryWithExpectedType();
 		blackhole.consume(

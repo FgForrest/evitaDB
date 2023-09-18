@@ -45,7 +45,6 @@ module evita.external.api.grpc {
 	requires com.fasterxml.jackson.annotation;
 	requires protobuf.java;
 	requires proto.google.common.protos;
-	requires grpc.workaround.build;
 	requires com.fasterxml.jackson.databind;
 
 	requires evita.api;
@@ -60,6 +59,8 @@ module evita.external.api.grpc {
 	requires reactive.grpc.common;
 	requires org.reactivestreams;
 	requires undertow.core;
-	requires grpc.netty;
+	requires io.grpc.netty;
+	requires io.netty.transport;
+	requires io.grpc;
 
 }

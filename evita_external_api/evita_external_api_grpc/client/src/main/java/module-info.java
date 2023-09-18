@@ -11,14 +11,14 @@ module evita.java.driver {
 	requires static lombok;
 	requires org.slf4j;
 	requires protobuf.java;
-	requires grpc.workaround.build;
 
 	requires evita.api;
 	requires evita.common;
 	requires evita.query;
 	requires evita.external.api.grpc.shared;
-	requires grpc.netty;
 	requires io.netty.handler;
 	requires reactive.grpc.common;
 	requires org.reactivestreams;
+	requires io.grpc.netty;
+	requires io.grpc;
 }

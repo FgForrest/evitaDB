@@ -929,6 +929,9 @@ public class EvitaRequest {
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy
 	) {
+		public boolean requiresInit() {
+			return entityFetch != null || entityGroupFetch != null || filterBy != null || orderBy != null;
+		}
 	}
 
 	/**
