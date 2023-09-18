@@ -114,7 +114,7 @@
 		<maven.toolchains.version>3.0.0</maven.toolchains.version>
 		<jboss.version>3.5.0.Final</jboss.version>
 		<lombok.version>1.18.24</lombok.version>
-		<grpc.version>1.57.2</grpc.version>
+		<grpc.version>1.58.0</grpc.version>
 		<bouncyCastle.version>1.70</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.94.Final</nettyHandler.version>
@@ -133,7 +133,6 @@
 		<module>evita_test_support</module>
 		<module>evita_functional_tests</module>
 		<module>evita_performance_tests</module>
-		<module>workaround/grpc</module>
 		<module>workaround/roaringBitmap</module>
 		<module>jacoco</module>
 	</modules>
