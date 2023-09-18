@@ -66,7 +66,7 @@ import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 @Slf4j
 public class GraphQLWebSocketHandler extends WebSocketProtocolHandshakeHandler {
 
-	private static final String GRAPHQL_WS_SUB_PROTOCOL = "graphql-protocol-ws";
+	private static final String GRAPHQL_WS_SUB_PROTOCOL = "graphql-transport-ws";
 	private static final Set<String> SUPPORTED_SUB_PROTOCOLS = Set.of(GRAPHQL_WS_SUB_PROTOCOL);
 	private static final Set<Handshake> SUPPORTED_HANDSHAKES = Set.of(
 		new Hybi13Handshake(SUPPORTED_SUB_PROTOCOLS, false),
