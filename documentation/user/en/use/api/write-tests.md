@@ -62,7 +62,7 @@ framework.
 
 Let's first take a look at what a commonly written automated test that uses data in evitaDB would look like:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [JUnit5 test example](/documentation/user/en/use/api/example/test-with-empty-dataset-example.java)
 </SourceCodeTabs>
 
@@ -70,7 +70,7 @@ That's quite a lot of work. Therefore, we provide better support for evitaDB ser
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/extension/DbInstanceParameterResolver.java</SourceClass>, 
 which can be integrated into your test via JUnit 5 annotation `@ExtendWith(DbInstanceParameterResolver.class)`:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Alternative test example](/documentation/user/en/use/api/example/test-with-empty-dataset-alternative.java)
 </SourceCodeTabs>
 
@@ -80,7 +80,7 @@ with some initial data fixture), you need to define a new initialization functio
 annotations <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/DataSet.java</SourceClass>
 and <SourceClass>evita_test_support/src/main/java/io/evitadb/test/annotation/UseDataSet.java</SourceClass>:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Named and filled dataset test example](/documentation/user/en/use/api/example/test-with-prefilled-dataset.java)
 </SourceCodeTabs>
 
@@ -107,7 +107,7 @@ the test method implementation to query and assert the results of the data in th
 A similar approach is possible with the evitaDB Java Client through gRPC API. When setting up your dataset, simply declare that you also 
 want to initialize the gRPC web server and open required set of web APIs:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Web API test example](/documentation/user/en/use/api/example/test-with-prefilled-dataset-and-grpc-web-api.java)
 </SourceCodeTabs>
 
@@ -132,7 +132,7 @@ communicates with the *embedded evitaDB* over the wire.
 A similar approach is possible with the evitaDB GraphQL API. When setting up your dataset, simply declare that you also
 want to initialize the GraphQL web server and open required web API:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Web API test example](/documentation/user/en/use/api/example/test-with-prefilled-dataset-and-graphql-web-api.java)
 </SourceCodeTabs>
 
@@ -159,7 +159,7 @@ and you can use assertion methods provided directly by the [REST-assured](https:
 A similar approach is possible with the evitaDB REST API. When setting up your dataset, simply declare that you also
 want to initialize the REST web server and open required web API:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Web API test example](/documentation/user/en/use/api/example/test-with-prefilled-dataset-and-rest-web-api.java)
 </SourceCodeTabs>
 
@@ -189,7 +189,7 @@ In the initialization method marked with the `@DataSet` annotation, you can crea
 be associated with the test dataset of such name and will be available for <Term>autowiring</Term> in any of your 
 tests along with other evitaDB related objects. Let's have a look at the following example:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Company objects initialization](/documentation/user/en/use/api/example/test-company-objects.java)
 </SourceCodeTabs>
 

@@ -27,14 +27,15 @@ module evita.external.api.grpc.shared {
 	requires static lombok;
 	requires static jsr305;
 	requires com.fasterxml.jackson.databind;
-	requires grpc.workaround.build;
 	requires protobuf.java;
 
 	requires evita.common;
 	requires evita.api;
 	requires evita.query;
-	requires grpc.netty;
 	requires io.netty.handler;
 	requires com.google.common;
+	requires io.grpc;
+	requires io.grpc.stub;
+	requires io.grpc.protobuf;
 
 }

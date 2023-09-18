@@ -24,9 +24,6 @@
 package io.evitadb.performance.externalApi.graphql.artificial;
 
 import io.evitadb.performance.externalApi.graphql.artificial.state.*;
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Measurement;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Timeout;
 import org.openjdk.jmh.infra.Blackhole;
 
@@ -51,9 +48,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures random read on single entity data.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void singleEntityRead(GraphQLArtificialFullDatabaseBenchmarkState benchmarkState, GraphQLArtificialSingleReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -71,9 +65,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures random read on page of entity data.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void paginatedEntityRead(GraphQLArtificialFullDatabaseBenchmarkState benchmarkState, GraphQLArtificialPageReadState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -91,9 +82,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeFiltering(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -112,9 +100,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by various attributes and hierarchy placement in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeAndHierarchyFiltering(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -133,9 +118,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures attribute histogram DTO computation in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void attributeHistogramComputation(GraphQLArtificialAttributeBenchmarkState benchmarkState, GraphQLArtificialAttributeHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -153,9 +135,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by price data in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceFiltering(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -173,9 +152,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering and ordering by price and hierarchy placement data in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceAndHierarchyFiltering(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -194,9 +170,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures price histogram DTO computation in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void priceHistogramComputation(GraphQLArtificialPriceBenchmarkState benchmarkState, GraphQLArtificialPriceHistogramState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -214,9 +187,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering by facet references in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFiltering(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -234,9 +204,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures filtering by facet references and hierarchical placement in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFiltering(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -256,9 +223,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and computing summary for the rest in the dataset. It also randomizes
 	 * the relation among the facet groups of the facets.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -278,9 +242,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingCount(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingCountState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -300,9 +261,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 * Test measures filtering by facet references and hierarchy placement data and computing summary for the rest
 	 * in the dataset. It also randomizes the relation among the facet groups of the facets.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void facetAndHierarchyFilteringAndSummarizingImpact(GraphQLArtificialFacetBenchmarkState benchmarkState, GraphQLArtificialFacetAndHierarchyFilteringAndSummarizingImpactState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
@@ -321,9 +279,6 @@ public abstract class GraphQLArtificialEntitiesBenchmark {
 	 *
 	 * Test measures hierarchy statistics DTO computation in the dataset.
 	 */
-	@Benchmark
-	@Measurement(time = 1, timeUnit = TimeUnit.MINUTES)
-	@Threads(Threads.MAX)
 	public void hierarchyStatisticsComputation(GraphQLArtificialHierarchyBenchmarkState benchmarkState, GraphQLArtificialHierarchyStatisticsComputationState state, Blackhole blackhole) {
 		blackhole.consume(
 			benchmarkState.getSession().call(state.getRequestBody())
