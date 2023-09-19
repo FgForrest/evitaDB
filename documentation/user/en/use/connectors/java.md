@@ -24,7 +24,7 @@ The custom contracts API uses Java proxies under the hood which requires the [Pr
 library to be present on classpath at runtime. Because the API is optional, we didn't want to bloat the evitaDB
 JAR with the Proxycian library.
 However, when developer wants to use the custom contracts API, the Proxycian library needs to be added as dependency
-```
+```xml
 <dependency>
   <groupId>one.edee.oss</groupId>
   <artifactId>proxycian_bytebuddy</artifactId>
@@ -33,7 +33,7 @@ However, when developer wants to use the custom contracts API, the Proxycian lib
 ```
 and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html), 
 the `--add-modules` parameter needs to be used
-```
+```Bash
 --add-modules proxycian.bytebuddy
 ```
 
