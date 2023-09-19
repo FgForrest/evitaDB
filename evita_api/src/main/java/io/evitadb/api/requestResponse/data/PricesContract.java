@@ -284,7 +284,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
 	 * The moment is either extracted from the query as well (if present) or current date and time is used.
 	 *
-	 * The method differs from {@link #getPriceForSale()} ()} in the sense of never returning {@link ContextMissingException}
+	 * The method differs from {@link #getPriceForSale()} in the sense of never returning {@link ContextMissingException}
 	 * and returning list of all possibly matching selling prices (not only single one). Returned list may be also
 	 * empty if there is no such price.
 	 *
@@ -318,7 +318,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
 	 * The moment is either extracted from the query as well (if present) or current date and time is used.
 	 *
-	 * The method differs from {@link #getPriceForSale()} ()} in the sense of never returning {@link ContextMissingException}
+	 * The method differs from {@link #getPriceForSale()} in the sense of never returning {@link ContextMissingException}
 	 * and returning list of all possibly matching selling prices (not only single one). Returned list may be also
 	 * empty if there is no such price.
 	 *
