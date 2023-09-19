@@ -33,7 +33,7 @@ However, when developer wants to use the custom contracts API, the Proxycian lib
 ```
 and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html), 
 the `--add-modules` parameter needs to be used
-```Bash
+```shell
 --add-modules proxycian.bytebuddy
 ```
 

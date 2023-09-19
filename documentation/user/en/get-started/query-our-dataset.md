@@ -46,21 +46,21 @@ This option requires more work, but you will have control over the performance, 
 in the set. To access the dataset on your hardware, you need to:
 
 1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
-   ```bash
+   ```shell
    wget https://evitadb.io/download/evita-demo-dataset.zip
    ```
 
 2. unzip the contents to the `data` folder
-   ```bash
+   ```shell
    unzip -d data evita-demo-dataset.zip
    ```
 
 3. pull the evitaDB docker image
-   ```bash
+   ```shell
    docker pull index.docker.io/evitadb/evitadb:latest
    ```
 4. start the evitaDB server
-   ```bash
+   ```shell
    docker run --name evitadb -i --net=host \
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
