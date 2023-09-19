@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -48,6 +50,8 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Currency;
+import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -109,42 +113,6 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				)
 			);
 		}
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaDescriptionMutation(
-				baseSchema.getName(),
-				description
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaDeprecationNoticeMutation(
-				baseSchema.getName(),
-				deprecationNotice
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T notDeprecatedAnymore() {
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaDeprecationNoticeMutation(
-				baseSchema.getName(),
-				null
-			)
-		);
 		return (T) this;
 	}
 
@@ -286,6 +254,42 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		return (T) this;
 	}
 
+	@Override
+	@Nonnull
+	public T withDescription(@Nullable String description) {
+		this.updatedSchemaDirty = addMutations(
+			new ModifyAttributeSchemaDescriptionMutation(
+				baseSchema.getName(),
+				description
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T deprecated(@Nonnull String deprecationNotice) {
+		this.updatedSchemaDirty = addMutations(
+			new ModifyAttributeSchemaDeprecationNoticeMutation(
+				baseSchema.getName(),
+				deprecationNotice
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T notDeprecatedAnymore() {
+		this.updatedSchemaDirty = addMutations(
+			new ModifyAttributeSchemaDeprecationNoticeMutation(
+				baseSchema.getName(),
+				null
+			)
+		);
+		return (T) this;
+	}
+
 	/**
 	 * Creates attribute schema instance.
 	 */
@@ -328,16 +332,26 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		final Class<?> plainType = ReflectionLookup.getSimpleType(currentSchema.getType());
 		Assert.isTrue(
 			!currentSchema.isSortable() ||
-				plainType.isPrimitive() || Comparable.class.isAssignableFrom(plainType),
-			"Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for indexing!"
-		);
-		Assert.isTrue(
-			!(currentSchema.isFilterable() && currentSchema.isUnique()),
-			"Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!"
+				plainType.isPrimitive() ||
+				Comparable.class.isAssignableFrom(plainType) ||
+				Predecessor.class.isAssignableFrom(plainType),
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor) in order to be usable for sort index!")
 		);
 		Assert.isTrue(
 			!(currentSchema.isSortable() && currentSchema.getType().isArray()),
-			"Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!"
+			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!")
+		);
+		Assert.isTrue(
+			!(currentSchema.isFilterable() || currentSchema.isUnique()) ||
+				plainType.isPrimitive() ||
+				Comparable.class.isAssignableFrom(plainType) ||
+				Currency.class.isAssignableFrom(plainType) ||
+				Locale.class.isAssignableFrom(plainType),
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for filter / unique index!")
+		);
+		Assert.isTrue(
+			!(currentSchema.isFilterable() && currentSchema.isUnique()),
+			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
 	}
 

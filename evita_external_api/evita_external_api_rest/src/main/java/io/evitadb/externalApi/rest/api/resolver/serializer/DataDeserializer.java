@@ -34,6 +34,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiConstants;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
@@ -163,6 +164,8 @@ public class DataDeserializer {
 			long.class.isAssignableFrom(targetClass) ||
 			Locale.class.isAssignableFrom(targetClass)) {
 			return EvitaDataTypes.toTargetType(value.asText(), targetClass);
+		} else if (Predecessor.class.isAssignableFrom(targetClass)) {
+			return (T) new Predecessor(value.intValue());
 		} else if (targetClass.isEnum()) {
 			return deserializeEnum(targetClass, value);
 		}

@@ -28,6 +28,7 @@ import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityGroupPropertyConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
@@ -197,4 +198,18 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 			)
 		);
 	}
+
+	@Override
+	public OrderConstraint visitEntityGroupPropertyConstraint(EntityGroupPropertyConstraintContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityGroupProperty(
+				ctx.args.constraints
+					.stream()
+					.map(c -> visitChildConstraint(c, OrderConstraint.class))
+					.toArray(OrderConstraint[]::new)
+			)
+		);
+	}
+
 }

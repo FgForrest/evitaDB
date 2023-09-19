@@ -230,8 +230,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.lastCommittedTransactionId = catalogBootstrap.getLastTransactionId();
 		this.txPkSequence = sequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
 		this.cacheSupervisor = cacheSupervisor;
-		this.entityCollections = new TransactionalMap<>(createHashMap(0));
-		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0));
+		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
+		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityTypeSequence = sequenceService.getOrCreateSequence(
 			catalogSchema.getName(), SequenceType.ENTITY_COLLECTION, 1
 		);
@@ -286,7 +286,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			collections.put(entityType, collection);
 			collectionIndex.put(MAX_POWER_OF_TWO, collection);
 		}
-		this.entityCollections = new TransactionalMap<>(collections);
+		this.entityCollections = new TransactionalMap<>(collections, EntityCollection.class, Function.identity());
 		this.entityTypeSequence = sequenceService.getOrCreateSequence(
 			catalogName, SequenceType.ENTITY_COLLECTION, catalogBootstrap.getCatalogHeader().getLastEntityCollectionPrimaryKey()
 		);
@@ -298,7 +298,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						EntityCollection::getEntityTypePrimaryKey,
 						Function.identity()
 					)
-				)
+				),
+			EntityCollection.class, Function.identity()
 		);
 		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
 			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
@@ -342,7 +343,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		// the collections are not yet used anywhere - we're still safe here
 		entityCollections.values().forEach(it -> it.updateReferenceToCatalog(this));
 		this.entityTypeSequence = entityTypeSequence;
-		this.entityCollections = new TransactionalMap<>(entityCollections);
+		this.entityCollections = new TransactionalMap<>(entityCollections, EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
 			entityCollections.values()
 				.stream()
@@ -351,7 +352,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						EntityCollection::getEntityTypePrimaryKey,
 						Function.identity()
 					)
-				)
+				),
+			EntityCollection.class, Function.identity()
 		);
 		this.proxyFactory = proxyFactory;
 	}

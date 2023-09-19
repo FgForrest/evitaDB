@@ -93,7 +93,7 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		);
 		final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
 		if (entityNestedQueryComparator != null) {
-			entityNestedQueryComparator.initSorter(nestedQueryContext, queryPlan.getSorter());
+			entityNestedQueryComparator.setSorter(nestedQueryContext, queryPlan.getSorter());
 		}
 
 		return queryPlan.getFilter();

@@ -372,6 +372,19 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Removes integer from array on specified index and shrinks it.
+	 */
+	@Nonnull
+	public static int[] removeRangeFromArray(@Nonnull int[] recordIds, int startIndex, int endIndex) {
+		int len = recordIds.length;
+		final int targetSize = len - (endIndex - startIndex);
+		int[] newElements = new int[targetSize];
+		System.arraycopy(recordIds, 0, newElements, 0, startIndex);
+		System.arraycopy(recordIds, endIndex, newElements, startIndex, recordIds.length - endIndex);
+		return newElements;
+	}
+
+	/**
 	 * Inserts new long to the sorted array on proper place and returns new expanded array.
 	 * Long is inserted only when array doesn't yet contain the record.
 	 */
@@ -817,6 +830,24 @@ public class ArrayUtils {
 			Object a = array[index];
 			array[index] = array[i];
 			array[i] = a;
+		}
+	}
+
+	/**
+	 * This method will shuffle elements in array in random order. The passed array gets modified.
+	 */
+	public static void shuffleArray(@Nonnull Random rnd, @Nonnull int[] array, int maximalCountOfShuffledElements) {
+		int shuffled = 0;
+		for (int i = 0; i < array.length && shuffled < maximalCountOfShuffledElements; i++) {
+			int sourceIndex = rnd.nextInt(array.length);
+			int targetIndex = i + rnd.nextInt(array.length / maximalCountOfShuffledElements);
+			if (sourceIndex != targetIndex && targetIndex < array.length) {
+				int a = array[targetIndex];
+				array[targetIndex] = array[sourceIndex];
+				array[sourceIndex] = a;
+				i = targetIndex;
+				shuffled++;
+			}
 		}
 	}
 

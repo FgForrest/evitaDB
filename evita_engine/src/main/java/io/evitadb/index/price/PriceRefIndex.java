@@ -47,6 +47,7 @@ import java.io.Serial;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
@@ -82,12 +83,12 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 	private Supplier<PriceSuperIndex> superIndexAccessor;
 
 	public PriceRefIndex(@Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
-		this.priceIndexes = new TransactionalMap<>(new HashMap<>());
+		this.priceIndexes = new TransactionalMap<>(new HashMap<>(), PriceListAndCurrencyPriceRefIndex.class, Function.identity());
 		this.superIndexAccessor = superIndexAccessor;
 	}
 
 	public PriceRefIndex(@Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
-		this.priceIndexes = new TransactionalMap<>(priceIndexes);
+		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceRefIndex.class, Function.identity());
 		this.superIndexAccessor = superIndexAccessor;
 	}
 

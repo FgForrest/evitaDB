@@ -223,12 +223,69 @@ The `entityProperty` ordering constraint can only be used within the [`reference
 requirement. It allows to change the context of the reference ordering from attributes of the reference itself to 
 attributes of the entity the reference points to.
 
-In other words, if the `Product` entity has multiple references to `Parameter` entities, you can sort those references
-by, for example, the `priority` or `name` attribute of the `Parameter` entity. Let's see an example:
+In other words, if the `Product` entity has multiple references to `ParameterValue` entities, you can sort those 
+references by, for example, the `priority` or `name` attribute of the `ParameterValue` entity. Let's see an example:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Get product with parameters ordered by their priority](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Get product with parameter values ordered by their name
+</NoteTitle>
+
+<LanguageSpecific to="evitaql,java">
+
+<MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their name](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[Get product with parameters ordered by their name](/documentation/user/en/query/ordering/examples/reference/entity-property.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[Get product with parameters ordered by their name](/documentation/user/en/query/ordering/examples/reference/entity-property.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
+
+## Entity group property
+
+```evitaql-syntax
+entityGroupProperty(
+    constraint:orderingConstraint+
+)
+```
+
+<dl>
+    <dt>constraint:orderingConstraint+</dt>
+    <dd>
+        one or more [ordering constraints](./natural.md) that specify the ordering by the referenced entity group
+        attributes
+    </dd>
+</dl>
+
+The `entityGroupProperty` ordering constraint can only be used within the [`referenceContent`](../requirements/fetching.md#reference-content) requirement. It 
+allows the context of the reference ordering to be changed from attributes of the reference itself to attributes of 
+the group entity within which the reference is aggregated.
+
+In other words, if the `Product` entity has multiple references to `ParameterValue` entities that are grouped by their 
+assignment to the `Parameter` entity, you can sort those references primarily by the `name` attribute of the grouping 
+entity, and secondarily by the `name` attribute of the referenced entity. Let's look at an example:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -240,19 +297,19 @@ by, for example, the `priority` or `name` attribute of the `Parameter` entity. L
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their priority](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[Get product with parameters ordered by their priority](/documentation/user/en/query/ordering/examples/reference/entity-property.graphql.json.md)</MDInclude>
+<MDInclude>[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
 
-<MDInclude>[Get product with parameters ordered by their priority](/documentation/user/en/query/ordering/examples/reference/entity-property.rest.json.md)</MDInclude>
+<MDInclude>[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

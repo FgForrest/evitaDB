@@ -35,7 +35,6 @@ import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -57,7 +56,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class GlobalEntityIndex extends EntityIndex implements VoidTransactionMemoryProducer<GlobalEntityIndex> {
+public class GlobalEntityIndex extends EntityIndex<GlobalEntityIndex> {
 	/**
 	 * This part of index collects information about prices of the entities. It provides data that are necessary for
 	 * constructing {@link Formula} tree for the constraints related to the prices.

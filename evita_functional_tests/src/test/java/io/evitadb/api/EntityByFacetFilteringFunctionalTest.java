@@ -565,7 +565,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				),
 				tuple(
 					"parameterGroupMapping",
-					dataGenerator.getParameterIndex()
+					dataGenerator.getParameterIndex().get(Entities.PARAMETER)
 				)
 			);
 		});

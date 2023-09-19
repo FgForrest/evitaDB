@@ -86,7 +86,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	);
 
 	/**
@@ -100,7 +100,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	);
 
 	/**
@@ -120,7 +120,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -136,14 +136,14 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
 	 * Method reconstructs entity index from underlying containers.
 	 */
 	@Nullable
-	EntityIndex readEntityIndex(
+	EntityIndex<?> readEntityIndex(
 		int entityIndexId,
 		@Nonnull Supplier<EntitySchema> schemaSupplier,
 		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
@@ -167,7 +167,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	@Nonnull
 	Iterator<Entity> entityIterator(
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
 	);
 
 	/**
@@ -183,7 +183,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet);
+	void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex<?>> bufferedChangeSet);
 
 	/**
 	 * Method deletes entire entity collection persistent storage.

@@ -136,6 +136,14 @@ public class AbstractHundredProductsFunctionalTest {
 				.map(session::upsertEntity)
 				.toList();
 
+			dataGenerator.generateEntities(
+					dataGenerator.getSampleParameterGroupSchema(session),
+					randomEntityPicker,
+					SEED
+				)
+				.limit(10)
+				.forEach(session::upsertEntity);
+
 			final List<EntityReference> storedParameters = dataGenerator.generateEntities(
 					dataGenerator.getSampleParameterSchema(
 						session,
@@ -173,13 +181,14 @@ public class AbstractHundredProductsFunctionalTest {
 									Cardinality.ZERO_OR_MORE,
 									whichIs ->
 										whichIs.indexed()
-											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable(() -> false))
+											.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.sortable().nullable())
 											.withAttribute(ATTRIBUTE_CATEGORY_LABEL, String.class, thatIs -> thatIs.localized())
 											.withAttribute(ATTRIBUTE_CATEGORY_SHADOW, Boolean.class)
 								)
 								.withReferenceToEntity(
 									Entities.PARAMETER, Entities.PARAMETER, Cardinality.ONE_OR_MORE,
-									whichIs -> whichIs.indexed()
+									whichIs -> whichIs.indexed().faceted()
+										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 										.withAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class, thatIs -> thatIs.filterable())
 								)
 								.withReferenceToEntity(Entities.PRICE_LIST, Entities.PRICE_LIST, Cardinality.ZERO_OR_MORE)

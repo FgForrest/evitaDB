@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.Transaction;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.attribute.AttributeIndex.AttributeIndexChanges;
@@ -104,6 +105,11 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
 	 */
 	@Nonnull private final TransactionalMap<AttributeKey, SortIndex> sortIndex;
+	/**
+	 * This transactional map (index) contains for each attribute single instance of {@link ChainIndex}
+	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
+	 */
+	@Nonnull private final TransactionalMap<AttributeKey, ChainIndex> chainIndex;
 
 	/**
 	 * Method verifies whether the localized attribute refers allowed locale.
@@ -144,16 +150,24 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 
 	public AttributeIndex(@Nonnull String entityType) {
 		this.entityType = entityType;
-		this.uniqueIndex = new TransactionalMap<>(new HashMap<>());
-		this.filterIndex = new TransactionalMap<>(new HashMap<>());
-		this.sortIndex = new TransactionalMap<>(new HashMap<>());
+		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), UniqueIndex.class, Function.identity());
+		this.filterIndex = new TransactionalMap<>(new HashMap<>(), FilterIndex.class, Function.identity());
+		this.sortIndex = new TransactionalMap<>(new HashMap<>(), SortIndex.class, Function.identity());
+		this.chainIndex = new TransactionalMap<>(new HashMap<>(), ChainIndex.class, Function.identity());
 	}
 
-	public AttributeIndex(@Nonnull String entityType, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndex, @Nonnull Map<AttributeKey, FilterIndex> filterIndex, @Nonnull Map<AttributeKey, SortIndex> sortIndex) {
+	public AttributeIndex(
+		@Nonnull String entityType,
+		@Nonnull Map<AttributeKey, UniqueIndex> uniqueIndex,
+		@Nonnull Map<AttributeKey, FilterIndex> filterIndex,
+		@Nonnull Map<AttributeKey, SortIndex> sortIndex,
+		@Nonnull Map<AttributeKey, ChainIndex> chainIndex
+	) {
 		this.entityType = entityType;
-		this.uniqueIndex = new TransactionalMap<>(uniqueIndex);
-		this.filterIndex = new TransactionalMap<>(filterIndex);
-		this.sortIndex = new TransactionalMap<>(sortIndex);
+		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, UniqueIndex.class, Function.identity());
+		this.filterIndex = new TransactionalMap<>(filterIndex, FilterIndex.class, Function.identity());
+		this.sortIndex = new TransactionalMap<>(sortIndex, SortIndex.class, Function.identity());
+		this.chainIndex = new TransactionalMap<>(chainIndex, ChainIndex.class, Function.identity());
 	}
 
 	@Override
@@ -238,29 +252,55 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 		@Nonnull Object value,
 		int recordId
 	) {
-		final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
-			lookupKey -> {
-				final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), locale);
-				ofNullable(getTransactionalMemoryLayer(this))
-					.ifPresent(it -> it.addCreatedItem(newSortIndex));
-				return newSortIndex;
-			}
-		);
-		theSortIndex.addRecord(value, recordId);
+		if (value instanceof Predecessor predecessor) {
+			final ChainIndex theSortIndex = this.chainIndex.computeIfAbsent(
+				createAttributeKey(attributeSchema, allowedLocales, locale, value),
+				lookupKey -> {
+					final ChainIndex newSortIndex = new ChainIndex();
+					ofNullable(getTransactionalMemoryLayer(this))
+						.ifPresent(it -> it.addCreatedItem(newSortIndex));
+					return newSortIndex;
+				}
+			);
+			theSortIndex.upsertPredecessor(predecessor, recordId);
+		} else {
+			final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
+				createAttributeKey(attributeSchema, allowedLocales, locale, value),
+				lookupKey -> {
+					final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), locale);
+					ofNullable(getTransactionalMemoryLayer(this))
+						.ifPresent(it -> it.addCreatedItem(newSortIndex));
+					return newSortIndex;
+				}
+			);
+			theSortIndex.addRecord(value, recordId);
+		}
 	}
 
 	@Override
 	public void removeSortAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
-		final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
-		notNull(theSortIndex, "Sort index for attribute `" + attributeSchema.getName() + "` not found!");
-		theSortIndex.removeRecord(value, recordId);
+		
+		if (Predecessor.class.equals(attributeSchema.getType())) {
+			final ChainIndex theChainIndex = this.chainIndex.get(lookupKey);
+			notNull(theChainIndex, "Chain index for attribute `" + attributeSchema.getName() + "` not found!");
+			theChainIndex.removePredecessor(recordId);
 
-		if (theSortIndex.isEmpty()) {
-			this.sortIndex.remove(lookupKey);
-			ofNullable(getTransactionalMemoryLayer(this))
-				.ifPresent(it -> it.addRemovedItem(theSortIndex));
+			if (theChainIndex.isEmpty()) {
+				this.chainIndex.remove(lookupKey);
+				ofNullable(getTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addRemovedItem(theChainIndex));
+			}
+		} else {
+			final SortIndex theSortIndex = this.sortIndex.get(lookupKey);
+			notNull(theSortIndex, "Sort index for attribute `" + attributeSchema.getName() + "` not found!");
+			theSortIndex.removeRecord(value, recordId);
+
+			if (theSortIndex.isEmpty()) {
+				this.sortIndex.remove(lookupKey);
+				ofNullable(getTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addRemovedItem(theSortIndex));
+			}
 		}
 	}
 
@@ -378,9 +418,30 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 			.orElseGet(() -> this.sortIndex.get(new AttributeKey(attributeName)));
 	}
 
+	@Nonnull
+	@Override
+	public Set<AttributeKey> getChainIndexes() {
+		return this.chainIndex.keySet();
+	}
+
+	@Nullable
+	@Override
+	public ChainIndex getChainIndex(@Nonnull AttributeKey lookupKey) {
+		return this.chainIndex.get(lookupKey);
+	}
+
+	@Nullable
+	@Override
+	public ChainIndex getChainIndex(@Nonnull String attributeName, @Nullable Locale locale) {
+		return ofNullable(locale)
+			.map(it -> this.chainIndex.get(new AttributeKey(attributeName, locale)))
+			.orElseGet(() -> this.chainIndex.get(new AttributeKey(attributeName)));
+	}
+
 	@Override
 	public boolean isAttributeIndexEmpty() {
-		return this.uniqueIndex.isEmpty() && this.filterIndex.isEmpty() && this.sortIndex.isEmpty();
+		return this.uniqueIndex.isEmpty() && this.filterIndex.isEmpty() &&
+			this.sortIndex.isEmpty() && this.chainIndex.isEmpty();
 	}
 
 	@Nonnull
@@ -399,6 +460,10 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
 				.ifPresent(dirtyParts::add);
 		}
+		for (Entry<AttributeKey, ChainIndex> entry : chainIndex.entrySet()) {
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+				.ifPresent(dirtyParts::add);
+		}
 		return dirtyParts;
 	}
 
@@ -412,6 +477,9 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 		}
 		for (SortIndex theSortIndex : sortIndex.values()) {
 			theSortIndex.resetDirty();
+		}
+		for (ChainIndex theChainIndex : chainIndex.values()) {
+			theChainIndex.resetDirty();
 		}
 	}
 
@@ -432,7 +500,8 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 			entityType,
 			transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(filterIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(sortIndex, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(sortIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(chainIndex, transaction)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;
@@ -443,6 +512,7 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 		this.uniqueIndex.removeLayer(transactionalLayer);
 		this.filterIndex.removeLayer(transactionalLayer);
 		this.sortIndex.removeLayer(transactionalLayer);
+		this.chainIndex.removeLayer(transactionalLayer);
 		final AttributeIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
 	}
@@ -468,19 +538,25 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 			final SortIndex theSortIndex = this.sortIndex.get(attribute);
 			notNull(theSortIndex, "Sort index for attribute `" + attribute + "` was not found!");
 			return theSortIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+		} else if (indexType == AttributeIndexType.CHAIN) {
+			final AttributeKey attribute = storageKey.attribute();
+			final ChainIndex theChainIndex = this.chainIndex.get(attribute);
+			notNull(theChainIndex, "Chain index for attribute `" + attribute + "` was not found!");
+			return theChainIndex.createStoragePart(entityIndexPrimaryKey, attribute);
 		} else {
 			throw new EvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
 		}
 	}
 
 	/**
-	 * This class collects changes in {@link #uniqueIndex}, {@link #filterIndex} and {@link #sortIndex} transactional
-	 * maps.
+	 * This class collects changes in {@link #uniqueIndex}, {@link #filterIndex}, {@link #sortIndex} and {@link #chainIndex}
+	 * transactional maps.
 	 */
 	public static class AttributeIndexChanges {
 		private final TransactionalContainerChanges<TransactionalContainerChanges<MapChanges<Serializable, Integer>, Map<Serializable, Integer>, TransactionalMap<Serializable, Integer>>, UniqueIndex, UniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<Void, FilterIndex, FilterIndex> filterIndexChanges = new TransactionalContainerChanges<>();
 		private final TransactionalContainerChanges<SortIndexChanges, SortIndex, SortIndex> sortIndexChanges = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<ChainIndexChanges, ChainIndex, ChainIndex> chainIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull UniqueIndex uniqueIndex) {
 			uniqueIndexChanges.addCreatedItem(uniqueIndex);
@@ -506,16 +582,26 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 			sortIndexChanges.addRemovedItem(sortIndex);
 		}
 
+		public void addCreatedItem(@Nonnull ChainIndex chainIndex) {
+			chainIndexChanges.addCreatedItem(chainIndex);
+		}
+
+		public void addRemovedItem(@Nonnull ChainIndex chainIndex) {
+			chainIndexChanges.addRemovedItem(chainIndex);
+		}
+
 		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			uniqueIndexChanges.clean(transactionalLayer);
 			filterIndexChanges.clean(transactionalLayer);
 			sortIndexChanges.clean(transactionalLayer);
+			chainIndexChanges.clean(transactionalLayer);
 		}
 
 		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			uniqueIndexChanges.cleanAll(transactionalLayer);
 			filterIndexChanges.cleanAll(transactionalLayer);
 			sortIndexChanges.cleanAll(transactionalLayer);
+			chainIndexChanges.cleanAll(transactionalLayer);
 		}
 
 	}

@@ -42,7 +42,7 @@ jobs:
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
 
-    - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker.yml` to deploy to DockerHub
+    - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-latest.yml` to deploy to DockerHub
       uses: actions/upload-artifact@v2
       if: success()
       with:
