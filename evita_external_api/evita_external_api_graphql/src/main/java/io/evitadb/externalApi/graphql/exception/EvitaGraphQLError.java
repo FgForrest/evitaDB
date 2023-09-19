@@ -60,4 +60,12 @@ public class EvitaGraphQLError implements GraphQLError {
 		this.path = path;
 		this.extensions = extensions;
 	}
+
+	public EvitaGraphQLError(@Nonnull String message) {
+		this.message = message;
+		this.locations = List.of(SourceLocation.EMPTY);
+		this.errorType = ErrorType.DataFetchingException;
+		this.path = null;
+		this.extensions = null;
+	}
 }

@@ -29,6 +29,7 @@ import io.evitadb.exception.EvitaError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.io.web.ErrorDto;
 import io.evitadb.externalApi.http.ExternalApiExceptionHandler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.undertow.server.HttpHandler;

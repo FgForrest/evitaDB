@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.io.web;
 
 
 import io.evitadb.exception.EvitaError;

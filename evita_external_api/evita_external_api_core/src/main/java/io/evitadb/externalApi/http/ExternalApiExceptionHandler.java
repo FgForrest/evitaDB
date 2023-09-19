@@ -108,8 +108,9 @@ public abstract class ExternalApiExceptionHandler implements HttpHandler {
                 evitaError.getErrorCode(),
                 evitaError.getPrivateMessage()
             );
+        } else {
+            renderError(evitaError, exchange);
         }
-        renderError(evitaError, exchange);
     }
 
     /**

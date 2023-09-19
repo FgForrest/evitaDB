@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.io.webSocket;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
@@ -29,11 +29,12 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import graphql.GraphQLError;
+import io.evitadb.externalApi.graphql.io.GraphQLResponse;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -69,21 +70,13 @@ public record GraphQLWebSocketMessage(@Nullable String id,
 	@JsonCreator
 	private static GraphQLWebSocketMessage fromJson(@Nullable @JsonProperty("id") String id,
 	                                                @Nonnull @JsonProperty("type") String type,
-	                                                @Nullable @JsonProperty("payload") Object payload) {
+	                                                @Nullable @JsonProperty("payload") Map<String, Object> payload) {
 		return new GraphQLWebSocketMessage(id, GraphQLWebSocketMessageType.fromValue(type), payload);
 	}
 
 	@JsonGetter("type")
 	private String serializedType() {
 		return type().getValue();
-	}
-
-
-	/**
-	 * Create a {@code "connection_init"} client message.
-	 */
-	public static GraphQLWebSocketMessage connectionInit() {
-		return new GraphQLWebSocketMessage(null, GraphQLWebSocketMessageType.CONNECTION_INIT, null);
 	}
 
 	/**
@@ -94,42 +87,37 @@ public record GraphQLWebSocketMessage(@Nullable String id,
 	}
 
 	/**
-	 * Create a {@code "subscribe"} client message.
-	 * @param id unique request id
-	 * @param request the request to add as the message payload
-	 */
-	// todo lho implement
-//	public static GraphQLWebSocketMessage subscribe(String id, GraphQLRequest request) {
-//		Assert.notNull(request, "GraphQlRequest is required");
-//		return new GraphQLWebSocketMessage(id, GraphQLWebSocketMessageType.SUBSCRIBE, request);
-//	}
-
-	/**
 	 * Create a {@code "next"} server message.
+	 *
 	 * @param id unique request id
 	 * @param response the response
 	 */
-	public static GraphQLWebSocketMessage next(String id, GraphQLResponse<?> response) {
+	public static GraphQLWebSocketMessage next(@Nonnull String id, @Nonnull GraphQLResponse<?> response) {
 		Assert.notNull(response, "'responseMap' is required");
 		return new GraphQLWebSocketMessage(id, GraphQLWebSocketMessageType.NEXT, response);
 	}
 
 	/**
 	 * Create an {@code "error"} server message.
+	 *
 	 * @param id unique request id
 	 * @param errors the error to add as the message payload
 	 */
-	public static GraphQLWebSocketMessage error(String id, List<GraphQLError> errors) {
+	public static GraphQLWebSocketMessage error(@Nonnull String id, @Nonnull GraphQLError... errors) {
 		Assert.notNull(errors, "GraphQlError's are required");
-		return new GraphQLWebSocketMessage(id, GraphQLWebSocketMessageType.ERROR,
-			errors.stream().map(GraphQLError::toSpecification).collect(Collectors.toList()));
+		return new GraphQLWebSocketMessage(
+			id,
+			GraphQLWebSocketMessageType.ERROR,
+			Arrays.stream(errors).map(GraphQLError::toSpecification).collect(Collectors.toList())
+		);
 	}
 
 	/**
 	 * Create a {@code "complete"} server message.
+	 *
 	 * @param id unique request id
 	 */
-	public static GraphQLWebSocketMessage complete(String id) {
+	public static GraphQLWebSocketMessage complete(@Nonnull String id) {
 		return new GraphQLWebSocketMessage(id, GraphQLWebSocketMessageType.COMPLETE, null);
 	}
 

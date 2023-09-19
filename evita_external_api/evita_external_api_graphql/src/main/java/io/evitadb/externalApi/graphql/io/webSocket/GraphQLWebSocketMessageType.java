@@ -21,14 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.io.webSocket;
 
-import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Arrays;
 
 /**
  * TODO lho docs
@@ -47,7 +45,8 @@ public enum GraphQLWebSocketMessageType {
 	SUBSCRIBE("subscribe", true, true),
 	NEXT("next", true, true),
 	ERROR("error", true, true),
-	COMPLETE("complete", true, false);
+	COMPLETE("complete", true, false),
+	INVALID_MESSAGE("invalid_message", false, false);
 
 	@Getter private final String value;
 	@Getter private final boolean requiresId;

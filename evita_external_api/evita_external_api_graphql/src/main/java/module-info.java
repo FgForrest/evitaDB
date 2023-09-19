@@ -47,6 +47,10 @@ module evita.external.api.graphql {
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity to evita.test.support;
 	exports io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult to evita.test.support;
+	exports io.evitadb.externalApi.graphql.io.webSocket;
+	opens io.evitadb.externalApi.graphql.io.webSocket to com.fasterxml.jackson.databind;
+	exports io.evitadb.externalApi.graphql.io.web;
+	opens io.evitadb.externalApi.graphql.io.web to com.fasterxml.jackson.databind;
 
 	requires static jsr305;
 	requires static lombok;

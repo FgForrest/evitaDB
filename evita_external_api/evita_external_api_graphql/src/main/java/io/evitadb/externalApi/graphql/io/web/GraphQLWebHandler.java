@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.io.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.ExecutionResult;
@@ -40,7 +40,10 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
-import io.evitadb.externalApi.graphql.io.GraphQLWebHandler.GraphQLWebEndpointExchange;
+import io.evitadb.externalApi.graphql.io.GraphQLMimeTypes;
+import io.evitadb.externalApi.graphql.io.GraphQLRequest;
+import io.evitadb.externalApi.graphql.io.GraphQLResponse;
+import io.evitadb.externalApi.graphql.io.web.GraphQLWebHandler.GraphQLWebEndpointExchange;
 import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
