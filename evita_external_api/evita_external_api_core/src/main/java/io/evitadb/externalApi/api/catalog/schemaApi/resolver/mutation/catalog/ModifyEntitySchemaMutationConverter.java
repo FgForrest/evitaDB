@@ -42,7 +42,7 @@ import java.util.Optional;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyEntitySchemaMutationConverter extends CatalogSchemaMutationConverter<ModifyEntitySchemaMutation> {
+public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutationConverter<ModifyEntitySchemaMutation> {
 
 	@Nonnull
 	private final EntitySchemaMutationAggregateConverter entitySchemaMutationAggregateResolver;

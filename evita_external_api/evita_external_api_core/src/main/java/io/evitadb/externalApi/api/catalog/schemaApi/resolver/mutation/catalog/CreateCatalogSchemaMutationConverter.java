@@ -23,39 +23,37 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link SchemaMutationConverter} for resolving {@link DisallowEvolutionModeInCatalogSchemaMutation}.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public class DisallowEvolutionModeInCatalogSchemaMutationConverter extends LocalCatalogSchemaMutationConverter<DisallowEvolutionModeInCatalogSchemaMutation> {
+public class CreateCatalogSchemaMutationConverter extends TopLevelCatalogSchemaMutationConverter<CreateCatalogSchemaMutation> {
 
-	public DisallowEvolutionModeInCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                             @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public CreateCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                            @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 	}
 
 	@Nonnull
 	@Override
 	protected String getMutationName() {
-		return DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name();
+		return CreateCatalogSchemaMutationDescriptor.THIS.name();
 	}
 
 	@Nonnull
 	@Override
-	protected DisallowEvolutionModeInCatalogSchemaMutation convert(@Nonnull Input input) {
-		return new DisallowEvolutionModeInCatalogSchemaMutation(
-			(CatalogEvolutionMode[]) input.getRequiredField(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
+	protected CreateCatalogSchemaMutation convert(@Nonnull Input input) {
+		return new CreateCatalogSchemaMutation(
+			input.getRequiredField(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME)
 		);
 	}
 }

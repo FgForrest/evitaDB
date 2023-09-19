@@ -23,38 +23,23 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link SchemaMutationConverter} for resolving {@link AllowEvolutionModeInCatalogSchemaMutation}.
+ * Ancestor abstract implementation for {@link CatalogSchemaMutation}s.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class AllowEvolutionModeInCatalogSchemaMutationConverter extends LocalCatalogSchemaMutationConverter<AllowEvolutionModeInCatalogSchemaMutation> {
+public abstract class LocalCatalogSchemaMutationConverter<M extends LocalCatalogSchemaMutation> extends SchemaMutationConverter<M> {
 
-	public AllowEvolutionModeInCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	protected LocalCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                              @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
-	}
-
-	@Nonnull
-	@Override
-	protected String getMutationName() {
-		return AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected AllowEvolutionModeInCatalogSchemaMutation convert(@Nonnull Input input) {
-		return new AllowEvolutionModeInCatalogSchemaMutation(
-			input.getRequiredField(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
-		);
 	}
 }

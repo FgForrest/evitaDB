@@ -23,22 +23,39 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
 
 import javax.annotation.Nonnull;
 
 /**
- * Ancestor abstract implementation for {@link CatalogSchemaMutation}s.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, 2023
  */
-public abstract class CatalogSchemaMutationConverter<M extends CatalogSchemaMutation> extends SchemaMutationConverter<M> {
+public class RemoveCatalogSchemaMutationConverter extends TopLevelCatalogSchemaMutationConverter<RemoveCatalogSchemaMutation> {
 
-	protected CatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                         @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	public RemoveCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                            @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
+	}
+
+	@Nonnull
+	@Override
+	protected String getMutationName() {
+		return RemoveCatalogSchemaMutationDescriptor.THIS.name();
+	}
+
+	@Nonnull
+	@Override
+	protected RemoveCatalogSchemaMutation convert(@Nonnull Input input) {
+		return new RemoveCatalogSchemaMutation(
+			input.getRequiredField(RemoveCatalogSchemaMutationDescriptor.CATALOG_NAME)
+		);
 	}
 }

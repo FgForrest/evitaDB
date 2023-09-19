@@ -23,38 +23,22 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
-import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
+import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link SchemaMutationConverter} for resolving {@link AllowEvolutionModeInCatalogSchemaMutation}.
+ * TODO lho docs
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public class AllowEvolutionModeInCatalogSchemaMutationConverter extends LocalCatalogSchemaMutationConverter<AllowEvolutionModeInCatalogSchemaMutation> {
+public abstract class TopLevelCatalogSchemaMutationConverter<M extends TopLevelCatalogSchemaMutation> extends SchemaMutationConverter<M> {
 
-	public AllowEvolutionModeInCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
-	                                                          @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
+	protected TopLevelCatalogSchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
+	                                                 @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
-	}
-
-	@Nonnull
-	@Override
-	protected String getMutationName() {
-		return AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected AllowEvolutionModeInCatalogSchemaMutation convert(@Nonnull Input input) {
-		return new AllowEvolutionModeInCatalogSchemaMutation(
-			input.getRequiredField(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
-		);
 	}
 }

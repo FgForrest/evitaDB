@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class CreateEntitySchemaMutationConverter extends CatalogSchemaMutationConverter<CreateEntitySchemaMutation> {
+public class CreateEntitySchemaMutationConverter extends LocalCatalogSchemaMutationConverter<CreateEntitySchemaMutation> {
 
 	public CreateEntitySchemaMutationConverter(@Nonnull MutationObjectParser objectParser,
 	                                           @Nonnull MutationResolvingExceptionFactory exceptionFactory) {

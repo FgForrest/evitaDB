@@ -67,7 +67,7 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, LocalMutationConverter<? extends LocalMutation<?, ?>>> resolvers = createHashMap(20);
+	private final Map<String, LocalMutationConverter<? extends LocalMutation<?, ?>>> converters = createHashMap(20);
 
 	public LocalMutationAggregateConverter(@Nonnull ObjectMapper objectMapper,
 	                                       @Nonnull EntitySchemaContract entitySchema,
@@ -77,25 +77,25 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 		this.entitySchema = entitySchema;
 
 		// associated data
-		this.resolvers.put(REMOVE_ASSOCIATED_DATA_MUTATION.name(), new RemoveAssociatedDataMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(UPSERT_ASSOCIATED_DATA_MUTATION.name(), new UpsertAssociatedDataMutationConverter(objectMapper, entitySchema, objectParser, exceptionFactory));
+		this.converters.put(REMOVE_ASSOCIATED_DATA_MUTATION.name(), new RemoveAssociatedDataMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(UPSERT_ASSOCIATED_DATA_MUTATION.name(), new UpsertAssociatedDataMutationConverter(objectMapper, entitySchema, objectParser, exceptionFactory));
 		// attributes
-		this.resolvers.put(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
+		this.converters.put(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
+		this.converters.put(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
 		// entity
-		this.resolvers.put(REMOVE_PARENT_MUTATION.name(), new RemoveParentMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_PARENT_MUTATION.name(), new SetParentMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(REMOVE_PARENT_MUTATION.name(), new RemoveParentMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(SET_PARENT_MUTATION.name(), new SetParentMutationConverter(objectParser, exceptionFactory));
 		// price
-		this.resolvers.put(SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), new SetPriceInnerRecordHandlingMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_PRICE_MUTATION.name(), new RemovePriceMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(UPSERT_PRICE_MUTATION.name(), new UpsertPriceMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(SET_PRICE_INNER_RECORD_HANDLING_MUTATION.name(), new SetPriceInnerRecordHandlingMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(REMOVE_PRICE_MUTATION.name(), new RemovePriceMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(UPSERT_PRICE_MUTATION.name(), new UpsertPriceMutationConverter(objectParser, exceptionFactory));
 		// reference
-		this.resolvers.put(INSERT_REFERENCE_MUTATION.name(), new InsertReferenceMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_REFERENCE_MUTATION.name(), new RemoveReferenceMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(SET_REFERENCE_GROUP_MUTATION.name(), new SetReferenceGroupMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_REFERENCE_GROUP_MUTATION.name(), new RemoveReferenceGroupMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(REFERENCE_ATTRIBUTE_MUTATION.name(), new ReferenceAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
+		this.converters.put(INSERT_REFERENCE_MUTATION.name(), new InsertReferenceMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(REMOVE_REFERENCE_MUTATION.name(), new RemoveReferenceMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(SET_REFERENCE_GROUP_MUTATION.name(), new SetReferenceGroupMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(REMOVE_REFERENCE_GROUP_MUTATION.name(), new RemoveReferenceGroupMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(REFERENCE_ATTRIBUTE_MUTATION.name(), new ReferenceAttributeMutationConverter(entitySchema, objectParser, exceptionFactory));
 	}
 
 	@Nonnull

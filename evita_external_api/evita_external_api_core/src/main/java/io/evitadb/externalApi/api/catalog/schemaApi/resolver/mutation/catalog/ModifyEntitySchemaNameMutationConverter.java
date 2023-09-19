@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ModifyEntitySchemaNameMutationConverter extends CatalogSchemaMutationConverter<ModifyEntitySchemaNameMutation> {
+public class ModifyEntitySchemaNameMutationConverter extends LocalCatalogSchemaMutationConverter<ModifyEntitySchemaNameMutation> {
 
 	public ModifyEntitySchemaNameMutationConverter(@Nonnull MutationObjectParser objectParser,
 	                                               @Nonnull MutationResolvingExceptionFactory exceptionFactory) {

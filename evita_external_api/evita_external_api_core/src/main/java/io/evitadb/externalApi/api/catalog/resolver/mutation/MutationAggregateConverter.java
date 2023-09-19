@@ -64,11 +64,11 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	protected abstract String getMutationAggregateName();
 
 	/**
-	 * Returns mappings of mutation resolvers to names of mutations. These resolver are used for resolving inner individual
+	 * Returns mappings of mutation converters to names of mutations. These resolver are used for resolving inner individual
 	 * mutations
 	 */
 	@Nonnull
-	protected abstract Map<String, R> getResolvers();
+	protected abstract Map<String, R> getConverters();
 
 	/**
 	 * Resolve raw input local mutation parsed from JSON into actual list of {@link Mutation} based on implementation of
@@ -100,7 +100,7 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 			.get();
 
 		mutationAggregate.forEach((mutationName, mutation) -> {
-			final R resolver = Optional.ofNullable(getResolvers().get(mutationName))
+			final R resolver = Optional.ofNullable(getConverters().get(mutationName))
 				.orElseThrow(() -> getExceptionFactory().createInvalidArgumentException("Unknown mutation `" + mutationName + "`."));
 			mutations.add(resolver.convert(mutation));
 		});

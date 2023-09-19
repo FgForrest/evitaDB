@@ -50,16 +50,16 @@ public class ReferenceAttributeMutationAggregateConverter extends MutationAggreg
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, AttributeMutationConverter<? extends AttributeMutation>> resolvers = createHashMap(5);
+	private final Map<String, AttributeMutationConverter<? extends AttributeMutation>> converters = createHashMap(5);
 
 	public ReferenceAttributeMutationAggregateConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
 	                                                    @Nonnull MutationObjectParser objectParser,
 	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 
-		this.resolvers.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
-		this.resolvers.put(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
-		this.resolvers.put(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
+		this.converters.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
+		this.converters.put(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
+		this.converters.put(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
 	}
 
 	@Nonnull
