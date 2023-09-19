@@ -535,15 +535,6 @@ public class EntityDecorator implements SealedEntity {
 		return delegate.parentAvailable() && hierarchyPredicate.wasFetched();
 	}
 
-	/**
-	 * Returns parent entity id without checking the predicate.
-	 * Part of the PRIVATE API.
-	 */
-	@Nonnull
-	public OptionalInt getParentWithoutCheckingPredicate() {
-		return delegate.getParent();
-	}
-
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {

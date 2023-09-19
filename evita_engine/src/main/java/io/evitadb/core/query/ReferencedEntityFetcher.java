@@ -42,7 +42,6 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -99,12 +98,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -675,6 +676,32 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
+	 * Method allows to replace plain EntityReferenceWithParent with EntityDecorator chain respecting the parent-child
+	 * relationship. The method is invoked recursively on each parent.
+	 */
+	@Nonnull
+	private static SealedEntity replaceWithSealedEntities(
+		@Nonnull EntityReferenceWithParent entityReference,
+		@Nonnull Map<Integer, SealedEntity> parentBodies
+	) {
+		final SealedEntity sealedEntity = parentBodies.get(entityReference.getPrimaryKey());
+		final EntityDecorator entityDecorator = (EntityDecorator) sealedEntity;
+		return Entity.decorate(
+			entityDecorator,
+			entityReference.getParentEntity()
+				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
+			entityDecorator.getLocalePredicate(),
+			new HierarchySerializablePredicate(true),
+			entityDecorator.getAttributePredicate(),
+			entityDecorator.getAssociatedDataPredicate(),
+			entityDecorator.getReferencePredicate(),
+			entityDecorator.getPricePredicate(),
+			entityDecorator.getAlignedNow()
+		);
+	}
+
+	/**
 	 * Constructor that is used to further enrich already rich entity.
 	 */
 	public ReferencedEntityFetcher(
@@ -724,20 +751,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	public <T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection) {
 		// we need to ensure that references are fetched in order to be able to provide information about them
 		final T richEnoughEntity = ((EntityCollection) entityCollection).ensureReferencesFetched(entity);
+		final Entity theEntity = richEnoughEntity instanceof EntityDecorator entityDecorator ?
+			entityDecorator.getDelegate() : (Entity) richEnoughEntity;
+
 		// prefetch the parents
 		if (entityCollection.getSchema().isWithHierarchy()) {
 			prefetchParents(
 				hierarchyContent,
 				queryContext,
 				entityCollection,
-				richEnoughEntity instanceof EntityDecorator entityDecorator ?
-					entityDecorator.getParentWithoutCheckingPredicate()
-						.stream()
-						.toArray() :
-					richEnoughEntity.getParentEntity()
-						.stream()
-						.mapToInt(EntityClassifier::getPrimaryKey)
-						.toArray()
+				() -> theEntity.getParent().stream().toArray()
 			);
 		}
 		// prefetch the entities
@@ -747,33 +770,37 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			queryContext,
 			entityCollection.getSchema(),
 			existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				/* TODO JNO - this is extremely inefficient and needs to be cached, plus it doesn't work with entityPK anywhere!! */
-				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
-					.getReferences(referenceName)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			(referenceName, entityPk) -> toFormula(
-				/* TODO JNO - this is extremely inefficient and needs to be cached, plus it doesn't work with entityPK anywhere!! */
-				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
-					.getReferences(referenceName)
-					.stream()
-					.map(ReferenceContract::getGroup)
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.mapToInt(GroupEntityReference::getPrimaryKey)
-					.toArray()
-			),
+			(referenceName, entityPk) ->
+				// we can ignore the entityPk, because this method processes only single entity,
+				// and it can't be anything else than the pk of this entity
+				toFormula(
+					theEntity
+						.getReferences(referenceName)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				),
+			(referenceName, entityPk) ->
+				// we can ignore the entityPk, because this method processes only single entity,
+				// and it can't be anything else than the pk of this entity
+				toFormula(
+					theEntity
+						.getReferences(referenceName)
+						.stream()
+						.map(ReferenceContract::getGroup)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.mapToInt(GroupEntityReference::getPrimaryKey)
+						.toArray()
+				),
 			(referenceName, groupId) ->
-				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
+				theEntity
 					.getReferences(referenceName)
 					.stream()
 					.filter(it -> it.getGroup().map(GroupEntityReference::primaryKey).map(groupId::equals).orElse(false))
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 					.toArray(),
-			new int[]{richEnoughEntity.getPrimaryKey()}
+			new int[]{theEntity.getPrimaryKey()}
 		);
 
 		return richEnoughEntity;
@@ -793,27 +820,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				hierarchyContent,
 				queryContext,
 				entityCollection,
-				entities.stream()
-					.flatMapToInt(
+				() -> richEnoughEntities.stream()
+					.map(
 						it -> it instanceof EntityDecorator entityDecorator ?
-							entityDecorator.getParentWithoutCheckingPredicate().stream() :
-							it.getParentEntity().map(EntityClassifier::getPrimaryKey).stream().mapToInt(__ -> __)
+							entityDecorator.getDelegate().getParent() :
+							((Entity) it).getParent()
 					)
+					.filter(OptionalInt::isPresent)
+					.mapToInt(OptionalInt::getAsInt)
 					.toArray()
 			);
 		}
 
-		final Map<Integer, SealedEntity> entityIndex = richEnoughEntities.stream()
-			.collect(
-				Collectors.toMap(
-					EntityContract::getPrimaryKey,
-					it -> (it instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it)
-				)
-			);
-
-		final int expectedRefCount = entityCollection.getSchema().getReferences().size();
+		final Supplier<Map<Integer, Entity>> entityIndexSupplier = new EntityIndexSupplier<>(richEnoughEntities);
 		final ReferenceMapping groupToEntityIdMapping = new ReferenceMapping(
-			expectedRefCount,
+			entityCollection.getSchema().getReferences().size(),
 			referenceName -> richEnoughEntities
 				.stream()
 				.flatMap(it -> it.getReferences(referenceName).stream())
@@ -840,13 +861,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
-				entityIndex.get(entityPk).getReferences(referenceName)
+				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
 					.stream()
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 					.toArray()
 			),
 			(referenceName, entityPk) -> toFormula(
-				entityIndex.get(entityPk).getReferences(referenceName)
+				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
 					.stream()
 					.map(ReferenceContract::getGroup)
 					.filter(Optional::isPresent)
@@ -1055,22 +1076,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Method executes all the necessary hierarchical entities fetch.  Execution reuses potentially existing fetched
 	 * hierarchical entities from the last enrichment of the same entity.
 	 *
-	 * @param hierarchyContent the requirement specification for the hierarchical entities
-	 * @param queryContext     query context used for querying the entity
-	 * @param parentsId        the array of parent entity primary keys to prefetch
+	 * @param hierarchyContent  the requirement specification for the hierarchical entities
+	 * @param queryContext      query context used for querying the entity
+	 * @param parentIdsSupplier the function returning the array of parent entity primary keys to prefetch
 	 */
 	private void prefetchParents(
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityCollectionContract entityCollection,
-		@Nonnull int[] parentsId
+		@Nonnull Supplier<int[]> parentIdsSupplier
 	) {
 		// prefetch only if there is any requirement
 		if (hierarchyContent != null) {
-			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentsId.length);
+			final int[] parentIds = parentIdsSupplier.get();
+			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentIds.length);
 			final boolean bodyRequired = hierarchyContent.getEntityFetch().isPresent();
 			final IntHashSet allReferencedParents = bodyRequired ?
-				new IntHashSet(parentsId.length * 3) : null;
+				new IntHashSet(parentIds.length * 3) : null;
 
 			// initialize used data structures
 			final String entityType = entityCollection.getEntityType();
@@ -1082,7 +1104,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 
 			// first, construct EntityReferenceWithParent for each requested parent id
-			for (int parentId : parentsId) {
+			for (int parentId : parentIds) {
 				final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
 				if (bodyRequired) {
 					allReferencedParents.add(parentId);
@@ -1121,7 +1143,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 
 				// replace the previous EntityReferenceWithParent with EntityDecorator with filled parent
-				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentsId.length);
+				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentIds.length);
 				for (IntObjectCursor<EntityClassifierWithParent> parentRef : parentEntityReferences) {
 					parentSealedEntities.put(
 						parentRef.key,
@@ -1138,32 +1160,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				this.parentEntities = parentEntityReferences;
 			}
 		}
-	}
-
-	/**
-	 * Method allows to replace plain EntityReferenceWithParent with EntityDecorator chain respecting the parent-child
-	 * relationship. The method is invoked recursively on each parent.
-	 */
-	@Nonnull
-	private static SealedEntity replaceWithSealedEntities(
-		@Nonnull EntityReferenceWithParent entityReference,
-		@Nonnull Map<Integer, SealedEntity> parentBodies
-	) {
-		final SealedEntity sealedEntity = parentBodies.get(entityReference.getPrimaryKey());
-		final EntityDecorator entityDecorator = (EntityDecorator) sealedEntity;
-		return Entity.decorate(
-			entityDecorator,
-			entityReference.getParentEntity()
-				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
-				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
-			entityDecorator.getLocalePredicate(),
-			new HierarchySerializablePredicate(true),
-			entityDecorator.getAttributePredicate(),
-			entityDecorator.getAssociatedDataPredicate(),
-			entityDecorator.getReferencePredicate(),
-			entityDecorator.getPricePredicate(),
-			entityDecorator.getAlignedNow()
-		);
 	}
 
 	/**
@@ -1417,7 +1413,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		 * Returns (and lazily computes) array of referenced entity primary keys for passed `groupEntityPrimaryKey` of
 		 * group entity.
 		 *
-		 * @param referenceName name of the reference
+		 * @param referenceName         name of the reference
 		 * @param groupEntityPrimaryKey primary key of the group entity
 		 * @return array of referenced entity primary keys
 		 */
@@ -1428,4 +1424,28 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	}
 
+	/**
+	 * This class lazily provides (and caches) index of entities by their primary key. The entities always
+	 * represent the original entity in the evitaDB and not the {@link EntityDecorator} wrapper.
+	 */
+	@RequiredArgsConstructor
+	private static class EntityIndexSupplier<T extends SealedEntity> implements Supplier<Map<Integer, Entity>> {
+		private final List<T> richEnoughEntities;
+		private Map<Integer, Entity> memoizedResult;
+
+		@Override
+		public Map<Integer, Entity> get() {
+			if (memoizedResult == null) {
+				memoizedResult = richEnoughEntities.stream()
+					.collect(
+						Collectors.toMap(
+							EntityContract::getPrimaryKey,
+							it -> it instanceof EntityDecorator entityDecorator ?
+								entityDecorator.getDelegate() : (Entity) it
+						)
+					);
+			}
+			return memoizedResult;
+		}
+	}
 }

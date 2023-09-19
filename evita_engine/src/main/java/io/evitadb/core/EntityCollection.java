@@ -129,6 +129,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -739,9 +740,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			if (partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().map(it -> it instanceof SealedEntity).orElse(false)) {
 				parentEntity = partiallyLoadedEntity.getParentEntityWithoutCheckingPredicate().get();
 			} else {
-				parentEntity = partiallyLoadedEntity.getParentWithoutCheckingPredicate().isPresent() ?
+				final OptionalInt theParent = partiallyLoadedEntity.getDelegate().getParent();
+				parentEntity = theParent.isPresent() ?
 					ofNullable(referenceFetcher.getParentEntityFetcher())
-						.map(it -> it.apply(partiallyLoadedEntity.getParentWithoutCheckingPredicate().getAsInt()))
+						.map(it -> it.apply(theParent.getAsInt()))
 						.orElse(null) : null;
 			}
 		} else {

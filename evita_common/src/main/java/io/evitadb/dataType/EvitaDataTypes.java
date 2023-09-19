@@ -58,7 +58,6 @@ public class EvitaDataTypes {
 	private static final Set<Class<?>> SUPPORTED_QUERY_DATA_TYPES;
 	private static final Map<Class<?>, Class<?>> PRIMITIVE_WRAPPING_TYPES;
 	private static final char CHAR_STRING_DELIMITER = '\'';
-	private static final String PREDECESSOR_STRING_DELIMITER = "<@";
 	private static final String STRING_DELIMITER = "" + CHAR_STRING_DELIMITER;
 	private static final Function<String, OffsetDateTime> PARSE_TO_OFFSET_DATE_TIME = string -> {
 		try {
@@ -687,7 +686,7 @@ public class EvitaDataTypes {
 		} else if (value instanceof UUID) {
 			return CHAR_STRING_DELIMITER + value.toString() + CHAR_STRING_DELIMITER;
 		} else if (value instanceof Predecessor) {
-			return value.toString() + PREDECESSOR_STRING_DELIMITER;
+			return value.toString();
 		} else if (value == null) {
 			throw new EvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
