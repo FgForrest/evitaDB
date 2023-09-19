@@ -102,6 +102,7 @@ public class EvitaDataTypesConverter {
 			case BYTE_NUMBER_RANGE -> (T) toByteNumberRange(value.getIntegerNumberRangeValue());
 			case LOCALE -> (T) toLocale(value.getLocaleValue());
 			case CURRENCY -> (T) toCurrency(value.getCurrencyValue());
+			case PREDECESSOR -> (T) toPredecessor(value.getPredecessorValue());
 			case UUID -> (T) toUuid(value.getUuidValue());
 
 			case STRING_ARRAY -> (T) toStringArray(value.getStringArrayValue());
@@ -629,6 +630,18 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static UUID[] toUuidArray(@Nonnull GrpcUuidArray arrayValue) {
 		return arrayValue.getValueList().stream().map(EvitaDataTypesConverter::toUuid).toArray(UUID[]::new);
+	}
+
+	/**
+	 * This method is used to convert a {@link GrpcPredecessor} to {@link Predecessor}.
+	 *
+	 * @param predecessor value to be converted
+	 * @return {@link Predecessor} instance
+	 */
+	@Nonnull
+	public static Predecessor toPredecessor(@Nonnull GrpcPredecessor predecessor) {
+		return predecessor.getHead() ? Predecessor.HEAD :
+			(predecessor.hasPredecessorId() ? new Predecessor(predecessor.getPredecessorId().getValue()) : null);
 	}
 
 	/**
@@ -1299,9 +1312,15 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcPredecessor toGrpcPredecessor(@Nonnull Predecessor predecessor) {
-		return GrpcPredecessor.newBuilder()
-			.setPredecessorId(predecessor.predecessorId())
-			.build();
+		if (predecessor.isHead()) {
+			return GrpcPredecessor.newBuilder()
+				.setHead(true)
+				.build();
+		} else {
+			return GrpcPredecessor.newBuilder()
+				.setPredecessorId(Int32Value.of(predecessor.predecessorId()))
+				.build();
+		}
 	}
 	
 }

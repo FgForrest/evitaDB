@@ -77,7 +77,20 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            predecessorId_ = input.readInt32();
+            head_ = input.readBool();
+            break;
+          }
+          case 18: {
+            com.google.protobuf.Int32Value.Builder subBuilder = null;
+            if (predecessorId_ != null) {
+              subBuilder = predecessorId_.toBuilder();
+            }
+            predecessorId_ = input.readMessage(com.google.protobuf.Int32Value.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom(predecessorId_);
+              predecessorId_ = subBuilder.buildPartial();
+            }
+
             break;
           }
           default: {
@@ -112,19 +125,57 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcPredecessor.class, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder.class);
   }
 
-  public static final int PREDECESSORID_FIELD_NUMBER = 1;
-  private int predecessorId_;
+  public static final int HEAD_FIELD_NUMBER = 1;
+  private boolean head_;
+  /**
+   * <pre>
+   * true if predecessor is a head, false otherwise
+   * </pre>
+   *
+   * <code>bool head = 1;</code>
+   * @return The head.
+   */
+  @java.lang.Override
+  public boolean getHead() {
+    return head_;
+  }
+
+  public static final int PREDECESSORID_FIELD_NUMBER = 2;
+  private com.google.protobuf.Int32Value predecessorId_;
   /**
    * <pre>
    * Value that supports storing a Predecessor.
    * </pre>
    *
-   * <code>int32 predecessorId = 1;</code>
+   * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+   * @return Whether the predecessorId field is set.
+   */
+  @java.lang.Override
+  public boolean hasPredecessorId() {
+    return predecessorId_ != null;
+  }
+  /**
+   * <pre>
+   * Value that supports storing a Predecessor.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
    * @return The predecessorId.
    */
   @java.lang.Override
-  public int getPredecessorId() {
-    return predecessorId_;
+  public com.google.protobuf.Int32Value getPredecessorId() {
+    return predecessorId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : predecessorId_;
+  }
+  /**
+   * <pre>
+   * Value that supports storing a Predecessor.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+   */
+  @java.lang.Override
+  public com.google.protobuf.Int32ValueOrBuilder getPredecessorIdOrBuilder() {
+    return getPredecessorId();
   }
 
   private byte memoizedIsInitialized = -1;
@@ -141,8 +192,11 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (predecessorId_ != 0) {
-      output.writeInt32(1, predecessorId_);
+    if (head_ != false) {
+      output.writeBool(1, head_);
+    }
+    if (predecessorId_ != null) {
+      output.writeMessage(2, getPredecessorId());
     }
     unknownFields.writeTo(output);
   }
@@ -153,9 +207,13 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (predecessorId_ != 0) {
+    if (head_ != false) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(1, predecessorId_);
+        .computeBoolSize(1, head_);
+    }
+    if (predecessorId_ != null) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(2, getPredecessorId());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -172,8 +230,13 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcPredecessor other = (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) obj;
 
-    if (getPredecessorId()
-        != other.getPredecessorId()) return false;
+    if (getHead()
+        != other.getHead()) return false;
+    if (hasPredecessorId() != other.hasPredecessorId()) return false;
+    if (hasPredecessorId()) {
+      if (!getPredecessorId()
+          .equals(other.getPredecessorId())) return false;
+    }
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -185,8 +248,13 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + PREDECESSORID_FIELD_NUMBER;
-    hash = (53 * hash) + getPredecessorId();
+    hash = (37 * hash) + HEAD_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getHead());
+    if (hasPredecessorId()) {
+      hash = (37 * hash) + PREDECESSORID_FIELD_NUMBER;
+      hash = (53 * hash) + getPredecessorId().hashCode();
+    }
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -324,8 +392,14 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      predecessorId_ = 0;
+      head_ = false;
 
+      if (predecessorIdBuilder_ == null) {
+        predecessorId_ = null;
+      } else {
+        predecessorId_ = null;
+        predecessorIdBuilder_ = null;
+      }
       return this;
     }
 
@@ -352,7 +426,12 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcPredecessor buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcPredecessor result = new io.evitadb.externalApi.grpc.generated.GrpcPredecessor(this);
-      result.predecessorId_ = predecessorId_;
+      result.head_ = head_;
+      if (predecessorIdBuilder_ == null) {
+        result.predecessorId_ = predecessorId_;
+      } else {
+        result.predecessorId_ = predecessorIdBuilder_.build();
+      }
       onBuilt();
       return result;
     }
@@ -401,8 +480,11 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcPredecessor other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance()) return this;
-      if (other.getPredecessorId() != 0) {
-        setPredecessorId(other.getPredecessorId());
+      if (other.getHead() != false) {
+        setHead(other.getHead());
+      }
+      if (other.hasPredecessorId()) {
+        mergePredecessorId(other.getPredecessorId());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -433,32 +515,96 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private int predecessorId_ ;
+    private boolean head_ ;
     /**
      * <pre>
-     * Value that supports storing a Predecessor.
+     * true if predecessor is a head, false otherwise
      * </pre>
      *
-     * <code>int32 predecessorId = 1;</code>
-     * @return The predecessorId.
+     * <code>bool head = 1;</code>
+     * @return The head.
      */
     @java.lang.Override
-    public int getPredecessorId() {
-      return predecessorId_;
+    public boolean getHead() {
+      return head_;
+    }
+    /**
+     * <pre>
+     * true if predecessor is a head, false otherwise
+     * </pre>
+     *
+     * <code>bool head = 1;</code>
+     * @param value The head to set.
+     * @return This builder for chaining.
+     */
+    public Builder setHead(boolean value) {
+      
+      head_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * true if predecessor is a head, false otherwise
+     * </pre>
+     *
+     * <code>bool head = 1;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearHead() {
+      
+      head_ = false;
+      onChanged();
+      return this;
+    }
+
+    private com.google.protobuf.Int32Value predecessorId_;
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> predecessorIdBuilder_;
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     * @return Whether the predecessorId field is set.
+     */
+    public boolean hasPredecessorId() {
+      return predecessorIdBuilder_ != null || predecessorId_ != null;
     }
     /**
      * <pre>
      * Value that supports storing a Predecessor.
      * </pre>
      *
-     * <code>int32 predecessorId = 1;</code>
-     * @param value The predecessorId to set.
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     * @return The predecessorId.
      */
-    public Builder setPredecessorId(int value) {
-      
-      predecessorId_ = value;
-      onChanged();
+    public com.google.protobuf.Int32Value getPredecessorId() {
+      if (predecessorIdBuilder_ == null) {
+        return predecessorId_ == null ? com.google.protobuf.Int32Value.getDefaultInstance() : predecessorId_;
+      } else {
+        return predecessorIdBuilder_.getMessage();
+      }
+    }
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     */
+    public Builder setPredecessorId(com.google.protobuf.Int32Value value) {
+      if (predecessorIdBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        predecessorId_ = value;
+        onChanged();
+      } else {
+        predecessorIdBuilder_.setMessage(value);
+      }
+
       return this;
     }
     /**
@@ -466,14 +612,105 @@ private static final long serialVersionUID = 0L;
      * Value that supports storing a Predecessor.
      * </pre>
      *
-     * <code>int32 predecessorId = 1;</code>
-     * @return This builder for chaining.
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     */
+    public Builder setPredecessorId(
+        com.google.protobuf.Int32Value.Builder builderForValue) {
+      if (predecessorIdBuilder_ == null) {
+        predecessorId_ = builderForValue.build();
+        onChanged();
+      } else {
+        predecessorIdBuilder_.setMessage(builderForValue.build());
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     */
+    public Builder mergePredecessorId(com.google.protobuf.Int32Value value) {
+      if (predecessorIdBuilder_ == null) {
+        if (predecessorId_ != null) {
+          predecessorId_ =
+            com.google.protobuf.Int32Value.newBuilder(predecessorId_).mergeFrom(value).buildPartial();
+        } else {
+          predecessorId_ = value;
+        }
+        onChanged();
+      } else {
+        predecessorIdBuilder_.mergeFrom(value);
+      }
+
+      return this;
+    }
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
      */
     public Builder clearPredecessorId() {
-      
-      predecessorId_ = 0;
-      onChanged();
+      if (predecessorIdBuilder_ == null) {
+        predecessorId_ = null;
+        onChanged();
+      } else {
+        predecessorId_ = null;
+        predecessorIdBuilder_ = null;
+      }
+
       return this;
+    }
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     */
+    public com.google.protobuf.Int32Value.Builder getPredecessorIdBuilder() {
+      
+      onChanged();
+      return getPredecessorIdFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     */
+    public com.google.protobuf.Int32ValueOrBuilder getPredecessorIdOrBuilder() {
+      if (predecessorIdBuilder_ != null) {
+        return predecessorIdBuilder_.getMessageOrBuilder();
+      } else {
+        return predecessorId_ == null ?
+            com.google.protobuf.Int32Value.getDefaultInstance() : predecessorId_;
+      }
+    }
+    /**
+     * <pre>
+     * Value that supports storing a Predecessor.
+     * </pre>
+     *
+     * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder> 
+        getPredecessorIdFieldBuilder() {
+      if (predecessorIdBuilder_ == null) {
+        predecessorIdBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            com.google.protobuf.Int32Value, com.google.protobuf.Int32Value.Builder, com.google.protobuf.Int32ValueOrBuilder>(
+                getPredecessorId(),
+                getParentForChildren(),
+                isClean());
+        predecessorId_ = null;
+      }
+      return predecessorIdBuilder_;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

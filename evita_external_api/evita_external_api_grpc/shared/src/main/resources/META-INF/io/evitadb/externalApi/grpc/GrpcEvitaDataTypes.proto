@@ -75,8 +75,10 @@ message GrpcUuid {
 
 // Structure for representing Predecessor objects.
 message GrpcPredecessor {
+  // true if predecessor is a head, false otherwise
+  bool head = 1;
   // Value that supports storing a Predecessor.
-  int32 predecessorId = 1;
+  google.protobuf.Int32Value predecessorId = 2;
 }
 
 // Structure for universal representation of DateTime objects with an offset.

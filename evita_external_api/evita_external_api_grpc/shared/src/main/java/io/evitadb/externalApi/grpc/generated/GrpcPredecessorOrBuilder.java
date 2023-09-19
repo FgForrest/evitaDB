@@ -32,11 +32,38 @@ public interface GrpcPredecessorOrBuilder extends
 
   /**
    * <pre>
+   * true if predecessor is a head, false otherwise
+   * </pre>
+   *
+   * <code>bool head = 1;</code>
+   * @return The head.
+   */
+  boolean getHead();
+
+  /**
+   * <pre>
    * Value that supports storing a Predecessor.
    * </pre>
    *
-   * <code>int32 predecessorId = 1;</code>
+   * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+   * @return Whether the predecessorId field is set.
+   */
+  boolean hasPredecessorId();
+  /**
+   * <pre>
+   * Value that supports storing a Predecessor.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
    * @return The predecessorId.
    */
-  int getPredecessorId();
+  com.google.protobuf.Int32Value getPredecessorId();
+  /**
+   * <pre>
+   * Value that supports storing a Predecessor.
+   * </pre>
+   *
+   * <code>.google.protobuf.Int32Value predecessorId = 2;</code>
+   */
+  com.google.protobuf.Int32ValueOrBuilder getPredecessorIdOrBuilder();
 }
