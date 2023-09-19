@@ -56,6 +56,13 @@ jobs:
         name: test-results
         path: 'evita*/**/target/surefire-reports/TEST-*.xml'
 
+    - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-canary.yml` to deploy to DockerHub
+      uses: actions/upload-artifact@v2
+      if: success()
+      with:
+        name: evita-server.jar
+        path: 'evita_server/target/evita-server.jar'
+
     - name: Upload coverage to Codecov    # upload code coverage from Jacoco to codecov
       uses: codecov/codecov-action@v3
 
