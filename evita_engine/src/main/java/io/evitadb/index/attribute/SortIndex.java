@@ -133,9 +133,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	private final Comparator<?> comparator;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
-	 * bulk insertion state where transactions are not used.
+	 * bulk insertion or read only state where transactions are not used.
 	 */
-	private SortIndexChanges valueLocations;
+	private SortIndexChanges sortIndexChanges;
 
 	/**
 	 * Inverts positions by subtracting from largest value.
@@ -578,7 +578,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	public StoragePart createStoragePart(int entityIndexPrimaryKey, AttributeKey attribute) {
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
-			this.valueLocations = null;
+			this.sortIndexChanges = null;
 			return new SortIndexStoragePart(
 				entityIndexPrimaryKey, attribute, comparatorBase,
 				getSortedRecords(), getSortedRecordValues(), valueCardinalities
@@ -637,32 +637,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	private SortIndexChanges getOrCreateSortIndexChanges() {
 		final SortIndexChanges layer = getTransactionalMemoryLayer(this);
 		if (layer == null) {
-			return ofNullable(this.valueLocations).orElseGet(() -> {
-				this.valueLocations = new SortIndexChanges(this);
-				return this.valueLocations;
+			return ofNullable(this.sortIndexChanges).orElseGet(() -> {
+				this.sortIndexChanges = new SortIndexChanges(this);
+				return this.sortIndexChanges;
 			});
 		} else {
 			return layer;
 		}
-	}
-
-	/**
-	 * Presorted array supplier. Allows really quickly provide information about record id at certain "presorted" position
-	 * and relatively quickly (much faster than binary search O(log n)) compute position of record with passed id.
-	 */
-	@RequiredArgsConstructor
-	public static class SortedRecordsSupplier implements SortedRecordsProvider, Serializable {
-		@Serial private static final long serialVersionUID = 6606884166778706442L;
-		@Getter private final long transactionalId;
-		@Getter @Nonnull private final int[] sortedRecordIds;
-		@Getter @Nonnull private final int[] recordPositions;
-		@Getter @Nonnull private final Bitmap allRecords;
-
-		@Override
-		public int getRecordCount() {
-			return sortedRecordIds.length;
-		}
-
 	}
 
 	/**

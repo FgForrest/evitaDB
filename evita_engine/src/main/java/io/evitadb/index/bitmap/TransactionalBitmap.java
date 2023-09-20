@@ -55,7 +55,7 @@ import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class TransactionalBitmap implements RoaringBitmapBackedBitmap, TransactionalLayerProducer<BitmapChanges, RoaringBitmapBackedBitmap>, Serializable {
+public class TransactionalBitmap implements RoaringBitmapBackedBitmap, TransactionalLayerProducer<BitmapChanges, Bitmap>, Serializable {
 	@Serial private static final long serialVersionUID = -6212206620911046989L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	private final RoaringBitmap roaringBitmap;

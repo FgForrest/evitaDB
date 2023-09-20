@@ -140,7 +140,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	/**
 	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
 	 */
-	@Getter private final TargetIndexes<EntityIndex> indexSetToUse;
+	@Getter private final TargetIndexes<EntityIndex<?>> indexSetToUse;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -196,7 +196,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	public ExtraResultPlanningVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull TargetIndexes indexSetToUse,
+		@Nonnull TargetIndexes<EntityIndex<?>> indexSetToUse,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nullable Sorter sorter
@@ -359,7 +359,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Sorter createSorter(
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
@@ -559,36 +559,6 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	public boolean isScopeEmpty() {
 		return scope.isEmpty();
-	}
-
-	/**
-	 * Returns nearest entity schema from the {@link #scope} or throws an exception.
-	 */
-	@Nonnull
-	public EntitySchemaContract findNearestEntitySchema() {
-		final Iterator<ProcessingScope> it = scope.descendingIterator();
-		while (it.hasNext()) {
-			final Optional<EntitySchemaContract> entitySchema = it.next().getEntitySchema();
-			if (entitySchema.isPresent()) {
-				return entitySchema.get();
-			}
-		}
-		throw new IllegalStateException("No reference schema found!");
-	}
-
-	/**
-	 * Returns nearest reference schema from the {@link #scope} or throws an exception.
-	 */
-	@Nonnull
-	public ReferenceSchemaContract findNearestReferenceSchema() {
-		final Iterator<ProcessingScope> it = scope.descendingIterator();
-		while (it.hasNext()) {
-			final Optional<ReferenceSchemaContract> referenceSchema = it.next().getReferenceSchema();
-			if (referenceSchema.isPresent()) {
-				return referenceSchema.get();
-			}
-		}
-		throw new IllegalStateException("No reference schema found!");
 	}
 
 	/**

@@ -30,6 +30,7 @@ import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
@@ -144,6 +145,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 		registerScalarValue(scalarBuilder, Currency[].class);
 		registerScalarValue(scalarBuilder, UUID.class);
 		registerScalarValue(scalarBuilder, UUID[].class);
+		registerScalarValue(scalarBuilder, Predecessor.class);
 		registerScalarValue(scalarBuilder, ComplexDataObject.class);
 
 		return scalarBuilder.build();

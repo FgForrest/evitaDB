@@ -71,34 +71,44 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		@Nonnull SortedRecordsProvider[] sortedRecordsProviders,
 		@Nullable Sorter unknownRecordIdsSorter
 	) {
-		final int expectedMaxLength = Arrays.stream(sortedRecordsProviders)
-			.map(SortedRecordsProvider::getAllRecords)
-			.mapToInt(Bitmap::size).sum();
-		final RoaringBitmap mergedAllRecords = new RoaringBitmap();
-		final int[] mergedSortedRecordIds = new int[expectedMaxLength];
-		final int[] mergedRecordPositions = new int[expectedMaxLength];
-		int writePeak = -1;
+		if (sortedRecordsProviders.length == 1) {
+			this.sortedRecordsProvider = new MergedSortedRecordsProvider(
+				sortedRecordsProviders[0].getAllRecords() instanceof RoaringBitmapBackedBitmap roaringBitmapBackedBitmap ?
+					roaringBitmapBackedBitmap : new BaseBitmap(sortedRecordsProviders[0].getAllRecords()),
+				sortedRecordsProviders[0].getSortedRecordIds(),
+				sortedRecordsProviders[0].getRecordPositions()
+			);
+		} else {
+			// we need to go the hard way and merge the sorted records
+			final int expectedMaxLength = Arrays.stream(sortedRecordsProviders)
+				.map(SortedRecordsProvider::getAllRecords)
+				.mapToInt(Bitmap::size).sum();
+			final RoaringBitmap mergedAllRecords = new RoaringBitmap();
+			final int[] mergedSortedRecordIds = new int[expectedMaxLength];
+			final int[] mergedRecordPositions = new int[expectedMaxLength];
+			int writePeak = -1;
 
-		for (final SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
-			final int[] instanceSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
-			for (int instanceSortedRecordId : instanceSortedRecordIds) {
-				if (mergedAllRecords.checkedAdd(instanceSortedRecordId)) {
-					writePeak++;
-					mergedSortedRecordIds[writePeak] = instanceSortedRecordId;
-					mergedRecordPositions[writePeak] = writePeak;
+			for (final SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
+				final int[] instanceSortedRecordIds = sortedRecordsProvider.getSortedRecordIds();
+				for (int instanceSortedRecordId : instanceSortedRecordIds) {
+					if (mergedAllRecords.checkedAdd(instanceSortedRecordId)) {
+						writePeak++;
+						mergedSortedRecordIds[writePeak] = instanceSortedRecordId;
+						mergedRecordPositions[writePeak] = writePeak;
+					}
 				}
 			}
+			final BaseBitmap allRecords = new BaseBitmap(mergedAllRecords);
+			final int[] sortedRecordIds = Arrays.copyOfRange(mergedSortedRecordIds, 0, writePeak + 1);
+			final int[] recordPositions = Arrays.copyOfRange(mergedRecordPositions, 0, writePeak + 1);
+			ArrayUtils.sortSecondAlongFirstArray(
+				sortedRecordIds,
+				recordPositions
+			);
+			this.sortedRecordsProvider = new MergedSortedRecordsProvider(
+				allRecords, sortedRecordIds, recordPositions
+			);
 		}
-		final BaseBitmap allRecords = new BaseBitmap(mergedAllRecords);
-		final int[] sortedRecordIds = Arrays.copyOfRange(mergedSortedRecordIds, 0, writePeak + 1);
-		final int[] recordPositions = Arrays.copyOfRange(mergedRecordPositions, 0, writePeak + 1);
-		ArrayUtils.sortSecondAlongFirstArray(
-			sortedRecordIds,
-			recordPositions
-		);
-		this.sortedRecordsProvider = new MergedSortedRecordsProvider(
-			allRecords, sortedRecordIds, recordPositions
-		);
 		this.unknownRecordIdsSorter = unknownRecordIdsSorter;
 	}
 

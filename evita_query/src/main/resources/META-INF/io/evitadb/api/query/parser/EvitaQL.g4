@@ -96,6 +96,7 @@ orderConstraint
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint
+    | 'entityGroupProperty'                 args = orderConstraintListArgs                                  # entityGroupPropertyConstraint
     ;
 
 requireConstraint

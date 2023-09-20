@@ -35,6 +35,9 @@ import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutati
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
@@ -85,6 +88,9 @@ public class CreateAssociatedDataSchemaMutation
 		boolean nullable
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, name);
+		if (!(EvitaDataTypes.isSupportedTypeOrItsArray(type) || ComplexDataObject.class.equals(type)) || Predecessor.class.equals(type)) {
+			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in associated data!");
+		}
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;

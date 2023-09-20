@@ -25,7 +25,7 @@ package io.evitadb.performance;
 
 /**
  * Main class for running benchmarks.
- * Touch 23/02/10 08:42
+ * Touch 23/07/26 08:50
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

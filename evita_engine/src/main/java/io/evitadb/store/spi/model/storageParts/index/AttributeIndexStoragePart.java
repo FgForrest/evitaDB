@@ -90,7 +90,7 @@ public interface AttributeIndexStoragePart extends StoragePart {
 	 */
 	enum AttributeIndexType {
 
-		UNIQUE, FILTER, SORT
+		UNIQUE, FILTER, SORT, CHAIN
 
 	}
 

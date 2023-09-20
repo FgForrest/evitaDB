@@ -64,6 +64,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(UniqueIndexStoragePart.class, new SerialVersionBasedSerializer<>(new UniqueIndexStoragePartSerializer(keyCompressor), UniqueIndexStoragePart.class), index++);
 		kryo.register(FilterIndexStoragePart.class, new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(keyCompressor), FilterIndexStoragePart.class), index++);
 		kryo.register(SortIndexStoragePart.class, new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(keyCompressor), SortIndexStoragePart.class), index++);
+		kryo.register(ChainIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(keyCompressor), ChainIndexStoragePart.class), index++);
 
 		kryo.register(EntityIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(AttributeIndexType.class, new EnumNameSerializer<>(), index++);

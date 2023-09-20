@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.sort.attribute;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -49,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.ToIntFunction;
 
 import static java.util.Optional.ofNullable;
 
@@ -95,23 +98,23 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 	@Nonnull
 	@Override
-	public Sorter andThen(Sorter sorterForUnknownRecords) {
-		return new AttributeExactSorter(
-			attributeName,
-			exactOrder,
-			sortIndex,
-			sorterForUnknownRecords
-		);
-	}
-
-	@Nonnull
-	@Override
 	public Sorter cloneInstance() {
 		return new AttributeExactSorter(
 			attributeName,
 			exactOrder,
 			sortIndex,
 			null
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Sorter andThen(Sorter sorterForUnknownRecords) {
+		return new AttributeExactSorter(
+			attributeName,
+			exactOrder,
+			sortIndex,
+			sorterForUnknownRecords
 		);
 	}
 
@@ -150,8 +153,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		}
 
 		// retrieve array of "sorted" primary keys based on data from index
-		@SuppressWarnings({"unchecked"})
-		final int[] exactPkOrder = Arrays.stream(this.exactOrder)
+		@SuppressWarnings({"unchecked"}) final int[] exactPkOrder = Arrays.stream(this.exactOrder)
 			.map(sortIndex::getRecordsEqualTo)
 			.flatMapToInt(Bitmap::stream)
 			.toArray();
@@ -243,7 +245,14 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	private static class AttributePositionComparator implements EntityComparator {
 		private final String attributeName;
 		private final Comparable[] attributeValues;
+		private int estimatedCount = 100;
+		private ObjectIntMap<Serializable> cache;
 		private CompositeObjectArray<EntityContract> nonSortedEntities;
+
+		@Override
+		public void prepareFor(int entityCount) {
+			this.estimatedCount = entityCount;
+		}
 
 		@Nonnull
 		@Override
@@ -273,9 +282,40 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 				this.nonSortedEntities.add(o2);
 				return 1;
 			} else {
-				final int attribute1Index = ArrayUtils.indexOf(attribute1, attributeValues);
-				final int attribute2Index = ArrayUtils.indexOf(attribute2, attributeValues);
+				// and try to find primary keys of both entities in each provider
+				if (cache == null) {
+					// let's create the cache with estimated size multiply 5 expected steps for binary search
+					cache = new ObjectIntHashMap<>(estimatedCount * 5);
+				}
+				final int attribute1Index = computeIfAbsent(cache, attribute1, it -> ArrayUtils.indexOf(it, attributeValues));
+				final int attribute2Index = computeIfAbsent(cache, attribute2, it -> ArrayUtils.indexOf(it, attributeValues));
 				return Integer.compare(attribute1Index, attribute2Index);
+			}
+		}
+
+		/**
+		 * This method is used to cache the results of the `indexOf` method. It is used to speed up the
+		 * sorting process.
+		 *
+		 * @param cache        cache to use
+		 * @param attribute    attribute of the entity to find
+		 * @param indexLocator function to compute the index of the entity
+		 * @return index of the entity
+		 */
+		private static int computeIfAbsent(@Nonnull ObjectIntMap<Serializable> cache, @Nonnull Serializable attribute, @Nonnull ToIntFunction<Serializable> indexLocator) {
+			final int result = cache.get(attribute);
+			// when the value was not found 0 is returned
+			if (result == 0) {
+				final int computedIndex = indexLocator.applyAsInt(attribute);
+				// if the index was computed as 0 we need to remap it to some other "rare" value to distinguish it from NULL value
+				cache.put(attribute, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
+				return computedIndex;
+			} else if (result == Integer.MIN_VALUE) {
+				// when the "rare" value was found - we know it represents index 0
+				return 0;
+			} else {
+				// otherwise cached value was found
+				return result;
 			}
 		}
 

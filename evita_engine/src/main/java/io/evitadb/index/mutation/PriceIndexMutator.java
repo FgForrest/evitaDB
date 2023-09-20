@@ -56,7 +56,7 @@ public interface PriceIndexMutator {
 	 */
 	static void priceUpsert(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey,
 		@Nonnull PriceKey priceKey,
@@ -86,7 +86,7 @@ public interface PriceIndexMutator {
 	static void priceUpsert(
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nullable Integer innerRecordId,
 		@Nullable DateTimeRange validity,
@@ -133,7 +133,7 @@ public interface PriceIndexMutator {
 	static void priceRemove(
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull PriceKey priceKey
 	) {
 		if (executor.shouldIndexPrimaryKey(IndexType.PRICE_INDEX)) {
@@ -151,7 +151,7 @@ public interface PriceIndexMutator {
 	 */
 	static void priceRemove(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull PriceKey priceKey,
 		@Nullable PriceWithInternalIds formerPrice,
 		@Nonnull PriceInnerRecordHandling innerRecordHandling) {

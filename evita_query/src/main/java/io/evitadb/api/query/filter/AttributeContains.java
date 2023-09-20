@@ -44,7 +44,7 @@ import java.io.Serializable;
  * Example:
  *
  * <pre>
- * contains('code', 'eve')
+ * contains('code', 'evitaDB')
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute

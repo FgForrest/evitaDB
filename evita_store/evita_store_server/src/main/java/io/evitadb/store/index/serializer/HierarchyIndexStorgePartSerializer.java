@@ -29,12 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.hierarchy.HierarchyNode;
 import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart;
+import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
@@ -60,18 +57,17 @@ public class HierarchyIndexStorgePartSerializer extends Serializer<HierarchyInde
 			}
 		}
 
-		final Map<Integer, int[]> levelIndex = hierarchyIndex.getLevelIndex();
-		output.writeVarInt(levelIndex.size(), true);
-		for (Entry<Integer, int[]> entry : levelIndex.entrySet()) {
-			output.writeInt(entry.getKey());
-			final int[] children = entry.getValue();
-			output.writeVarInt(children.length, true);
-			output.writeInts(children, 0, children.length);
+		final LevelIndex[] levelIndex = hierarchyIndex.getLevelIndex();
+		output.writeVarInt(levelIndex.length, true);
+		for (LevelIndex entry : levelIndex) {
+			output.writeInt(entry.parentId());
+			output.writeVarInt(entry.childrenIds().length, true);
+			output.writeInts(entry.childrenIds(), 0, entry.childrenIds().length);
 		}
 
-		final List<Integer> roots = hierarchyIndex.getRoots();
-		output.writeVarInt(roots.size(), true);
-		output.writeInts(roots.stream().mapToInt(it -> it).toArray(), 0, roots.size());
+		final int[] roots = hierarchyIndex.getRoots();
+		output.writeVarInt(roots.length, true);
+		output.writeInts(roots, 0, roots.length);
 
 		final int[] orphans = hierarchyIndex.getOrphans();
 		output.writeVarInt(orphans.length, true);
@@ -95,17 +91,16 @@ public class HierarchyIndexStorgePartSerializer extends Serializer<HierarchyInde
 		}
 
 		final int levelIndexSize = input.readVarInt(true);
-		final Map<Integer, int[]> levelIndex = createHashMap(levelIndexSize);
+		final LevelIndex[] levelIndex = new LevelIndex[levelIndexSize];
 		for (int i = 0; i < levelIndexSize; i++) {
-			final int key = input.readInt();
+			final int parentId = input.readInt();
 			final int childrenCount = input.readVarInt(true);
 			final int[] children = input.readInts(childrenCount);
-			levelIndex.put(key, children);
+			levelIndex[i] = new LevelIndex(parentId, children);
 		}
 
 		final int rootCount = input.readVarInt(true);
-		final List<Integer> roots = new ArrayList<>(rootCount);
-		Arrays.stream(input.readInts(rootCount)).forEach(roots::add);
+		final int[] roots = input.readInts(rootCount);
 
 		final int orphanCount = input.readVarInt(true);
 		final int[] orphans = input.readInts(orphanCount);

@@ -105,6 +105,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 			entities.add(queryContext.translateToEntity(id));
 		}
 
+		entityComparator.prepareFor(endIndex - startIndex);
 		entities.sort(entityComparator);
 
 		int notFoundRecordsCnt = 0;
