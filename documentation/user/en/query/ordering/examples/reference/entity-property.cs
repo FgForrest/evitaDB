@@ -4,7 +4,8 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         Query(
         	Collection("Product"),
         	FilterBy(
-        		AttributeEquals("code", "garmin-vivoactive-4")
+        		AttributeEquals("code", "garmin-vivoactive-4"),
+        		EntityLocaleEquals(CultureInfo.GetCultureInfo("en"))
         	),
         	Require(
         		EntityFetch(
@@ -13,11 +14,11 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         				"parameterValues",
         				OrderBy(
         					EntityProperty(
-        						AttributeNatural("code", Desc)
+        						AttributeNatural("name", Desc)
         					)
         				),
         				EntityFetch(
-        					AttributeContent("code")
+        					AttributeContent("name")
         				)
         			)
         		)
