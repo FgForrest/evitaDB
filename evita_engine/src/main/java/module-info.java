@@ -79,5 +79,6 @@ module evita.engine {
 	requires com.carrotsearch.hppc;
 	requires jboss.threads;
 	requires roaringbitmaps.workaround.build;
+	requires com.esotericsoftware.kryo;
 
 }

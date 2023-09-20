@@ -72,6 +72,8 @@ public class ArtificialEntitiesThroughputBenchmark extends ArtificialEntitiesBen
 
 	@Benchmark
 	@Threads(Threads.MAX)
+	/*@Measurement(iterations = 1, time = 1, timeUnit = TimeUnit.MINUTES)
+	@Fork(value = 0, warmups = 1)*/
 	@Override
 	public void attributeFiltering(ArtificialAttributeBenchmarkState benchmarkState, ArtificialAttributeFilteringState state, Blackhole blackhole) {
 		super.attributeFiltering(benchmarkState, state, blackhole);

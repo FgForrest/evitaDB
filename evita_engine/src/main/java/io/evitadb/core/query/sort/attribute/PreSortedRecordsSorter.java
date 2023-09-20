@@ -228,10 +228,9 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 		return queryContext.getPrefetchedEntities() == null;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex);
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+		return getMemoizedResult().sortAndSlice(queryContext, input, startIndex, endIndex, result, peak);
 	}
 
 	@Nonnull

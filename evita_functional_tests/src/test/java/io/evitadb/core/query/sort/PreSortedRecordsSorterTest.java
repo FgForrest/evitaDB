@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.core.query.sort.utils.MockSortedRecordsSupplier;
+import io.evitadb.core.query.sort.utils.SortUtilsTest;
 import io.evitadb.index.bitmap.BaseBitmap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,14 +55,70 @@ class PreSortedRecordsSorterTest {
 
 	private PreSortedRecordsSorterWithContext bitmapSorter;
 
+	private static int findPosition(int[] sortedRecordIds, int recId) {
+		for (int i = 0; i < sortedRecordIds.length; i++) {
+			int sortedRecordId = sortedRecordIds[i];
+			if (sortedRecordId == recId) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private static int[] pickRandomResults(int[] sortedRecordIds, int count) {
+		final Random random = new Random();
+		final int[] recs = new int[count];
+		final Set<Integer> picked = new HashSet<>(count);
+		int peak = 0;
+		do {
+			final int randomRecordId = sortedRecordIds[random.nextInt(sortedRecordIds.length)];
+			if (picked.add(randomRecordId)) {
+				recs[peak++] = randomRecordId;
+			}
+		} while (peak < count);
+		Arrays.sort(recs);
+		return recs;
+	}
+
+	private static int[] generateRandomSortedRecords(int recCount) {
+		final Random random = new Random();
+		final Set<Integer> randomRecordIds = new TreeSet<>();
+		final int[] sortedRecordIds = new int[recCount];
+		int peak = 0;
+		do {
+			final int rndRecId = random.nextInt(recCount * 2);
+			if (randomRecordIds.add(rndRecId)) {
+				sortedRecordIds[peak++] = rndRecId;
+			}
+		} while (peak < recCount);
+		return sortedRecordIds;
+	}
+
+	@Nonnull
+	private static ConstantFormula makeFormula(int... recordIds) {
+		return new ConstantFormula(new BaseBitmap(recordIds));
+	}
+
+	private static void assertPageIsConsistent(int[] sortedRecordIds, PreSortedRecordsSorter sorter, QueryContext queryContext, int[] recIds, int startIndex, int endIndex) {
+		final int[] sortedSlice = SortUtilsTest.asResult(theArray -> sorter.sortAndSlice(queryContext, makeFormula(recIds), startIndex, endIndex, theArray, 0));
+		assertEquals(endIndex - startIndex, sortedSlice.length);
+		int lastPosition = -1;
+		for (int recId : sortedSlice) {
+			assertTrue(Arrays.binarySearch(recIds, recId) >= 0, "Record must be part of filter result!");
+			int positionInSortedSet = findPosition(sortedRecordIds, recId);
+			assertTrue(positionInSortedSet >= lastPosition, "Order must be monotonic!");
+		}
+	}
+
 	@BeforeEach
 	void setUp() {
 		final QueryContext bitmapQueryContext = Mockito.mock(QueryContext.class);
 		Mockito.when(bitmapQueryContext.getPrefetchedEntities()).thenReturn(null);
+		Mockito.when(bitmapQueryContext.borrowBuffer()).thenReturn(new int[512]);
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
 				ENTITY_TYPE,
-				() -> new SortedRecordsProvider[] {new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
+				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(7, 2, 4, 1, 3, 8, 5, 9, 6)}
 			),
 			bitmapQueryContext
 		);
@@ -71,21 +128,21 @@ class PreSortedRecordsSorterTest {
 	void shouldReturnFullResultInExpectedOrderOnSmallData() {
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
-			bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(1, 2, 3, 4), 0, 100)
+			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(1, 2, 3, 4), 0, 100, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{1, 3},
-			bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5)
+			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{7, 8, 9},
-			bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(7, 8, 9), 0, 3)
+			SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(7, 8, 9), 0, 3, theArray, 0))
 		);
 	}
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
-		final int[] actual = bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
+		final int[] actual = SortUtilsTest.asResult(theArray -> bitmapSorter.sorter().sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 0, 12, 13},
 			actual
@@ -97,11 +154,11 @@ class PreSortedRecordsSorterTest {
 		final Sorter updatedSorter = bitmapSorter.sorter().andThen(
 			new PreSortedRecordsSorter(
 				ENTITY_TYPE,
-				() -> new SortedRecordsProvider[] {new MockSortedRecordsSupplier(13, 0, 12)}
+				() -> new SortedRecordsProvider[]{new MockSortedRecordsSupplier(13, 0, 12)}
 			)
 		);
 
-		final int[] actual = updatedSorter.sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
+		final int[] actual = SortUtilsTest.asResult(theArray -> updatedSorter.sortAndSlice(bitmapSorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual
@@ -120,7 +177,7 @@ class PreSortedRecordsSorterTest {
 
 		final PreSortedRecordsSorter sorter = new PreSortedRecordsSorter(
 			ENTITY_TYPE,
-			() -> new SortedRecordsProvider[] {sortedRecordsSupplier}
+			() -> new SortedRecordsProvider[]{sortedRecordsSupplier}
 		);
 		final QueryContext queryContext = Mockito.mock(QueryContext.class);
 		Mockito.when(queryContext.getPrefetchedEntities()).thenReturn(null);
@@ -131,61 +188,6 @@ class PreSortedRecordsSorterTest {
 			assertPageIsConsistent(sortedRecordIds, sorter, queryContext, recIds, 75, 125);
 			assertPageIsConsistent(sortedRecordIds, sorter, queryContext, recIds, 100, 500);
 		}
-	}
-
-	private void assertPageIsConsistent(int[] sortedRecordIds, PreSortedRecordsSorter sorter, QueryContext queryContext, int[] recIds, int startIndex, int endIndex) {
-		final int[] sortedSlice = sorter.sortAndSlice(queryContext, makeFormula(recIds), startIndex, endIndex);
-		assertEquals(endIndex - startIndex, sortedSlice.length);
-		int lastPosition = -1;
-		for (int recId : sortedSlice) {
-			assertTrue(Arrays.binarySearch(recIds, recId) >= 0, "Record must be part of filter result!");
-			int positionInSortedSet = findPosition(sortedRecordIds, recId);
-			assertTrue(positionInSortedSet >= lastPosition, "Order must be monotonic!");
-		}
-	}
-
-	private int findPosition(int[] sortedRecordIds, int recId) {
-		for (int i = 0; i < sortedRecordIds.length; i++) {
-			int sortedRecordId = sortedRecordIds[i];
-			if (sortedRecordId == recId) {
-				return i;
-			}
-		}
-		return -1;
-	}
-
-	private int[] pickRandomResults(int[] sortedRecordIds, int count) {
-		final Random random = new Random();
-		final int[] recs = new int[count];
-		final Set<Integer> picked = new HashSet<>(count);
-		int peak = 0;
-		do {
-			final int randomRecordId = sortedRecordIds[random.nextInt(sortedRecordIds.length)];
-			if (picked.add(randomRecordId)) {
-				recs[peak++] = randomRecordId;
-			}
-		} while (peak < count);
-		Arrays.sort(recs);
-		return recs;
-	}
-
-	private int[] generateRandomSortedRecords(int recCount) {
-		final Random random = new Random();
-		final Set<Integer> randomRecordIds = new TreeSet<>();
-		final int[] sortedRecordIds = new int[recCount];
-		int peak = 0;
-		do {
-			final int rndRecId = random.nextInt(recCount * 2);
-			if (randomRecordIds.add(rndRecId)) {
-				sortedRecordIds[peak++] = rndRecId;
-			}
-		} while (peak < recCount);
-		return sortedRecordIds;
-	}
-
-	@Nonnull
-	private ConstantFormula makeFormula(int... recordIds) {
-		return new ConstantFormula(new BaseBitmap(recordIds));
 	}
 
 	private record PreSortedRecordsSorterWithContext(

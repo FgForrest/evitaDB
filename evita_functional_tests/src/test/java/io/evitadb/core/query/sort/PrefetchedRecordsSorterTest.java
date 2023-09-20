@@ -46,6 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 /**
@@ -89,21 +90,21 @@ class PrefetchedRecordsSorterTest {
 	void shouldReturnFullResultInExpectedOrderOnSmallData() {
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
-			entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4), 0, 100)
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4), 0, 100, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{1, 3},
-			entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5)
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{7, 8, 9},
-			entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(7, 8, 9), 0, 3)
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(7, 8, 9), 0, 3, theArray, 0))
 		);
 	}
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
-		final int[] actual = entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
+		final int[] actual = asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 0, 12, 13},
 			actual
@@ -118,7 +119,7 @@ class PrefetchedRecordsSorterTest {
 			)
 		);
 
-		final int[] actual = updatedSorter.sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
+		final int[] actual = asResult(theArray -> updatedSorter.sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual

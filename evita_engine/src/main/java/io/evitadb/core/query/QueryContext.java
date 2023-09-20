@@ -116,7 +116,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryContext {
+public class QueryContext implements AutoCloseable {
 	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
 
 	/**
@@ -240,11 +240,15 @@ public class QueryContext {
 	 * is a tuple consisting of `referenceName` and `typeOfRule`, the value in the index is prepared predicate allowing
 	 * to mark the group id involved in special relation handling.
 	 */
-	private final Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples = new HashMap<>();
+	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
 	/**
 	 * Cached version of {@link EntitySchemaContract} for {@link #entityType}.
 	 */
 	private EntitySchemaContract entitySchema;
+	/**
+	 * Contains lazy initialized local buffer pool.
+	 */
+	private Deque<int[]> buffers;
 
 	public <S extends IndexKey, T extends Index<S>> QueryContext(
 		@Nonnull Catalog catalog,
@@ -290,6 +294,13 @@ public class QueryContext {
 		//noinspection unchecked
 		this.indexes = (Map<IndexKey, Index<?>>) indexes;
 		this.cacheSupervisor = cacheSupervisor;
+	}
+
+	@Override
+	public void close() {
+		if (this.buffers != null) {
+			this.buffers.forEach(SharedBufferPool.INSTANCE::free);
+		}
 	}
 
 	/**
@@ -980,7 +991,7 @@ public class QueryContext {
 		if (groupId == null || facetGroupConjunction.isEmpty()) {
 			return false;
 		} else {
-			return facetRelationTuples.computeIfAbsent(
+			return getFacetRelationTuples().computeIfAbsent(
 				new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
 				refName -> new FilteringFormulaPredicate(
 					this, facetGroupConjunction.get(),
@@ -1001,7 +1012,7 @@ public class QueryContext {
 		if (groupId == null || facetGroupDisjunction.isEmpty()) {
 			return false;
 		} else {
-			return facetRelationTuples.computeIfAbsent(
+			return getFacetRelationTuples().computeIfAbsent(
 				new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
 				refName -> new FilteringFormulaPredicate(
 					this, facetGroupDisjunction.get(),
@@ -1022,7 +1033,7 @@ public class QueryContext {
 		if (groupId == null || facetGroupNegation.isEmpty()) {
 			return false;
 		} else {
-			return facetRelationTuples.computeIfAbsent(
+			return getFacetRelationTuples().computeIfAbsent(
 				new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
 				refName -> new FilteringFormulaPredicate(
 					this, facetGroupNegation.get(),
@@ -1031,6 +1042,40 @@ public class QueryContext {
 				)
 			).test(groupId);
 		}
+	}
+
+	/**
+	 * Method returns an array for buffering purposes. The buffer is obtained from shared resource, but kept locally
+	 * for multiple reuse within single query context.
+	 */
+	@Nonnull
+	public int[] borrowBuffer() {
+		if (this.buffers == null) {
+			this.buffers = new LinkedList<>();
+		}
+		// return locally cached buffer or obtain new one from shared pool
+		return ofNullable(this.buffers.poll())
+			.orElseGet(SharedBufferPool.INSTANCE::obtain);
+	}
+
+	/**
+	 * Borrowed buffer is returned to local queue for reuse.
+	 */
+	public void returnBuffer(@Nonnull int[] borrowedBuffer) {
+		this.buffers.push(borrowedBuffer);
+	}
+
+	/**
+	 * Lazy initialization of the facet relation tuples.
+	 *
+	 * @return facet relation tuples
+	 */
+	@Nonnull
+	private Map<FacetRelationTuple, FilteringFormulaPredicate> getFacetRelationTuples() {
+		if (facetRelationTuples == null) {
+			this.facetRelationTuples = new HashMap<>();
+		}
+		return facetRelationTuples;
 	}
 
 	/**
@@ -1241,17 +1286,6 @@ public class QueryContext {
 	}
 
 	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelation} into one object used as
-	 * the {@link #facetRelationTuples} key.
-	 */
-	private record FacetRelationTuple(
-		@Nonnull String referenceName,
-		@Nonnull FacetRelation relation
-	) {
-
-	}
-
-	/**
 	 * The relation that refers to constraint types:
 	 *
 	 * - {@link FacetGroupsConjunction}
@@ -1263,9 +1297,20 @@ public class QueryContext {
 	}
 
 	/**
+	 * Tuple that wraps {@link ReferenceSchemaContract#getName()} and {@link FacetRelation} into one object used as
+	 * the {@link #facetRelationTuples} key.
+	 */
+	private record FacetRelationTuple(
+		@Nonnull String referenceName,
+		@Nonnull FacetRelation relation
+	) {
+
+	}
+
+	/**
 	 * The internal caching key.
 	 *
-	 * @param indexKeys array of {@link EntityIndex#getId()} that were used for result calculation
+	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
 	 * @param constraint the constraint that has been evaluated on those indexes
 	 */
 	private record InternalCacheKey(

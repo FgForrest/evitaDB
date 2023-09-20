@@ -223,24 +223,25 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityCollection referencedCollection,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever
 	) {
-		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
-		final QueryContext nestedQueryContext = referencedCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
-		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
-			fetchRequest.getHierarchyContent(),
-			referenceEntityFetch,
-			fetchRequest.getDefaultReferenceRequirement(),
-			nestedQueryContext
-		);
-
 		final Map<Integer, SealedEntity> entityIndex;
-		try {
-			queryContext.pushStep(QueryPhase.FETCHING_REFERENCES, "Reference name: `" + referenceName + "`");
-
-			entityIndex = fetchEntitiesByIdsIntoIndex(
-				referencedRecordIds, fetchRequest, nestedQueryContext, referencedCollection, subReferenceFetcher, existingEntityRetriever
+		try (final QueryContext nestedQueryContext = referencedCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession())) {
+			final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
+			final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
+				fetchRequest.getHierarchyContent(),
+				referenceEntityFetch,
+				fetchRequest.getDefaultReferenceRequirement(),
+				nestedQueryContext
 			);
-		} finally {
-			nestedQueryContext.popStep();
+
+			try {
+				queryContext.pushStep(QueryPhase.FETCHING_REFERENCES, "Reference name: `" + referenceName + "`");
+
+				entityIndex = fetchEntitiesByIdsIntoIndex(
+					referencedRecordIds, fetchRequest, nestedQueryContext, referencedCollection, subReferenceFetcher, existingEntityRetriever
+				);
+			} finally {
+				nestedQueryContext.popStep();
+			}
 		}
 		return entityIndex;
 	}
@@ -263,23 +264,24 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityCollection hierarchyCollection,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever
 	) {
-		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
-		final QueryContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
-		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
-			null,
-			referenceEntityFetch,
-			fetchRequest.getDefaultReferenceRequirement(),
-			nestedQueryContext
-		);
-
 		final Map<Integer, SealedEntity> entityIndex;
-		try {
-			queryContext.pushStep(QueryPhase.FETCHING_PARENTS);
-			entityIndex = fetchEntitiesByIdsIntoIndex(
-				parentIds, fetchRequest, nestedQueryContext, hierarchyCollection, subReferenceFetcher, existingEntityRetriever
+		try (final QueryContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession())) {
+			final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
+			final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
+				null,
+				referenceEntityFetch,
+				fetchRequest.getDefaultReferenceRequirement(),
+				nestedQueryContext
 			);
-		} finally {
-			nestedQueryContext.popStep();
+
+			try {
+				queryContext.pushStep(QueryPhase.FETCHING_PARENTS);
+				entityIndex = fetchEntitiesByIdsIntoIndex(
+					parentIds, fetchRequest, nestedQueryContext, hierarchyCollection, subReferenceFetcher, existingEntityRetriever
+				);
+			} finally {
+				nestedQueryContext.popStep();
+			}
 		}
 		return entityIndex;
 	}
@@ -617,14 +619,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final EntityProperty entityOrderBy = entityNestedQueryComparator.getOrderBy();
 		if (entityOrderBy != null) {
 			final OrderBy orderBy = new OrderBy(entityOrderBy.getChildren());
-			final QueryContext nestedQueryContext = targetEntityCollection.createQueryContext(
-				evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy),
-				evitaSession
-			);
-
-			final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-			final Sorter sorter = queryPlan.getSorter();
-			entityNestedQueryComparator.setSorter(nestedQueryContext, sorter);
+			try (
+				final QueryContext nestedQueryContext = targetEntityCollection.createQueryContext(
+					evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy),
+					evitaSession
+				)
+			) {
+				final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+				final Sorter sorter = queryPlan.getSorter();
+				entityNestedQueryComparator.setSorter(nestedQueryContext, sorter);
+			}
 		}
 		final EntityGroupProperty entityGroupOrderBy = entityNestedQueryComparator.getGroupOrderBy();
 		if (entityGroupOrderBy != null) {
@@ -634,14 +638,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			);
 
 			final OrderBy orderBy = new OrderBy(entityGroupOrderBy.getChildren());
-			final QueryContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
-				evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy),
-				evitaSession
-			);
-
-			final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-			final Sorter sorter = queryPlan.getSorter();
-			entityNestedQueryComparator.setGroupSorter(nestedQueryContext, sorter);
+			try (
+				final QueryContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
+					evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy),
+					evitaSession
+				)
+			) {
+				final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+				final Sorter sorter = queryPlan.getSorter();
+				entityNestedQueryComparator.setGroupSorter(nestedQueryContext, sorter);
+			}
 		}
 	}
 

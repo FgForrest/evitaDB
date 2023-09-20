@@ -61,12 +61,16 @@ public class NoSorter implements Sorter {
 		return null;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		final Bitmap results = input.compute();
-		final int maxLength = Math.min(endIndex - startIndex, results.size() - startIndex);
-		return endIndex > 0 && !results.isEmpty() ? results.getRange(startIndex, startIndex + maxLength) : EMPTY_RESULT;
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+		final Bitmap filteredRecordIdBitmap = input.compute();
+		final int maxLength = Math.min(endIndex - startIndex, filteredRecordIdBitmap.size() - startIndex);
+		if (endIndex > 0 && !filteredRecordIdBitmap.isEmpty()) {
+			final int[] slice = filteredRecordIdBitmap.getRange(startIndex, startIndex + maxLength);
+			System.arraycopy(slice, 0, result, peak, slice.length);
+			return peak + slice.length;
+		} else {
+			return 0;
+		}
 	}
-
 }
