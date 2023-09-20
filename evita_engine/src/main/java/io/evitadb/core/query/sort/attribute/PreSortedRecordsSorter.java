@@ -248,8 +248,9 @@ public class PreSortedRecordsSorter extends AbstractRecordsSorter implements Cac
 	@Nonnull
 	public MergedSortedRecordsSupplier getMemoizedResult() {
 		if (memoizedResult == null) {
+			final SortedRecordsProvider[] sortedRecordsProviders = getSortedRecordsProviders();
 			memoizedResult = new MergedSortedRecordsSupplier(
-				getSortedRecordsProviders(),
+				sortedRecordsProviders,
 				unknownRecordIdsSorter
 			);
 			if (computationCallback != null) {

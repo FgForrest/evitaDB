@@ -39,6 +39,13 @@ import java.util.Comparator;
 public interface EntityComparator extends Comparator<EntityContract> {
 
 	/**
+	 * Methods is called just before the comparator is used to prepare the comparator internal data structures to
+	 * accommodate expected entity count.
+	 * @param entityCount expected entity count to be sorted
+	 */
+	default void prepareFor(int entityCount) {}
+
+	/**
 	 * Returns references to all entities that were lacking the data we were sort along - in other words such values was
 	 * evaluated to NULL. Such entities need to be propagated to further evaluation.
 	 *

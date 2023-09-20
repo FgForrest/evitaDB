@@ -75,10 +75,8 @@ public class AttributeNaturalTranslator
 		final EntityIndex<?>[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName);
 
-		final Function<ChainIndex, SortedRecordsProvider> chainIndexSupplier;
 		final Comparator<Comparable<?>> comparator;
 		if (orderDirection == ASC) {
-			chainIndexSupplier = ChainIndex::getAscendingOrderRecordsSupplier;
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
 				ChainIndex::getAscendingOrderRecordsSupplier,
@@ -89,7 +87,6 @@ public class AttributeNaturalTranslator
 			//noinspection unchecked,rawtypes
 			comparator = (o1, o2) -> ((Comparable) o1).compareTo(o2);
 		} else {
-			chainIndexSupplier = ChainIndex::getDescendingOrderRecordsSupplier;
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getDescendingOrderRecordsSupplier,
 				ChainIndex::getDescendingOrderRecordsSupplier,
