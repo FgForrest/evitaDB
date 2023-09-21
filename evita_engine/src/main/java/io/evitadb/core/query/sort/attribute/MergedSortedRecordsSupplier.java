@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.sort.attribute;
 
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntSet;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.sort.ConditionalSorter;
@@ -65,6 +67,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	private static PartialSortResult fetchSlice(
 		@Nonnull SortedRecordsProvider sortedRecordsProvider,
 		@Nonnull RoaringBitmap positions,
+		@Nonnull IntSet alreadySortedRecordIds,
 		int skip,
 		int length,
 		@Nonnull int[] result,
@@ -92,9 +95,13 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 				// copy records for page
 				final int startIndex = toSkip == 0 ? 0 : bufferPeak + toSkip;
 				for (int i = startIndex; toRead > 0 && i < bufferPeak; i++) {
-					result[peak++] = preSortedRecordIds[buffer[i]];
-					read++;
-					toRead--;
+					final int preSortedRecordId = preSortedRecordIds[buffer[i]];
+					if (!alreadySortedRecordIds.contains(preSortedRecordId)) {
+						result[peak++] = preSortedRecordId;
+						read++;
+						toRead--;
+						alreadySortedRecordIds.add(preSortedRecordId);
+					}
 				}
 				// normalize toSkip
 				if (toSkip < 0) {
@@ -106,7 +113,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 				break;
 			}
 		}
-		return new PartialSortResult(skip - toSkip, length - read, peak);
+		return new PartialSortResult(skip - toSkip, read, peak);
 	}
 
 	/**
@@ -119,8 +126,8 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		@Nonnull RoaringBitmap selectedRecordIds,
 		int selectedRecordCount
 	) {
-		final int[] bufferA = queryContext.borrowBuffer();
-		final int[] bufferB = queryContext.borrowBuffer();
+		final int[] unsortedRecordsBuffer = queryContext.borrowBuffer();
+		final int[] selectedRecordsBuffer = queryContext.borrowBuffer();
 		try {
 			final Bitmap unsortedRecordIds = sortedRecordsProvider.getAllRecords();
 			final int[] recordPositions = sortedRecordsProvider.getRecordPositions();
@@ -133,39 +140,39 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 
 			int matchesFound = 0;
 			int notFoundCount = 0;
-			int peakA = -1;
-			int limitA = -1;
-			int peakB = -1;
-			int limitB = -1;
-			int accA = 1;
+			int unsortedRecordsPeak = -1;
+			int unsortedRecordsRead = -1;
+			int selectedRecordsPeak = -1;
+			int selectedRecordsRead = -1;
+			int unsortedRecordsAcc = 1;
 			do {
-				if (peakA == limitA && limitA != 0) {
-					accA += limitA;
-					limitA = unsortedRecordIdsIt.nextBatch(bufferA);
-					peakA = 0;
+				if (unsortedRecordsPeak == unsortedRecordsRead && unsortedRecordsRead != 0) {
+					unsortedRecordsAcc += unsortedRecordsRead;
+					unsortedRecordsRead = unsortedRecordIdsIt.nextBatch(unsortedRecordsBuffer);
+					unsortedRecordsPeak = 0;
 				}
-				if (peakB == limitB) {
-					limitB = selectedRecordIdsIt.nextBatch(bufferB);
-					peakB = 0;
+				if (selectedRecordsPeak == selectedRecordsRead) {
+					selectedRecordsRead = selectedRecordIdsIt.nextBatch(selectedRecordsBuffer);
+					selectedRecordsPeak = 0;
 				}
-				if (peakA < limitA && bufferA[peakA] == bufferB[peakB]) {
-					mask.add(recordPositions[accA + peakA]);
+				if (unsortedRecordsPeak < unsortedRecordsRead && unsortedRecordsBuffer[unsortedRecordsPeak] == selectedRecordsBuffer[selectedRecordsPeak]) {
+					mask.add(recordPositions[unsortedRecordsAcc + unsortedRecordsPeak]);
 					matchesFound++;
-					peakB++;
-					peakA++;
-				} else if (peakB < limitB && (peakA >= limitA || bufferA[peakA] > bufferB[peakB])) {
-					notFound.add(bufferB[peakB]);
+					selectedRecordsPeak++;
+					unsortedRecordsPeak++;
+				} else if (selectedRecordsPeak < selectedRecordsRead && (unsortedRecordsPeak >= unsortedRecordsRead || unsortedRecordsBuffer[unsortedRecordsPeak] > selectedRecordsBuffer[selectedRecordsPeak])) {
+					notFound.add(selectedRecordsBuffer[selectedRecordsPeak]);
 					notFoundCount++;
-					peakB++;
+					selectedRecordsPeak++;
 				} else {
-					peakA++;
+					unsortedRecordsPeak++;
 				}
-			} while (matchesFound < selectedRecordCount && limitB > 0);
+			} while (matchesFound < selectedRecordCount && selectedRecordsRead > 0);
 
 			return new MaskResult(mask.get(), notFound.get(), notFoundCount);
 		} finally {
-			queryContext.returnBuffer(bufferA);
-			queryContext.returnBuffer(bufferB);
+			queryContext.returnBuffer(unsortedRecordsBuffer);
+			queryContext.returnBuffer(selectedRecordsBuffer);
 		}
 	}
 
@@ -245,11 +252,15 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		int skip = startIndex;
 
 		RoaringBitmap recordsToSort = RoaringBitmapBackedBitmap.getRoaringBitmap(selectedRecordIds);
+		final IntSet alreadySortedRecordIds = new IntHashSet(selectedRecordIds.size());
 		int recordsToSortCount = selectedRecordIds.size();
 		for (final SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
-			final MaskResult maskResult = getMask(queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount);
+			final MaskResult maskResult = getMask(
+				queryContext, sortedRecordsProvider, recordsToSort, recordsToSortCount
+			);
 			final PartialSortResult currentResult = fetchSlice(
-				sortedRecordsProvider, maskResult.mask(), skip, toRead - alreadyRead,
+				sortedRecordsProvider, maskResult.mask(), alreadySortedRecordIds,
+				skip, toRead - alreadyRead,
 				result, peak, buffer
 			);
 			skip = skip - currentResult.skipped();
