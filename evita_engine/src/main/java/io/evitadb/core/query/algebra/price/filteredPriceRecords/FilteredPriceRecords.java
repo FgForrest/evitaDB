@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.price.filteredPriceRecords;
 
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordsLookupResult;
@@ -52,7 +53,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
-import static java.util.Optional.*;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 
 /**
  * Filtered price records provide access to {@link PriceRecord price records} that are involved in formula entity id
@@ -79,7 +81,10 @@ public interface FilteredPriceRecords extends Serializable {
 	 * of {@link FilteredPriceRecords} that represents all of them.
 	 */
 	@Nonnull
-	static FilteredPriceRecords createFromFormulas(@Nonnull Formula parentFormula, @Nullable Bitmap narrowToEntityIds) {
+	static FilteredPriceRecords createFromFormulas(
+		@Nonnull Formula parentFormula,
+		@Nullable Bitmap narrowToEntityIds
+	) {
 		// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
 		final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.findAmongChildren(
 			parentFormula, FilteredPriceRecordAccessor.class, LookUp.SHALLOW
@@ -152,42 +157,50 @@ public interface FilteredPriceRecords extends Serializable {
 		@Nonnull List<FilteredPriceRecords> filteredPriceRecords,
 		boolean requirePriceFound
 	) {
-		final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
-		final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(RoaringBitmapBackedBitmap.getRoaringBitmap(narrowToEntityIds).getBatchIterator());
-		final PriceRecordLookup[] priceRecordIterators = filteredPriceRecords.stream()
-			.filter(ResolvedFilteredPriceRecords.class::isInstance)
-			.map(FilteredPriceRecords::getPriceRecordsLookup)
-			.toArray(PriceRecordLookup[]::new);
-		if (ArrayUtils.isEmpty(priceRecordIterators)) {
-			resolvedFilteredPriceRecords = empty();
-		} else {
-			final CompositeObjectArray<PriceRecordContract> narrowedPrices = new CompositeObjectArray<>(PriceRecordContract.class, false);
-			while (filteredPriceIdsIterator.hasNext()) {
-				final int[] batch = filteredPriceIdsIterator.nextBatch();
-				final int lastExpectedEntity = filteredPriceIdsIterator.getPeek() > 0 ? batch[filteredPriceIdsIterator.getPeek() - 1] : -1;
-				for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
-					int narrowedPriceId = batch[i];
-					boolean anyPriceFound = false;
-					for (PriceRecordLookup it : priceRecordIterators) {
-						anyPriceFound = it.forEachPriceOfEntity(narrowedPriceId, lastExpectedEntity, narrowedPrices::add);
-						if (anyPriceFound) {
-							break;
-						}
-					}
-					Assert.isPremiseValid(
-						!requirePriceFound || anyPriceFound,
-						"Entity with id " + narrowedPriceId + " has no price associated!"
-					);
-				}
-			}
-			resolvedFilteredPriceRecords = of(
-				new ResolvedFilteredPriceRecords(
-					narrowedPrices.toArray(),
-					SortingForm.ENTITY_PK
-				)
+		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
+		try {
+			final Optional<ResolvedFilteredPriceRecords> resolvedFilteredPriceRecords;
+			final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(narrowToEntityIds).getBatchIterator(),
+				buffer
 			);
+			final PriceRecordLookup[] priceRecordIterators = filteredPriceRecords.stream()
+				.filter(ResolvedFilteredPriceRecords.class::isInstance)
+				.map(FilteredPriceRecords::getPriceRecordsLookup)
+				.toArray(PriceRecordLookup[]::new);
+			if (ArrayUtils.isEmpty(priceRecordIterators)) {
+				resolvedFilteredPriceRecords = empty();
+			} else {
+				final CompositeObjectArray<PriceRecordContract> narrowedPrices = new CompositeObjectArray<>(PriceRecordContract.class, false);
+				while (filteredPriceIdsIterator.hasNext()) {
+					final int[] batch = filteredPriceIdsIterator.nextBatch();
+					final int lastExpectedEntity = filteredPriceIdsIterator.getPeek() > 0 ? batch[filteredPriceIdsIterator.getPeek() - 1] : -1;
+					for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
+						int narrowedPriceId = batch[i];
+						boolean anyPriceFound = false;
+						for (PriceRecordLookup it : priceRecordIterators) {
+							anyPriceFound = it.forEachPriceOfEntity(narrowedPriceId, lastExpectedEntity, narrowedPrices::add);
+							if (anyPriceFound) {
+								break;
+							}
+						}
+						Assert.isPremiseValid(
+							!requirePriceFound || anyPriceFound,
+							"Entity with id " + narrowedPriceId + " has no price associated!"
+						);
+					}
+				}
+				resolvedFilteredPriceRecords = of(
+					new ResolvedFilteredPriceRecords(
+						narrowedPrices.toArray(),
+						SortingForm.ENTITY_PK
+					)
+				);
+			}
+			return resolvedFilteredPriceRecords;
+		} finally {
+			SharedBufferPool.INSTANCE.free(buffer);
 		}
-		return resolvedFilteredPriceRecords;
 	}
 
 	@Nonnull
@@ -230,38 +243,43 @@ public interface FilteredPriceRecords extends Serializable {
 			.map(it -> it.getFilteredPriceRecords().getPriceRecordsLookup())
 			.toList();
 
-		// prepare writer for sorted output entity ids
-		final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(filterTo.getBatchIterator());
-		final CompositeIntArray notFound = new CompositeIntArray();
+		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
+		try {
+			// prepare writer for sorted output entity ids
+			final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(filterTo.getBatchIterator(), buffer);
+			final CompositeIntArray notFound = new CompositeIntArray();
 
-		// iterate through all entity ids
-		while (entityIdIterator.hasNext()) {
-			final int[] batch = entityIdIterator.nextBatch();
-			final int lastExpectedEntity = entityIdIterator.getPeek() > 0 ? batch[entityIdIterator.getPeek() - 1] : -1;
-			for (int i = 0; i < entityIdIterator.getPeek(); i++) {
-				final int entityId = batch[i];
+			// iterate through all entity ids
+			while (entityIdIterator.hasNext()) {
+				final int[] batch = entityIdIterator.nextBatch();
+				final int lastExpectedEntity = entityIdIterator.getPeek() > 0 ? batch[entityIdIterator.getPeek() - 1] : -1;
+				for (int i = 0; i < entityIdIterator.getPeek(); i++) {
+					final int entityId = batch[i];
 
-				boolean noPriceFoundAtAll = true;
-				for (PriceRecordLookup priceRecordIt : priceRecordIterators) {
-					final boolean anyPriceFound = priceRecordIt.forEachPriceOfEntity(
-						entityId, lastExpectedEntity,
-						collectedPriceRecords::add
-					);
-					if (anyPriceFound) {
-						noPriceFoundAtAll = false;
-						break;
+					boolean noPriceFoundAtAll = true;
+					for (PriceRecordLookup priceRecordIt : priceRecordIterators) {
+						final boolean anyPriceFound = priceRecordIt.forEachPriceOfEntity(
+							entityId, lastExpectedEntity,
+							collectedPriceRecords::add
+						);
+						if (anyPriceFound) {
+							noPriceFoundAtAll = false;
+							break;
+						}
+					}
+
+					if (noPriceFoundAtAll) {
+						notFound.add(entityId);
 					}
 				}
-
-				if (noPriceFoundAtAll) {
-					notFound.add(entityId);
-				}
 			}
-		}
 
-		return notFound.isEmpty() ?
-			new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray()) :
-			new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), notFound.toArray());
+			return notFound.isEmpty() ?
+				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray()) :
+				new FilteredPriceRecordsLookupResult(collectedPriceRecords.toArray(), notFound.toArray());
+		} finally {
+			SharedBufferPool.INSTANCE.free(buffer);
+		}
 	}
 
 	/**

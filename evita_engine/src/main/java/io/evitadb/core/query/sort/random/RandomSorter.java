@@ -30,7 +30,6 @@ import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.Random;
 
 /**
@@ -61,27 +60,27 @@ public class RandomSorter implements Sorter {
 		return null;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		final Bitmap result = input.compute();
-		if (result.isEmpty()) {
-			return EMPTY_RESULT;
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+		final Bitmap filteredRecordIdBitmap = input.compute();
+		if (filteredRecordIdBitmap.isEmpty()) {
+			return 0;
 		} else {
-			final int[] entireResult = result.getArray();
-			final int length = Math.min(entireResult.length, endIndex - startIndex);
+			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
+			final int length = Math.min(filteredRecordIds.length, endIndex - startIndex);
 			if (length < 0) {
-				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + entireResult.length);
+				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + filteredRecordIds.length);
 			}
 			final Random random = queryContext.getRandom();
 			for (int i = 0; i < length; i++) {
-				final int tmp = entireResult[startIndex + i];
-				final int swapPosition = random.nextInt(entireResult.length);
-				entireResult[startIndex + i] = entireResult[swapPosition];
-				entireResult[swapPosition] = tmp;
+				final int tmp = filteredRecordIds[startIndex + i];
+				final int swapPosition = random.nextInt(filteredRecordIds.length);
+				filteredRecordIds[startIndex + i] = filteredRecordIds[swapPosition];
+				filteredRecordIds[swapPosition] = tmp;
 			}
-			return Arrays.copyOf(entireResult, length);
+
+			System.arraycopy(filteredRecordIds, startIndex, result, peak, length);
+			return peak + length;
 		}
 	}
-
 }

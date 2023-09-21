@@ -322,9 +322,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan = QueryPlanner.planQuery(
-			createQueryContext(evitaRequest, session)
-		);
+		final QueryPlan queryPlan;
+		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
+			queryPlan = QueryPlanner.planQuery(queryContext);
+		}
 		return queryPlan.execute();
 	}
 
@@ -381,17 +382,20 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	@Nonnull
 	public EntityDecorator enrichEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final ReferenceFetcher referenceFetcher = referenceEntityFetch.isEmpty() &&
-			!evitaRequest.isRequiresEntityReferences() &&
-			!evitaRequest.isRequiresParent() ?
-			ReferenceFetcher.NO_IMPLEMENTATION :
-			new ReferencedEntityFetcher(
-				evitaRequest.getHierarchyContent(),
-				referenceEntityFetch,
-				evitaRequest.getDefaultReferenceRequirement(),
-				createQueryContext(evitaRequest, session),
-				sealedEntity
-			);
+		final ReferenceFetcher referenceFetcher;
+		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
+			referenceFetcher = referenceEntityFetch.isEmpty() &&
+				!evitaRequest.isRequiresEntityReferences() &&
+				!evitaRequest.isRequiresParent() ?
+				ReferenceFetcher.NO_IMPLEMENTATION :
+				new ReferencedEntityFetcher(
+					evitaRequest.getHierarchyContent(),
+					referenceEntityFetch,
+					evitaRequest.getDefaultReferenceRequirement(),
+					queryContext,
+					sealedEntity
+				);
+		}
 
 		return enrichEntity(
 			referenceFetcher.initReferenceIndex((EntityDecorator) sealedEntity, this),
@@ -561,9 +565,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 
 	@Override
 	public int deleteEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan = QueryPlanner.planQuery(
-			createQueryContext(evitaRequest, session)
-		);
+		final QueryPlan queryPlan;
+		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
+			queryPlan = QueryPlanner.planQuery(queryContext);
+		}
 		final EvitaEntityReferenceResponse result = queryPlan.execute();
 		return result
 			.getRecordData()
@@ -576,9 +581,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	@Override
 	@Nonnull
 	public SealedEntity[] deleteEntitiesAndReturnThem(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan = QueryPlanner.planQuery(
-			createQueryContext(evitaRequest, session)
-		);
+		final QueryPlan queryPlan;
+		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
+			queryPlan = QueryPlanner.planQuery(queryContext);
+		}
 		final EvitaResponse<? extends Serializable> result = queryPlan.execute();
 		return result
 			.getRecordData()
@@ -1204,16 +1210,18 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull EvitaSessionContract session
 	) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		return referenceEntityFetch.isEmpty() &&
-			!evitaRequest.isRequiresEntityReferences() &&
-			!evitaRequest.isRequiresParent() ?
-			ReferenceFetcher.NO_IMPLEMENTATION :
-			new ReferencedEntityFetcher(
-				evitaRequest.getHierarchyContent(),
-				referenceEntityFetch,
-				evitaRequest.getDefaultReferenceRequirement(),
-				createQueryContext(evitaRequest, session)
-			);
+		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
+			return referenceEntityFetch.isEmpty() &&
+				!evitaRequest.isRequiresEntityReferences() &&
+				!evitaRequest.isRequiresParent() ?
+				ReferenceFetcher.NO_IMPLEMENTATION :
+				new ReferencedEntityFetcher(
+					evitaRequest.getHierarchyContent(),
+					referenceEntityFetch,
+					evitaRequest.getDefaultReferenceRequirement(),
+					queryContext
+				);
+		}
 	}
 
 	/**

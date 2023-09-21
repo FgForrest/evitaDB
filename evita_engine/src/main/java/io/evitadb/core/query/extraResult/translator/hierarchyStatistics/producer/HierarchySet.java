@@ -29,6 +29,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -147,10 +148,14 @@ public class HierarchySet {
 			// create sorted array using the sorter
 			final RoaringBitmap bitmap = writer.get();
 			final Formula levelIdFormula = bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
-			final int[] sortedEntities = sorter.sortAndSlice(queryContext, levelIdFormula, 0, levelIdFormula.compute().size());
+			final int[] sortedEntities = new int[levelIdFormula.compute().size()];
+			final int sortedEntitiesPeak = sorter.sortAndSlice(
+				queryContext, levelIdFormula, 0, levelIdFormula.compute().size(), sortedEntities, 0
+			);
 			// replace the output with the sorted one
+			final int[] normalizedSortedResult = SortUtils.asResult(sortedEntities, sortedEntitiesPeak);
 			for (Entry<String, List<LevelInfo>> entry : unsortedResult.entrySet()) {
-				entry.setValue(sort(entry.getValue(), sortedEntities));
+				entry.setValue(sort(entry.getValue(), normalizedSortedResult));
 			}
 		}
 		return unsortedResult;

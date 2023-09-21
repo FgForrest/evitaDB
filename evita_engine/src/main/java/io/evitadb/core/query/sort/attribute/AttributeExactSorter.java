@@ -61,7 +61,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeExactSorter extends AbstractRecordsSorter {
-	private static final int[] EMPTY_RESULT = new int[0];
 	/**
 	 * Name of the attribute the sorter sorts along.
 	 */
@@ -102,8 +101,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		return new AttributeExactSorter(
 			attributeName,
 			exactOrder,
-			sortIndex,
-			null
+			sortIndex
 		);
 	}
 
@@ -124,17 +122,16 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		return unknownRecordIdsSorter;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.isEmpty()) {
-			return EMPTY_RESULT;
+			return 0;
 		} else {
 			if (queryContext.getPrefetchedEntities() == null) {
-				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds);
+				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
 			} else {
-				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds);
+				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
 			}
 		}
 	}
@@ -142,9 +139,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	/**
 	 * Sorts the selected primary key ids by the order of attributes in {@link SortIndex}.
 	 */
-	@Nonnull
-	private int[] sortOutputBasedOnIndex(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds
+	private int sortOutputBasedOnIndex(
+		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull int[] result, int peak
 	) {
 		final int[] entireResult = selectedRecordIds.getArray();
 		final int length = Math.min(entireResult.length, endIndex - startIndex);
@@ -161,9 +158,13 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		// now sort the real result by the exactPkOrder
 		final int lastSortedItem = ArrayUtils.sortAlong(exactPkOrder, entireResult);
 
+		// copy the sorted data to result
+		final int toAppend = Math.min(lastSortedItem, endIndex - startIndex);
+		System.arraycopy(entireResult, startIndex, result, peak, toAppend);
+
 		// if there are no more records to sort or no additional sorter is present, return entire result
 		if (lastSortedItem + 1 == selectedRecordIds.size() || unknownRecordIdsSorter == NoSorter.INSTANCE) {
-			return entireResult;
+			return peak + toAppend;
 		} else {
 			// otherwise, collect the not sorted record ids
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
@@ -173,13 +174,10 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 			// pass them to another sorter
 			final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
 			final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
-			final int[] unsortedResult = unknownRecordIdsSorter.sortAndSlice(
+			return unknownRecordIdsSorter.sortAndSlice(
 				queryContext, new ConstantFormula(new BaseBitmap(writer.get())),
-				recomputedStartIndex, recomputedEndIndex
+				recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
 			);
-			// and combine with our result
-			System.arraycopy(unsortedResult, 0, entireResult, lastSortedItem, unsortedResult.length);
-			return entireResult;
 		}
 	}
 
@@ -187,9 +185,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * Sorts the selected primary key ids by the order of attributes retrieved from prefetched entities and compared
 	 * by comparator in the place.
 	 */
-	@Nonnull
-	private int[] sortOutputByPrefetchedEntities(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds
+	private int sortOutputByPrefetchedEntities(
+		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull int[] result, int peak
 	) {
 		// collect entity primary keys
 		final OfInt it = selectedRecordIds.iterator();
@@ -218,22 +216,31 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 		// collect the result
 		final AtomicInteger index = new AtomicInteger();
-		final int[] result = new int[selectedRecordIds.size()];
 		entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
 			.stream()
 			.skip(startIndex)
 			.limit((long) endIndex - startIndex)
 			.mapToInt(queryContext::translateEntity)
-			.forEach(pk -> result[index.getAndIncrement()] = pk);
+			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
+
+		// pass them to another sorter
+		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
+		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
 
 		// and return appending the not sorted records
-		return returnResultAppendingUnknown(
-			queryContext,
-			new SortResult(result, index.get()),
-			notFoundRecords,
-			unknownRecordIdsSorter,
-			startIndex, endIndex
-		);
+		final int[] borrowedBuffer = queryContext.borrowBuffer();
+		try {
+			return returnResultAppendingUnknown(
+				queryContext,
+				notFoundRecords,
+				unknownRecordIdsSorter,
+				recomputedStartIndex, recomputedEndIndex,
+				result, peak + index.get(),
+				borrowedBuffer
+			);
+		} finally {
+			queryContext.returnBuffer(borrowedBuffer);
+		}
 	}
 
 	/**

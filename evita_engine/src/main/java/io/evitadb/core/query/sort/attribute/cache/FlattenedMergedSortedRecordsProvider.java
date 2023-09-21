@@ -25,7 +25,6 @@ package io.evitadb.core.query.sort.attribute.cache;
 
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -35,6 +34,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.util.Arrays;
 
 /**
  * Flattened formula represents a memoized form of original Histogram.
@@ -53,12 +53,13 @@ public class FlattenedMergedSortedRecordsProvider extends CachePayloadHeader imp
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */
 	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull MergedSortedRecordsSupplier sortedRecordsSupplier) {
-		final SortedRecordsProvider sortedRecordsProvider = sortedRecordsSupplier.getSortedRecordsProvider();
 		return 2 * MemoryMeasuringConstants.LONG_SIZE +
 			CachePayloadHeader.estimateSize(transactionalIds) +
-			MemoryMeasuringConstants.computeArraySize(sortedRecordsProvider.getRecordPositions()) +
-			MemoryMeasuringConstants.computeArraySize(sortedRecordsProvider.getSortedRecordIds()) +
-			RoaringBitmapBackedBitmap.getRoaringBitmap(sortedRecordsProvider.getAllRecords()).serializedSizeInBytes();
+			Arrays.stream(sortedRecordsSupplier.getSortedRecordsProviders())
+				.mapToInt(it -> MemoryMeasuringConstants.computeArraySize(it.getRecordPositions()) +
+					MemoryMeasuringConstants.computeArraySize(it.getSortedRecordIds()) +
+					RoaringBitmapBackedBitmap.getRoaringBitmap(it.getAllRecords()).serializedSizeInBytes()
+				).sum();
 	}
 
 	public FlattenedMergedSortedRecordsProvider(
