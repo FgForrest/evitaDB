@@ -53,11 +53,11 @@ import java.io.Serial;
 @EqualsAndHashCode
 public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 5167037327442001715L;
-	@Nonnull @Getter private final String name;
+	@Nonnull @Getter private final String entityType;
 
-	public CreateEntitySchemaMutation(@Nonnull String name) {
-		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, name);
-		this.name = name;
+	public CreateEntitySchemaMutation(@Nonnull String entityType) {
+		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, entityType);
+		this.entityType = entityType;
 	}
 
 	@Nonnull
@@ -76,6 +76,6 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation {
 	@Override
 	public String toString() {
 		return "Create entity schema: " +
-			"name='" + name + '\'';
+			"entity type='" + entityType + '\'';
 	}
 }

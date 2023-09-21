@@ -47,24 +47,24 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateReferenceSchemaMutationDescriptor.THIS.name();
+	protected Class<CreateReferenceSchemaMutation> getMutationClass() {
+		return CreateReferenceSchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected CreateReferenceSchemaMutation convert(@Nonnull Input input) {
 		return new CreateReferenceSchemaMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
-			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			input.getRequiredField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
-			input.getOptionalField(CreateReferenceSchemaMutationDescriptor.FACETED, false)
+			input.getField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
+			input.getField(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getField(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
+			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
+			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
+			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
+			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
+			input.getField(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
+			input.getField(CreateReferenceSchemaMutationDescriptor.FACETED, false)
 		);
 	}
 }

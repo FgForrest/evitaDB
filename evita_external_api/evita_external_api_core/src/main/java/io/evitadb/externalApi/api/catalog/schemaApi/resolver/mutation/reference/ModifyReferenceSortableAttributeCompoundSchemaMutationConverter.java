@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -58,8 +57,8 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyReferenceAttributeSchemaMutationDescriptor.THIS.name();
+	protected Class<ModifyReferenceSortableAttributeCompoundSchemaMutation> getMutationClass() {
+		return ModifyReferenceSortableAttributeCompoundSchemaMutation.class;
 	}
 
 	@Nonnull
@@ -82,7 +81,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter ext
 		);
 
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getField(ReferenceSchemaMutationDescriptor.NAME),
 			sortableAttributeCompoundSchemaMutations.get(0)
 		);
 	}

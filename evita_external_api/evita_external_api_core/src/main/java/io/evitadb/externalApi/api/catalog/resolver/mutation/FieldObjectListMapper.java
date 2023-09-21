@@ -25,7 +25,6 @@ package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.utils.Assert;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -39,7 +38,6 @@ import java.util.function.Function;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class FieldObjectListMapper<T extends Serializable> implements Function<Object, T[]> {
 
 	/**
@@ -54,7 +52,7 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 	/**
 	 * Descriptor of field to be mapped.
 	 */
-	@Nonnull private final PropertyDescriptor field;
+	@Nonnull private final String fieldName;
 	/**
 	 * Target item type.
 	 */
@@ -65,12 +63,39 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 	 */
 	@Nonnull private final Function<Input, T> objectMapper;
 
+	public FieldObjectListMapper(@Nonnull String mutationName,
+	                             @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+	                             @Nonnull String fieldName,
+	                             @Nonnull Class<T> objectType,
+	                             @Nonnull Function<Input, T> objectMapper) {
+		this.mutationName = mutationName;
+		this.exceptionFactory = exceptionFactory;
+		this.fieldName = fieldName;
+		this.objectType = objectType;
+		this.objectMapper = objectMapper;
+	}
+
+	public FieldObjectListMapper(@Nonnull String mutationName,
+	                             @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+	                             @Nonnull PropertyDescriptor field,
+	                             @Nonnull Class<T> objectType,
+	                             @Nonnull Function<Input, T> objectMapper) {
+		this(
+			mutationName,
+			exceptionFactory,
+			field.name(),
+			objectType,
+			objectMapper
+		);
+	}
+
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public T[] apply(@Nonnull Object rawField) {
 		Assert.isTrue(
 			rawField instanceof List<?>,
-			() -> exceptionFactory.createInvalidArgumentException("Field `" + field.name() + "` of mutation `" + mutationName + "` is expected to be an array.")
+			() -> exceptionFactory.createInvalidArgumentException("Field `" + fieldName + "` of mutation `" + mutationName + "` is expected to be an array.")
 		);
 
 		final List<Object> rawElements = (List<Object>) rawField;
@@ -78,7 +103,7 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 			.map(rawElement -> {
 				Assert.isTrue(
 					rawElement instanceof Map<?, ?>,
-					() -> exceptionFactory.createInvalidArgumentException("Item in field `" + field.name() + "` of mutation `" + mutationName + "` is expected to be an object.")
+					() -> exceptionFactory.createInvalidArgumentException("Item in field `" + fieldName + "` of mutation `" + mutationName + "` is expected to be an object.")
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawElement;

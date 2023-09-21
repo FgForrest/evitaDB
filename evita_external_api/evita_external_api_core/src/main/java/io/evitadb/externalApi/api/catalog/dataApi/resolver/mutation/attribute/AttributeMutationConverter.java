@@ -48,8 +48,8 @@ public abstract class AttributeMutationConverter<M extends AttributeMutation> ex
 	@Nonnull
 	protected AttributeKey resolveAttributeKey(@Nonnull Input input) {
 		return new AttributeKey(
-			input.getRequiredField(AttributeMutationDescriptor.NAME),
-			input.getOptionalField(AttributeMutationDescriptor.LOCALE)
+			input.getField(AttributeMutationDescriptor.NAME),
+			input.getField(AttributeMutationDescriptor.LOCALE)
 		);
 	}
 }

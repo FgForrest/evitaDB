@@ -24,10 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowCurrencyInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowCurrencyInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -46,15 +44,7 @@ public class AllowCurrencyInEntitySchemaMutationConverter extends EntitySchemaMu
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return AllowCurrencyInEntitySchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected AllowCurrencyInEntitySchemaMutation convert(@Nonnull Input input) {
-		return new AllowCurrencyInEntitySchemaMutation(
-			input.getRequiredField(AllowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES)
-		);
+	protected Class<AllowCurrencyInEntitySchemaMutation> getMutationClass() {
+		return AllowCurrencyInEntitySchemaMutation.class;
 	}
 }

@@ -47,15 +47,16 @@ public class DisallowEvolutionModeInCatalogSchemaMutationConverter extends Local
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.name();
+	protected Class<DisallowEvolutionModeInCatalogSchemaMutation> getMutationClass() {
+		return DisallowEvolutionModeInCatalogSchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected DisallowEvolutionModeInCatalogSchemaMutation convert(@Nonnull Input input) {
+		// there are 2 constructors, which we don't support currently
 		return new DisallowEvolutionModeInCatalogSchemaMutation(
-			(CatalogEvolutionMode[]) input.getRequiredField(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
+			(CatalogEvolutionMode[]) input.getField(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
 		);
 	}
 }

@@ -46,8 +46,8 @@ public class InsertReferenceMutationConverter extends ReferenceMutationConverter
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return InsertReferenceMutationDescriptor.THIS.name();
+	protected Class<InsertReferenceMutation> getMutationClass() {
+		return InsertReferenceMutation.class;
 	}
 
 	@Nonnull
@@ -55,8 +55,8 @@ public class InsertReferenceMutationConverter extends ReferenceMutationConverter
 	protected InsertReferenceMutation convert(@Nonnull Input input) {
 		return new InsertReferenceMutation(
 			resolveReferenceKey(input),
-			input.getOptionalField(InsertReferenceMutationDescriptor.CARDINALITY),
-			input.getOptionalField(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE)
+			input.getField(InsertReferenceMutationDescriptor.CARDINALITY),
+			input.getField(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE)
 		);
 	}
 }

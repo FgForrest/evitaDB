@@ -32,7 +32,6 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -55,7 +54,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public class ValueTypeMapper implements Function<Object, Class<? extends Serializable>> {
 
 	private static final Map<String, Class<? extends Serializable>> VALUE_TYPE_MAPPINGS;
@@ -111,7 +109,17 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 	private final MutationResolvingExceptionFactory exceptionFactory;
 
 	@Nonnull
-	private final PropertyDescriptor field;
+	private final String fieldName;
+
+	public ValueTypeMapper(@Nonnull MutationResolvingExceptionFactory exceptionFactory, @Nonnull String fieldName) {
+		this.exceptionFactory = exceptionFactory;
+		this.fieldName = fieldName;
+	}
+
+	public ValueTypeMapper(@Nonnull MutationResolvingExceptionFactory exceptionFactory, @Nonnull PropertyDescriptor field) {
+		this.exceptionFactory = exceptionFactory;
+		this.fieldName = field.name();
+	}
 
 	@Override
 	public Class<? extends Serializable> apply(@Nonnull Object rawField) {
@@ -122,11 +130,11 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 		if (rawField instanceof String valueTypeName) {
 			final Class<? extends Serializable> valueType = VALUE_TYPE_MAPPINGS.get(valueTypeName);
 			if (valueType == null) {
-				throw exceptionFactory.createInvalidArgumentException("Unknown value type in `" + field.name() + "`.");
+				throw exceptionFactory.createInvalidArgumentException("Unknown value type in `" + fieldName + "`.");
 			}
 			return valueType;
 		}
-		throw exceptionFactory.createInvalidArgumentException("Unsupported value type in `" + field.name() + "`.");
+		throw exceptionFactory.createInvalidArgumentException("Unsupported value type in `" + fieldName + "`.");
 	}
 
 	private static void registerTypeMapping(@Nonnull Map<String, Class<? extends Serializable>> mappings,

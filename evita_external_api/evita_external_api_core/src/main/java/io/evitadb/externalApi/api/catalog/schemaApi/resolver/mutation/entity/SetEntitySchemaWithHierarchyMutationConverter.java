@@ -24,10 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithHierarchyMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -46,15 +44,7 @@ public class SetEntitySchemaWithHierarchyMutationConverter extends EntitySchemaM
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetEntitySchemaWithHierarchyMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetEntitySchemaWithHierarchyMutation convert(@Nonnull Input input) {
-		return new SetEntitySchemaWithHierarchyMutation(
-			input.getRequiredField(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY)
-		);
+	protected Class<SetEntitySchemaWithHierarchyMutation> getMutationClass() {
+		return SetEntitySchemaWithHierarchyMutation.class;
 	}
 }

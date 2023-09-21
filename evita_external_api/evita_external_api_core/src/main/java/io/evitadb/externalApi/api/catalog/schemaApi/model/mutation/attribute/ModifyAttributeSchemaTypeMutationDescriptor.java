@@ -49,7 +49,7 @@ public interface ModifyAttributeSchemaTypeMutationDescriptor extends AttributeSc
 		.type(nonNullRef(SCALAR_ENUM))
 		.build();
 	PropertyDescriptor INDEXED_DECIMAL_PLACES = PropertyDescriptor.builder()
-		.name("nullable")
+		.name("indexedDecimalPlaces")
 		.description("""
 			Determines how many fractional places are important when entities are compared during filtering or sorting. It is
 			significant to know that all values of this attribute will be converted to `Integer`, so the attribute

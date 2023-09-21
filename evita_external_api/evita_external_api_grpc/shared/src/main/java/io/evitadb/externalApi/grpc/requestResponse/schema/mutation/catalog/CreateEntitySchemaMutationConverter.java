@@ -46,7 +46,7 @@ public class CreateEntitySchemaMutationConverter implements SchemaMutationConver
 	@Nonnull
 	public GrpcCreateEntitySchemaMutation convert(@Nonnull CreateEntitySchemaMutation mutation) {
 		return GrpcCreateEntitySchemaMutation.newBuilder()
-			.setEntityType(mutation.getName())
+			.setEntityType(mutation.getEntityType())
 			.build();
 	}
 }

@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaFilterableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,16 +44,7 @@ public class SetAttributeSchemaFilterableMutationConverter extends AttributeSche
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetAttributeSchemaFilterableMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetAttributeSchemaFilterableMutation convert(@Nonnull Input input) {
-		return new SetAttributeSchemaFilterableMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaFilterableMutationDescriptor.FILTERABLE)
-		);
+	protected Class<SetAttributeSchemaFilterableMutation> getMutationClass() {
+		return SetAttributeSchemaFilterableMutation.class;
 	}
 }

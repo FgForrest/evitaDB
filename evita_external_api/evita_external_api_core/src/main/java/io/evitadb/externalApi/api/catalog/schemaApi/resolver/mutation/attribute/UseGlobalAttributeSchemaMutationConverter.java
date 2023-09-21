@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.UseGlobalAttributeSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.UseGlobalAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,15 +44,7 @@ public class UseGlobalAttributeSchemaMutationConverter extends AttributeSchemaMu
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UseGlobalAttributeSchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected UseGlobalAttributeSchemaMutation convert(@Nonnull Input input) {
-		return new UseGlobalAttributeSchemaMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME)
-		);
+	protected Class<UseGlobalAttributeSchemaMutation> getMutationClass() {
+		return UseGlobalAttributeSchemaMutation.class;
 	}
 }

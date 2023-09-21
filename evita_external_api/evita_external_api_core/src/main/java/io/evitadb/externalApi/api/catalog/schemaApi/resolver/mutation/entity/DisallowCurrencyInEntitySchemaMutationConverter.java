@@ -47,15 +47,16 @@ public class DisallowCurrencyInEntitySchemaMutationConverter extends EntitySchem
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return DisallowCurrencyInEntitySchemaMutationDescriptor.THIS.name();
+	protected Class<DisallowCurrencyInEntitySchemaMutation> getMutationClass() {
+		return DisallowCurrencyInEntitySchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected DisallowCurrencyInEntitySchemaMutation convert(@Nonnull Input input) {
 		return new DisallowCurrencyInEntitySchemaMutation(
-			(Currency[]) input.getRequiredField(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES)
+			// we need this because we don't support multiple constructors in automatic conversion
+			(Currency[]) input.getField(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES)
 		);
 	}
 }

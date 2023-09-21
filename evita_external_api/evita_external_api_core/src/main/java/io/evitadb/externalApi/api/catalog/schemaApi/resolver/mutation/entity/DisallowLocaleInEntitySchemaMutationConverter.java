@@ -47,15 +47,16 @@ public class DisallowLocaleInEntitySchemaMutationConverter extends EntitySchemaM
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return DisallowLocaleInEntitySchemaMutationDescriptor.THIS.name();
+	protected Class<DisallowLocaleInEntitySchemaMutation> getMutationClass() {
+		return DisallowLocaleInEntitySchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected DisallowLocaleInEntitySchemaMutation convert(@Nonnull Input input) {
 		return new DisallowLocaleInEntitySchemaMutation(
-			(Locale[]) input.getRequiredField(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
+			// we need this because we don't support multiple constructors in automatic conversion
+			(Locale[]) input.getField(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
 		);
 	}
 }

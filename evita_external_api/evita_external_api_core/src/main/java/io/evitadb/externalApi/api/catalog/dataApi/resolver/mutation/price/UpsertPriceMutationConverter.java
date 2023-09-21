@@ -46,8 +46,8 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UpsertPriceMutationDescriptor.THIS.name();
+	protected Class<UpsertPriceMutation> getMutationClass() {
+		return UpsertPriceMutation.class;
 	}
 
 	@Nonnull
@@ -55,12 +55,12 @@ public class UpsertPriceMutationConverter extends PriceMutationConverter<UpsertP
 	protected UpsertPriceMutation convert(@Nonnull Input input) {
 		return new UpsertPriceMutation(
 			resolvePriceKey(input),
-			input.getOptionalField(UpsertPriceMutationDescriptor.INNER_RECORD_ID),
-			input.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX),
-			input.getRequiredField(UpsertPriceMutationDescriptor.TAX_RATE),
-			input.getRequiredField(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
-			input.getOptionalField(UpsertPriceMutationDescriptor.VALIDITY),
-			input.getRequiredField(UpsertPriceMutationDescriptor.SELLABLE)
+			input.getField(UpsertPriceMutationDescriptor.INNER_RECORD_ID),
+			input.getField(UpsertPriceMutationDescriptor.PRICE_WITHOUT_TAX),
+			input.getField(UpsertPriceMutationDescriptor.TAX_RATE),
+			input.getField(UpsertPriceMutationDescriptor.PRICE_WITH_TAX),
+			input.getField(UpsertPriceMutationDescriptor.VALIDITY),
+			input.getField(UpsertPriceMutationDescriptor.SELLABLE)
 		);
 	}
 }

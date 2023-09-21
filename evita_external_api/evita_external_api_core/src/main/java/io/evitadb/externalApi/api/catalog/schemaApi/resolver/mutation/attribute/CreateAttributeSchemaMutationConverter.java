@@ -49,8 +49,8 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateAttributeSchemaMutationDescriptor.THIS.name();
+	protected Class<CreateAttributeSchemaMutation> getMutationClass() {
+		return CreateAttributeSchemaMutation.class;
 	}
 
 	@Nonnull
@@ -62,17 +62,17 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 		);
 
 		return new CreateAttributeSchemaMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
+			input.getField(AttributeSchemaMutationDescriptor.NAME),
+			input.getField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
+			input.getField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getField(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
+			input.getField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
+			input.getField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
+			input.getField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
+			input.getField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
 			valueType,
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
+			input.getField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
 		);
 	}
 }

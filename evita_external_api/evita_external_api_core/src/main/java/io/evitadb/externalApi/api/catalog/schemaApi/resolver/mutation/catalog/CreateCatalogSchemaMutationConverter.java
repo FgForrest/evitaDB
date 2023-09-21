@@ -24,17 +24,15 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateCatalogSchemaMutationDescriptor;
 
 import javax.annotation.Nonnull;
 
 /**
  * TODO lho docs
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class CreateCatalogSchemaMutationConverter extends TopLevelCatalogSchemaMutationConverter<CreateCatalogSchemaMutation> {
 
@@ -45,15 +43,7 @@ public class CreateCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateCatalogSchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected CreateCatalogSchemaMutation convert(@Nonnull Input input) {
-		return new CreateCatalogSchemaMutation(
-			input.getRequiredField(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME)
-		);
+	protected Class<CreateCatalogSchemaMutation> getMutationClass() {
+		return CreateCatalogSchemaMutation.class;
 	}
 }

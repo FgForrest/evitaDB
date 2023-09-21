@@ -49,8 +49,8 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateGlobalAttributeSchemaMutationDescriptor.THIS.name();
+	protected Class<CreateGlobalAttributeSchemaMutation> getMutationClass() {
+		return CreateGlobalAttributeSchemaMutation.class;
 	}
 
 	@Nonnull
@@ -62,18 +62,18 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 		);
 
 		return new CreateGlobalAttributeSchemaMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE, false),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY, false),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE, false),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE, false),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
+			input.getField(AttributeSchemaMutationDescriptor.NAME),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE, false),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY, false),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE, false),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE, false),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
 			valueType,
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
+			input.getField(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
 		);
 	}
 }

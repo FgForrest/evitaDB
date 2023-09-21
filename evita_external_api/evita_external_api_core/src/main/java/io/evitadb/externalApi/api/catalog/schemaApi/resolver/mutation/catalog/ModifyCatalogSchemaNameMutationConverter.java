@@ -24,19 +24,15 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveCatalogSchemaMutationDescriptor;
 
 import javax.annotation.Nonnull;
 
 /**
  * TODO lho docs
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class ModifyCatalogSchemaNameMutationConverter extends TopLevelCatalogSchemaMutationConverter<ModifyCatalogSchemaNameMutation> {
 
@@ -47,17 +43,7 @@ public class ModifyCatalogSchemaNameMutationConverter extends TopLevelCatalogSch
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyCatalogSchemaNameMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected ModifyCatalogSchemaNameMutation convert(@Nonnull Input input) {
-		return new ModifyCatalogSchemaNameMutation(
-			input.getRequiredField(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME),
-			input.getRequiredField(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME),
-			input.getRequiredField(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET)
-		);
+	protected Class<ModifyCatalogSchemaNameMutation> getMutationClass() {
+		return ModifyCatalogSchemaNameMutation.class;
 	}
 }

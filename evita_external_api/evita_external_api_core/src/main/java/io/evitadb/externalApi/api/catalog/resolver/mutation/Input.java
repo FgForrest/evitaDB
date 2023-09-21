@@ -56,14 +56,9 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class Input {
 
-	@Nonnull
-	private final String mutationName;
-
-	@Nullable
-	private final Object inputMutationObject;
-
-	@Nonnull
-	private final MutationResolvingExceptionFactory exceptionFactory;
+	@Nonnull private final String mutationName;
+	@Nullable private final Object inputMutationObject;
+	@Nonnull private final MutationResolvingExceptionFactory exceptionFactory;
 
 	@Nonnull
 	public <T> Optional<T> getOptionalValue() {
@@ -94,6 +89,89 @@ public class Input {
 	/**
 	 * Tries to get field from raw input local mutation.
 	 */
+	<T> T getField(@Nonnull String name, boolean required) {
+		return getField(name, required, (T) null);
+	}
+
+	/**
+	 * Tries to get field from raw input local mutation.
+	 */
+	@SuppressWarnings("unchecked")
+	<T> T getField(@Nonnull String name, boolean required, @Nullable T defaultValue) {
+		return getField(name, required, it -> (T) it, defaultValue);
+	}
+
+	/**
+	 * Tries to get field from raw input local mutation.
+	 */
+	<T extends Serializable> T getField(@Nonnull String name,
+	                                    boolean required,
+	                                    @Nonnull Class<T> targetType) {
+		return getField(name, required, targetType, null);
+	}
+
+	/**
+	 * Tries to get field from raw input local mutation.
+	 */
+	<T extends Serializable> T getField(@Nonnull String name,
+										boolean required,
+	                                    @Nonnull Class<T> targetType,
+                                        @Nullable T defaultValue) {
+		return getField(name, required, rawField -> toTargetType(name, rawField, targetType), defaultValue);
+	}
+
+	/**
+	 * Tries to get field from raw input local mutation.
+	 */
+	<T> T getField(@Nonnull String name,
+	               boolean required,
+	               @Nonnull Function<Object, T> fieldMapper) {
+		return getField(name, required, fieldMapper, null);
+	}
+
+	/**
+	 * Tries to get field from raw input local mutation.
+	 */
+	<T> T getField(@Nonnull String name,
+						   boolean required,
+	                       @Nonnull Function<Object, T> fieldMapper,
+	                       @Nullable T defaultValue) {
+		assertMutationObjectNonNull();
+		assertMutationObjectIsObject();
+		//noinspection unchecked
+		final T fieldValue = Optional.ofNullable(((Map<String, Object>) inputMutationObject).get(name))
+			.map(fieldMapper)
+			.orElse(defaultValue);
+		if (required) {
+			assertRequiredFieldNonNull(name, fieldValue);
+		}
+		return fieldValue;
+	}
+
+
+	/**
+	 * Tries to get field from raw input local mutation based on descriptor.
+	 */
+	public <T extends Serializable> T getField(@Nonnull PropertyDescriptor propertyDescriptor) {
+		return getField(propertyDescriptor, null);
+	}
+
+	/**
+	 * Tries to get field from raw input local mutation based on descriptor.
+	 */
+	public <T extends Serializable> T getField(@Nonnull PropertyDescriptor propertyDescriptor, @Nullable T defaultValue) {
+		Assert.isPremiseValid(
+			propertyDescriptor.primitiveType() != null,
+			() -> exceptionFactory.createInternalError("Field descriptor of field `" + propertyDescriptor.name() + "` doesn't specify type. You must specify type explicitly.")
+		);
+		//noinspection unchecked
+		return getField(propertyDescriptor.name(), propertyDescriptor.primitiveType().nonNull(), (Class<T>) propertyDescriptor.primitiveType().javaType(), defaultValue);
+	}
+
+
+	/**
+	 * Tries to get field from raw input local mutation.
+	 */
 	@Nullable
 	public <T> T getOptionalField(@Nonnull String name) {
 		return getOptionalField(name, (T) null);
@@ -104,41 +182,15 @@ public class Input {
 	 */
 	@Nullable
 	public <T> T getOptionalField(@Nonnull String name, @Nullable T defaultValue) {
-		assertMutationObjectNonNull();
-		assertMutationObjectIsObject();
-		//noinspection unchecked
-		return Optional.ofNullable(((Map<String, Object>) inputMutationObject).get(name))
-			.map(it -> (T) it)
-			.orElse(defaultValue);
+		return getField(name, false, defaultValue);
 	}
 
 	/**
 	 * Tries to get field from raw input local mutation.
 	 */
 	@Nullable
-	public <T extends Serializable> T getOptionalField(@Nonnull PropertyDescriptor fieldDescriptor) {
-		return getOptionalField(fieldDescriptor, null);
-	}
-
-	/**
-	 * Tries to get field from raw input local mutation.
-	 */
-	@Nullable
-	public <T extends Serializable> T getOptionalField(@Nonnull PropertyDescriptor fieldDescriptor, @Nullable T defaultValue) {
-		Assert.isPremiseValid(
-			fieldDescriptor.primitiveType() != null && !fieldDescriptor.primitiveType().nonNull(),
-			() -> exceptionFactory.createInternalError("Field descriptor of field `" + fieldDescriptor.name() + "` doesn't specify type or is required. You must specify type explicitly.")
-		);
-		//noinspection unchecked
-		return getOptionalField(fieldDescriptor.name(), (Class<T>) fieldDescriptor.primitiveType().javaType(), defaultValue);
-	}
-
-	/**
-	 * Tries to get field from raw input local mutation.
-	 */
-	@Nullable
-	public <T extends Serializable> T getOptionalField(@Nonnull String name,
-	                                                   @Nonnull Function<Object, T> fieldMapper) {
+	public <T> T getOptionalField(@Nonnull String name,
+	                              @Nonnull Function<Object, T> fieldMapper) {
 		return getOptionalField(name, fieldMapper, null);
 	}
 
@@ -146,15 +198,10 @@ public class Input {
 	 * Tries to get field from raw input local mutation.
 	 */
 	@Nullable
-	public <T extends Serializable> T getOptionalField(@Nonnull String name,
-	                                                   @Nonnull Function<Object, T> fieldMapper,
-	                                                   @Nullable T defaultValue) {
-		assertMutationObjectNonNull();
-		assertMutationObjectIsObject();
-		//noinspection unchecked
-		return Optional.ofNullable(((Map<String, Object>) inputMutationObject).get(name))
-			.map(fieldMapper)
-			.orElse(defaultValue);
+	public <T> T getOptionalField(@Nonnull String name,
+	                              @Nonnull Function<Object, T> fieldMapper,
+	                              @Nullable T defaultValue) {
+		return getField(name, false, fieldMapper, defaultValue);
 	}
 
 	/**
@@ -181,26 +228,15 @@ public class Input {
 	 */
 	@Nonnull
 	public <T> T getRequiredField(@Nonnull String name) {
-		assertMutationObjectNonNull();
-		assertMutationObjectIsObject();
-		//noinspection unchecked
-		final Object rawField = ((Map<String, Object>) inputMutationObject).get(name);
-		assertRequiredFieldNonNull(name, rawField);
-		//noinspection unchecked
-		return (T) rawField;
+		return getField(name, true, (T) null);
 	}
 
 	/**
 	 * Tries to get field from raw input local mutation.
 	 */
 	@Nonnull
-	public <T extends Serializable> T getRequiredField(@Nonnull String name, @Nonnull Function<Object, T> fieldMapper) {
-		assertMutationObjectNonNull();
-		assertMutationObjectIsObject();
-		//noinspection unchecked
-		final Object rawField = ((Map<String, Object>) inputMutationObject).get(name);
-		assertRequiredFieldNonNull(name, rawField);
-		return fieldMapper.apply(rawField);
+	public <T> T getRequiredField(@Nonnull String name, @Nonnull Function<Object, T> fieldMapper) {
+		return getField(name, true, fieldMapper, null);
 	}
 
 	/**
@@ -211,18 +247,6 @@ public class Input {
 		return getRequiredField(name, rawField -> toTargetType(name, rawField, targetType));
 	}
 
-	/**
-	 * Tries to get field from raw input local mutation.
-	 */
-	@Nonnull
-	public <T extends Serializable> T getRequiredField(@Nonnull PropertyDescriptor fieldDescriptor) {
-		Assert.isPremiseValid(
-			fieldDescriptor.primitiveType() != null && fieldDescriptor.primitiveType().nonNull(),
-			() -> exceptionFactory.createInternalError("Field descriptor of field `" + fieldDescriptor.name() + "` doesn't specify type or is not required. You must specify type explicitly.")
-		);
-		//noinspection unchecked
-		return (T) getRequiredField(fieldDescriptor.name(), fieldDescriptor.primitiveType().javaType());
-	}
 
 	@Nonnull
 	private <T extends Serializable> T toTargetType(@Nonnull Object rawField, @Nonnull Class<T> targetType) {

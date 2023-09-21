@@ -24,10 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.AllowLocaleInEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.AllowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -46,15 +44,7 @@ public class AllowLocaleInEntitySchemaMutationConverter extends EntitySchemaMuta
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return AllowLocaleInEntitySchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected AllowLocaleInEntitySchemaMutation convert(@Nonnull Input input) {
-		return new AllowLocaleInEntitySchemaMutation(
-			input.getRequiredField(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES)
-		);
+	protected Class<AllowLocaleInEntitySchemaMutation> getMutationClass() {
+		return AllowLocaleInEntitySchemaMutation.class;
 	}
 }

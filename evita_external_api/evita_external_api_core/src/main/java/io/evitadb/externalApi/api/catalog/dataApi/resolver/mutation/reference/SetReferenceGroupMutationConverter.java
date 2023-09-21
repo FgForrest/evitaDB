@@ -46,8 +46,8 @@ public class SetReferenceGroupMutationConverter extends ReferenceMutationConvert
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetReferenceGroupMutationDescriptor.THIS.name();
+	protected Class<SetReferenceGroupMutation> getMutationClass() {
+		return SetReferenceGroupMutation.class;
 	}
 
 	@Nonnull
@@ -55,8 +55,8 @@ public class SetReferenceGroupMutationConverter extends ReferenceMutationConvert
 	protected SetReferenceGroupMutation convert(@Nonnull Input input) {
 		return new SetReferenceGroupMutation(
 			resolveReferenceKey(input),
-			input.getOptionalField(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
-			input.getRequiredField(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
+			input.getField(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
+			input.getField(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
 		);
 	}
 }

@@ -48,8 +48,8 @@ abstract class ReferenceMutationConverter<M extends ReferenceMutation<?>> extend
 	@Nonnull
 	protected ReferenceKey resolveReferenceKey(@Nonnull Input input) {
 		return new ReferenceKey(
-			input.getRequiredField(ReferenceMutationDescriptor.NAME),
-			input.getRequiredField(ReferenceMutationDescriptor.PRIMARY_KEY)
+			input.getField(ReferenceMutationDescriptor.NAME),
+			input.getField(ReferenceMutationDescriptor.PRIMARY_KEY)
 		);
 	}
 }

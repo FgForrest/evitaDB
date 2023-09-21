@@ -24,10 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -46,15 +44,7 @@ public class SetEntitySchemaWithGeneratedPrimaryKeyMutationConverter extends Ent
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetEntitySchemaWithGeneratedPrimaryKeyMutation convert(@Nonnull Input input) {
-		return new SetEntitySchemaWithGeneratedPrimaryKeyMutation(
-			input.getRequiredField(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.WITH_GENERATED_PRIMARY_KEY)
-		);
+	protected Class<SetEntitySchemaWithGeneratedPrimaryKeyMutation> getMutationClass() {
+		return SetEntitySchemaWithGeneratedPrimaryKeyMutation.class;
 	}
 }

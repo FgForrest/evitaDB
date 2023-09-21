@@ -46,14 +46,15 @@ public class SetParentMutationConverter extends LocalMutationConverter<SetParent
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetParentMutationDescriptor.THIS.name();
+	protected Class<SetParentMutation> getMutationClass() {
+		return SetParentMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected SetParentMutation convert(@Nonnull Input input) {
-		final Integer parentPrimaryKey = input.getRequiredField(SetParentMutationDescriptor.PARENT_PRIMARY_KEY);
-		return new SetParentMutation(parentPrimaryKey);
+		return new SetParentMutation(
+			input.getField(SetParentMutationDescriptor.PARENT_PRIMARY_KEY)
+		);
 	}
 }

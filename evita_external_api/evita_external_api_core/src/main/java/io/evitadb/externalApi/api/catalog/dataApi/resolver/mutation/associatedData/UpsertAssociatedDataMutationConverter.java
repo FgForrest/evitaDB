@@ -67,8 +67,8 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UpsertAssociatedDataMutationDescriptor.THIS.name();
+	protected Class<UpsertAssociatedDataMutation> getMutationClass() {
+		return UpsertAssociatedDataMutation.class;
 	}
 
 	@Nonnull

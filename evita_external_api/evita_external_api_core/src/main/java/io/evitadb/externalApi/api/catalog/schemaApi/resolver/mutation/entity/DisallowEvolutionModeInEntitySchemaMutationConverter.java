@@ -47,15 +47,16 @@ public class DisallowEvolutionModeInEntitySchemaMutationConverter extends Entity
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS.name();
+	protected Class<DisallowEvolutionModeInEntitySchemaMutation> getMutationClass() {
+		return DisallowEvolutionModeInEntitySchemaMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected DisallowEvolutionModeInEntitySchemaMutation convert(@Nonnull Input input) {
 		return new DisallowEvolutionModeInEntitySchemaMutation(
-			(EvolutionMode[]) input.getRequiredField(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
+			// we need this because we don't support multiple constructors in automatic conversion
+			(EvolutionMode[]) input.getField(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
 		);
 	}
 }

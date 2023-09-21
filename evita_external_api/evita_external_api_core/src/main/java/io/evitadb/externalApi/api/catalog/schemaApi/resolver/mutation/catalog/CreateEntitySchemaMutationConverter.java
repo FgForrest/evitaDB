@@ -24,10 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.catalog;
 
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.CreateEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -46,15 +44,15 @@ public class CreateEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return CreateEntitySchemaMutationDescriptor.THIS.name();
+	protected Class<CreateEntitySchemaMutation> getMutationClass() {
+		return CreateEntitySchemaMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected CreateEntitySchemaMutation convert(@Nonnull Input input) {
-		return new CreateEntitySchemaMutation(
-			input.getRequiredField(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE)
-		);
-	}
+//	@Nonnull
+//	@Override
+//	protected CreateEntitySchemaMutation convert(@Nonnull Input input) {
+//		return new CreateEntitySchemaMutation(
+//			input.getRequiredField(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE)
+//		);
+//	}
 }

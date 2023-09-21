@@ -24,12 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -48,19 +44,7 @@ public class ModifyAssociatedDataSchemaTypeMutationConverter extends AssociatedD
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected ModifyAssociatedDataSchemaTypeMutation convert(@Nonnull Input input) {
-		return new ModifyAssociatedDataSchemaTypeMutation(
-			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			input.getRequiredField(
-				ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE.name(),
-				new ValueTypeMapper(getExceptionFactory(), ModifyAssociatedDataSchemaTypeMutationDescriptor.TYPE)
-			)
-		);
+	protected Class<ModifyAssociatedDataSchemaTypeMutation> getMutationClass() {
+		return ModifyAssociatedDataSchemaTypeMutation.class;
 	}
 }

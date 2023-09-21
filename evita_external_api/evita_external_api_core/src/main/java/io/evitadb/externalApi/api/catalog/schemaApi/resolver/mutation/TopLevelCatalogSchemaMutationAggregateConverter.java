@@ -48,7 +48,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 /**
  * TODO lho docs
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class TopLevelCatalogSchemaMutationAggregateConverter extends MutationAggregateConverter<TopLevelCatalogSchemaMutation, TopLevelCatalogSchemaMutationConverter<? extends TopLevelCatalogSchemaMutation>> {
 

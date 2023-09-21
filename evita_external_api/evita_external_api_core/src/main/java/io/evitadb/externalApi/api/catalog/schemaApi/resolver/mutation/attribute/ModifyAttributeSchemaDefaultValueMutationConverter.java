@@ -48,15 +48,15 @@ public class ModifyAttributeSchemaDefaultValueMutationConverter extends Attribut
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.name();
+	protected Class<ModifyAttributeSchemaDefaultValueMutation> getMutationClass() {
+		return ModifyAttributeSchemaDefaultValueMutation.class;
 	}
 
 	@Nonnull
 	@Override
 	protected ModifyAttributeSchemaDefaultValueMutation convert(@Nonnull Input input) {
 		return new ModifyAttributeSchemaDefaultValueMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
+			input.getField(AttributeSchemaMutationDescriptor.NAME),
 			input.getOptionalField(ModifyAttributeSchemaDefaultValueMutationDescriptor.DEFAULT_VALUE.name(), Serializable.class)
 		);
 	}

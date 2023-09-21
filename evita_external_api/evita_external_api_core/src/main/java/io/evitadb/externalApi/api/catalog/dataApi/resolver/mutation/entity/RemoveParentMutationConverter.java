@@ -24,12 +24,9 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.entity;
 
 import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.entity.RemoveParentMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 
@@ -47,18 +44,7 @@ public class RemoveParentMutationConverter extends LocalMutationConverter<Remove
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return RemoveParentMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected RemoveParentMutation convert(@Nonnull Input input) {
-		final boolean isMutationEnabled = input.getRequiredValue(Boolean.class);
-		Assert.isTrue(
-			isMutationEnabled,
-			() -> getExceptionFactory().createInvalidArgumentException("Mutation `" + getMutationName() + "` supports only `true` value.")
-		);
-		return new RemoveParentMutation();
+	protected Class<RemoveParentMutation> getMutationClass() {
+		return RemoveParentMutation.class;
 	}
 }

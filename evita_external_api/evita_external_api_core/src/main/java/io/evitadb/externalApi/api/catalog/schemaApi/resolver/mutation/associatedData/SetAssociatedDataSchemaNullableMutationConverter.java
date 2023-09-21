@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.SetAssociatedDataSchemaNullableMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.AssociatedDataSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,16 +44,7 @@ public class SetAssociatedDataSchemaNullableMutationConverter extends Associated
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetAssociatedDataSchemaNullableMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetAssociatedDataSchemaNullableMutation convert(@Nonnull Input input) {
-		return new SetAssociatedDataSchemaNullableMutation(
-			input.getRequiredField(AssociatedDataSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAssociatedDataSchemaNullableMutationDescriptor.NULLABLE)
-		);
+	protected Class<SetAssociatedDataSchemaNullableMutation> getMutationClass() {
+		return SetAssociatedDataSchemaNullableMutation.class;
 	}
 }

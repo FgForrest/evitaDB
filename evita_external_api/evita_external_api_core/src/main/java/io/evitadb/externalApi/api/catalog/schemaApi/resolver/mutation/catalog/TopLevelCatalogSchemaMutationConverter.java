@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 /**
  * TODO lho docs
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public abstract class TopLevelCatalogSchemaMutationConverter<M extends TopLevelCatalogSchemaMutation> extends SchemaMutationConverter<M> {
 

@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaSortableMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,16 +44,7 @@ public class SetAttributeSchemaSortableMutationConverter extends AttributeSchema
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetAttributeSchemaSortableMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetAttributeSchemaSortableMutation convert(@Nonnull Input input) {
-		return new SetAttributeSchemaSortableMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaSortableMutationDescriptor.SORTABLE)
-		);
+	protected Class<SetAttributeSchemaSortableMutation> getMutationClass() {
+		return SetAttributeSchemaSortableMutation.class;
 	}
 }

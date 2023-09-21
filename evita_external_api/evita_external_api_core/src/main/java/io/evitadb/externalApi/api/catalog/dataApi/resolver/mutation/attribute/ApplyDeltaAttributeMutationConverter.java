@@ -61,8 +61,9 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ApplyDeltaAttributeMutationDescriptor.THIS.name();
+	protected Class<ApplyDeltaAttributeMutation<?>> getMutationClass() {
+		//noinspection unchecked
+		return (Class<ApplyDeltaAttributeMutation<?>>) ((Class<?>) ApplyDeltaAttributeMutation.class);
 	}
 
 	@Nonnull

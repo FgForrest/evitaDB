@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
 
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.SortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,16 +44,8 @@ public class ModifySortableAttributeCompoundSchemaNameMutationConverter extends 
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.name();
+	protected Class<ModifySortableAttributeCompoundSchemaNameMutation> getMutationClass() {
+		return ModifySortableAttributeCompoundSchemaNameMutation.class;
 	}
 
-	@Nonnull
-	@Override
-	protected ModifySortableAttributeCompoundSchemaNameMutation convert(@Nonnull Input input) {
-		return new ModifySortableAttributeCompoundSchemaNameMutation(
-			input.getRequiredField(SortableAttributeCompoundSchemaMutationDescriptor.NAME),
-			input.getRequiredField(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.NEW_NAME)
-		);
-	}
 }

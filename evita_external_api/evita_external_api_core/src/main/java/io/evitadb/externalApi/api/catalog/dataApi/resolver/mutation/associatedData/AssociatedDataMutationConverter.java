@@ -48,8 +48,8 @@ public abstract class AssociatedDataMutationConverter<M extends AssociatedDataMu
 	@Nonnull
 	protected AssociatedDataKey resolveAssociatedDataKey(@Nonnull Input input) {
 		return new AssociatedDataKey(
-			input.getRequiredField(AssociatedDataMutationDescriptor.NAME),
-			input.getOptionalField(AssociatedDataMutationDescriptor.LOCALE)
+			input.getField(AssociatedDataMutationDescriptor.NAME),
+			input.getField(AssociatedDataMutationDescriptor.LOCALE)
 		);
 	}
 }

@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceSchemaMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.RemoveReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,15 +44,7 @@ public class RemoveReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return RemoveReferenceSchemaMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected RemoveReferenceSchemaMutation convert(@Nonnull Input input) {
-		return new RemoveReferenceSchemaMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME)
-		);
+	protected Class<RemoveReferenceSchemaMutation> getMutationClass() {
+		return RemoveReferenceSchemaMutation.class;
 	}
 }

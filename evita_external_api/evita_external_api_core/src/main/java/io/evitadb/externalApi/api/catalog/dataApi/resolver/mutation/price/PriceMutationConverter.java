@@ -48,9 +48,9 @@ abstract class PriceMutationConverter<M extends PriceMutation> extends LocalMuta
 	@Nonnull
 	protected PriceKey resolvePriceKey(@Nonnull Input input) {
 		return new PriceKey(
-			input.getRequiredField(PriceMutationDescriptor.PRICE_ID),
-			input.getRequiredField(PriceMutationDescriptor.PRICE_LIST),
-			input.getRequiredField(PriceMutationDescriptor.CURRENCY)
+			input.getField(PriceMutationDescriptor.PRICE_ID),
+			input.getField(PriceMutationDescriptor.PRICE_LIST),
+			input.getField(PriceMutationDescriptor.CURRENCY)
 		);
 	}
 }

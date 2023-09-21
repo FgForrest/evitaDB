@@ -39,7 +39,7 @@ import java.util.Optional;
 /**
  * TODO lho docs
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaMutationConverter<ModifyCatalogSchemaMutation> {
 
@@ -54,8 +54,8 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyCatalogSchemaMutationDescriptor.THIS.name();
+	protected Class<ModifyCatalogSchemaMutation> getMutationClass() {
+		return ModifyCatalogSchemaMutation.class;
 	}
 
 	@Nonnull
@@ -76,7 +76,7 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 			.toArray(LocalCatalogSchemaMutation[]::new);
 
 		return new ModifyCatalogSchemaMutation(
-			input.getRequiredField(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),
+			input.getField(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),
 			localCatalogSchemaMutations
 		);
 	}

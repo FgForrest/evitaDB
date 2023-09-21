@@ -57,8 +57,8 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return UpsertAttributeMutationDescriptor.THIS.name();
+	protected Class<UpsertAttributeMutation> getMutationClass() {
+		return UpsertAttributeMutation.class;
 	}
 
 	@Nonnull

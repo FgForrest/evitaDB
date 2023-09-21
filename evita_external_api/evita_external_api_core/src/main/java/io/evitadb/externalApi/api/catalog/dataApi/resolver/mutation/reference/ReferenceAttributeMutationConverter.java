@@ -59,8 +59,8 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ReferenceAttributeMutationDescriptor.THIS.name();
+	protected Class<ReferenceAttributeMutation> getMutationClass() {
+		return ReferenceAttributeMutation.class;
 	}
 
 	@Nonnull

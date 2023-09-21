@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.associatedData;
 
 import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.RemoveAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -46,8 +45,8 @@ public class RemoveAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return RemoveAssociatedDataMutationDescriptor.THIS.name();
+	protected Class<RemoveAssociatedDataMutation> getMutationClass() {
+		return RemoveAssociatedDataMutation.class;
 	}
 
 	@Nonnull

@@ -57,8 +57,8 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyReferenceAttributeSchemaMutationDescriptor.THIS.name();
+	protected Class<ModifyReferenceAttributeSchemaMutation> getMutationClass() {
+		return ModifyReferenceAttributeSchemaMutation.class;
 	}
 
 	@Nonnull
@@ -81,7 +81,7 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 		);
 
 		return new ModifyReferenceAttributeSchemaMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getField(ReferenceSchemaMutationDescriptor.NAME),
 			attributeSchemaMutations.get(0)
 		);
 	}

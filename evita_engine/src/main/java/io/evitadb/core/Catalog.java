@@ -414,10 +414,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
 				this.ioService.verifyEntityType(
 					this.entityCollections.values(),
-					createEntitySchemaMutation.getName()
+					createEntitySchemaMutation.getEntityType()
 				);
 				final EntityCollection newCollection = new EntityCollection(
-					this, this.entityTypeSequence.incrementAndGet(), createEntitySchemaMutation.getName(),
+					this, this.entityTypeSequence.incrementAndGet(), createEntitySchemaMutation.getEntityType(),
 					ioService, cacheSupervisor, sequenceService
 				);
 				this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);

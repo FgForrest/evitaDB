@@ -55,8 +55,8 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyEntitySchemaMutationDescriptor.THIS.name();
+	protected Class<ModifyEntitySchemaMutation> getMutationClass() {
+		return ModifyEntitySchemaMutation.class;
 	}
 
 	@Nonnull
@@ -77,7 +77,7 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 			.toArray(EntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
-			input.getRequiredField(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
+			input.getField(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
 			entitySchemaMutations
 		);
 	}

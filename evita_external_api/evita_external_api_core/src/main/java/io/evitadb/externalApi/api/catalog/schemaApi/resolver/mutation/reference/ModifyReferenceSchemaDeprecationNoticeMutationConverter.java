@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.reference;
 
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceSchemaDeprecationNoticeMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,16 +44,7 @@ public class ModifyReferenceSchemaDeprecationNoticeMutationConverter extends Ref
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected ModifyReferenceSchemaDeprecationNoticeMutation convert(@Nonnull Input input) {
-		return new ModifyReferenceSchemaDeprecationNoticeMutation(
-			input.getRequiredField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getOptionalField(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE)
-		);
+	protected Class<ModifyReferenceSchemaDeprecationNoticeMutation> getMutationClass() {
+		return ModifyReferenceSchemaDeprecationNoticeMutation.class;
 	}
 }

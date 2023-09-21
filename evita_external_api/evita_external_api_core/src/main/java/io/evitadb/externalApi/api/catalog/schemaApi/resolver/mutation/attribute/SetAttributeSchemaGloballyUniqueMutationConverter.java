@@ -24,11 +24,8 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.AttributeSchemaMutationDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.SetAttributeSchemaGloballyUniqueMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -47,16 +44,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter extends Attribute
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetAttributeSchemaGloballyUniqueMutation convert(@Nonnull Input input) {
-		return new SetAttributeSchemaGloballyUniqueMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY)
-		);
+	protected Class<SetAttributeSchemaGloballyUniqueMutation> getMutationClass() {
+		return SetAttributeSchemaGloballyUniqueMutation.class;
 	}
 }

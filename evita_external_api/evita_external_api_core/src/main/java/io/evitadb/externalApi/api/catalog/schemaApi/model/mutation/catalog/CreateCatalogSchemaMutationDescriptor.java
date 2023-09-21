@@ -26,7 +26,7 @@ package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
 /**
- * TODO lho docs
+ * Descriptor for {@link io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchemaMutation}
  *
  * @author Lukáš Hornych, 2023
  */

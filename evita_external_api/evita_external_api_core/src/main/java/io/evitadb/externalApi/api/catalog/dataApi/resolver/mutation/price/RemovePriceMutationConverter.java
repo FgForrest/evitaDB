@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.price;
 
 import io.evitadb.api.requestResponse.data.mutation.price.RemovePriceMutation;
-import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.price.RemovePriceMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
@@ -46,8 +45,8 @@ public class RemovePriceMutationConverter extends PriceMutationConverter<RemoveP
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return RemovePriceMutationDescriptor.THIS.name();
+	protected Class<RemovePriceMutation> getMutationClass() {
+		return RemovePriceMutation.class;
 	}
 
 	@Nonnull
