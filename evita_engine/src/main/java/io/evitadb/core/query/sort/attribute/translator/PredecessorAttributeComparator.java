@@ -23,16 +23,20 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import com.carrotsearch.hppc.IntIntHashMap;
+import com.carrotsearch.hppc.IntIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
+import java.util.function.IntUnaryOperator;
 import java.util.function.Supplier;
 
 /**
@@ -48,11 +52,18 @@ public class PredecessorAttributeComparator implements EntityComparator {
 	private final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
 	private SortedRecordsProvider[] resolvedSortedRecordsProviders;
 	private CompositeObjectArray<EntityContract> nonSortedEntities;
+	private int estimatedCount = 100;
+	private IntIntMap cache;
 
 	@Nonnull
 	@Override
 	public Iterable<EntityContract> getNonSortedEntities() {
 		return nonSortedEntities == null ? Collections.emptyList() : nonSortedEntities;
+	}
+
+	@Override
+	public void prepareFor(int entityCount) {
+		this.estimatedCount = entityCount;
 	}
 
 	@Override
@@ -63,9 +74,14 @@ public class PredecessorAttributeComparator implements EntityComparator {
 		int result = 0;
 		// scan all providers
 		for (SortedRecordsProvider sortedRecordsProvider : sortedRecordsProviders) {
+			if (cache == null) {
+				// let's create the cache with estimated size multiply 5 expected steps for binary search
+				cache = new IntIntHashMap(estimatedCount * 5);
+			}
 			// and try to find primary keys of both entities in each provider
-			final int o1Index = o1Found ? -1 : sortedRecordsProvider.getAllRecords().indexOf(o1.getPrimaryKey());
-			final int o2Index = o2Found ? -1 : sortedRecordsProvider.getAllRecords().indexOf(o2.getPrimaryKey());
+			final Bitmap allRecords = sortedRecordsProvider.getAllRecords();
+			final int o1Index = o1Found ? -1 : computeIfAbsent(cache, o1.getPrimaryKey(), allRecords::indexOf);
+			final int o2Index = o2Found ? -1 : computeIfAbsent(cache, o2.getPrimaryKey(), allRecords::indexOf);
 			// if both entities are found in the same provider, compare their positions
 			if (o1Index >= 0 && o2Index >= 0) {
 				result = Integer.compare(
@@ -108,6 +124,32 @@ public class PredecessorAttributeComparator implements EntityComparator {
 			resolvedSortedRecordsProviders = sortedRecordsSupplier.get();
 		}
 		return resolvedSortedRecordsProviders;
+	}
+
+	/**
+	 * This method is used to cache the results of the `indexOf` method. It is used to speed up the
+	 * sorting process.
+	 *
+	 * @param cache        cache to use
+	 * @param primaryKey   primary key of the entity to find
+	 * @param indexLocator function to compute the index of the entity
+	 * @return index of the entity
+	 */
+	private static int computeIfAbsent(@Nonnull IntIntMap cache, @Nonnull Integer primaryKey, @Nonnull IntUnaryOperator indexLocator) {
+		final int result = cache.get(primaryKey);
+		// when the value was not found 0 is returned
+		if (result == 0) {
+			final int computedIndex = indexLocator.applyAsInt(primaryKey);
+			// if the index was computed as 0 we need to remap it to some other "rare" value to distinguish it from NULL value
+			cache.put(primaryKey, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
+			return computedIndex;
+		} else if (result == Integer.MIN_VALUE) {
+			// when the "rare" value was found - we know it represents index 0
+			return 0;
+		} else {
+			// otherwise cached value was found
+			return result;
+		}
 	}
 
 }

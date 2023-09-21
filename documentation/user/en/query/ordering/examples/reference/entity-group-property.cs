@@ -13,11 +13,17 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         			ReferenceContent(
         				"parameterValues",
         				OrderBy(
+        					EntityGroupProperty(
+        						AttributeNatural("name", Asc)
+        					),
         					EntityProperty(
-        						AttributeNatural("name", Desc)
+        						AttributeNatural("name", Asc)
         					)
         				),
         				EntityFetch(
+        					AttributeContent("name")
+        				),
+        				EntityGroupFetch(
         					AttributeContent("name")
         				)
         			)

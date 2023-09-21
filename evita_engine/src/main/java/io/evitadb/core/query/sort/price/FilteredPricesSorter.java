@@ -137,9 +137,8 @@ public class FilteredPricesSorter implements Sorter {
 		return unknownRecordIdsSorter;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		// compute entire set of entity pks that needs to be sorted
 		final Bitmap computeResult = input.compute();
 		final RoaringBitmap computeResultBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(computeResult);
@@ -153,33 +152,35 @@ public class FilteredPricesSorter implements Sorter {
 		Arrays.sort(translatedResult, getPriceRecordComparator());
 
 		// slice the output and cut appropriate page from it
-		final int pageSize = endIndex - startIndex;
-		final int[] sortedPricesResult = Arrays.stream(translatedResult)
-			.skip(startIndex)
-			.limit(pageSize)
-			.mapToInt(PriceRecordContract::entityPrimaryKey)
-			.toArray();
+		final int pageSize = Math.min(endIndex - startIndex, translatedResult.length - startIndex);
+		int written = 0;
+		for (int i = startIndex; i < pageSize; i++) {
+			result[peak + written++] = translatedResult[i].entityPrimaryKey();
+		}
 
 		// if the output is not complete, and we have not found entity PKs
 		final int[] notFoundEntities = priceRecordsLookupResult.getNotFoundEntities();
-		if (sortedPricesResult.length < pageSize && (notFoundEntities == null || notFoundEntities.length > 0)) {
+		if (translatedResult.length < endIndex && (notFoundEntities == null || notFoundEntities.length > 0)) {
+			// pass them to another sorter
+			final int recomputedStartIndex = Math.max(0, startIndex - written);
+			final int recomputedEndIndex = Math.max(0, endIndex - written);
 			// combine sorted result with the unknown rest using additional sorter or default own
 			return appendSortedUnknownEntityPks(
 				queryContext,
 				computeResult, computeResultBitmap,
 				notFoundEntities,
-				sortedPricesResult,
-				startIndex, endIndex, pageSize
+				recomputedStartIndex, recomputedEndIndex,
+				result, peak + written
 			);
 		} else {
-			return sortedPricesResult;
+			return peak + written;
 		}
 	}
 
 	/**
 	 * Creates {@link PriceRecord} comparator for sorting according to input `sortOrder` and `queryPriceMode`.
 	 */
-	private Comparator<PriceRecordContract> getPriceRecordComparator(OrderDirection sortOrder, QueryPriceMode queryPriceMode) {
+	private static Comparator<PriceRecordContract> getPriceRecordComparator(OrderDirection sortOrder, QueryPriceMode queryPriceMode) {
 		return switch (sortOrder) {
 			case ASC -> queryPriceMode == QueryPriceMode.WITH_TAX ? ASC_PRICE_WITH_TAX : ASC_PRICE_WITHOUT_TAX;
 			case DESC -> queryPriceMode == QueryPriceMode.WITH_TAX ? DESC_PRICE_WITH_TAX : DESC_PRICE_WITHOUT_TAX;
@@ -190,50 +191,49 @@ public class FilteredPricesSorter implements Sorter {
 	 * Method fills the missing gap for requested page with unknown entities sorted by {@link #unknownRecordIdsSorter}
 	 * or by default in ascending order of PKs.
 	 */
-	@Nonnull
-	private int[] appendSortedUnknownEntityPks(@Nonnull QueryContext queryContext, @Nonnull Bitmap computeResult, @Nonnull RoaringBitmap computeResultBitmap, @Nullable int[] notFoundArray, @Nonnull int[] sortedPricesResult, int startIndex, int endIndex, int pageSize) {
-		// prepare combined result
-		final int[] combinedResult = new int[Math.min(pageSize, computeResult.size())];
-		int peak = sortedPricesResult.length;
-		// write all entity ids from the price sorted array
-		System.arraycopy(sortedPricesResult, 0, combinedResult, 0, peak);
-
+	private int appendSortedUnknownEntityPks(
+		@Nonnull QueryContext queryContext,
+		@Nonnull Bitmap computeResult,
+		@Nonnull RoaringBitmap computeResultBitmap,
+		@Nullable int[] notFoundArray,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak
+	) {
 		// compute the rest we need to fill in
-		final int recomputedStartIndex = Math.max(0, startIndex - peak);
-		final int recomputedEndIndex = Math.max(0, endIndex - peak);
 		if (notFoundArray == null) {
 			if (unknownRecordIdsSorter != null) {
-				// use provided unknown sorter to sort the rest and copty the result to the output
-				final int[] missingRecords = unknownRecordIdsSorter.sortAndSlice(
+				// use provided unknown sorter to sort the rest and copy the result to the output
+				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(computeResult),
-					recomputedStartIndex, recomputedEndIndex
+					startIndex, endIndex, result, peak
 				);
-				System.arraycopy(missingRecords, 0, combinedResult, peak, missingRecords.length);
-				peak += missingRecords.length;
 			} else {
 				// copy the not found ids sorted by PK asc in to the result
-				peak = SortUtils.appendNotFoundResult(
-					combinedResult, peak, recomputedStartIndex, recomputedEndIndex, computeResultBitmap
-				);
+				final int[] buffer = queryContext.borrowBuffer();
+				try {
+					return SortUtils.appendNotFoundResult(
+						result, peak, startIndex, endIndex, computeResultBitmap, buffer
+					);
+				} finally {
+					queryContext.returnBuffer(buffer);
+				}
 			}
 		} else {
 			if (unknownRecordIdsSorter != null) {
 				// use provided unknown sorter to sort the rest and copty the result to the output
-				final int[] missingRecords = unknownRecordIdsSorter.sortAndSlice(
+				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundArray)),
-					recomputedStartIndex, recomputedEndIndex
+					startIndex, endIndex, result, peak
 				);
-				System.arraycopy(missingRecords, 0, combinedResult, peak, missingRecords.length);
-				peak += missingRecords.length;
 			} else {
 				// copy the not found ids sorted by PK asc in to the result
-				peak = SortUtils.appendNotFoundResult(
-					combinedResult, peak, recomputedStartIndex, recomputedEndIndex, notFoundArray
+				return SortUtils.appendNotFoundResult(
+					result, peak, startIndex, endIndex, notFoundArray
 				);
 			}
 		}
-		// final result is the combined result, from start to peak
-		return Arrays.copyOf(combinedResult, peak);
 	}
 
 	private Comparator<PriceRecordContract> getPriceRecordComparator() {

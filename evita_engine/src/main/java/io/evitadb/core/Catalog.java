@@ -469,9 +469,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final QueryPlan queryPlan = QueryPlanner.planQuery(
-			createQueryContext(evitaRequest, session)
-		);
+		final QueryPlan queryPlan;
+		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
+			queryPlan = QueryPlanner.planQuery(queryContext);
+		}
 		return queryPlan.execute();
 	}
 

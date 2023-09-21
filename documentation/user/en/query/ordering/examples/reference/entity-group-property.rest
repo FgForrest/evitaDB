@@ -16,11 +16,23 @@ POST /rest/evita/product/query
             "name"
           ]
         },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "name"
+          ]
+        },
         "orderBy" : [
+          {
+            "entityGroupProperty" : [
+              {
+                "attributeNameNatural" : "ASC"
+              }
+            ]
+          },
           {
             "entityProperty" : [
               {
-                "attributeNameNatural" : "DESC"
+                "attributeNameNatural" : "ASC"
               }
             ]
           }

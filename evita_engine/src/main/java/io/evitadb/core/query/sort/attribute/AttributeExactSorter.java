@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.sort.attribute;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.ObjectIntMap;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -49,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.ToIntFunction;
 
 import static java.util.Optional.ofNullable;
 
@@ -58,7 +61,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeExactSorter extends AbstractRecordsSorter {
-	private static final int[] EMPTY_RESULT = new int[0];
 	/**
 	 * Name of the attribute the sorter sorts along.
 	 */
@@ -95,6 +97,16 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 	@Nonnull
 	@Override
+	public Sorter cloneInstance() {
+		return new AttributeExactSorter(
+			attributeName,
+			exactOrder,
+			sortIndex
+		);
+	}
+
+	@Nonnull
+	@Override
 	public Sorter andThen(Sorter sorterForUnknownRecords) {
 		return new AttributeExactSorter(
 			attributeName,
@@ -104,34 +116,22 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		);
 	}
 
-	@Nonnull
-	@Override
-	public Sorter cloneInstance() {
-		return new AttributeExactSorter(
-			attributeName,
-			exactOrder,
-			sortIndex,
-			null
-		);
-	}
-
 	@Nullable
 	@Override
 	public Sorter getNextSorter() {
 		return unknownRecordIdsSorter;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		if (selectedRecordIds.isEmpty()) {
-			return EMPTY_RESULT;
+			return 0;
 		} else {
 			if (queryContext.getPrefetchedEntities() == null) {
-				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds);
+				return sortOutputBasedOnIndex(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
 			} else {
-				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds);
+				return sortOutputByPrefetchedEntities(queryContext, startIndex, endIndex, selectedRecordIds, result, peak);
 			}
 		}
 	}
@@ -139,9 +139,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	/**
 	 * Sorts the selected primary key ids by the order of attributes in {@link SortIndex}.
 	 */
-	@Nonnull
-	private int[] sortOutputBasedOnIndex(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds
+	private int sortOutputBasedOnIndex(
+		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull int[] result, int peak
 	) {
 		final int[] entireResult = selectedRecordIds.getArray();
 		final int length = Math.min(entireResult.length, endIndex - startIndex);
@@ -150,8 +150,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		}
 
 		// retrieve array of "sorted" primary keys based on data from index
-		@SuppressWarnings({"unchecked"})
-		final int[] exactPkOrder = Arrays.stream(this.exactOrder)
+		@SuppressWarnings({"unchecked"}) final int[] exactPkOrder = Arrays.stream(this.exactOrder)
 			.map(sortIndex::getRecordsEqualTo)
 			.flatMapToInt(Bitmap::stream)
 			.toArray();
@@ -159,9 +158,13 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		// now sort the real result by the exactPkOrder
 		final int lastSortedItem = ArrayUtils.sortAlong(exactPkOrder, entireResult);
 
+		// copy the sorted data to result
+		final int toAppend = Math.min(lastSortedItem, endIndex - startIndex);
+		System.arraycopy(entireResult, startIndex, result, peak, toAppend);
+
 		// if there are no more records to sort or no additional sorter is present, return entire result
 		if (lastSortedItem + 1 == selectedRecordIds.size() || unknownRecordIdsSorter == NoSorter.INSTANCE) {
-			return entireResult;
+			return peak + toAppend;
 		} else {
 			// otherwise, collect the not sorted record ids
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
@@ -171,13 +174,10 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 			// pass them to another sorter
 			final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
 			final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
-			final int[] unsortedResult = unknownRecordIdsSorter.sortAndSlice(
+			return unknownRecordIdsSorter.sortAndSlice(
 				queryContext, new ConstantFormula(new BaseBitmap(writer.get())),
-				recomputedStartIndex, recomputedEndIndex
+				recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
 			);
-			// and combine with our result
-			System.arraycopy(unsortedResult, 0, entireResult, lastSortedItem, unsortedResult.length);
-			return entireResult;
 		}
 	}
 
@@ -185,9 +185,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	 * Sorts the selected primary key ids by the order of attributes retrieved from prefetched entities and compared
 	 * by comparator in the place.
 	 */
-	@Nonnull
-	private int[] sortOutputByPrefetchedEntities(
-		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds
+	private int sortOutputByPrefetchedEntities(
+		@Nonnull QueryContext queryContext, int startIndex, int endIndex, @Nonnull Bitmap selectedRecordIds,
+		@Nonnull int[] result, int peak
 	) {
 		// collect entity primary keys
 		final OfInt it = selectedRecordIds.iterator();
@@ -216,22 +216,31 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 
 		// collect the result
 		final AtomicInteger index = new AtomicInteger();
-		final int[] result = new int[selectedRecordIds.size()];
 		entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
 			.stream()
 			.skip(startIndex)
 			.limit((long) endIndex - startIndex)
 			.mapToInt(queryContext::translateEntity)
-			.forEach(pk -> result[index.getAndIncrement()] = pk);
+			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
+
+		// pass them to another sorter
+		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
+		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
 
 		// and return appending the not sorted records
-		return returnResultAppendingUnknown(
-			queryContext,
-			new SortResult(result, index.get()),
-			notFoundRecords,
-			unknownRecordIdsSorter,
-			startIndex, endIndex
-		);
+		final int[] borrowedBuffer = queryContext.borrowBuffer();
+		try {
+			return returnResultAppendingUnknown(
+				queryContext,
+				notFoundRecords,
+				unknownRecordIdsSorter,
+				recomputedStartIndex, recomputedEndIndex,
+				result, peak + index.get(),
+				borrowedBuffer
+			);
+		} finally {
+			queryContext.returnBuffer(borrowedBuffer);
+		}
 	}
 
 	/**
@@ -243,7 +252,14 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 	private static class AttributePositionComparator implements EntityComparator {
 		private final String attributeName;
 		private final Comparable[] attributeValues;
+		private int estimatedCount = 100;
+		private ObjectIntMap<Serializable> cache;
 		private CompositeObjectArray<EntityContract> nonSortedEntities;
+
+		@Override
+		public void prepareFor(int entityCount) {
+			this.estimatedCount = entityCount;
+		}
 
 		@Nonnull
 		@Override
@@ -273,9 +289,40 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 				this.nonSortedEntities.add(o2);
 				return 1;
 			} else {
-				final int attribute1Index = ArrayUtils.indexOf(attribute1, attributeValues);
-				final int attribute2Index = ArrayUtils.indexOf(attribute2, attributeValues);
+				// and try to find primary keys of both entities in each provider
+				if (cache == null) {
+					// let's create the cache with estimated size multiply 5 expected steps for binary search
+					cache = new ObjectIntHashMap<>(estimatedCount * 5);
+				}
+				final int attribute1Index = computeIfAbsent(cache, attribute1, it -> ArrayUtils.indexOf(it, attributeValues));
+				final int attribute2Index = computeIfAbsent(cache, attribute2, it -> ArrayUtils.indexOf(it, attributeValues));
 				return Integer.compare(attribute1Index, attribute2Index);
+			}
+		}
+
+		/**
+		 * This method is used to cache the results of the `indexOf` method. It is used to speed up the
+		 * sorting process.
+		 *
+		 * @param cache        cache to use
+		 * @param attribute    attribute of the entity to find
+		 * @param indexLocator function to compute the index of the entity
+		 * @return index of the entity
+		 */
+		private static int computeIfAbsent(@Nonnull ObjectIntMap<Serializable> cache, @Nonnull Serializable attribute, @Nonnull ToIntFunction<Serializable> indexLocator) {
+			final int result = cache.get(attribute);
+			// when the value was not found 0 is returned
+			if (result == 0) {
+				final int computedIndex = indexLocator.applyAsInt(attribute);
+				// if the index was computed as 0 we need to remap it to some other "rare" value to distinguish it from NULL value
+				cache.put(attribute, computedIndex == 0 ? Integer.MIN_VALUE : computedIndex);
+				return computedIndex;
+			} else if (result == Integer.MIN_VALUE) {
+				// when the "rare" value was found - we know it represents index 0
+				return 0;
+			} else {
+				// otherwise cached value was found
+				return result;
 			}
 		}
 

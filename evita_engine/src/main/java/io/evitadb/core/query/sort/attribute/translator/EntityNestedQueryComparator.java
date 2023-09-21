@@ -110,12 +110,18 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			theSorter.sorter(), theSorter.queryContext()
 		);
 
-		return firstApplicableSorter == null ?
-			filteredEntities :
+		if (firstApplicableSorter == null) {
+			return filteredEntities;
+		} else {
+			final int[] result = new int[filteredEntities.length];
 			firstApplicableSorter.sortAndSlice(
 				theSorter.queryContext(),
-				new ConstantFormula(new BaseBitmap(filteredEntities)), 0, filteredEntities.length
+				new ConstantFormula(new BaseBitmap(filteredEntities)),
+				0, filteredEntities.length,
+				result, 0
 			);
+			return result;
+		}
 	}
 
 	public EntityNestedQueryComparator() {

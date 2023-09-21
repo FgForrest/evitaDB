@@ -10,17 +10,17 @@ query(
             referenceContent(
                 'parameterValues',
                 orderBy(
+                    entityGroupProperty(
+                        attributeNatural('name', ASC)
+                    ),
                     entityProperty(
                         attributeNatural('name', ASC)
                     )
-                    entityProperty(
-                        attributeNatural('name', ASC)
-                    )
-                ),
-                entityGroupFetch(
-                    attributeContent('name')
                 ),
                 entityFetch(
+                    attributeContent('name')
+                ),
+                entityGroupFetch(
                     attributeContent('name')
                 )
             )

@@ -45,6 +45,7 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -659,9 +660,13 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 			theFacetStatistics.keySet().forEach(writer::add);
 			// create sorted array using the sorter
 			final ConstantFormula unsortedIds = new ConstantFormula(new BaseBitmap(writer.get()));
-			return sorter.sortAndSlice(
-				queryContext, unsortedIds, 0, unsortedIds.compute().size()
+			final Bitmap recordsToSort = unsortedIds.compute();
+			final int count = recordsToSort.size();
+			final int[] result = new int[count];
+			final int peak = sorter.sortAndSlice(
+				queryContext, unsortedIds, 0, count, result, 0
 			);
+			return SortUtils.asResult(result, peak);
 		}
 
 		private int compareFacetGroupSummaries(Map<String, Bitmap> groupIdIndex, Map<String, int[]> sortedGroupIds, GroupAccumulator o1, GroupAccumulator o2) {
@@ -675,9 +680,12 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 					referenceName,
 					theReferenceName -> {
 						final ConstantFormula unsortedIds = new ConstantFormula(groupIdIndex.get(theReferenceName));
-						return sorter.sortAndSlice(
-							queryContext, unsortedIds, 0, unsortedIds.compute().size()
+						final Bitmap unsortedIdsBitmap = unsortedIds.compute();
+						final int[] result = new int[unsortedIdsBitmap.size()];
+						final int peak = sorter.sortAndSlice(
+							queryContext, unsortedIds, 0, unsortedIdsBitmap.size(), result, 0
 						);
+						return SortUtils.asResult(result, peak);
 					}
 				);
 				return Integer.compare(
