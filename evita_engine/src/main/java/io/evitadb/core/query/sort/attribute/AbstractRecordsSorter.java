@@ -65,11 +65,10 @@ abstract class AbstractRecordsSorter implements Sorter {
 					result, peak, recomputedStartIndex, recomputedEndIndex, notFoundRecords, buffer
 				);
 			} else {
-				final int rest = unknownRecordIdsSorter.sortAndSlice(
+				finalResultPeak = unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundRecords)),
 					recomputedStartIndex, recomputedEndIndex, result, peak
 				);
-				finalResultPeak = peak + rest;
 			}
 		} else {
 			finalResultPeak = peak;

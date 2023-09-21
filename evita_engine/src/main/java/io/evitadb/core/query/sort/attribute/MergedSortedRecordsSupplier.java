@@ -90,7 +90,8 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 			// now we are on the page
 			if (toSkip <= 0) {
 				// copy records for page
-				for (int i = toSkip * -1; i < toRead && i < bufferPeak; i++) {
+				final int startIndex = toSkip == 0 ? 0 : bufferPeak + toSkip;
+				for (int i = startIndex; toRead > 0 && i < bufferPeak; i++) {
 					result[peak++] = preSortedRecordIds[buffer[i]];
 					read++;
 					toRead--;
@@ -105,7 +106,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 				break;
 			}
 		}
-		return new PartialSortResult(skip - toSkip, length - read);
+		return new PartialSortResult(skip - toSkip, length - read, peak);
 	}
 
 	/**
@@ -209,13 +210,14 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 		} else {
 			final int[] buffer = queryContext.borrowBuffer();
 			try {
-				final RoaringBitmap recordsToSort = collectPartialResults(
+				final SortResult sortResult = collectPartialResults(
 					queryContext, selectedRecordIds, startIndex, endIndex, result, peak, buffer
 				);
 				return returnResultAppendingUnknown(
-					queryContext, recordsToSort, unknownRecordIdsSorter,
+					queryContext, sortResult.notSortedRecords(),
+					unknownRecordIdsSorter,
 					startIndex, endIndex,
-					result, peak, buffer
+					result, sortResult.peak(), buffer
 				);
 			} finally {
 				queryContext.returnBuffer(buffer);
@@ -229,7 +231,7 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	}
 
 	@Nonnull
-	private RoaringBitmap collectPartialResults(
+	private SortResult collectPartialResults(
 		@Nonnull QueryContext queryContext,
 		@Nonnull Bitmap selectedRecordIds,
 		int startIndex,
@@ -254,11 +256,12 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 			alreadyRead += currentResult.read();
 			recordsToSort = maskResult.notFoundRecords();
 			recordsToSortCount = maskResult.notFoundRecordsCount();
-			if (alreadyRead >= toRead) {
+			peak = currentResult.peak();
+			if (alreadyRead >= toRead || recordsToSortCount == 0) {
 				break;
 			}
 		}
-		return recordsToSort;
+		return new SortResult(recordsToSort, peak);
 	}
 
 	/**
@@ -280,10 +283,25 @@ public class MergedSortedRecordsSupplier extends AbstractRecordsSorter implement
 	 *
 	 * @param skipped number of records skipped
 	 * @param read    number of records read
+	 * @param peak    current peak index in the result array
 	 */
 	private record PartialSortResult(
 		int skipped,
-		int read
+		int read,
+		int peak
+	) {
+	}
+
+	/**
+	 * This DTO allows to information collected from {@link #collectPartialResults(QueryContext, Bitmap, int, int, int[], int, int[])}
+	 * method.
+	 *
+	 * @param notSortedRecords roaring bitmap with all records that hasn't been sorted yet
+	 * @param peak             current peak index in the result array
+	 */
+	private record SortResult(
+		RoaringBitmap notSortedRecords,
+		int peak
 	) {
 	}
 

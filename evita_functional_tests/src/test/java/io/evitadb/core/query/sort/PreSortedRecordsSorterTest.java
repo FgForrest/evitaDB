@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort;
 
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.attribute.PreSortedRecordsSorter;
@@ -44,6 +45,7 @@ import java.util.TreeSet;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * This test verifies {@link PreSortedRecordsSorter} behaviour.
@@ -114,7 +116,8 @@ class PreSortedRecordsSorterTest {
 	void setUp() {
 		final QueryContext bitmapQueryContext = Mockito.mock(QueryContext.class);
 		Mockito.when(bitmapQueryContext.getPrefetchedEntities()).thenReturn(null);
-		Mockito.when(bitmapQueryContext.borrowBuffer()).thenReturn(new int[512]);
+		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(bitmapQueryContext).borrowBuffer();
+		Mockito.doNothing().when(bitmapQueryContext).returnBuffer(any());
 		bitmapSorter = new PreSortedRecordsSorterWithContext(
 			new PreSortedRecordsSorter(
 				ENTITY_TYPE,
@@ -181,6 +184,8 @@ class PreSortedRecordsSorterTest {
 		);
 		final QueryContext queryContext = Mockito.mock(QueryContext.class);
 		Mockito.when(queryContext.getPrefetchedEntities()).thenReturn(null);
+		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(queryContext).borrowBuffer();
+		Mockito.doNothing().when(queryContext).returnBuffer(any());
 
 		for (int i = 0; i < 5; i++) {
 			int[] recIds = pickRandomResults(sortedRecordIds, 500);

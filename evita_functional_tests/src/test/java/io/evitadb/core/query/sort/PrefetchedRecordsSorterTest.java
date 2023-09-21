@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
@@ -48,6 +49,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * This test verifies {@link PrefetchedRecordsSorter} behaviour.
@@ -78,6 +80,9 @@ class PrefetchedRecordsSorterTest {
 			.thenAnswer(invocation -> ((EntityContract) invocation.getArgument(0)).getPrimaryKey());
 		Mockito.when(entityQueryContext.translateToEntity(Mockito.anyInt()))
 			.thenAnswer(invocation -> mockEntitiesIndex.get(((Integer) invocation.getArgument(0))));
+		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(entityQueryContext).borrowBuffer();
+		Mockito.doNothing().when(entityQueryContext).returnBuffer(any());
+
 		entitySorter = new PrefetchedRecordsSorterWithContext(
 			new PrefetchedRecordsSorter(
 				TEST_COMPARATOR_FIRST
