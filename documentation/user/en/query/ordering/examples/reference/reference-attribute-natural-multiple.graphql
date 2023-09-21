@@ -5,8 +5,8 @@
         {
           entityHaving: {
             attributeCodeInSet: [
-              "sony",
-              "google"
+              "sale",
+              "new"
             ]
           }
         }
@@ -14,9 +14,9 @@
     },
     orderBy: [
       {
-        referenceBrandProperty: [
+        referenceGroupsProperty: [
           {
-            attributeOrderInBrandNatural: ASC
+            attributeOrderInGroupNatural: ASC
           }
         ]
       }
@@ -28,10 +28,10 @@
         attributes {
           code
         }
-        brand {
+        groups {
           referencedPrimaryKey
           attributes {
-            orderInBrand
+            orderInGroup
           }
         }
       }

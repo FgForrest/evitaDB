@@ -352,7 +352,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * file. The MarkDown snippets are generated according to an attribute list requested by EvitaQL query and taken
 	 * from the last variable found.
 	 */
-	@DisplayName("Create Java snippets from EvitaQL examples")
+	@DisplayName("Create snippets in other languages from EvitaQL examples")
 	@TestFactory
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled

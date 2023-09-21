@@ -4,16 +4,16 @@
       referenceBrandHaving: [
         {
           entityHaving: {
-            attributeCodeEquals: "sony"
+            attributeCodeEquals: "sale"
           }
         }
       ]
     },
     orderBy: [
       {
-        referenceBrandProperty: [
+        referenceGroupsProperty: [
           {
-            attributeOrderInBrandNatural: ASC
+            attributeOrderInGroupNatural: ASC
           }
         ]
       }
@@ -25,10 +25,10 @@
         attributes {
           code
         }
-        brand {
+        groups {
           referencedPrimaryKey
           attributes {
-            orderInBrand
+            orderInGroup
           }
         }
       }

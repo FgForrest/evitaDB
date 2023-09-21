@@ -44,10 +44,10 @@ container is used there.
 </Note>
 
 Sorting by reference attribute is not as common as sorting by entity attributes, but it allows you to sort entities
-that are in a particular category or have a particular brand specifically by the priority/order for that particular
+that are in a particular category or have a particular group specifically by the priority/order for that particular
 relationship.
 
-To sort products related to a "Sony" brand by the `orderInBrand` attribute set on the reference, you need to issue the
+To sort products related to a "sale" group by the `orderInGroup` attribute set on the reference, you need to issue the
 following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -82,9 +82,9 @@ following query:
 
 </Note>
 
-The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand 
-entity). The response will only return the products that have a reference to the "Sony" brand, all of which contain the 
-`orderInBrand` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned 
+The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a group 
+entity). The response will only return the products that have a reference to the "sale" group, all of which contain the 
+`orderInGroup` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned 
 result can be anticipated.
 
 ### Behaviour of zero or one to many references ordering
@@ -100,8 +100,8 @@ If the referenced entity is **non-hierarchical**, and the returned entity refere
 the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
 used for ordering.
 
-Let's extend our previous example so that it returns products that refer not only to the brand "Sony", but also to the 
-brand "Google":
+Let's extend our previous example so that it returns products that refer not only to the group "sale", but also to the 
+group "new":
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -134,7 +134,7 @@ brand "Google":
 </LanguageSpecific>
 
 The result will contain first products referring to a "Google" brand which has the lowest primary key, and then products
-referring to a "Sony" brand. The order of products within each group will be determined by the `orderInBrand` attribute.
+referring to a "sale" group. The order of products within each group will be determined by the `orderInGroup` attribute.
 
 </Note>
 
