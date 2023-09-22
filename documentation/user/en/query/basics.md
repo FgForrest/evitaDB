@@ -362,7 +362,7 @@ filtering of entities by the fact that they refer to a particular part of the tr
 Special constraints are used only for the definition of a filter constraint scope, which has a different treatment in 
 calculations:
 
-- [user filter](filtering/special.md#user-filter)
+- [user filter](filtering/behavioral.md#user-filter)
 
 ## Order by
 

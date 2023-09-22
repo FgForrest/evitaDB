@@ -61,8 +61,6 @@ import java.io.Serializable;
  * )
  * ```
  *
- * TOBEDONE JNO - consider renaming to `referenceMatching`
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
