@@ -29,12 +29,6 @@
                 "attributes": {
                   "orderInGroup": 107827
                 }
-              },
-              {
-                "referencedPrimaryKey": 112769,
-                "attributes": {
-                  "orderInGroup": 108545
-                }
               }
             ]
           },
@@ -49,12 +43,6 @@
                 "attributes": {
                   "orderInGroup": 108543
                 }
-              },
-              {
-                "referencedPrimaryKey": 112771,
-                "attributes": {
-                  "orderInGroup": 113059
-                }
               }
             ]
           },
@@ -68,12 +56,6 @@
                 "referencedPrimaryKey": 66505,
                 "attributes": {
                   "orderInGroup": 108540
-                }
-              },
-              {
-                "referencedPrimaryKey": 112773,
-                "attributes": {
-                  "orderInGroup": -1
                 }
               }
             ]
@@ -173,12 +155,6 @@
                 "attributes": {
                   "orderInGroup": 107443
                 }
-              },
-              {
-                "referencedPrimaryKey": 112769,
-                "attributes": {
-                  "orderInGroup": 113523
-                }
               }
             ]
           },
@@ -221,12 +197,6 @@
                 "attributes": {
                   "orderInGroup": 105238
                 }
-              },
-              {
-                "referencedPrimaryKey": 112769,
-                "attributes": {
-                  "orderInGroup": 105272
-                }
               }
             ]
           },
@@ -254,12 +224,6 @@
                 "referencedPrimaryKey": 66505,
                 "attributes": {
                   "orderInGroup": 107008
-                }
-              },
-              {
-                "referencedPrimaryKey": 112771,
-                "attributes": {
-                  "orderInGroup": 110988
                 }
               }
             ]
@@ -316,12 +280,6 @@
                 "referencedPrimaryKey": 66505,
                 "attributes": {
                   "orderInGroup": 106823
-                }
-              },
-              {
-                "referencedPrimaryKey": 112769,
-                "attributes": {
-                  "orderInGroup": 106831
                 }
               }
             ]
