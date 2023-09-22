@@ -26,6 +26,7 @@ package io.evitadb.core.query.sort.primaryKey;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -107,7 +108,7 @@ public class ExactSorter implements Sorter {
 			System.arraycopy(filteredRecordIds, startIndex, result, peak, toAppend);
 
 			// if there are no more records to sort or no additional sorter is present, return entire result
-			if (lastSortedItem + 1 == filteredRecordIdBitmap.size() || unknownRecordIdsSorter == NoSorter.INSTANCE) {
+			if (lastSortedItem == filteredRecordIdBitmap.size()) {
 				return peak + toAppend;
 			} else {
 				// otherwise, collect the not sorted record ids
@@ -119,8 +120,9 @@ public class ExactSorter implements Sorter {
 				final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
 				final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
 
+				final RoaringBitmap outputBitmap = writer.get();
 				return unknownRecordIdsSorter.sortAndSlice(
-					queryContext, new ConstantFormula(new BaseBitmap(writer.get())),
+					queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
 					recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
 				);
 			}

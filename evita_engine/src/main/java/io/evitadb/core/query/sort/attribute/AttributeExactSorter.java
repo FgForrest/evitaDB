@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
@@ -163,7 +164,7 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 		System.arraycopy(entireResult, startIndex, result, peak, toAppend);
 
 		// if there are no more records to sort or no additional sorter is present, return entire result
-		if (lastSortedItem + 1 == selectedRecordIds.size() || unknownRecordIdsSorter == NoSorter.INSTANCE) {
+		if (lastSortedItem == selectedRecordIds.size()) {
 			return peak + toAppend;
 		} else {
 			// otherwise, collect the not sorted record ids
@@ -174,8 +175,9 @@ public class AttributeExactSorter extends AbstractRecordsSorter {
 			// pass them to another sorter
 			final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
 			final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
+			final RoaringBitmap outputBitmap = writer.get();
 			return unknownRecordIdsSorter.sortAndSlice(
-				queryContext, new ConstantFormula(new BaseBitmap(writer.get())),
+				queryContext, outputBitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(outputBitmap)),
 				recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
 			);
 		}

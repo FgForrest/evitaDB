@@ -49,6 +49,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -3198,6 +3199,76 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 				assertArrayEquals(
 					randomSortedProductIds,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order of the attribute and append unknown")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderAndAppendUnknown(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+
+				final String[] randomCodesStartingWithE = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.filter(it -> it.startsWith("E"))
+					.toArray(String[]::new);
+				Assert.isTrue(randomCodesStartingWithE.length >= 5, "Not enough products starting with E found");
+
+				final Integer[] randomProductIdsStartingWithE = Arrays.stream(randomCodesStartingWithE)
+					.map(
+						it -> Arrays.stream(randomData)
+							.filter(att -> it.equals(att.attributeValue()))
+							.map(AttributeTuple::primaryKey)
+							.findFirst()
+							.orElseThrow()
+					)
+					.toArray(Integer[]::new);
+
+				final String[] exactCodeOrder = Arrays.copyOfRange(randomCodesStartingWithE, 0, (int)(randomCodesStartingWithE.length * 0.5));
+				final Integer[] exactOrder = Arrays.copyOfRange(randomProductIdsStartingWithE, 0, (int)(randomProductIdsStartingWithE.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(randomProductIdsStartingWithE, (int)(randomProductIdsStartingWithE.length * 0.5), randomProductIdsStartingWithE.length);
+				ArrayUtils.reverse(exactOrder);
+				ArrayUtils.reverse(exactCodeOrder);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeStartsWith(ATTRIBUTE_CODE, "E")
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder)
+						),
+						require(
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
+							),
+							page(1, randomCodesStartingWithE.length)
+						)
+					)
+				);
+				assertEquals(randomCodesStartingWithE.length, products.getRecordData().size());
+				assertEquals(randomCodesStartingWithE.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					ArrayUtils.mergeArrays(
+						exactOrder, theRest
+					),
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)
