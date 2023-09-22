@@ -8,6 +8,12 @@
     "parameterValues": [
       {
         "group": 66514,
+        "groupEntity": {
+          "primaryKey": 66514,
+          "attributes": {
+            "name:en": "Operating system"
+          }
+        },
         "referencedKey": 105138,
         "referencedEntity": {
           "primaryKey": 105138,
@@ -18,6 +24,12 @@
       },
       {
         "group": 66528,
+        "groupEntity": {
+          "primaryKey": 66528,
+          "attributes": {
+            "name:en": "Material"
+          }
+        },
         "referencedKey": 107867,
         "referencedEntity": {
           "primaryKey": 107867,
@@ -28,6 +40,12 @@
       },
       {
         "group": 66526,
+        "groupEntity": {
+          "primaryKey": 66526,
+          "attributes": {
+            "name:en": "Operating system compatibility"
+          }
+        },
         "referencedKey": 107868,
         "referencedEntity": {
           "primaryKey": 107868,
@@ -38,6 +56,12 @@
       },
       {
         "group": 66526,
+        "groupEntity": {
+          "primaryKey": 66526,
+          "attributes": {
+            "name:en": "Operating system compatibility"
+          }
+        },
         "referencedKey": 107869,
         "referencedEntity": {
           "primaryKey": 107869,
@@ -48,6 +72,12 @@
       },
       {
         "group": 66533,
+        "groupEntity": {
+          "primaryKey": 66533,
+          "attributes": {
+            "name:en": "Connector"
+          }
+        },
         "referencedKey": 107870,
         "referencedEntity": {
           "primaryKey": 107870,
@@ -58,6 +88,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107872,
         "referencedEntity": {
           "primaryKey": 107872,
@@ -68,6 +104,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107873,
         "referencedEntity": {
           "primaryKey": 107873,
@@ -78,6 +120,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107874,
         "referencedEntity": {
           "primaryKey": 107874,
@@ -88,6 +136,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107875,
         "referencedEntity": {
           "primaryKey": 107875,
@@ -98,6 +152,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107876,
         "referencedEntity": {
           "primaryKey": 107876,
@@ -108,6 +168,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107877,
         "referencedEntity": {
           "primaryKey": 107877,
@@ -118,6 +184,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107878,
         "referencedEntity": {
           "primaryKey": 107878,
@@ -128,6 +200,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107879,
         "referencedEntity": {
           "primaryKey": 107879,
@@ -138,6 +216,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107880,
         "referencedEntity": {
           "primaryKey": 107880,
@@ -148,6 +232,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107881,
         "referencedEntity": {
           "primaryKey": 107881,
@@ -158,6 +248,12 @@
       },
       {
         "group": 107858,
+        "groupEntity": {
+          "primaryKey": 107858,
+          "attributes": {
+            "name:en": "Health functions"
+          }
+        },
         "referencedKey": 107882,
         "referencedEntity": {
           "primaryKey": 107882,
@@ -168,6 +264,12 @@
       },
       {
         "group": 107860,
+        "groupEntity": {
+          "primaryKey": 107860,
+          "attributes": {
+            "name:en": "Water resistance"
+          }
+        },
         "referencedKey": 107884,
         "referencedEntity": {
           "primaryKey": 107884,
@@ -178,6 +280,12 @@
       },
       {
         "group": 107855,
+        "groupEntity": {
+          "primaryKey": 107855,
+          "attributes": {
+            "name:en": "Shape"
+          }
+        },
         "referencedKey": 107943,
         "referencedEntity": {
           "primaryKey": 107943,
@@ -188,6 +296,12 @@
       },
       {
         "group": 107859,
+        "groupEntity": {
+          "primaryKey": 107859,
+          "attributes": {
+            "name:en": "NFC"
+          }
+        },
         "referencedKey": 107956,
         "referencedEntity": {
           "primaryKey": 107956,
@@ -198,6 +312,12 @@
       },
       {
         "group": 66532,
+        "groupEntity": {
+          "primaryKey": 66532,
+          "attributes": {
+            "name:en": "Battery life"
+          }
+        },
         "referencedKey": 108070,
         "referencedEntity": {
           "primaryKey": 108070,
@@ -208,6 +328,12 @@
       },
       {
         "group": 66518,
+        "groupEntity": {
+          "primaryKey": 66518,
+          "attributes": {
+            "name:en": "Display type"
+          }
+        },
         "referencedKey": 108303,
         "referencedEntity": {
           "primaryKey": 108303,
@@ -218,6 +344,12 @@
       },
       {
         "group": 66517,
+        "groupEntity": {
+          "primaryKey": 66517,
+          "attributes": {
+            "name:en": "Display resolution"
+          }
+        },
         "referencedKey": 108332,
         "referencedEntity": {
           "primaryKey": 108332,
@@ -228,6 +360,12 @@
       },
       {
         "group": 67917,
+        "groupEntity": {
+          "primaryKey": 67917,
+          "attributes": {
+            "name:en": "Battery capacity"
+          }
+        },
         "referencedKey": 108337,
         "referencedEntity": {
           "primaryKey": 108337,
@@ -238,6 +376,12 @@
       },
       {
         "group": 67913,
+        "groupEntity": {
+          "primaryKey": 67913,
+          "attributes": {
+            "name:en": "Height"
+          }
+        },
         "referencedKey": 108415,
         "referencedEntity": {
           "primaryKey": 108415,
@@ -248,6 +392,12 @@
       },
       {
         "group": 114008,
+        "groupEntity": {
+          "primaryKey": 114008,
+          "attributes": {
+            "name:en": "Width"
+          }
+        },
         "referencedKey": 108416,
         "referencedEntity": {
           "primaryKey": 108416,
@@ -258,6 +408,12 @@
       },
       {
         "group": 67915,
+        "groupEntity": {
+          "primaryKey": 67915,
+          "attributes": {
+            "name:en": "Thickness"
+          }
+        },
         "referencedKey": 108417,
         "referencedEntity": {
           "primaryKey": 108417,
@@ -268,6 +424,12 @@
       },
       {
         "group": 114009,
+        "groupEntity": {
+          "primaryKey": 114009,
+          "attributes": {
+            "name:en": "Weigth"
+          }
+        },
         "referencedKey": 108418,
         "referencedEntity": {
           "primaryKey": 108418,
@@ -278,6 +440,12 @@
       },
       {
         "group": 114010,
+        "groupEntity": {
+          "primaryKey": 114010,
+          "attributes": {
+            "name:en": "Connector"
+          }
+        },
         "referencedKey": 114012,
         "referencedEntity": {
           "primaryKey": 114012,

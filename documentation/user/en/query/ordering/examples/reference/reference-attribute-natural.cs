@@ -5,24 +5,29 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         	Collection("Product"),
         	FilterBy(
         		ReferenceHaving(
-        			"brand",
+        			"groups",
         			EntityHaving(
-        				AttributeEquals("code", "sony")
+        				AttributeEquals("code", "sale")
         			)
         		)
         	),
         	OrderBy(
         		ReferenceProperty(
-        			"brand",
-        			AttributeNatural("orderInBrand", Asc)
+        			"groups",
+        			AttributeNatural("orderInGroup", Asc)
         		)
         	),
         	Require(
         		EntityFetch(
         			AttributeContent("code"),
         			ReferenceContentWithAttributes(
-        				"brand",
-        				AttributeContent("orderInBrand")
+        				"groups",
+        				FilterBy(
+        					EntityHaving(
+        						AttributeEquals("code", "sale")
+        					)
+        				),
+        				AttributeContent("orderInGroup")
         			)
         		)
         	)

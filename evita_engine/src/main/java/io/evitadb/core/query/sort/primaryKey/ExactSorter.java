@@ -44,7 +44,6 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ExactSorter implements Sorter {
-	private static final int[] EMPTY_RESULT = new int[0];
 	/**
 	 * The entity primary keys whose order must be maintained in the sorted result.
 	 */
@@ -88,41 +87,42 @@ public class ExactSorter implements Sorter {
 		return unknownRecordIdsSorter;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		final Bitmap result = input.compute();
-		if (result.isEmpty()) {
-			return EMPTY_RESULT;
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+		final Bitmap filteredRecordIdBitmap = input.compute();
+		if (filteredRecordIdBitmap.isEmpty()) {
+			return 0;
 		} else {
-			final int[] entireResult = result.getArray();
-			final int length = Math.min(entireResult.length, endIndex - startIndex);
+			final int[] filteredRecordIds = filteredRecordIdBitmap.getArray();
+			final int length = Math.min(filteredRecordIds.length, endIndex - startIndex);
 			if (length < 0) {
-				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + entireResult.length);
+				throw new IndexOutOfBoundsException("Index: " + startIndex + ", Size: " + filteredRecordIds.length);
 			}
 
 			// sort the filtered entity primary keys along the exact order in input
-			final int lastSortedItem = ArrayUtils.sortAlong(exactOrder, entireResult);
+			final int lastSortedItem = ArrayUtils.sortAlong(exactOrder, filteredRecordIds);
+
+			// copy the sorted data to result
+			final int toAppend = Math.min(lastSortedItem, endIndex - startIndex);
+			System.arraycopy(filteredRecordIds, startIndex, result, peak, toAppend);
 
 			// if there are no more records to sort or no additional sorter is present, return entire result
-			if (lastSortedItem + 1 == result.size() || unknownRecordIdsSorter == NoSorter.INSTANCE) {
-				return entireResult;
+			if (lastSortedItem + 1 == filteredRecordIdBitmap.size() || unknownRecordIdsSorter == NoSorter.INSTANCE) {
+				return peak + toAppend;
 			} else {
 				// otherwise, collect the not sorted record ids
 				final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-				for (int i = lastSortedItem; i < entireResult.length; i++) {
-					writer.add(entireResult[i]);
+				for (int i = lastSortedItem; i < filteredRecordIds.length; i++) {
+					writer.add(filteredRecordIds[i]);
 				}
 				// pass them to another sorter
 				final int recomputedStartIndex = Math.max(0, startIndex - lastSortedItem);
 				final int recomputedEndIndex = Math.max(0, endIndex - lastSortedItem);
-				final int[] unsortedResult = unknownRecordIdsSorter.sortAndSlice(
+
+				return unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(writer.get())),
-					recomputedStartIndex, recomputedEndIndex
+					recomputedStartIndex, recomputedEndIndex, result, peak + toAppend
 				);
-				// and combine with our result
-				System.arraycopy(unsortedResult, 0, entireResult, lastSortedItem, unsortedResult.length);
-				return entireResult;
 			}
 		}
 	}

@@ -46,12 +46,11 @@ import java.util.Arrays;
 public record PriceEvaluationContext(@Nonnull PriceIndexKey... targetPriceIndexes) implements Serializable {
 	@Serial private static final long serialVersionUID = -2132423408087460595L;
 
-	public PriceEvaluationContext(@Nonnull PriceIndexKey... targetPriceIndexes) {
+	public PriceEvaluationContext {
 		Assert.isPremiseValid(
 			!ArrayUtils.isEmpty(targetPriceIndexes),
 			"Expected at least one target price index identification!"
 		);
-		this.targetPriceIndexes = targetPriceIndexes;
 	}
 
 	/**

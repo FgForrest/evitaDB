@@ -29,8 +29,8 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.IntSupplier;
+import java.util.function.ToIntFunction;
 
 /**
  * This sorter implementation delegates sorting logic to the `sorter` instance, but provides a wrapper around it in
@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class DeferredSorter implements Sorter {
 	@Nonnull private final Sorter sorter;
-	@Nonnull private final Function<Supplier<int[]>, int[]> executionWrapper;
+	@Nonnull private final ToIntFunction<IntSupplier> executionWrapper;
 
 	@Nonnull
 	@Override
@@ -61,13 +61,11 @@ public class DeferredSorter implements Sorter {
 		return sorter.getNextSorter();
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
-		return executionWrapper.apply(
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
+		return executionWrapper.applyAsInt(
 			() -> ConditionalSorter.getFirstApplicableSorter(sorter, queryContext)
-				.sortAndSlice(queryContext, input, startIndex, endIndex)
+				.sortAndSlice(queryContext, input, startIndex, endIndex, result, peak)
 		);
 	}
-
 }

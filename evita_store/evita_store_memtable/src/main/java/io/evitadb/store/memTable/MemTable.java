@@ -1140,7 +1140,7 @@ public class MemTable {
 		}
 
 		/**
-		 * Creates new instance of {@link VersionedKryo} with current configuraiton of {@link VersionedKryoKeyInputs}.
+		 * Creates new instance of {@link VersionedKryo} with current configuration of {@link VersionedKryoKeyInputs}.
 		 */
 		@Override
 		protected VersionedKryo create() {

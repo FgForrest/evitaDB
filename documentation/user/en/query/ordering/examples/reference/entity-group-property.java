@@ -14,11 +14,17 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						referenceContent(
 							"parameterValues",
 							orderBy(
+								entityGroupProperty(
+									attributeNatural("name", ASC)
+								),
 								entityProperty(
-									attributeNatural("name", DESC)
+									attributeNatural("name", ASC)
 								)
 							),
 							entityFetch(
+								attributeContent("name")
+							),
+							entityGroupFetch(
 								attributeContent("name")
 							)
 						)

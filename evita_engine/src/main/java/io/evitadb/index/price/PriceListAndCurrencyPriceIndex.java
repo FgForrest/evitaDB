@@ -23,6 +23,7 @@
 
 package io.evitadb.index.price;
 
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
 import io.evitadb.exception.EvitaInternalError;
@@ -91,80 +92,91 @@ public interface PriceListAndCurrencyPriceIndex<DIFF_PIECE, COPY> extends IndexD
 	 * Returns array of {@link PriceRecordContract} for passed bitmap of ids.
 	 */
 	@Nonnull
-	default PriceRecordContract[] getPriceRecords(@Nonnull Bitmap priceIds, @Nonnull Consumer<PriceRecordContract> priceFoundCallback, @Nonnull IntConsumer priceIdNotFoundCallback) {
+	default PriceRecordContract[] getPriceRecords(
+		@Nonnull Bitmap priceIds,
+		@Nonnull Consumer<PriceRecordContract> priceFoundCallback,
+		@Nonnull IntConsumer priceIdNotFoundCallback
+	) {
 		// TOBEDONE JNO - there is also an issue https://github.com/RoaringBitmap/RoaringBitmap/issues/562 that could make this algorithm faster
-		final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(RoaringBitmapBackedBitmap.getRoaringBitmap(priceIds).getBatchIterator());
-		final int[] supersetPriceIds = getIndexedPriceIds();
-		final PriceRecordContract[] priceRecords = getPriceRecords();
-
 		final CompositeObjectArray<PriceRecordContract> filteredPriceRecords = new CompositeObjectArray<>(PriceRecordContract.class);
-		int priceIndex;
-		int lastPriceId = 0;
-		int lastPriceIndex = -1;
-		int lastExpectedPriceIndex;
-		int searchEndIndex;
-
-		while (filteredPriceIdsIterator.hasNext()) {
-			final int[] filteredBatch = filteredPriceIdsIterator.nextBatch();
-			// get the last price id from the batch
-			final int lastExpectedPriceId = filteredPriceIdsIterator.getPeek() > 0 ? filteredBatch[filteredPriceIdsIterator.getPeek() - 1] : -1;
-			// compute the index of the last price in a batch
-			lastExpectedPriceIndex = Arrays.binarySearch(
-				supersetPriceIds,
-				lastPriceIndex + 1,
-				// we can even here optimise the end index to the max difference of the last really found price to batch end price
-				lastExpectedPriceId == -1 ? supersetPriceIds.length : Math.min(supersetPriceIds.length, lastPriceIndex + lastExpectedPriceId - lastPriceId + 1),
-				lastExpectedPriceId
+		final int[] buffer = SharedBufferPool.INSTANCE.obtain();
+		try {
+			final BatchArrayIterator filteredPriceIdsIterator = new RoaringBitmapBatchArrayIterator(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(priceIds).getBatchIterator(), buffer
 			);
-			// compute the end index that needs to be looked within for all prices in filter batch
-			searchEndIndex = lastExpectedPriceIndex >= 0 ? lastExpectedPriceIndex + 1 : -1 * (lastExpectedPriceIndex) - 2 + 1;
+			final int[] supersetPriceIds = getIndexedPriceIds();
+			final PriceRecordContract[] priceRecords = getPriceRecords();
 
-			// iterate over all prices in filter batch
-			for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
-				int filteredPriceId = filteredBatch[i];
+			int priceIndex;
+			int lastPriceId = 0;
+			int lastPriceIndex = -1;
+			int lastExpectedPriceIndex;
+			int searchEndIndex;
 
-				// if we reached the end of our price records
-				if (lastPriceIndex >= priceRecords.length) {
-					// iterate over rest of the filtered prices and report they were not found and finish
-					for (int j = i; j < filteredPriceIdsIterator.getPeek(); j++) {
-						priceIdNotFoundCallback.accept(filteredBatch[j]);
-					}
-					break;
-				} else if (filteredPriceId == lastExpectedPriceId) {
-					// if we reached the end price of the current batch - we can reuse the already known information
-					if (lastExpectedPriceIndex < 0) {
-						// the price was not found - report it
-						priceIdNotFoundCallback.accept(filteredPriceId);
-						lastPriceIndex = -1 * (lastExpectedPriceIndex) - 2;
+			while (filteredPriceIdsIterator.hasNext()) {
+				final int[] filteredBatch = filteredPriceIdsIterator.nextBatch();
+				// get the last price id from the batch
+				final int lastExpectedPriceId = filteredPriceIdsIterator.getPeek() > 0 ? filteredBatch[filteredPriceIdsIterator.getPeek() - 1] : -1;
+				// compute the index of the last price in a batch
+				lastExpectedPriceIndex = Arrays.binarySearch(
+					supersetPriceIds,
+					lastPriceIndex + 1,
+					// we can even here optimise the end index to the max difference of the last really found price to batch end price
+					lastExpectedPriceId == -1 ? supersetPriceIds.length : Math.min(supersetPriceIds.length, lastPriceIndex + lastExpectedPriceId - lastPriceId + 1),
+					lastExpectedPriceId
+				);
+				// compute the end index that needs to be looked within for all prices in filter batch
+				searchEndIndex = lastExpectedPriceIndex >= 0 ? lastExpectedPriceIndex + 1 : -1 * (lastExpectedPriceIndex) - 2 + 1;
+
+				// iterate over all prices in filter batch
+				for (int i = 0; i < filteredPriceIdsIterator.getPeek(); i++) {
+					int filteredPriceId = filteredBatch[i];
+
+					// if we reached the end of our price records
+					if (lastPriceIndex >= priceRecords.length) {
+						// iterate over rest of the filtered prices and report they were not found and finish
+						for (int j = i; j < filteredPriceIdsIterator.getPeek(); j++) {
+							priceIdNotFoundCallback.accept(filteredBatch[j]);
+						}
+						break;
+					} else if (filteredPriceId == lastExpectedPriceId) {
+						// if we reached the end price of the current batch - we can reuse the already known information
+						if (lastExpectedPriceIndex < 0) {
+							// the price was not found - report it
+							priceIdNotFoundCallback.accept(filteredPriceId);
+							lastPriceIndex = -1 * (lastExpectedPriceIndex) - 2;
+						} else {
+							// the price was found - report it
+							final PriceRecordContract priceRecord = priceRecords[lastExpectedPriceIndex];
+							priceFoundCallback.accept(priceRecord);
+							filteredPriceRecords.add(priceRecord);
+							lastPriceIndex = lastExpectedPriceIndex;
+						}
 					} else {
-						// the price was found - report it
-						final PriceRecordContract priceRecord = priceRecords[lastExpectedPriceIndex];
-						priceFoundCallback.accept(priceRecord);
-						filteredPriceRecords.add(priceRecord);
-						lastPriceIndex = lastExpectedPriceIndex;
-					}
-				} else {
-					// look for the index of price detail (searched block is getting smaller and smaller with each match)
-					final int fromIndex = lastPriceIndex + 1;
-					final int toIndex = Math.min(fromIndex + filteredPriceId - lastPriceId, searchEndIndex);
+						// look for the index of price detail (searched block is getting smaller and smaller with each match)
+						final int fromIndex = lastPriceIndex + 1;
+						final int toIndex = Math.min(fromIndex + filteredPriceId - lastPriceId, searchEndIndex);
 
-					// look for the price in currently read super set batch
-					priceIndex = Arrays.binarySearch(supersetPriceIds, fromIndex, toIndex, filteredPriceId);
+						// look for the price in currently read super set batch
+						priceIndex = Arrays.binarySearch(supersetPriceIds, fromIndex, toIndex, filteredPriceId);
 
-					if (priceIndex < 0) {
-						// the price was not found - report it
-						priceIdNotFoundCallback.accept(filteredPriceId);
-						lastPriceIndex = -1 * (priceIndex) - 2;
-					} else {
-						// the price was found - report it
-						final PriceRecordContract priceRecord = priceRecords[priceIndex];
-						priceFoundCallback.accept(priceRecord);
-						filteredPriceRecords.add(priceRecord);
-						lastPriceIndex = priceIndex;
+						if (priceIndex < 0) {
+							// the price was not found - report it
+							priceIdNotFoundCallback.accept(filteredPriceId);
+							lastPriceIndex = -1 * (priceIndex) - 2;
+						} else {
+							// the price was found - report it
+							final PriceRecordContract priceRecord = priceRecords[priceIndex];
+							priceFoundCallback.accept(priceRecord);
+							filteredPriceRecords.add(priceRecord);
+							lastPriceIndex = priceIndex;
+						}
 					}
+					lastPriceId = filteredPriceId;
 				}
-				lastPriceId = filteredPriceId;
 			}
+		} finally {
+			SharedBufferPool.INSTANCE.free(buffer);
 		}
 
 		// return found prices as array

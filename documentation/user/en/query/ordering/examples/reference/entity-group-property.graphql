@@ -14,9 +14,16 @@
         parameterValues(
           orderBy: [
           {
+            entityGroupProperty: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          },
+          {
             entityProperty: [
               {
-                attributeNameNatural: DESC
+                attributeNameNatural: ASC
               }
             ]
           }
@@ -24,6 +31,12 @@
         ) {
           referencedPrimaryKey
           referencedEntity {
+            primaryKey
+            attributes {
+              name
+            }
+          }
+          groupEntity {
             primaryKey
             attributes {
               name

@@ -391,7 +391,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 						sorter -> {
 							try {
 								queryContext.pushStep(QueryPhase.EXECUTION_SORT_AND_SLICE, stepDescriptionSupplier);
-								return sorter.get();
+								return sorter.getAsInt();
 							} finally {
 								queryContext.popStep();
 							}

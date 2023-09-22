@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.core.query.QueryContext;
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.sort.attribute.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.attribute.translator.AttributeComparator;
@@ -46,7 +47,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.query.sort.utils.SortUtilsTest.asResult;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.mockito.ArgumentMatchers.any;
 
 /**
  * This test verifies {@link PrefetchedRecordsSorter} behaviour.
@@ -77,6 +80,9 @@ class PrefetchedRecordsSorterTest {
 			.thenAnswer(invocation -> ((EntityContract) invocation.getArgument(0)).getPrimaryKey());
 		Mockito.when(entityQueryContext.translateToEntity(Mockito.anyInt()))
 			.thenAnswer(invocation -> mockEntitiesIndex.get(((Integer) invocation.getArgument(0))));
+		Mockito.doAnswer(invocation -> SharedBufferPool.INSTANCE.obtain()).when(entityQueryContext).borrowBuffer();
+		Mockito.doNothing().when(entityQueryContext).returnBuffer(any());
+
 		entitySorter = new PrefetchedRecordsSorterWithContext(
 			new PrefetchedRecordsSorter(
 				TEST_COMPARATOR_FIRST
@@ -89,21 +95,21 @@ class PrefetchedRecordsSorterTest {
 	void shouldReturnFullResultInExpectedOrderOnSmallData() {
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3},
-			entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4), 0, 100)
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4), 0, 100, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{1, 3},
-			entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5)
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 5, theArray, 0))
 		);
 		assertArrayEquals(
 			new int[]{7, 8, 9},
-			entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(7, 8, 9), 0, 3)
+			asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(7, 8, 9), 0, 3, theArray, 0))
 		);
 	}
 
 	@Test
 	void shouldReturnSortedResultEvenForMissingData() {
-		final int[] actual = entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
+		final int[] actual = asResult(theArray -> entitySorter.sorter().sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 0, 12, 13},
 			actual
@@ -118,7 +124,7 @@ class PrefetchedRecordsSorterTest {
 			)
 		);
 
-		final int[] actual = updatedSorter.sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100);
+		final int[] actual = asResult(theArray -> updatedSorter.sortAndSlice(entitySorter.context(), makeFormula(0, 1, 2, 3, 4, 12, 13), 0, 100, theArray, 0));
 		assertArrayEquals(
 			new int[]{2, 4, 1, 3, 13, 0, 12},
 			actual
