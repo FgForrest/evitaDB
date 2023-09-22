@@ -101,7 +101,7 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Override
 	public boolean isNecessary() {
-		return getArguments().length == 1 && getChildren().length == 1;
+		return getArguments().length == 1 && getChildren().length >= 1;
 	}
 
 	@AliasForParameter("filter")
