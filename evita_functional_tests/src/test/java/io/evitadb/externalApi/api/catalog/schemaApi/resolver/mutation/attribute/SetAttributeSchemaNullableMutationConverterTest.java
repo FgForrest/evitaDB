@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +59,7 @@ class SetAttributeSchemaNullableMutationConverterTest {
 			true
 		);
 
-		final SetAttributeSchemaNullableMutation convertedMutation1 = converter.convert(
+		final SetAttributeSchemaNullableMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaNullableMutationDescriptor.NULLABLE.name(), true)
@@ -67,7 +67,7 @@ class SetAttributeSchemaNullableMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetAttributeSchemaNullableMutation convertedMutation2 = converter.convert(
+		final SetAttributeSchemaNullableMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(SetAttributeSchemaNullableMutationDescriptor.NULLABLE.name(), "true")
@@ -80,7 +80,7 @@ class SetAttributeSchemaNullableMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(SetAttributeSchemaNullableMutationDescriptor.NULLABLE.name(), true)
 					.build()
@@ -88,13 +88,13 @@ class SetAttributeSchemaNullableMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

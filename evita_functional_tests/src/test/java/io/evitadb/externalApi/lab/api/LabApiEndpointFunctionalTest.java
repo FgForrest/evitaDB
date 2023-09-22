@@ -58,7 +58,7 @@ import static io.evitadb.externalApi.rest.api.catalog.dataApi.CatalogRestDataEnd
 import static io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogRestSchemaEndpointFunctionalTest.createCatalogSchemaDto;
 import static io.evitadb.externalApi.rest.api.catalog.schemaApi.CatalogRestSchemaEndpointFunctionalTest.getCatalogSchemaFromTestData;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
 import static io.evitadb.test.generator.DataGenerator.CZECH_LOCALE;

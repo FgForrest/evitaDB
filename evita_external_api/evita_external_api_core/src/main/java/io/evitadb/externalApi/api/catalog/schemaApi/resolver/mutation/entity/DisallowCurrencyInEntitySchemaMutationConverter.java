@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowCurrencyInE
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowCurrencyInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -53,10 +54,16 @@ public class DisallowCurrencyInEntitySchemaMutationConverter extends EntitySchem
 
 	@Nonnull
 	@Override
-	protected DisallowCurrencyInEntitySchemaMutation convert(@Nonnull Input input) {
+	protected DisallowCurrencyInEntitySchemaMutation convertFromInput(@Nonnull Input input) {
 		return new DisallowCurrencyInEntitySchemaMutation(
 			// we need this because we don't support multiple constructors in automatic conversion
-			(Currency[]) input.getField(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES)
+			(Currency[]) input.getProperty(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull DisallowCurrencyInEntitySchemaMutation mutation, @Nonnull Output output) {
+		// we need this because we don't support multiple constructors in automatic conversion
+		output.setProperty(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES, mutation.getCurrencies());
 	}
 }

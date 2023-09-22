@@ -97,7 +97,7 @@ public class UpsertEntityHandler extends EntityHandler<EntityClassifier, Collect
 			requestData.setPrimaryKey((Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()));
 		}
 
-		final EntityMutation entityMutation = mutationResolver.convert(
+		final EntityMutation entityMutation = mutationResolver.convertFromInput(
 			requestData.getPrimaryKey()
 				.orElse(null),
 			requestData.getEntityExistence()

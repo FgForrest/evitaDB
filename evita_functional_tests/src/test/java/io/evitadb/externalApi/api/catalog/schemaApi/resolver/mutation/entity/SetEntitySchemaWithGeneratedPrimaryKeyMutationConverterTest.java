@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -57,14 +57,14 @@ class SetEntitySchemaWithGeneratedPrimaryKeyMutationConverterTest {
 			true
 		);
 
-		final SetEntitySchemaWithGeneratedPrimaryKeyMutation convertedMutation1 = converter.convert(
+		final SetEntitySchemaWithGeneratedPrimaryKeyMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetEntitySchemaWithGeneratedPrimaryKeyMutation convertedMutation2 = converter.convert(
+		final SetEntitySchemaWithGeneratedPrimaryKeyMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.WITH_GENERATED_PRIMARY_KEY.name(), "true")
 				.build()
@@ -74,7 +74,7 @@ class SetEntitySchemaWithGeneratedPrimaryKeyMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

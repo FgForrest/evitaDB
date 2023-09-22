@@ -30,6 +30,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiDictionaryTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiObjectTransformer;
 import io.evitadb.externalApi.rest.api.model.ObjectDescriptorToOpenApiUnionTransformer;
@@ -38,7 +39,6 @@ import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperatio
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiOperationQueryParameterTransformer;
 import io.evitadb.externalApi.rest.api.model.PropertyDescriptorToOpenApiPropertyTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;

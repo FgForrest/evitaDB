@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceA
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ModifyReferenceAttributeSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.ReferenceSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -63,8 +64,8 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 
 	@Nonnull
 	@Override
-	protected ModifyReferenceAttributeSchemaMutation convert(@Nonnull Input input) {
-		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(input.getRequiredField(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name()))
+	protected ModifyReferenceAttributeSchemaMutation convertFromInput(@Nonnull Input input) {
+		final Map<String, Object> inputAttributeSchemaMutation = Optional.of(input.getRequiredProperty(ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,
@@ -74,15 +75,24 @@ public class ModifyReferenceAttributeSchemaMutationConverter extends ReferenceSc
 				return (Map<String, Object>) m;
 			})
 			.get();
-		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = referenceAttributeSchemaMutationAggregateResolver.convert(inputAttributeSchemaMutation);
+		final List<ReferenceAttributeSchemaMutation> attributeSchemaMutations = referenceAttributeSchemaMutationAggregateResolver.convertFromInput(inputAttributeSchemaMutation);
 		Assert.isTrue(
 			attributeSchemaMutations.size() == 1,
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 
 		return new ModifyReferenceAttributeSchemaMutation(
-			input.getField(ReferenceSchemaMutationDescriptor.NAME),
+			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
 			attributeSchemaMutations.get(0)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull ModifyReferenceAttributeSchemaMutation mutation, @Nonnull Output output) {
+		output.setProperty(
+			ModifyReferenceAttributeSchemaMutationDescriptor.ATTRIBUTE_SCHEMA_MUTATION,
+			referenceAttributeSchemaMutationAggregateResolver.convertToOutput((ReferenceAttributeSchemaMutation) mutation.getAttributeSchemaMutation())
+		);
+		super.convertToOutput(mutation, output);
 	}
 }

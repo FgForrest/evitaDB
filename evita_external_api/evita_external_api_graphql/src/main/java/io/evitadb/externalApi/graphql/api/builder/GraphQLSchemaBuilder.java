@@ -31,6 +31,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
@@ -162,13 +163,7 @@ public abstract class GraphQLSchemaBuilder<C extends GraphQLSchemaBuildingContex
 
 	private static void registerScalarValue(@Nonnull GraphQLEnumType.Builder scalarBuilder,
 	                                        @Nonnull Class<? extends Serializable> javaType) {
-		final String apiName;
-		if (javaType.isArray()) {
-			apiName = javaType.componentType().getSimpleName() + "Array";
-		} else {
-			apiName = javaType.getSimpleName();
-		}
-
+		final String apiName = DataTypeSerializer.serialize(javaType);
 		scalarBuilder.value(apiName, javaType);
 	}
 }

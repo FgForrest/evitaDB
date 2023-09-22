@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -48,8 +49,14 @@ abstract class ReferenceMutationConverter<M extends ReferenceMutation<?>> extend
 	@Nonnull
 	protected ReferenceKey resolveReferenceKey(@Nonnull Input input) {
 		return new ReferenceKey(
-			input.getField(ReferenceMutationDescriptor.NAME),
-			input.getField(ReferenceMutationDescriptor.PRIMARY_KEY)
+			input.getProperty(ReferenceMutationDescriptor.NAME),
+			input.getProperty(ReferenceMutationDescriptor.PRIMARY_KEY)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		output.setProperty(ReferenceMutationDescriptor.NAME, mutation.getReferenceKey().referenceName());
+		output.setProperty(ReferenceMutationDescriptor.PRIMARY_KEY, mutation.getReferenceKey().primaryKey());
 	}
 }

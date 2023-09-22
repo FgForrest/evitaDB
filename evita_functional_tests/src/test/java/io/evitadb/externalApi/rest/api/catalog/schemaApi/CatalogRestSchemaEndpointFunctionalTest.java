@@ -34,9 +34,9 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
-import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
@@ -51,7 +51,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**

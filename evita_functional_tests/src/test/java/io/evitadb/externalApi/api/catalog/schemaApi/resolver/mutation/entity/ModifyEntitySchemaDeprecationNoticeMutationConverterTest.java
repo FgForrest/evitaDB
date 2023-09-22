@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -57,7 +57,7 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 			"depr"
 		);
 
-		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = converter.convert(
+		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
 				.build()
@@ -71,12 +71,12 @@ class ModifyEntitySchemaDeprecationNoticeMutationConverterTest {
 			null
 		);
 
-		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = converter.convert(Map.of());
+		final ModifyEntitySchemaDeprecationNoticeMutation convertedMutation = converter.convertFromInput(Map.of());
 		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

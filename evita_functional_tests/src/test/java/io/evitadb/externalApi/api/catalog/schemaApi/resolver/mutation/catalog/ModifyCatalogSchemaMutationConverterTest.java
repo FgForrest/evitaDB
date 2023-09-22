@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -61,7 +61,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 			"testCatalog",
 			new CreateEntitySchemaMutation("product")
 		);
-		final ModifyCatalogSchemaMutation convertedMutation = converter.convert(
+		final ModifyCatalogSchemaMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
@@ -77,10 +77,10 @@ public class ModifyCatalogSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.build()
@@ -88,7 +88,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name(), List.of(
 						map()
@@ -99,6 +99,6 @@ public class ModifyCatalogSchemaMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

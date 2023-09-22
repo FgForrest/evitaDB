@@ -25,12 +25,14 @@ package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -42,7 +44,7 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public abstract class MutationAggregateConverter<M extends Mutation, R extends MutationConverter<? extends M>> {
+public abstract class MutationAggregateConverter<M extends Mutation, C extends MutationConverter<M>> {
 
 	/**
 	 * Parses input object into Java primitive or generic {@link Map} to resolve into {@link Mutation}.
@@ -68,16 +70,63 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	 * mutations
 	 */
 	@Nonnull
-	protected abstract Map<String, R> getConverters();
+	protected abstract Map<String, C> getConverters();
+
+	protected void registerConverter(String name, MutationConverter<? extends M> converter) {
+		//noinspection unchecked
+		getConverters().put(name, (C) converter);
+	}
 
 	/**
 	 * Resolve raw input local mutation parsed from JSON into actual list of {@link Mutation} based on implementation of
 	 * resolver.
 	 */
 	@Nonnull
-	public List<M> convert(@Nullable Object rawInputMutationObject) {
+	public List<M> convertFromInput(@Nullable Object rawInputMutationObject) {
 		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convert(new Input(getMutationAggregateName(), inputMutationObject, exceptionFactory));
+		return convertFromInput(new Input(getMutationAggregateName(), inputMutationObject, exceptionFactory));
+	}
+
+	public Object convertToOutput(@Nonnull M mutation) {
+		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
+		convertToOutput(mutation, output);
+		return objectParser.serialize(output.getOutputMutationObject());
+	}
+
+	public Object convertToOutput(@Nonnull M[] mutations) {
+		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
+		convertToOutput(List.of(mutations), output);
+		return objectParser.serialize(output.getOutputMutationObject());
+	}
+
+	// todo lho implement
+	public Object convertToOutput(@Nonnull Collection<M> mutations) {
+		final Output output = new Output(getMutationAggregateName(), getExceptionFactory());
+		convertToOutput(mutations, output);
+		return objectParser.serialize(output.getOutputMutationObject());
+	}
+
+	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		// todo lho name lookup
+		final Output innerMutationOutput = new Output(mutation.getClass().getSimpleName(), getExceptionFactory());
+		convertMutationToOutput(mutation, innerMutationOutput);
+		output.setProperty(
+			StringUtils.toCamelCase(mutation.getClass().getSimpleName()),
+			innerMutationOutput
+		);
+	}
+
+	protected void convertToOutput(@Nonnull Collection<M> mutations, @Nonnull Output output) {
+		mutations.forEach(mutation -> {
+			final Output innerMutationAggregateOutput = new Output(getMutationAggregateName(), getExceptionFactory());
+			convertToOutput(mutation, innerMutationAggregateOutput);
+			output.addValue(innerMutationAggregateOutput);
+		});
+	}
+
+	protected void convertMutationToOutput(@Nonnull M mutation, @Nonnull Output output) {
+			// todo lho lookup
+		getConverters().get(StringUtils.toCamelCase(mutation.getClass().getSimpleName())).convertToOutput(mutation, output);
 	}
 
 	/**
@@ -85,7 +134,7 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 	 * resolver.
 	 */
 	@Nonnull
-	protected List<M> convert(@Nonnull Input input) {
+	protected List<M> convertFromInput(@Nonnull Input input) {
 		final List<M> mutations = new LinkedList<>();
 
 		final Map<String, Object> mutationAggregate = Optional.of(input.getRequiredValue())
@@ -100,9 +149,9 @@ public abstract class MutationAggregateConverter<M extends Mutation, R extends M
 			.get();
 
 		mutationAggregate.forEach((mutationName, mutation) -> {
-			final R resolver = Optional.ofNullable(getConverters().get(mutationName))
+			final C resolver = Optional.ofNullable(getConverters().get(mutationName))
 				.orElseThrow(() -> getExceptionFactory().createInvalidArgumentException("Unknown mutation `" + mutationName + "`."));
-			mutations.add(resolver.convert(mutation));
+			mutations.add(resolver.convertFromInput(mutation));
 		});
 
 		return mutations;

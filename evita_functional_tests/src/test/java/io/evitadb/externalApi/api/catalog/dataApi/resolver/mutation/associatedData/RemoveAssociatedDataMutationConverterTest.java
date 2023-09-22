@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +59,7 @@ class RemoveAssociatedDataMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final RemoveAssociatedDataMutation expectedMutation = new RemoveAssociatedDataMutation(ASSOCIATED_DATA_LABELS, Locale.ENGLISH);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 				.e(RemoveAssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -67,7 +67,7 @@ class RemoveAssociatedDataMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 				.e(RemoveAssociatedDataMutationDescriptor.LOCALE.name(), "en")
@@ -78,7 +78,7 @@ class RemoveAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(RemoveAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 				.build()
@@ -92,7 +92,7 @@ class RemoveAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

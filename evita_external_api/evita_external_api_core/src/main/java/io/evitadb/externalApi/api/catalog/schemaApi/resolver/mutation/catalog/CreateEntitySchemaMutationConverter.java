@@ -47,12 +47,4 @@ public class CreateEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 	protected Class<CreateEntitySchemaMutation> getMutationClass() {
 		return CreateEntitySchemaMutation.class;
 	}
-
-//	@Nonnull
-//	@Override
-//	protected CreateEntitySchemaMutation convert(@Nonnull Input input) {
-//		return new CreateEntitySchemaMutation(
-//			input.getRequiredField(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE)
-//		);
-//	}
 }

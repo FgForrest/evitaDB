@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -65,7 +65,7 @@ class EntitySchemaMutationAggregateConverterTest {
 			new DisallowCurrencyInEntitySchemaMutation(Currency.getInstance("EUR"))
 		);
 
-		final List<EntitySchemaMutation> convertedMutations1 = converter.convert(
+		final List<EntitySchemaMutation> convertedMutations1 = converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(Locale.ENGLISH))
@@ -77,7 +77,7 @@ class EntitySchemaMutationAggregateConverterTest {
 		);
 		assertEquals(expectedMutations, convertedMutations1);
 
-		final List<EntitySchemaMutation> convertedMutations2 = converter.convert(
+		final List<EntitySchemaMutation> convertedMutations2 = converter.convertFromInput(
 			map()
 				.e(EntitySchemaMutationAggregateDescriptor.ALLOW_LOCALE_IN_ENTITY_SCHEMA_MUTATION.name(), map()
 					.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of("en"))
@@ -91,12 +91,12 @@ class EntitySchemaMutationAggregateConverterTest {
 	}
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final List<EntitySchemaMutation> convertedMutations = converter.convert(Map.of());
+		final List<EntitySchemaMutation> convertedMutations = converter.convertFromInput(Map.of());
 		assertEquals(List.of(), convertedMutations);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(null));
 	}
 }

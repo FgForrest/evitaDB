@@ -79,7 +79,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -202,7 +202,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -286,7 +286,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -324,7 +324,7 @@ class GraphQLEntityUpsertMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();

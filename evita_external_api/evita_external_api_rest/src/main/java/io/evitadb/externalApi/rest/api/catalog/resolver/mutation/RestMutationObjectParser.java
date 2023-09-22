@@ -49,4 +49,10 @@ public class RestMutationObjectParser implements MutationObjectParser {
 	public Object parse(@Nullable Object inputMutationObject) {
 		return objectMapper.convertValue(inputMutationObject, new TypeReference<>() {});
 	}
+
+	@Nullable
+	@Override
+	public Object serialize(@Nullable Object outputMutationObject) {
+		return objectMapper.valueToTree(outputMutationObject);
+	}
 }

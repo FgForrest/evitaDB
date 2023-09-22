@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -58,7 +58,7 @@ class ModifyAttributeSchemaNameMutationConverterTest {
 			"code",
 			"label"
 		);
-		final ModifyAttributeSchemaNameMutation convertedMutation = converter.convert(
+		final ModifyAttributeSchemaNameMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "label")
@@ -71,7 +71,7 @@ class ModifyAttributeSchemaNameMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
@@ -79,13 +79,13 @@ class ModifyAttributeSchemaNameMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyAttributeSchemaNameMutationDescriptor.NEW_NAME.name(), "label")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

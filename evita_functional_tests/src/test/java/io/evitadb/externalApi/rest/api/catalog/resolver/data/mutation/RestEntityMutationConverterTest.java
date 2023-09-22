@@ -205,7 +205,7 @@ class RestEntityMutationConverterTest {
 		);
 
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -289,7 +289,7 @@ class RestEntityMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 
@@ -327,7 +327,7 @@ class RestEntityMutationConverterTest {
 				.build()
 		);
 
-		final EntityMutation entityMutation = converter.convert(1, EntityExistence.MAY_EXIST, inputLocalMutations);
+		final EntityMutation entityMutation = converter.convertFromInput(1, EntityExistence.MAY_EXIST, inputLocalMutations);
 		assertEquals(Entities.PRODUCT, entityMutation.getEntityType());
 		assertEquals(1, entityMutation.getEntityPrimaryKey());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = entityMutation.getLocalMutations();

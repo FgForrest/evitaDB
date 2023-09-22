@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -60,7 +60,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 			Cardinality.ONE_OR_MORE
 		);
 
-		final ModifyReferenceSchemaCardinalityMutation convertedMutation1 = converter.convert(
+		final ModifyReferenceSchemaCardinalityMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE)
@@ -68,7 +68,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyReferenceSchemaCardinalityMutation convertedMutation2 = converter.convert(
+		final ModifyReferenceSchemaCardinalityMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), "ONE_OR_MORE")
@@ -81,7 +81,7 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaCardinalityMutationDescriptor.CARDINALITY.name(), Cardinality.ONE_OR_MORE)
 					.build()
@@ -89,13 +89,13 @@ class ModifyReferenceSchemaCardinalityMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

@@ -54,17 +54,17 @@ public class CreateAssociatedDataSchemaMutationConverter extends AssociatedDataS
 
 	@Nonnull
 	@Override
-	protected CreateAssociatedDataSchemaMutation convert(@Nonnull Input input) {
+	protected CreateAssociatedDataSchemaMutation convertFromInput(@Nonnull Input input) {
 		return new CreateAssociatedDataSchemaMutation(
-			input.getField(AssociatedDataSchemaMutationDescriptor.NAME),
-			input.getField(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION),
-			input.getField(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getRequiredField(
+			input.getProperty(AssociatedDataSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getRequiredProperty(
 				CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(),
 				new ValueTypeMapper(getExceptionFactory(), CreateAssociatedDataSchemaMutationDescriptor.TYPE)
 			),
-			input.getField(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
-			input.getField(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.LOCALIZED, false),
+			input.getProperty(CreateAssociatedDataSchemaMutationDescriptor.NULLABLE, false)
 		);
 	}
 }

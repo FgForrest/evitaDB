@@ -66,7 +66,7 @@ public class UpdateEntitySchemaMutatingDataFetcher implements DataFetcher<Entity
 
 		final EntitySchemaMutation[] schemaMutations = arguments.mutations()
 			.stream()
-			.flatMap(m -> mutationAggregateResolver.convert(m).stream())
+			.flatMap(m -> mutationAggregateResolver.convertFromInput(m).stream())
 			.toArray(EntitySchemaMutation[]::new);
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(entitySchema.getName(), schemaMutations);
 

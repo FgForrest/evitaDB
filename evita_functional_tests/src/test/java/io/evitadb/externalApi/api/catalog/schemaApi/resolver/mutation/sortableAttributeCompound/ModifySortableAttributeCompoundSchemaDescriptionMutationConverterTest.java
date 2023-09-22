@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -58,7 +58,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 			"code",
 			"desc"
 		);
-		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = converter.convert(
+		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -72,7 +72,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 			"code",
 			null
 		);
-		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = converter.convert(
+		final ModifySortableAttributeCompoundSchemaDescriptionMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -82,7 +82,7 @@ class ModifySortableAttributeCompoundSchemaDescriptionMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

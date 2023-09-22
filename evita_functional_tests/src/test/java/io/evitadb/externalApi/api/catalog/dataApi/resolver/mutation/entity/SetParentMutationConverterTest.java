@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -56,14 +56,14 @@ class SetParentMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetParentMutation expectedMutation = new SetParentMutation(1);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 1)
 				.build()
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), "1")
 				.build()
@@ -73,7 +73,7 @@ class SetParentMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(SetParentMutationDescriptor.PARENT_PRIMARY_KEY.name(), 10)
 				.build()
@@ -86,7 +86,7 @@ class SetParentMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

@@ -55,24 +55,24 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 
 	@Nonnull
 	@Override
-	protected CreateAttributeSchemaMutation convert(@Nonnull Input input) {
-		final Class<? extends Serializable> valueType = input.getRequiredField(
+	protected CreateAttributeSchemaMutation convertFromInput(@Nonnull Input input) {
+		final Class<? extends Serializable> valueType = input.getRequiredProperty(
 			CreateAttributeSchemaMutationDescriptor.TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), CreateAttributeSchemaMutationDescriptor.TYPE)
 		);
 
 		return new CreateAttributeSchemaMutation(
-			input.getField(AttributeSchemaMutationDescriptor.NAME),
-			input.getField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
-			input.getField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getField(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
-			input.getField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
-			input.getField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
-			input.getField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
-			input.getField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
+			input.getProperty(AttributeSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
 			valueType,
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
-			input.getField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
+			input.getOptionalProperty(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
+			input.getProperty(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)
 		);
 	}
 }

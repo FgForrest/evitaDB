@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -55,14 +55,14 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetEntitySchemaWithHierarchyMutation expectedMutation = new SetEntitySchemaWithHierarchyMutation(true);
 
-		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convert(
+		final SetEntitySchemaWithHierarchyMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), true)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final SetEntitySchemaWithHierarchyMutation convertedMutation2 = converter.convert(
+		final SetEntitySchemaWithHierarchyMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(SetEntitySchemaWithHierarchyMutationDescriptor.WITH_HIERARCHY.name(), "true")
 				.build()
@@ -72,7 +72,7 @@ class SetEntitySchemaWithHierarchyMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.LocalCatalogSchemaMutationAggregateConverter;
 import io.evitadb.utils.Assert;
@@ -60,8 +61,8 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 
 	@Nonnull
 	@Override
-	protected ModifyCatalogSchemaMutation convert(@Nonnull Input input) {
-		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredField(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
+	protected ModifyCatalogSchemaMutation convertFromInput(@Nonnull Input input) {
+		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredProperty(ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof List<?>,
@@ -72,12 +73,21 @@ public class ModifyCatalogSchemaMutationConverter extends TopLevelCatalogSchemaM
 			})
 			.get();
 		final LocalCatalogSchemaMutation[] localCatalogSchemaMutations = inputEntitySchemaMutations.stream()
-			.flatMap(m -> localCatalogSchemaMutationAggregateConverter.convert(m).stream())
+			.flatMap(m -> localCatalogSchemaMutationAggregateConverter.convertFromInput(m).stream())
 			.toArray(LocalCatalogSchemaMutation[]::new);
 
 		return new ModifyCatalogSchemaMutation(
-			input.getField(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),
+			input.getProperty(ModifyCatalogSchemaMutationDescriptor.CATALOG_NAME),
 			localCatalogSchemaMutations
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull ModifyCatalogSchemaMutation mutation, @Nonnull Output output) {
+		output.setProperty(
+			ModifyCatalogSchemaMutationDescriptor.SCHEMA_MUTATIONS,
+			localCatalogSchemaMutationAggregateConverter.convertToOutput(mutation.getSchemaMutations())
+		);
+		super.convertToOutput(mutation, output);
 	}
 }

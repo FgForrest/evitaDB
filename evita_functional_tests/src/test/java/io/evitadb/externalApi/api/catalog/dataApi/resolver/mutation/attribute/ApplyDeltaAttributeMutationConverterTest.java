@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -76,7 +76,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final ApplyDeltaAttributeMutation<?> expectedMutation = new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, Locale.ENGLISH, 10, IntegerNumberRange.between(0, 20));
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -86,7 +86,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(ApplyDeltaAttributeMutationDescriptor.LOCALE.name(), "en")
@@ -102,7 +102,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final ApplyDeltaAttributeMutation<?> expectedMutation = new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, 10);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 				.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
@@ -115,7 +115,7 @@ class ApplyDeltaAttributeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ApplyDeltaAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_QUANTITY)
 					.build()
@@ -123,13 +123,13 @@ class ApplyDeltaAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), 10)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

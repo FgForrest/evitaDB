@@ -98,7 +98,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final Arguments arguments = Arguments.from(environment);
 
-		final EntityMutation entityMutation = entityUpsertMutationResolver.convert(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations());
+		final EntityMutation entityMutation = entityUpsertMutationResolver.convertFromInput(arguments.primaryKey(), arguments.entityExistence(), arguments.mutations());
 		final EntityContentRequire[] contentRequires = buildEnrichingRequires(environment);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);

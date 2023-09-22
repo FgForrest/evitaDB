@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +59,7 @@ class InsertReferenceMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final InsertReferenceMutation expectedMutation = new InsertReferenceMutation(new ReferenceKey(REFERENCE_TAGS, 1), Cardinality.ONE_OR_MORE, "Tag");
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -69,7 +69,7 @@ class InsertReferenceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -82,7 +82,7 @@ class InsertReferenceMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -98,7 +98,7 @@ class InsertReferenceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(InsertReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.build()
@@ -106,13 +106,13 @@ class InsertReferenceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(InsertReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

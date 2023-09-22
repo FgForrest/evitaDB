@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +59,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 			CatalogEvolutionMode.ADDING_ENTITY_TYPES
 		);
 
-		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convert(
+		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					CatalogEvolutionMode.ADDING_ENTITY_TYPES
@@ -68,7 +68,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation2 = converter.convert(
+		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of(
 					"ADDING_ENTITY_TYPES"
@@ -81,7 +81,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowEvolutionModeInCatalogSchemaMutation expectedMutation = new AllowEvolutionModeInCatalogSchemaMutation();
 
-		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convert(
+		final AllowEvolutionModeInCatalogSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AllowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES.name(), List.of())
 				.build()
@@ -91,7 +91,7 @@ class AllowEvolutionModeInCatalogSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

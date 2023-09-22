@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -62,7 +62,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			true
 		);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convert(
+		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -74,7 +74,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation2 = converter.convert(
+		final CreateAssociatedDataSchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -97,7 +97,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 			false
 		);
 
-		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convert(
+		final CreateAssociatedDataSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 				.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -110,7 +110,7 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
@@ -118,13 +118,13 @@ class CreateAssociatedDataSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(CreateAssociatedDataSchemaMutationDescriptor.NAME.name(), "labels")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

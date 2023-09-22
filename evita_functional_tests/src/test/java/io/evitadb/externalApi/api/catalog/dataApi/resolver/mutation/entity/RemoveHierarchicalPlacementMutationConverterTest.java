@@ -52,7 +52,7 @@ class RemoveHierarchicalPlacementMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final LocalMutation<?, ?> localMutation = converter.convert(true);
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(true);
 		assertEquals(
 			new RemoveParentMutation(),
 			localMutation
@@ -61,8 +61,8 @@ class RemoveHierarchicalPlacementMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenFalse() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(false));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(false));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

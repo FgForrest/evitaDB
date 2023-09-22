@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMap
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -63,10 +64,10 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 
 	@Nonnull
 	@Override
-	protected UpsertAttributeMutation convert(@Nonnull Input input) {
+	protected UpsertAttributeMutation convertFromInput(@Nonnull Input input) {
 		final AttributeKey attributeKey = resolveAttributeKey(input);
 
-		final Class<? extends Serializable> valueType = input.getOptionalField(
+		final Class<? extends Serializable> valueType = input.getOptionalProperty(
 			UpsertAttributeMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
 		);
@@ -82,7 +83,14 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 		}
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : attributeSchema.getType();
 
-		final Serializable targetValue = input.getRequiredField(UpsertAttributeMutationDescriptor.VALUE.name(), targetDataType);
+		final Serializable targetValue = input.getRequiredProperty(UpsertAttributeMutationDescriptor.VALUE.name(), targetDataType);
 		return new UpsertAttributeMutation(attributeKey, targetValue);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull UpsertAttributeMutation mutation, @Nonnull Output output) {
+		output.setProperty(UpsertAttributeMutationDescriptor.VALUE, mutation.getAttributeValue());
+		output.setProperty(UpsertAttributeMutationDescriptor.VALUE_TYPE, mutation.getAttributeValue().getClass());
+		super.convertToOutput(mutation, output);
 	}
 }

@@ -53,18 +53,18 @@ public class CreateReferenceSchemaMutationConverter extends ReferenceSchemaMutat
 
 	@Nonnull
 	@Override
-	protected CreateReferenceSchemaMutation convert(@Nonnull Input input) {
+	protected CreateReferenceSchemaMutation convertFromInput(@Nonnull Input input) {
 		return new CreateReferenceSchemaMutation(
-			input.getField(ReferenceSchemaMutationDescriptor.NAME),
-			input.getField(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
-			input.getField(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getField(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
-			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
-			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
-			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
-			input.getField(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
-			input.getField(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
-			input.getField(CreateReferenceSchemaMutationDescriptor.FACETED, false)
+			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.DESCRIPTION),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.DEPRECATION_NOTICE),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.CARDINALITY),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.REFERENCED_GROUP_TYPE_MANAGED, false),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.INDEXED, false),
+			input.getProperty(CreateReferenceSchemaMutationDescriptor.FACETED, false)
 		);
 	}
 }

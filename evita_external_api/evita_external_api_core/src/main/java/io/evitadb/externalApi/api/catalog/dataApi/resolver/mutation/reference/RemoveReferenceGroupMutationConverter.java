@@ -51,7 +51,7 @@ public class RemoveReferenceGroupMutationConverter extends ReferenceMutationConv
 
 	@Nonnull
 	@Override
-	protected RemoveReferenceGroupMutation convert(@Nonnull Input input) {
+	protected RemoveReferenceGroupMutation convertFromInput(@Nonnull Input input) {
 		return new RemoveReferenceGroupMutation(resolveReferenceKey(input));
 	}
 }

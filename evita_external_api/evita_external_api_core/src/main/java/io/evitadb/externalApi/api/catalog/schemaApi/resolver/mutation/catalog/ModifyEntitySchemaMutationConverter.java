@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.EntitySchemaMutationAggregateConverter;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
@@ -61,8 +62,8 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 
 	@Nonnull
 	@Override
-	protected ModifyEntitySchemaMutation convert(@Nonnull Input input) {
-		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredField(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
+	protected ModifyEntitySchemaMutation convertFromInput(@Nonnull Input input) {
+		final List<Object> inputEntitySchemaMutations = Optional.of(input.getRequiredProperty(ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof List<?>,
@@ -73,12 +74,21 @@ public class ModifyEntitySchemaMutationConverter extends LocalCatalogSchemaMutat
 			})
 			.get();
 		final EntitySchemaMutation[] entitySchemaMutations = inputEntitySchemaMutations.stream()
-			.flatMap(m -> entitySchemaMutationAggregateResolver.convert(m).stream())
+			.flatMap(m -> entitySchemaMutationAggregateResolver.convertFromInput(m).stream())
 			.toArray(EntitySchemaMutation[]::new);
 
 		return new ModifyEntitySchemaMutation(
-			input.getField(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
+			input.getProperty(ModifyEntitySchemaMutationDescriptor.ENTITY_TYPE),
 			entitySchemaMutations
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull ModifyEntitySchemaMutation mutation, @Nonnull Output output) {
+		output.setProperty(
+			ModifyEntitySchemaMutationDescriptor.SCHEMA_MUTATIONS,
+			entitySchemaMutationAggregateResolver.convertToOutput(mutation.getSchemaMutations())
+		);
+		super.convertToOutput(mutation, output);
 	}
 }

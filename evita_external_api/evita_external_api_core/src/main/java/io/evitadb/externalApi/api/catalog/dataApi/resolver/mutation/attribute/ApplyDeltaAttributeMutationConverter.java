@@ -37,6 +37,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -68,7 +69,7 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 
 	@Nonnull
 	@Override
-	protected ApplyDeltaAttributeMutation<?> convert(@Nonnull Input input) {
+	protected ApplyDeltaAttributeMutation<?> convertFromInput(@Nonnull Input input) {
 		final AttributeKey attributeKey = resolveAttributeKey(input);
 
 		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName())
@@ -78,35 +79,42 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 		if (valueType.isAssignableFrom(BigDecimal.class)) {
 			return new ApplyDeltaAttributeMutation<>(
 				attributeKey,
-				input.getRequiredField(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), BigDecimal.class),
-				input.getOptionalField(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), BigDecimalNumberRange.class)
+				input.getRequiredProperty(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), BigDecimal.class),
+				input.getOptionalProperty(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), BigDecimalNumberRange.class)
 			);
 		} else if (valueType.isAssignableFrom(Byte.class)) {
 			return new ApplyDeltaAttributeMutation<>(
 				attributeKey,
-				input.getRequiredField(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Byte.class),
-				input.getOptionalField(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), ByteNumberRange.class)
+				input.getRequiredProperty(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Byte.class),
+				input.getOptionalProperty(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), ByteNumberRange.class)
 			);
 		} else if (valueType.isAssignableFrom(Short.class)) {
 			return new ApplyDeltaAttributeMutation<>(
 				attributeKey,
-				input.getRequiredField(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Short.class),
-				input.getOptionalField(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), ShortNumberRange.class)
+				input.getRequiredProperty(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Short.class),
+				input.getOptionalProperty(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), ShortNumberRange.class)
 			);
 		} else if (valueType.isAssignableFrom(Integer.class)) {
 			return new ApplyDeltaAttributeMutation<>(
 				attributeKey,
-				input.getRequiredField(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Integer.class),
-				input.getOptionalField(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), IntegerNumberRange.class)
+				input.getRequiredProperty(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Integer.class),
+				input.getOptionalProperty(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), IntegerNumberRange.class)
 			);
 		} else if (valueType.isAssignableFrom(Long.class)) {
 			return new ApplyDeltaAttributeMutation<>(
 				attributeKey,
-				input.getRequiredField(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Long.class),
-				input.getOptionalField(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), LongNumberRange.class)
+				input.getRequiredProperty(ApplyDeltaAttributeMutationDescriptor.DELTA.name(), Long.class),
+				input.getOptionalProperty(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION.name(), LongNumberRange.class)
 			);
 		} else {
 			throw getExceptionFactory().createInvalidArgumentException("Attribute `" + attributeKey.attributeName() + "` supports only numbers.");
 		}
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull ApplyDeltaAttributeMutation<?> mutation, @Nonnull Output output) {
+		output.setProperty(ApplyDeltaAttributeMutationDescriptor.DELTA, mutation.getDelta());
+		output.setProperty(ApplyDeltaAttributeMutationDescriptor.REQUIRED_RANGE_AFTER_APPLICATION, mutation.getRequiredRangeAfterApplication());
+		super.convertToOutput(mutation, output);
 	}
 }

@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -52,11 +53,18 @@ public class SetReferenceGroupMutationConverter extends ReferenceMutationConvert
 
 	@Nonnull
 	@Override
-	protected SetReferenceGroupMutation convert(@Nonnull Input input) {
+	protected SetReferenceGroupMutation convertFromInput(@Nonnull Input input) {
 		return new SetReferenceGroupMutation(
 			resolveReferenceKey(input),
-			input.getField(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
-			input.getField(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
+			input.getProperty(SetReferenceGroupMutationDescriptor.GROUP_TYPE),
+			input.getProperty(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull SetReferenceGroupMutation mutation, @Nonnull Output output) {
+		output.setProperty(SetReferenceGroupMutationDescriptor.GROUP_TYPE, mutation.getGroupType());
+		output.setProperty(SetReferenceGroupMutationDescriptor.GROUP_PRIMARY_KEY, mutation.getGroupPrimaryKey());
+		super.convertToOutput(mutation, output);
 	}
 }

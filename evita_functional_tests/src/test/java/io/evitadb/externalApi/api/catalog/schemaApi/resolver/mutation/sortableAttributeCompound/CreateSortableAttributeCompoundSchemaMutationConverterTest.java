@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -67,7 +67,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			new AttributeElement("b", OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 		);
 
-		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convert(
+		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -88,7 +88,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateSortableAttributeCompoundSchemaMutation convertedMutation2 = converter.convert(
+		final CreateSortableAttributeCompoundSchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -118,7 +118,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 			new AttributeElement("a", OrderDirection.ASC, OrderBehaviour.NULLS_FIRST)
 		);
 
-		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convert(
+		final CreateSortableAttributeCompoundSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
@@ -137,7 +137,7 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(CreateSortableAttributeCompoundSchemaMutationDescriptor.ATTRIBUTE_ELEMENTS.name(), List.of(
 						map()
@@ -151,13 +151,13 @@ class CreateSortableAttributeCompoundSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(SortableAttributeCompoundSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

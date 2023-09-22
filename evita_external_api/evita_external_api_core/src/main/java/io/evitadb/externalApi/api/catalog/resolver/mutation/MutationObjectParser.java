@@ -39,4 +39,8 @@ public interface MutationObjectParser {
 	 */
 	@Nullable
 	Object parse(@Nullable Object inputMutationObject);
+
+	// todo lho docs
+	@Nullable
+	Object serialize(@Nullable Object outputMutationObject);
 }

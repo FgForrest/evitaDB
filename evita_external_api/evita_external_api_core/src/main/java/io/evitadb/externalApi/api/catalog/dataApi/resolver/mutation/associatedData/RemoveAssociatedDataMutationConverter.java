@@ -51,7 +51,7 @@ public class RemoveAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	@Override
-	protected RemoveAssociatedDataMutation convert(@Nonnull Input input) {
+	protected RemoveAssociatedDataMutation convertFromInput(@Nonnull Input input) {
 		return new RemoveAssociatedDataMutation(resolveAssociatedDataKey(input));
 	}
 }

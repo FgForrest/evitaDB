@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Test;
 import java.util.EnumSet;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -93,7 +93,7 @@ class ReferenceAttributeMutationConverterTest {
 			new RemoveAttributeMutation(ATTRIBUTE_CODE)
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -114,7 +114,7 @@ class ReferenceAttributeMutationConverterTest {
 			new UpsertAttributeMutation(ATTRIBUTE_ALT_CODE, "phone")
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -137,7 +137,7 @@ class ReferenceAttributeMutationConverterTest {
 			new ApplyDeltaAttributeMutation<>(ATTRIBUTE_QUANTITY, 10)
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -156,7 +156,7 @@ class ReferenceAttributeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
@@ -169,7 +169,7 @@ class ReferenceAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name(), map()
@@ -182,22 +182,22 @@ class ReferenceAttributeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMultipleAttributeMutationsArePresent() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ReferenceAttributeMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.e(ReferenceAttributeMutationDescriptor.PRIMARY_KEY.name(), 1)

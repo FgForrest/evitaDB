@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -60,7 +60,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 			Locale.ENGLISH
 		);
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
 					Locale.FRENCH,
@@ -70,7 +70,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation2 = converter.convert(
+		final AllowLocaleInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of(
 					"fr", "en"
@@ -83,7 +83,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final AllowLocaleInEntitySchemaMutation expectedMutation = new AllowLocaleInEntitySchemaMutation();
 
-		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final AllowLocaleInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AllowLocaleInEntitySchemaMutationDescriptor.LOCALES.name(), List.of())
 				.build()
@@ -93,7 +93,7 @@ class AllowLocaleInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

@@ -76,7 +76,7 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 		final JsonNode inputMutations = requestData.getMutations()
 			.orElseThrow(() -> new RestInvalidArgumentException("Mutations are not set in request data."));
 		for (Iterator<JsonNode> schemaMutationsIterator = inputMutations.elements(); schemaMutationsIterator.hasNext(); ) {
-			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
+			schemaMutations.addAll(mutationAggregateResolver.convertFromInput(schemaMutationsIterator.next()));
 		}
 
 		final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(

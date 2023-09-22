@@ -33,6 +33,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.attribute.Re
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -65,9 +66,9 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 
 	@Nonnull
 	@Override
-	protected ReferenceAttributeMutation convert(@Nonnull Input input) {
+	protected ReferenceAttributeMutation convertFromInput(@Nonnull Input input) {
 		final ReferenceKey referenceKey = resolveReferenceKey(input);
-		final Map<String, Object> inputAttributeMutation = Optional.of(input.getRequiredField(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name()))
+		final Map<String, Object> inputAttributeMutation = Optional.of(input.getRequiredProperty(ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name()))
 			.map(m -> {
 				Assert.isTrue(
 					m instanceof Map<?, ?>,
@@ -87,12 +88,27 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 			getObjectParser(),
 			getExceptionFactory()
 		);
-		final List<AttributeMutation> attributeMutations = attributeMutationAggregateResolver.convert(inputAttributeMutation);
+		final List<AttributeMutation> attributeMutations = attributeMutationAggregateResolver.convertFromInput(inputAttributeMutation);
 		Assert.isTrue(
 			attributeMutations.size() == 1,
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 
 		return new ReferenceAttributeMutation(referenceKey, attributeMutations.get(0));
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull ReferenceAttributeMutation mutation, @Nonnull Output output) {
+		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
+			entitySchema.getReferenceOrThrowException(mutation.getReferenceKey().referenceName()),
+			getObjectParser(),
+			getExceptionFactory()
+		);
+		output.setProperty(
+			ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION,
+			attributeMutationAggregateResolver.convertToOutput(mutation.getAttributeMutation())
+		);
+
+		super.convertToOutput(mutation, output);
 	}
 }

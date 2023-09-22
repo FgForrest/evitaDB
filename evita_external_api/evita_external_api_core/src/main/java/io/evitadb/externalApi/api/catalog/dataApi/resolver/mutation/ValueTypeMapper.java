@@ -32,6 +32,7 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -122,12 +123,12 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 	}
 
 	@Override
-	public Class<? extends Serializable> apply(@Nonnull Object rawField) {
-		if (rawField instanceof Class<?> valueType) {
+	public Class<? extends Serializable> apply(@Nonnull Object rawPropertyValue) {
+		if (rawPropertyValue instanceof Class<?> valueType) {
 			//noinspection unchecked
 			return (Class<? extends Serializable>) valueType;
 		}
-		if (rawField instanceof String valueTypeName) {
+		if (rawPropertyValue instanceof String valueTypeName) {
 			final Class<? extends Serializable> valueType = VALUE_TYPE_MAPPINGS.get(valueTypeName);
 			if (valueType == null) {
 				throw exceptionFactory.createInvalidArgumentException("Unknown value type in `" + fieldName + "`.");
@@ -139,13 +140,7 @@ public class ValueTypeMapper implements Function<Object, Class<? extends Seriali
 
 	private static void registerTypeMapping(@Nonnull Map<String, Class<? extends Serializable>> mappings,
 	                                        @Nonnull Class<? extends Serializable> javaType) {
-		final String apiName;
-		if (javaType.isArray()) {
-			apiName = javaType.componentType().getSimpleName() + "Array";
-		} else {
-			apiName = javaType.getSimpleName();
-		}
-
+		final String apiName = DataTypeSerializer.serialize(javaType);
 		mappings.put(apiName, javaType);
 	}
 }

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowEvolutionMo
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowEvolutionModeInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -53,10 +54,16 @@ public class DisallowEvolutionModeInEntitySchemaMutationConverter extends Entity
 
 	@Nonnull
 	@Override
-	protected DisallowEvolutionModeInEntitySchemaMutation convert(@Nonnull Input input) {
+	protected DisallowEvolutionModeInEntitySchemaMutation convertFromInput(@Nonnull Input input) {
 		return new DisallowEvolutionModeInEntitySchemaMutation(
 			// we need this because we don't support multiple constructors in automatic conversion
-			(EvolutionMode[]) input.getField(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
+			(EvolutionMode[]) input.getProperty(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull DisallowEvolutionModeInEntitySchemaMutation mutation, @Nonnull Output output) {
+		// we need this because we don't support multiple constructors in automatic conversion
+		output.setProperty(DisallowEvolutionModeInEntitySchemaMutationDescriptor.EVOLUTION_MODES, mutation.getEvolutionModes());
 	}
 }

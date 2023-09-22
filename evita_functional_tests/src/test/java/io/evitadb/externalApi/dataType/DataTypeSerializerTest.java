@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.api.resolver.serializer;
+package io.evitadb.externalApi.dataType;
 
 import org.junit.jupiter.api.Test;
 

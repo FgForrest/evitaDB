@@ -146,7 +146,7 @@ public class ObjectJsonSerializer {
 
 		final int arraySize = Array.getLength(values);
 		for (int i = 0; i < arraySize; i++) {
-			final Object item = Array.get(values, 0);
+			final Object item = Array.get(values, i);
 			arrayNode.add(serializeObject(item));
 		}
 

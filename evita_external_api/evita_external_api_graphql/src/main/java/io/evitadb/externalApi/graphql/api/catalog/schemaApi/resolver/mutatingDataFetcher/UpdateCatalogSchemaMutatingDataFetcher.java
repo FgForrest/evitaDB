@@ -61,7 +61,7 @@ public class UpdateCatalogSchemaMutatingDataFetcher implements DataFetcher<Catal
 
 		final LocalCatalogSchemaMutation[] schemaMutations = arguments.mutations()
 			.stream()
-			.flatMap(m -> mutationAggregateResolver.convert(m).stream())
+			.flatMap(m -> mutationAggregateResolver.convertFromInput(m).stream())
 			.toArray(LocalCatalogSchemaMutation[]::new);
 
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);

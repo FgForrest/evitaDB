@@ -38,4 +38,10 @@ public class PassThroughMutationObjectParser implements MutationObjectParser {
 	public Object parse(@Nullable Object inputMutationObject) {
 		return inputMutationObject;
 	}
+
+	@Nullable
+	@Override
+	public Object serialize(@Nullable Object outputMutationObject) {
+		return outputMutationObject;
+	}
 }

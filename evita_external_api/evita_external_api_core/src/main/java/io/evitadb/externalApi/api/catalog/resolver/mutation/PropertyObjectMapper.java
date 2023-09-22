@@ -32,11 +32,11 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Converts raw input object field into target object using provided mapper.
+ * Converts raw input object property into target object using provided mapper.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class FieldObjectMapper<T extends Serializable> implements Function<Object, T> {
+public class PropertyObjectMapper<T extends Serializable> implements Function<Object, T> {
 
 	/**
 	 * Name of parent mutation for identification purposes.
@@ -48,46 +48,46 @@ public class FieldObjectMapper<T extends Serializable> implements Function<Objec
 	@Nonnull private final MutationResolvingExceptionFactory exceptionFactory;
 
 	/**
-	 * Descriptor of field to be mapped.
+	 * Name of property to be mapped.
 	 */
-	@Nonnull private final String fieldName;
+	@Nonnull private final String propertyName;
 
 	/**
 	 * Maps raw object to target object.
 	 */
 	@Nonnull private final Function<Input, T> objectMapper;
 
-	public FieldObjectMapper(@Nonnull String mutationName,
-	                         @Nonnull MutationResolvingExceptionFactory exceptionFactory,
-	                         @Nonnull String fieldName,
-	                         @Nonnull Function<Input, T> objectMapper) {
+	public PropertyObjectMapper(@Nonnull String mutationName,
+	                            @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+	                            @Nonnull String propertyName,
+	                            @Nonnull Function<Input, T> objectMapper) {
 		this.mutationName = mutationName;
 		this.exceptionFactory = exceptionFactory;
-		this.fieldName = fieldName;
+		this.propertyName = propertyName;
 		this.objectMapper = objectMapper;
 	}
 
-	public FieldObjectMapper(@Nonnull String mutationName,
-	                         @Nonnull MutationResolvingExceptionFactory exceptionFactory,
-	                         @Nonnull PropertyDescriptor field,
-	                         @Nonnull Function<Input, T> objectMapper) {
+	public PropertyObjectMapper(@Nonnull String mutationName,
+	                            @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+	                            @Nonnull PropertyDescriptor property,
+	                            @Nonnull Function<Input, T> objectMapper) {
 		this(
 			mutationName,
 			exceptionFactory,
-			field.name(),
+			property.name(),
 			objectMapper
 		);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public T apply(@Nonnull Object rawField) {
+	public T apply(@Nonnull Object rawPropertyValue) {
 		Assert.isTrue(
-			rawField instanceof Map<?, ?>,
-			() -> exceptionFactory.createInvalidArgumentException("Item in field `" + fieldName + "` of mutation `" + mutationName + "` is expected to be an object.")
+			rawPropertyValue instanceof Map<?, ?>,
+			() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an object.")
 		);
 
-		final Map<String, Object> element = (Map<String, Object>) rawField;
+		final Map<String, Object> element = (Map<String, Object>) rawPropertyValue;
 		return objectMapper.apply(new Input(mutationName, element, exceptionFactory));
 	}
 }

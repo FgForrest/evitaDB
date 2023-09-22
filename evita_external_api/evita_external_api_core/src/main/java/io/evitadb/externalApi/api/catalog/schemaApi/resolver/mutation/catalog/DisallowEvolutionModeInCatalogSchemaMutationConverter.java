@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionM
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -53,10 +54,16 @@ public class DisallowEvolutionModeInCatalogSchemaMutationConverter extends Local
 
 	@Nonnull
 	@Override
-	protected DisallowEvolutionModeInCatalogSchemaMutation convert(@Nonnull Input input) {
+	protected DisallowEvolutionModeInCatalogSchemaMutation convertFromInput(@Nonnull Input input) {
 		// there are 2 constructors, which we don't support currently
 		return new DisallowEvolutionModeInCatalogSchemaMutation(
-			(CatalogEvolutionMode[]) input.getField(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
+			(CatalogEvolutionMode[]) input.getProperty(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull DisallowEvolutionModeInCatalogSchemaMutation mutation, @Nonnull Output output) {
+		// there are 2 constructors, which we don't support currently
+		output.setProperty(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.EVOLUTION_MODES, mutation.getEvolutionModes());
 	}
 }

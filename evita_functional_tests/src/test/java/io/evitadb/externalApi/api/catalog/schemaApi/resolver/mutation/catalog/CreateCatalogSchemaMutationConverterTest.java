@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,7 +54,7 @@ public class CreateCatalogSchemaMutationConverterTest {
 	@Test
 	void shouldResolverInputToLocalMutation() {
 		final CreateCatalogSchemaMutation expectedMutation = new CreateCatalogSchemaMutation("testCatalog");
-		final CreateCatalogSchemaMutation convertedMutation = converter.convert(
+		final CreateCatalogSchemaMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(CreateCatalogSchemaMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.build()
@@ -64,7 +64,7 @@ public class CreateCatalogSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -60,7 +60,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 			true
 		);
 
-		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation1 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
@@ -69,7 +69,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation2 = converter.convert(
+		final ModifyReferenceSchemaRelatedEntityMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(ReferenceSchemaMutationDescriptor.NAME.name(), "tags")
 				.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
@@ -83,7 +83,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
@@ -92,7 +92,7 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE_MANAGED.name(), true)
@@ -101,14 +101,14 @@ class ModifyReferenceSchemaRelatedEntityMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.NAME.name(), "tags")
 					.e(ModifyReferenceSchemaRelatedEntityMutationDescriptor.REFERENCED_ENTITY_TYPE.name(), "tag")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

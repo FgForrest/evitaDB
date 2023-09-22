@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -55,7 +55,7 @@ class UseGlobalAttributeSchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final UseGlobalAttributeSchemaMutation expectedMutation = new UseGlobalAttributeSchemaMutation("code");
 
-		final UseGlobalAttributeSchemaMutation convertedMutation = converter.convert(
+		final UseGlobalAttributeSchemaMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.build()
@@ -65,7 +65,7 @@ class UseGlobalAttributeSchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

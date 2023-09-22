@@ -34,11 +34,11 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Converts raw input list field into target object array using provided item mapper.
+ * Converts raw input list property into target object array using provided item mapper.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class FieldObjectListMapper<T extends Serializable> implements Function<Object, T[]> {
+public class PropertyObjectListMapper<T extends Serializable> implements Function<Object, T[]> {
 
 	/**
 	 * Name of parent mutation for identification purposes.
@@ -50,9 +50,9 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 	@Nonnull private final MutationResolvingExceptionFactory exceptionFactory;
 
 	/**
-	 * Descriptor of field to be mapped.
+	 * Name of property to be mapped.
 	 */
-	@Nonnull private final String fieldName;
+	@Nonnull private final String propertyName;
 	/**
 	 * Target item type.
 	 */
@@ -63,27 +63,27 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 	 */
 	@Nonnull private final Function<Input, T> objectMapper;
 
-	public FieldObjectListMapper(@Nonnull String mutationName,
-	                             @Nonnull MutationResolvingExceptionFactory exceptionFactory,
-	                             @Nonnull String fieldName,
-	                             @Nonnull Class<T> objectType,
-	                             @Nonnull Function<Input, T> objectMapper) {
+	public PropertyObjectListMapper(@Nonnull String mutationName,
+	                                @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+	                                @Nonnull String propertyName,
+	                                @Nonnull Class<T> objectType,
+	                                @Nonnull Function<Input, T> objectMapper) {
 		this.mutationName = mutationName;
 		this.exceptionFactory = exceptionFactory;
-		this.fieldName = fieldName;
+		this.propertyName = propertyName;
 		this.objectType = objectType;
 		this.objectMapper = objectMapper;
 	}
 
-	public FieldObjectListMapper(@Nonnull String mutationName,
-	                             @Nonnull MutationResolvingExceptionFactory exceptionFactory,
-	                             @Nonnull PropertyDescriptor field,
-	                             @Nonnull Class<T> objectType,
-	                             @Nonnull Function<Input, T> objectMapper) {
+	public PropertyObjectListMapper(@Nonnull String mutationName,
+	                                @Nonnull MutationResolvingExceptionFactory exceptionFactory,
+	                                @Nonnull PropertyDescriptor property,
+	                                @Nonnull Class<T> objectType,
+	                                @Nonnull Function<Input, T> objectMapper) {
 		this(
 			mutationName,
 			exceptionFactory,
-			field.name(),
+			property.name(),
 			objectType,
 			objectMapper
 		);
@@ -92,18 +92,18 @@ public class FieldObjectListMapper<T extends Serializable> implements Function<O
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public T[] apply(@Nonnull Object rawField) {
+	public T[] apply(@Nonnull Object rawPropertyValue) {
 		Assert.isTrue(
-			rawField instanceof List<?>,
-			() -> exceptionFactory.createInvalidArgumentException("Field `" + fieldName + "` of mutation `" + mutationName + "` is expected to be an array.")
+			rawPropertyValue instanceof List<?>,
+			() -> exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an array.")
 		);
 
-		final List<Object> rawElements = (List<Object>) rawField;
+		final List<Object> rawElements = (List<Object>) rawPropertyValue;
 		return rawElements.stream()
 			.map(rawElement -> {
 				Assert.isTrue(
 					rawElement instanceof Map<?, ?>,
-					() -> exceptionFactory.createInvalidArgumentException("Item in field `" + fieldName + "` of mutation `" + mutationName + "` is expected to be an object.")
+					() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + mutationName + "` is expected to be an object.")
 				);
 
 				final Map<String, Object> element = (Map<String, Object>) rawElement;

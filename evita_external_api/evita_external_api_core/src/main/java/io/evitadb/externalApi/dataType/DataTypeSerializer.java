@@ -21,53 +21,30 @@
  *   limitations under the License.
  */
 
-package io.evitadb.test.builder;
+package io.evitadb.externalApi.dataType;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.Currency;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
 
 /**
- * Convenient map builder that uses {@link LinkedHashMap} to preserve order of keys. It is alternative to {@link Map#of()}.
+ * Generic serializer of evitaDB supported data types.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class MapBuilder {
+public class DataTypeSerializer {
 
-	private final Map<String, Object> map = new LinkedHashMap<>();
-
-	public static MapBuilder map() {
-		return new MapBuilder();
-	}
-
-	public Object get(@Nonnull String key) {
-		return map.get(key);
-	}
-
-	public MapBuilder e(@Nonnull String key, @Nullable Object value) {
-		if (value instanceof MapBuilder mapBuilder) {
-			map.put(key, mapBuilder.build());
+	/**
+	 * Serializes Java data type into API string.
+	 */
+	@Nonnull
+	public static String serialize(@Nonnull Class<?> dataType) {
+		if (dataType.isArray()) {
+			return dataType.componentType().getSimpleName() + "Array";
 		} else {
-			map.put(key, value);
+			return dataType.getSimpleName();
 		}
-		return this;
-	}
-
-	public boolean isEmpty() {
-		return map.isEmpty();
-	}
-
-	public Map<String, Object> build() {
-		return Collections.unmodifiableMap(map);
 	}
 }

@@ -50,20 +50,20 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class TopLevelCatalogSchemaMutationAggregateConverter extends MutationAggregateConverter<TopLevelCatalogSchemaMutation, TopLevelCatalogSchemaMutationConverter<? extends TopLevelCatalogSchemaMutation>> {
+public class TopLevelCatalogSchemaMutationAggregateConverter extends MutationAggregateConverter<TopLevelCatalogSchemaMutation, TopLevelCatalogSchemaMutationConverter<TopLevelCatalogSchemaMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, TopLevelCatalogSchemaMutationConverter<? extends TopLevelCatalogSchemaMutation>> converters = createHashMap(5);
+	private final Map<String, TopLevelCatalogSchemaMutationConverter<TopLevelCatalogSchemaMutation>> converters = createHashMap(5);
 
 	public TopLevelCatalogSchemaMutationAggregateConverter(@Nonnull MutationObjectParser objectParser,
 	                                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 
-		this.converters.put(CREATE_CATALOG_SCHEMA_MUTATION.name(), new CreateCatalogSchemaMutationConverter(objectParser, exceptionFactory));
-		this.converters.put(MODIFY_CATALOG_SCHEMA_MUTATION.name(), new ModifyCatalogSchemaMutationConverter(objectParser, exceptionFactory));
-		this.converters.put(MODIFY_CATALOG_SCHEMA_NAME_MUTATION.name(), new ModifyCatalogSchemaNameMutationConverter(objectParser, exceptionFactory));
-		this.converters.put(REMOVE_CATALOG_SCHEMA_MUTATION.name(), new RemoveCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(CREATE_CATALOG_SCHEMA_MUTATION.name(), new CreateCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_CATALOG_SCHEMA_MUTATION.name(), new ModifyCatalogSchemaMutationConverter(objectParser, exceptionFactory));
+		registerConverter(MODIFY_CATALOG_SCHEMA_NAME_MUTATION.name(), new ModifyCatalogSchemaNameMutationConverter(objectParser, exceptionFactory));
+		registerConverter(REMOVE_CATALOG_SCHEMA_MUTATION.name(), new RemoveCatalogSchemaMutationConverter(objectParser, exceptionFactory));
 	}
 
 	@Nonnull

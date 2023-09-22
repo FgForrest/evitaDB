@@ -51,7 +51,7 @@ public class RemoveReferenceMutationConverter extends ReferenceMutationConverter
 
 	@Nonnull
 	@Override
-	protected RemoveReferenceMutation convert(@Nonnull Input input) {
+	protected RemoveReferenceMutation convertFromInput(@Nonnull Input input) {
 		return new RemoveReferenceMutation(resolveReferenceKey(input));
 	}
 }

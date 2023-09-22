@@ -35,7 +35,7 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -60,7 +60,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 			Currency.getInstance("USD")
 		);
 
-		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of(
 					Currency.getInstance("CZK"),
@@ -70,7 +70,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final DisallowCurrencyInEntitySchemaMutation convertedMutation2 = converter.convert(
+		final DisallowCurrencyInEntitySchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of("CZK", "USD"))
 				.build()
@@ -81,7 +81,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final DisallowCurrencyInEntitySchemaMutation expectedMutation = new DisallowCurrencyInEntitySchemaMutation();
 
-		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convert(
+		final DisallowCurrencyInEntitySchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(DisallowCurrencyInEntitySchemaMutationDescriptor.CURRENCIES.name(), List.of())
 				.build()
@@ -91,7 +91,7 @@ class DisallowCurrencyInEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

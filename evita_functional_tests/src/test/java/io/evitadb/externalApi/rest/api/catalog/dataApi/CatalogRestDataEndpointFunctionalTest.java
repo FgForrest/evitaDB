@@ -45,7 +45,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDe
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAssociatedDataDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.SectionedAttributesDescriptor;
 import io.evitadb.externalApi.rest.api.testSuite.RestEndpointFunctionalTest;
-import io.evitadb.test.builder.MapBuilder;
+import io.evitadb.utils.MapBuilder;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 
@@ -63,7 +63,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAssociatedDataKeysByLocale;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer.separateAttributeKeysByLocale;
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 
 /**
  * Ancestor for tests for REST catalog endpoint.

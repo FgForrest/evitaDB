@@ -30,6 +30,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -48,8 +49,14 @@ public abstract class AttributeMutationConverter<M extends AttributeMutation> ex
 	@Nonnull
 	protected AttributeKey resolveAttributeKey(@Nonnull Input input) {
 		return new AttributeKey(
-			input.getField(AttributeMutationDescriptor.NAME),
-			input.getField(AttributeMutationDescriptor.LOCALE)
+			input.getProperty(AttributeMutationDescriptor.NAME),
+			input.getProperty(AttributeMutationDescriptor.LOCALE)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		output.setProperty(AttributeMutationDescriptor.NAME, mutation.getAttributeKey().attributeName());
+		output.setProperty(AttributeMutationDescriptor.LOCALE, mutation.getAttributeKey().locale().toString());
 	}
 }

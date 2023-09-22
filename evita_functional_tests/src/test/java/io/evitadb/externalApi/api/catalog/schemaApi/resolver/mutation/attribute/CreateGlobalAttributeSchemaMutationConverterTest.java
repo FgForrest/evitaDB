@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -69,7 +69,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			2
 		);
 
-		final CreateGlobalAttributeSchemaMutation convertedMutation1 = converter.convert(
+		final CreateGlobalAttributeSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -87,7 +87,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final CreateGlobalAttributeSchemaMutation convertedMutation2 = converter.convert(
+		final CreateGlobalAttributeSchemaMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
@@ -122,7 +122,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			0
 		);
 
-		final CreateGlobalAttributeSchemaMutation convertedMutation1 = converter.convert(
+		final CreateGlobalAttributeSchemaMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
@@ -135,7 +135,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 					.build()
@@ -143,13 +143,13 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

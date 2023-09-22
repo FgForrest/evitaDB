@@ -29,6 +29,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutatio
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 
 import javax.annotation.Nonnull;
 
@@ -52,11 +53,18 @@ public class InsertReferenceMutationConverter extends ReferenceMutationConverter
 
 	@Nonnull
 	@Override
-	protected InsertReferenceMutation convert(@Nonnull Input input) {
+	protected InsertReferenceMutation convertFromInput(@Nonnull Input input) {
 		return new InsertReferenceMutation(
 			resolveReferenceKey(input),
-			input.getField(InsertReferenceMutationDescriptor.CARDINALITY),
-			input.getField(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE)
+			input.getProperty(InsertReferenceMutationDescriptor.CARDINALITY),
+			input.getProperty(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull InsertReferenceMutation mutation, @Nonnull Output output) {
+		output.setProperty(InsertReferenceMutationDescriptor.CARDINALITY, mutation.getReferenceCardinality());
+		output.setProperty(InsertReferenceMutationDescriptor.REFERENCED_ENTITY_TYPE, mutation.getReferencedEntityType());
+		super.convertToOutput(mutation, output);
 	}
 }

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Currency;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -57,7 +57,7 @@ class RemovePriceMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final RemovePriceMutation expectedMutation = new RemovePriceMutation(1, "basic", Currency.getInstance("CZK"));
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -66,7 +66,7 @@ class RemovePriceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(RemovePriceMutationDescriptor.PRICE_ID.name(), "1")
 				.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -80,7 +80,7 @@ class RemovePriceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -89,7 +89,7 @@ class RemovePriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(RemovePriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
@@ -98,14 +98,14 @@ class RemovePriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(RemovePriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.e(RemovePriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

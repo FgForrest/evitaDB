@@ -40,7 +40,7 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -76,7 +76,7 @@ class UpsertPriceMutationConverterTest {
 			true
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -91,7 +91,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -121,7 +121,7 @@ class UpsertPriceMutationConverterTest {
 			false
 		);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 				.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -139,7 +139,7 @@ class UpsertPriceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -152,7 +152,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -165,7 +165,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -178,7 +178,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -191,7 +191,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
@@ -204,7 +204,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_ID.name(), 1)
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
@@ -217,7 +217,7 @@ class UpsertPriceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertPriceMutationDescriptor.PRICE_LIST.name(), "basic")
 					.e(UpsertPriceMutationDescriptor.CURRENCY.name(), Currency.getInstance("CZK"))
@@ -228,7 +228,7 @@ class UpsertPriceMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

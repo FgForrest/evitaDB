@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -58,7 +58,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 			"testCatalog2",
 			true
 		);
-		final ModifyCatalogSchemaNameMutation convertedMutation = converter.convert(
+		final ModifyCatalogSchemaNameMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 				.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "testCatalog2")
@@ -70,10 +70,10 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "testCatalog2")
@@ -82,7 +82,7 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyCatalogSchemaNameMutationDescriptor.CATALOG_NAME.name(), "testCatalog")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
@@ -91,13 +91,13 @@ public class ModifyCatalogSchemaNameMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyCatalogSchemaNameMutationDescriptor.NEW_CATALOG_NAME.name(), "testCatalog2")
 					.e(ModifyCatalogSchemaNameMutationDescriptor.OVERWRITE_TARGET.name(), true)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

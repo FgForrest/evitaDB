@@ -25,9 +25,12 @@ package io.evitadb.externalApi.api.catalog.resolver.mutation;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
+import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +40,10 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -76,14 +82,25 @@ public abstract class MutationConverter<M extends Mutation> {
 	@Getter(AccessLevel.PROTECTED)
 	private final MutationResolvingExceptionFactory exceptionFactory;
 
+	// todo lho this would be fine to have it central but it would be hard to do, we have to much mutations
+	@Getter(AccessLevel.PROTECTED)
+	private final ReflectionLookup reflectionLookup = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
+
 	/**
 	 * Resolve raw input local mutation parsed from JSON into actual {@link Mutation} based on implementation of
 	 * resolver.
 	 */
 	@Nonnull
-	public M convert(@Nullable Object rawInputMutationObject) {
+	public M convertFromInput(@Nullable Object rawInputMutationObject) {
 		final Object inputMutationObject = objectParser.parse(rawInputMutationObject);
-		return convert(new Input(getMutationName(), inputMutationObject, exceptionFactory));
+		return convertFromInput(new Input(getMutationName(), inputMutationObject, exceptionFactory));
+	}
+
+	@Nonnull
+	public Object convertToOutput(@Nonnull M mutation) {
+		final Output output = new Output(getMutationName(), exceptionFactory);
+		convertToOutput(mutation, output);
+		return objectParser.serialize(output.getOutputMutationObject());
 	}
 
 	/**
@@ -91,14 +108,88 @@ public abstract class MutationConverter<M extends Mutation> {
 	 * resolver.
 	 */
 	@Nonnull
-	protected M convert(@Nonnull Input input) {
+	protected M convertFromInput(@Nonnull Input input) {
 		final Class<M> mutationClass = getMutationClass();
 		//noinspection unchecked
-		return (M) convertObject(input, mutationClass);
+		return (M) convertObjectFromInput(input, mutationClass);
+	}
+
+	protected void convertToOutput(@Nonnull M mutation, @Nonnull Output output) {
+		convertObjectToOutput(mutation, output);
+	}
+
+	// todo lho docs
+	private void convertObjectToOutput(@Nonnull Object object, @Nonnull Output output) {
+		final Class<?> objectType = object.getClass();
+		final Constructor<?>[] constructors = objectType.getConstructors();
+		Assert.isPremiseValid(
+			constructors.length == 1,
+			() -> new ExternalApiInternalError("Mutation class must have exactly one public constructor for automatic conversion. The `" + getMutationName() + "` doesn't have any or more than one.")
+		);
+		final Constructor<?> constructor = constructors[0];
+
+		if (constructor.getParameterCount() == 0) {
+			output.setValue(true);
+		} else {
+			final Parameter[] parameters = constructor.getParameters();
+			for (int i = 0; i < constructor.getParameterCount(); i++) {
+				final Parameter parameter = parameters[i];
+
+				final String name = parameter.getName();
+				if (output.hasProperty(name)) {
+					// the property has been set manually, we don't want to override it
+					continue;
+				}
+
+				final Class<?> type = parameter.getType();
+
+				final Method getter = reflectionLookup.findGetter(objectType, name);
+				Assert.isPremiseValid(
+					getter != null,
+					() -> exceptionFactory.createInternalError("Could not find getter for property `" + name + "` in mutation `" + getMutationName() + "`.")
+				);
+
+				final Object originalValue;
+				try {
+					originalValue = getter.invoke(object);
+				} catch (IllegalAccessException | InvocationTargetException e) {
+					throw exceptionFactory.createInternalError("Could not invoke getter for property `" + name + "` in mutation `" + getMutationName() + "`.");
+				}
+
+				final Object targetValue;
+				if (Class.class.isAssignableFrom(type)) {
+					targetValue = DataTypeSerializer.serialize(type);
+				} else if (
+					EvitaDataTypes.isSupportedTypeOrItsArray(type) ||
+					type.isEnum() ||
+					(type.isArray() && type.getComponentType().isEnum())
+				) {
+					targetValue = originalValue;
+				} else {
+					if (type.isArray()) {
+						final int arraySize = Array.getLength(originalValue);
+						final List<Object> targetList = new ArrayList<>(arraySize);
+						for (int j = 0; j < arraySize; j++) {
+							final Object item = Array.get(originalValue, 0);
+
+							final Output innerItemOutput = new Output(getMutationName(), exceptionFactory);
+							convertObjectToOutput(item, innerItemOutput);
+							targetList.set(i, innerItemOutput.getOutputMutationObject());
+						}
+						targetValue = targetList;
+					} else {
+						final Output innerOutput = new Output(getMutationName(), exceptionFactory);
+						convertObjectToOutput(originalValue, innerOutput);
+						targetValue = innerOutput.getOutputMutationObject();
+					}
+				}
+				output.setProperty(name, targetValue);
+			}
+		}
 	}
 
 	@Nonnull
-	private Object convertObject(@Nonnull Input input, @Nonnull Class<?> outputType) {
+	private Object convertObjectFromInput(@Nonnull Input input, @Nonnull Class<?> outputType) {
 		final Constructor<?>[] constructors = outputType.getConstructors();
 		Assert.isPremiseValid(
 			constructors.length == 1,
@@ -106,7 +197,6 @@ public abstract class MutationConverter<M extends Mutation> {
 		);
 		final Constructor<?> constructor = constructors[0];
 		final Object[] instantiationArgs = new Object[constructor.getParameterCount()];
-		final Parameter[] parameters = constructor.getParameters();
 
 		if (constructor.getParameterCount() == 0) {
 			final Boolean isObjectEnabled = input.getRequiredValue(Boolean.class);
@@ -115,6 +205,7 @@ public abstract class MutationConverter<M extends Mutation> {
 				() -> getExceptionFactory().createInvalidArgumentException("Mutation `" + getMutationName() + "` supports only `true` value.")
 			);
 		} else {
+			final Parameter[] parameters = constructor.getParameters();
 			for (int i = 0; i < constructor.getParameterCount(); i++) {
 				final Parameter parameter = parameters[i];
 
@@ -123,19 +214,19 @@ public abstract class MutationConverter<M extends Mutation> {
 				final boolean required = type.isPrimitive() || parameter.getAnnotation(Nonnull.class) != null;
 
 				if (Class.class.isAssignableFrom(type)) {
-					instantiationArgs[i] = input.getField(name, required, new ValueTypeMapper(getExceptionFactory(), name));
+					instantiationArgs[i] = input.getProperty(name, required, new ValueTypeMapper(getExceptionFactory(), name));
 				} else if (
 					EvitaDataTypes.isSupportedTypeOrItsArray(type) ||
 					type.isEnum() ||
 					(type.isArray() && type.getComponentType().isEnum())
 				) {
 					//noinspection unchecked
-					instantiationArgs[i] = input.getField(name, required, (Class<? extends Serializable>) type);
+					instantiationArgs[i] = input.getProperty(name, required, (Class<? extends Serializable>) type);
 				} else {
 					if (type.isArray()) {
-						instantiationArgs[i] = convertInnerObjectList(input, name, required, type.getComponentType());
+						instantiationArgs[i] = convertInnerObjectListFromInput(input, name, required, type.getComponentType());
 					} else {
-						instantiationArgs[i] = convertInnerObject(input, name, required, type);
+						instantiationArgs[i] = convertInnerObjectFromInput(input, name, required, type);
 					}
 				}
 			}
@@ -150,52 +241,47 @@ public abstract class MutationConverter<M extends Mutation> {
 
 	@SuppressWarnings("unchecked")
 	@Nonnull
-	private Object convertInnerObject(@Nonnull Input input, @Nonnull String fieldName, boolean required, @Nonnull Class<?> type) {
-		return input.getField(
-			fieldName,
+	private Object convertInnerObjectFromInput(@Nonnull Input input, @Nonnull String propertyName, boolean required, @Nonnull Class<?> type) {
+		return input.getProperty(
+			propertyName,
 			required,
-			rawField -> {
+			rawPropertyValue -> {
 				Assert.isTrue(
-					rawField instanceof Map<?, ?>,
-					() -> exceptionFactory.createInvalidArgumentException("Item in field `" + fieldName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+					rawPropertyValue instanceof Map<?, ?>,
+					() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
 				);
 
-				final Map<String, Object> element = (Map<String, Object>) rawField;
-				return convertObject(new Input(getMutationName(), element, exceptionFactory), type);
+				final Map<String, Object> element = (Map<String, Object>) rawPropertyValue;
+				return convertObjectFromInput(new Input(getMutationName(), element, exceptionFactory), type);
 			}
 		);
 	}
 
 	@SuppressWarnings("unchecked")
 	@Nonnull
-	private <T> Object convertInnerObjectList(@Nonnull Input input, @Nonnull String fieldName, boolean required, @Nonnull Class<T> componentType) {
-		return input.getField(
-			fieldName,
+	private <T> Object convertInnerObjectListFromInput(@Nonnull Input input, @Nonnull String propertyName, boolean required, @Nonnull Class<T> componentType) {
+		return input.getProperty(
+			propertyName,
 			required,
-			rawField -> {
+			rawPropertyValue -> {
 				Assert.isTrue(
-					rawField instanceof List<?>,
-					() -> exceptionFactory.createInvalidArgumentException("Field `" + fieldName + "` of mutation `" + getMutationName() + "` is expected to be an array.")
+					rawPropertyValue instanceof List<?>,
+					() -> exceptionFactory.createInvalidArgumentException("Property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an array.")
 				);
 
-				final List<Object> rawElements = (List<Object>) rawField;
+				final List<Object> rawElements = (List<Object>) rawPropertyValue;
 				return rawElements.stream()
 					.map(rawElement -> {
 						Assert.isTrue(
 							rawElement instanceof Map<?, ?>,
-							() -> exceptionFactory.createInvalidArgumentException("Item in field `" + fieldName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
+							() -> exceptionFactory.createInvalidArgumentException("Item in property `" + propertyName + "` of mutation `" + getMutationName() + "` is expected to be an object.")
 						);
 
 						final Map<String, Object> element = (Map<String, Object>) rawElement;
-						return convertObject(new Input(getMutationName(), element, exceptionFactory), componentType);
+						return convertObjectFromInput(new Input(getMutationName(), element, exceptionFactory), componentType);
 					})
 					.toArray(size -> (T[]) Array.newInstance(componentType, size));
 			}
 		);
 	}
-
-	// todo lho implement
-//	@Nonnull
-//	protected abstract Object convert(@Nonnull M mutation);
-
 }

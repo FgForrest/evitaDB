@@ -55,7 +55,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -88,7 +88,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final UpsertAssociatedDataMutation expectedMutation = new UpsertAssociatedDataMutation(ASSOCIATED_DATA_CODE, Locale.ENGLISH, "phone");
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -97,7 +97,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.LOCALE.name(), "en")
@@ -109,7 +109,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "some")
@@ -123,7 +123,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveMutationWithNewAssociatedData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_QUANTITY)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "1.2")
@@ -139,7 +139,7 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldResolveMutationWithComplexDataObject() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_LABELS)
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), map()
@@ -163,7 +163,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		range.add(null);
 		range.add(20L);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), "longNumberRangeAttribute")
 				.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), range)
@@ -185,7 +185,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		fromRange.add(10L);
 		fromRange.add(null);
 
-		final UpsertAssociatedDataMutation localMutation = (UpsertAssociatedDataMutation) converter.convert(
+		final UpsertAssociatedDataMutation localMutation = (UpsertAssociatedDataMutation) converter.convertFromInput(
 			map()
 				.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), "arrayOfRangesAttribute")
 				.e(
@@ -214,7 +214,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), "labels")
 					.build()
@@ -222,7 +222,7 @@ class UpsertAssociatedDataMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "some")
 					.build()
@@ -234,7 +234,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldNotResolveInputWhenIncorrectValueType() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_CODE)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "phone")
@@ -248,7 +248,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	void shouldResolveMutationWithNewAssociatedDataWhenValueTypeIsMissing() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(UpsertAssociatedDataMutationDescriptor.NAME.name(), ASSOCIATED_DATA_QUANTITY)
 					.e(UpsertAssociatedDataMutationDescriptor.VALUE.name(), "1.2")
@@ -259,8 +259,8 @@ class UpsertAssociatedDataMutationConverterTest {
 
 	@Test
 	void shouldNotConvertIfInputMutationIsEmpty() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 
 	@Data

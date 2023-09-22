@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -60,7 +60,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 			3
 		);
 
-		final ModifyAttributeSchemaTypeMutation convertedMutation1 = converter.convert(
+		final ModifyAttributeSchemaTypeMutation convertedMutation1 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), Integer.class)
@@ -69,7 +69,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, convertedMutation1);
 
-		final ModifyAttributeSchemaTypeMutation convertedMutation2 = converter.convert(
+		final ModifyAttributeSchemaTypeMutation convertedMutation2 = converter.convertFromInput(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), "Integer")
@@ -83,7 +83,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), Integer.class)
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 3)
@@ -92,7 +92,7 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 3)
@@ -101,14 +101,14 @@ class ModifyAttributeSchemaTypeMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 					.e(ModifyAttributeSchemaTypeMutationDescriptor.TYPE.name(), Integer.class)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

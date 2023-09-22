@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -55,7 +55,7 @@ class RemoveEntitySchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final RemoveEntitySchemaMutation expectedMutation = new RemoveEntitySchemaMutation("product");
 
-		final RemoveEntitySchemaMutation convertedMutation = converter.convert(
+		final RemoveEntitySchemaMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(RemoveEntitySchemaMutationDescriptor.NAME.name(), "product")
 				.build()
@@ -65,7 +65,7 @@ class RemoveEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

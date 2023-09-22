@@ -51,7 +51,7 @@ public class RemovePriceMutationConverter extends PriceMutationConverter<RemoveP
 
 	@Nonnull
 	@Override
-	protected RemovePriceMutation convert(@Nonnull Input input) {
+	protected RemovePriceMutation convertFromInput(@Nonnull Input input) {
 		return new RemovePriceMutation(resolvePriceKey(input));
 	}
 }

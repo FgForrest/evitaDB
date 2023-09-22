@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -56,7 +56,7 @@ class RemoveReferenceMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutation() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(RemoveReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 				.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
@@ -72,7 +72,7 @@ class RemoveReferenceMutationConverterTest {
 	void shouldNotResolveInputWhenMissingRequiredData() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(RemoveReferenceMutationDescriptor.NAME.name(), REFERENCE_TAGS)
 					.build()
@@ -80,13 +80,13 @@ class RemoveReferenceMutationConverterTest {
 		);
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> converter.convert(
+			() -> converter.convertFromInput(
 				map()
 					.e(RemoveReferenceMutationDescriptor.PRIMARY_KEY.name(), 1)
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

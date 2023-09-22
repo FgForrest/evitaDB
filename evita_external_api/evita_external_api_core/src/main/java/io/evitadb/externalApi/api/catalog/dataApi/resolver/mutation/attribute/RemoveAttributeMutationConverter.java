@@ -51,7 +51,7 @@ public class RemoveAttributeMutationConverter extends AttributeMutationConverter
 
 	@Nonnull
 	@Override
-	protected RemoveAttributeMutation convert(@Nonnull Input input) {
+	protected RemoveAttributeMutation convertFromInput(@Nonnull Input input) {
 		return new RemoveAttributeMutation(resolveAttributeKey(input));
 	}
 }

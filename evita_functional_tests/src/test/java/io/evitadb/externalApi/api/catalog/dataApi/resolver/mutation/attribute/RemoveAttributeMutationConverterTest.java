@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -59,7 +59,7 @@ class RemoveAttributeMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final RemoveAttributeMutation expectedMutation = new RemoveAttributeMutation(ATTRIBUTE_CODE, Locale.ENGLISH);
 
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(RemoveAttributeMutationDescriptor.LOCALE.name(), Locale.ENGLISH)
@@ -67,7 +67,7 @@ class RemoveAttributeMutationConverterTest {
 		);
 		assertEquals(expectedMutation, localMutation);
 
-		final LocalMutation<?, ?> localMutation2 = converter.convert(
+		final LocalMutation<?, ?> localMutation2 = converter.convertFromInput(
 			map()
 				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.e(RemoveAttributeMutationDescriptor.LOCALE.name(), "en")
@@ -78,7 +78,7 @@ class RemoveAttributeMutationConverterTest {
 
 	@Test
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
-		final LocalMutation<?, ?> localMutation = converter.convert(
+		final LocalMutation<?, ?> localMutation = converter.convertFromInput(
 			map()
 				.e(RemoveAttributeMutationDescriptor.NAME.name(), ATTRIBUTE_CODE)
 				.build()
@@ -91,7 +91,7 @@ class RemoveAttributeMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

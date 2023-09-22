@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -54,7 +54,7 @@ class CreateEntitySchemaMutationConverterTest {
 	@Test
 	void shouldResolveInputToLocalMutation() {
 		final CreateEntitySchemaMutation expectedMutation = new CreateEntitySchemaMutation("product");
-		final CreateEntitySchemaMutation convertedMutation = converter.convert(
+		final CreateEntitySchemaMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
 				.build()
@@ -64,7 +64,19 @@ class CreateEntitySchemaMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput(Map.of()));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
+	}
+
+	@Test
+	void shouldConvertMutationToOutput() {
+		final Map<String, Object> expectedOutput = map()
+			.e(CreateEntitySchemaMutationDescriptor.ENTITY_TYPE.name(), "product")
+			.build();
+		//noinspection unchecked
+		final Map<String, Object> convertedOutput = (Map<String, Object>) converter.convertToOutput(
+			new CreateEntitySchemaMutation("product")
+		);
+		assertEquals(expectedOutput, convertedOutput);
 	}
 }

@@ -34,10 +34,11 @@ import io.evitadb.dataType.data.JsonToComplexDataObjectConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.model.mutation.associatedData.UpsertAssociatedDataMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.LocalMutationConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
-import io.evitadb.externalApi.api.catalog.resolver.mutation.FieldObjectMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectMapper;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -73,10 +74,10 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	@Override
-	protected UpsertAssociatedDataMutation convert(@Nonnull Input input) {
+	protected UpsertAssociatedDataMutation convertFromInput(@Nonnull Input input) {
 		final AssociatedDataKey associatedDataKey = resolveAssociatedDataKey(input);
 
-		final Class<? extends Serializable> valueType = input.getOptionalField(
+		final Class<? extends Serializable> valueType = input.getOptionalProperty(
 			UpsertAssociatedDataMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAssociatedDataMutationDescriptor.VALUE_TYPE)
 		);
@@ -96,9 +97,9 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 		final Class<? extends Serializable> targetDataType = valueType != null ? valueType : associatedDataSchema.get().getType();
 
 		if (targetDataType.equals(ComplexDataObject.class)) {
-			targetValue = input.getRequiredField(
+			targetValue = input.getRequiredProperty(
 				UpsertAssociatedDataMutationDescriptor.VALUE.name(),
-				new FieldObjectMapper<>(
+				new PropertyObjectMapper<>(
 					getMutationName(),
 					getExceptionFactory(),
 					UpsertAssociatedDataMutationDescriptor.VALUE,
@@ -112,9 +113,16 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 				)
 			);
 		} else {
-			targetValue = input.getRequiredField(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
+			targetValue = input.getRequiredProperty(UpsertAssociatedDataMutationDescriptor.VALUE.name(), targetDataType);
 		}
 
 		return new UpsertAssociatedDataMutation(associatedDataKey, targetValue);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull UpsertAssociatedDataMutation mutation, @Nonnull Output output) {
+		output.setProperty(UpsertAssociatedDataMutationDescriptor.VALUE, mutation.getAssociatedDataValue());
+		output.setProperty(UpsertAssociatedDataMutationDescriptor.VALUE_TYPE, mutation.getAssociatedDataValue().getClass());
+		super.convertToOutput(mutation, output);
 	}
 }

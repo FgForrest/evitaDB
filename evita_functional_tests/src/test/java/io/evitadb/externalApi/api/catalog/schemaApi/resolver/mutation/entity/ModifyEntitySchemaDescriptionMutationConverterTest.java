@@ -33,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static io.evitadb.test.builder.MapBuilder.map;
+import static io.evitadb.utils.MapBuilder.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -55,7 +55,7 @@ class ModifyEntitySchemaDescriptionMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final ModifyEntitySchemaDescriptionMutation expectedMutation = new ModifyEntitySchemaDescriptionMutation("desc");
 
-		final ModifyEntitySchemaDescriptionMutation convertedMutation = converter.convert(
+		final ModifyEntitySchemaDescriptionMutation convertedMutation = converter.convertFromInput(
 			map()
 				.e(ModifyEntitySchemaDescriptionMutationDescriptor.DESCRIPTION.name(), "desc")
 				.build()
@@ -66,12 +66,12 @@ class ModifyEntitySchemaDescriptionMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final ModifyEntitySchemaDescriptionMutation expectedMutation = new ModifyEntitySchemaDescriptionMutation(null);
 
-		final ModifyEntitySchemaDescriptionMutation convertedMutation = converter.convert(Map.of());
+		final ModifyEntitySchemaDescriptionMutation convertedMutation = converter.convertFromInput(Map.of());
 		assertEquals(expectedMutation, convertedMutation);
 	}
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> converter.convert((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> converter.convertFromInput((Object) null));
 	}
 }

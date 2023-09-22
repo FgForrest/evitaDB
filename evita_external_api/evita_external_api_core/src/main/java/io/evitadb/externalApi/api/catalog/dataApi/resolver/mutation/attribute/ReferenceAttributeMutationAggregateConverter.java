@@ -46,20 +46,20 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ReferenceAttributeMutationAggregateConverter extends MutationAggregateConverter<AttributeMutation, AttributeMutationConverter<? extends AttributeMutation>> {
+public class ReferenceAttributeMutationAggregateConverter extends MutationAggregateConverter<AttributeMutation, AttributeMutationConverter<AttributeMutation>> {
 
 	@Nonnull
 	@Getter(AccessLevel.PROTECTED)
-	private final Map<String, AttributeMutationConverter<? extends AttributeMutation>> converters = createHashMap(5);
+	private final Map<String, AttributeMutationConverter<AttributeMutation>> converters = createHashMap(5);
 
 	public ReferenceAttributeMutationAggregateConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
 	                                                    @Nonnull MutationObjectParser objectParser,
 	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
 
-		this.converters.put(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
-		this.converters.put(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
-		this.converters.put(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
+		registerConverter(UPSERT_ATTRIBUTE_MUTATION.name(), new UpsertAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
+		registerConverter(REMOVE_ATTRIBUTE_MUTATION.name(), new RemoveAttributeMutationConverter(objectParser, exceptionFactory));
+		registerConverter(APPLY_DELTA_ATTRIBUTE_MUTATION.name(), new ApplyDeltaAttributeMutationConverter(attributeSchemaProvider, objectParser, exceptionFactory));
 	}
 
 	@Nonnull

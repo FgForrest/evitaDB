@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.mutation.entity.DisallowLocaleInEnt
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
+import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.DisallowLocaleInEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.SchemaMutationConverter;
 
@@ -53,10 +54,16 @@ public class DisallowLocaleInEntitySchemaMutationConverter extends EntitySchemaM
 
 	@Nonnull
 	@Override
-	protected DisallowLocaleInEntitySchemaMutation convert(@Nonnull Input input) {
+	protected DisallowLocaleInEntitySchemaMutation convertFromInput(@Nonnull Input input) {
 		return new DisallowLocaleInEntitySchemaMutation(
 			// we need this because we don't support multiple constructors in automatic conversion
-			(Locale[]) input.getField(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
+			(Locale[]) input.getProperty(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES)
 		);
+	}
+
+	@Override
+	protected void convertToOutput(@Nonnull DisallowLocaleInEntitySchemaMutation mutation, @Nonnull Output output) {
+		// we need this because we don't support multiple constructors in automatic conversion
+		output.setProperty(DisallowLocaleInEntitySchemaMutationDescriptor.LOCALES, mutation.getLocales());
 	}
 }
