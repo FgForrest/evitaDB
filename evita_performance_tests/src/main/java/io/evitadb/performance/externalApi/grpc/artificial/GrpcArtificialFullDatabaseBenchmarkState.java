@@ -26,6 +26,7 @@ package io.evitadb.performance.externalApi.grpc.artificial;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.configuration.CertificateSettings;
 import io.evitadb.externalApi.grpc.GrpcProvider;
@@ -90,13 +91,9 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 		// start grpc server
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(
-				null,
-				new CertificateSettings.Builder().build(),
-				Map.of(
-					GrpcProvider.CODE, new GrpcConfig(),
-					SystemProvider.CODE, new SystemConfig()
-				)
+			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(
+				SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT),
+				GrpcProvider.CODE, new GrpcConfig())
 			),
 			List.of(new GrpcProviderRegistrar(), new SystemProviderRegistrar())
 		);
