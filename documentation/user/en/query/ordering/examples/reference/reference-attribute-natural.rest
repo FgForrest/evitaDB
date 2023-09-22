@@ -27,7 +27,12 @@ POST /rest/evita/product/query
       "referenceGroupsContentWithAttributes" : {
         "attributeContent" : [
           "orderInGroup"
-        ]
+        ],
+        "filterBy" : {
+          "entityHaving" : {
+            "attributeCodeEquals" : "sale"
+          }
+        }
       }
     }
   }

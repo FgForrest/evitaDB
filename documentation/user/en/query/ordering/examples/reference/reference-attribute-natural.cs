@@ -22,6 +22,11 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         			AttributeContent("code"),
         			ReferenceContentWithAttributes(
         				"groups",
+        				FilterBy(
+        					EntityHaving(
+        						AttributeEquals("code", "sale")
+        					)
+        				),
         				AttributeContent("orderInGroup")
         			)
         		)

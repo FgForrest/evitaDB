@@ -23,6 +23,11 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						attributeContent("code"),
 						referenceContentWithAttributes(
 							"groups",
+							filterBy(
+								entityHaving(
+									attributeEquals("code", "sale")
+								)
+							),
 							attributeContent("orderInGroup")
 						)
 					)

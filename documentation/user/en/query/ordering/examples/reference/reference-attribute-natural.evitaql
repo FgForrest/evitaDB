@@ -19,6 +19,11 @@ query(
             attributeContent('code'),
             referenceContentWithAttributes(
                 'groups',
+                filterBy(
+                    entityHaving(
+                        attributeEquals('code','sale')
+                    )
+                ),
                 attributeContent('orderInGroup')
             )
         )

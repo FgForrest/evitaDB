@@ -25,7 +25,13 @@
         attributes {
           code
         }
-        groups {
+        groups(
+          filterBy: {
+          entityHaving: {
+            attributeCodeEquals: "sale"
+          }
+        }
+        ) {
           referencedPrimaryKey
           attributes {
             orderInGroup
