@@ -114,6 +114,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 @RequiredArgsConstructor
 public class EvitaQLExecutable extends JsonExecutable implements Executable, EvitaTestSupport {
 	private static final String REF_LINK = "\uD83D\uDD17 ";
+	private static final String PREDECESSOR_HEAD_SYMBOL = "⎆";
 	private static final String PREDECESSOR_SYMBOL = "↻ ";
 	private static final String ATTR_LINK = ": ";
 	private static final Map<Locale, String> LOCALES = Map.of(
@@ -474,7 +475,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	@Nonnull
 	private static String formatValue(@Nonnull Serializable value) {
 		if (value instanceof Predecessor predecessor) {
-			return PREDECESSOR_SYMBOL + predecessor.predecessorId();
+			return predecessor.isHead() ? PREDECESSOR_HEAD_SYMBOL : PREDECESSOR_SYMBOL + predecessor.predecessorId();
 		} else {
 			return EvitaDataTypes.formatValue(value);
 		}
