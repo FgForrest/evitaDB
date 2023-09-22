@@ -8,22 +8,22 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					referenceHaving(
 						"brand",
 						entityHaving(
-							attributeInSet("code", "sony", "google")
+							attributeInSet("code", "sale", "new")
 						)
 					)
 				),
 				orderBy(
 					referenceProperty(
-						"brand",
-						attributeNatural("orderInBrand", ASC)
+						"groups",
+						attributeNatural("orderInGroup", ASC)
 					)
 				),
 				require(
 					entityFetch(
 						attributeContent("code"),
 						referenceContentWithAttributes(
-							"brand",
-							attributeContent("orderInBrand")
+							"groups",
+							attributeContent("orderInGroup")
 						)
 					)
 				)

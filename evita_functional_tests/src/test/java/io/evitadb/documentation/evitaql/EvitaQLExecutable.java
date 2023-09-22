@@ -48,6 +48,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.PaginatedList;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.documentation.JavaPrettyPrintingVisitor;
 import io.evitadb.documentation.JsonExecutable;
@@ -69,6 +70,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -112,6 +114,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 @RequiredArgsConstructor
 public class EvitaQLExecutable extends JsonExecutable implements Executable, EvitaTestSupport {
 	private static final String REF_LINK = "\uD83D\uDD17 ";
+	private static final String PREDECESSOR_HEAD_SYMBOL = "⎆";
+	private static final String PREDECESSOR_SYMBOL = "↻ ";
 	private static final String ATTR_LINK = ": ";
 	private static final Map<Locale, String> LOCALES = Map.of(
 		new Locale("cs"), "\uD83C\uDDE8\uD83C\uDDFF",
@@ -428,11 +432,11 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(EvitaQLExecutable::toAttributeKey)
 							.map(sealedEntity::getAttributeValue)
-							//.filter(Optional::isPresent)
-							.map(it -> it.map(attributeValue -> EvitaDataTypes.formatValue(attributeValue.value())).orElse(null)),
-							//.map(Optional::get)
-							//.map(AttributeValue::value)
-							//.map(EvitaDataTypes::formatValue),
+							.map(
+								it -> it.map(AttributeValue::value)
+									.map(EvitaQLExecutable::formatValue)
+									.orElse(null)
+							),
 						Arrays.stream(headers)
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {
@@ -441,7 +445,10 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 								return sealedEntity.getReferences(refAttr[0])
 									.stream()
 									.filter(ref -> ref.getAttributeValue(attributeKey).isPresent())
-									.map(ref -> REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + EvitaDataTypes.formatValue(ref.getAttributeValue(attributeKey).get().value()))
+									.map(ref -> {
+										final String formattedValue = formatValue(ref.getAttributeValue(attributeKey).get().value());
+										return REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + formattedValue;
+									})
 									.collect(Collectors.joining(", "));
 							}),
 						Arrays.stream(headers)
@@ -458,6 +465,20 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		// generate MarkDown
 		final PaginatedList<SealedEntity> recordPage = (PaginatedList<SealedEntity>) response.getRecordPage();
 		return tableBuilder.build().serialize() + "\n\n###### **Page** " + recordPage.getPageNumber() + "/" + recordPage.getLastPageNumber() + " **(Total number of results: "  + response.getTotalRecordCount() + ")**";
+	}
+
+	/**
+	 * Formats the value for the MarkDown table.
+	 * @param value value to be formatted
+	 * @return formatted value
+	 */
+	@Nonnull
+	private static String formatValue(@Nonnull Serializable value) {
+		if (value instanceof Predecessor predecessor) {
+			return predecessor.isHead() ? PREDECESSOR_HEAD_SYMBOL : PREDECESSOR_SYMBOL + predecessor.predecessorId();
+		} else {
+			return EvitaDataTypes.formatValue(value);
+		}
 	}
 
 	@Nonnull

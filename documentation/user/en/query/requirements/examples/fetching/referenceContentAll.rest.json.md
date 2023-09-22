@@ -15,19 +15,14 @@
         }
       },
       "brand": {
-        "referencedPrimaryKey": 103887,
-        "attributes": {
-          "global": {
-            "orderInBrand": 0
-          }
-        }
+        "referencedPrimaryKey": 103887
       },
       "categories": [
         {
           "referencedPrimaryKey": 66472,
           "attributes": {
             "global": {
-              "orderInCategory": -2147483648
+              "orderInCategory": -1
             }
           }
         }
@@ -235,6 +230,15 @@
             "global": {
               "variant": false
             }
+          }
+        }
+      ],
+      "stockVisibilities": [
+        {
+          "referencedPrimaryKey": 119334,
+          "groupEntity": {
+            "primaryKey": 0,
+            "type": "stockGroup"
           }
         }
       ],

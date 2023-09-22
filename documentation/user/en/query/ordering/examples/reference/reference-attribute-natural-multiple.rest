@@ -6,8 +6,8 @@ POST /rest/evita/product/query
       {
         "entityHaving" : {
           "attributeCodeInSet" : [
-            "sony",
-            "google"
+            "sale",
+            "new"
           ]
         }
       }
@@ -15,9 +15,9 @@ POST /rest/evita/product/query
   },
   "orderBy" : [
     {
-      "referenceBrandProperty" : [
+      "referenceGroupsProperty" : [
         {
-          "attributeOrderInBrandNatural" : "ASC"
+          "attributeOrderInGroupNatural" : "ASC"
         }
       ]
     }
@@ -27,9 +27,9 @@ POST /rest/evita/product/query
       "attributeContent" : [
         "code"
       ],
-      "referenceBrandContentWithAttributes" : {
+      "referenceGroupsContentWithAttributes" : {
         "attributeContent" : [
-          "orderInBrand"
+          "orderInGroup"
         ]
       }
     }
