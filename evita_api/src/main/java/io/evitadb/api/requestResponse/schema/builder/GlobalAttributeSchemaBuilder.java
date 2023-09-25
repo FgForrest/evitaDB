@@ -89,21 +89,6 @@ public final class GlobalAttributeSchemaBuilder
 	}
 
 	@Override
-	protected boolean addMutations(@Nonnull AttributeSchemaMutation mutation) {
-		return addMutations(
-			this.catalogSchema,
-			this.mutations,
-			(LocalCatalogSchemaMutation) mutation
-		);
-	}
-
-	@Nonnull
-	@Override
-	protected Collection<AttributeSchemaMutation> toAttributeMutation() {
-		return this.mutations.stream().map(it -> ((AttributeSchemaMutation)it)).toList();
-	}
-
-	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGlobally() {
 		this.mutations.add(
@@ -118,10 +103,13 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGlobally(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaGloballyUniqueMutation(
-				toInstance().getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					toInstance().getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return this;
@@ -137,5 +125,27 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	public GlobalAttributeSchemaContract toInstance() {
 		return super.toInstance();
+	}
+
+	@Override
+	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
+		return addMutations(
+			this.catalogSchema,
+			this.mutations,
+			(LocalCatalogSchemaMutation) mutation
+		);
+	}
+
+	@Nonnull
+	@Override
+	protected List<AttributeSchemaMutation> toAttributeMutation() {
+		// faster version of the:
+		/* return this.mutations
+			.stream()
+			.map(it -> (AttributeSchemaMutation) it)
+			.collect(Collectors.toList());
+			*/
+		//noinspection unchecked,rawtypes
+		return (List) this.mutations;
 	}
 }
