@@ -30,7 +30,6 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.List;
-import java.util.function.Predicate;
 
 /**
  * Wrapper for {@link DataFetchingFieldSelectionSet} that filters original fields only to fields for specific entity DTO
@@ -47,49 +46,19 @@ public class SelectionSetWrapper {
 
 	@Nonnull
 	private final List<DataFetchingFieldSelectionSet> originalSelectionSets;
-	@Nonnull
-	private final Predicate<SelectedField> fieldPredicate;
 
 	/**
 	 * Creates wrapper without filtering of fields. Functions same as original {@link DataFetchingFieldSelectionSet}.
 	 */
 	public static SelectionSetWrapper from(@Nonnull DataFetchingFieldSelectionSet originalSelectionSet) {
-		return new SelectionSetWrapper(
-			List.of(originalSelectionSet),
-			field -> true
-		);
+		return new SelectionSetWrapper(List.of(originalSelectionSet));
 	}
 
 	/**
 	 * Creates wrapper without filtering of fields. Functions same as original {@link DataFetchingFieldSelectionSet}.
 	 */
 	public static SelectionSetWrapper from(@Nonnull List<DataFetchingFieldSelectionSet> originalSelectionSets) {
-		return new SelectionSetWrapper(
-			originalSelectionSets,
-			field -> true
-		);
-	}
-
-	/**
-	 * Creates wrapper with filtering of fields of original {@link DataFetchingFieldSelectionSet} to fields for
-	 * {@code entityDtoObjectTypeName}.
-	 */
-	public static SelectionSetWrapper from(@Nonnull DataFetchingFieldSelectionSet originalSelectionSet, @Nonnull String entityDtoObjectTypeName) {
-		return new SelectionSetWrapper(
-			List.of(originalSelectionSet),
-			field -> field.getObjectTypeNames().contains(entityDtoObjectTypeName)
-		);
-	}
-
-	/**
-	 * Creates wrapper with filtering of fields of original {@link DataFetchingFieldSelectionSet} to fields for
-	 * {@code entityDtoObjectTypeName}.
-	 */
-	public static SelectionSetWrapper from(@Nonnull List<DataFetchingFieldSelectionSet> originalSelectionSets, @Nonnull String entityDtoObjectTypeName) {
-		return new SelectionSetWrapper(
-			originalSelectionSets,
-			field -> field.getObjectTypeNames().contains(entityDtoObjectTypeName)
-		);
+		return new SelectionSetWrapper(originalSelectionSets);
 	}
 
 	/**
@@ -98,20 +67,7 @@ public class SelectionSetWrapper {
 	public boolean contains(@Nonnull String fieldGlobPattern) {
 		return originalSelectionSets
 			.stream()
-			.flatMap(ss -> ss.getFields(fieldGlobPattern).stream())
-			.filter(f -> !f.getName().equals(TYPENAME_FIELD))
-			.anyMatch(fieldPredicate);
-	}
-
-	/**
-	 * Same as {@link DataFetchingFieldSelectionSet#containsAnyOf(String, String...) only with filtering logic.
-	 */
-	public boolean containsAnyOf(@Nonnull String fieldGlobPattern, @Nonnull String... fieldGlobPatterns) {
-		return originalSelectionSets
-			.stream()
-			.flatMap(ss -> ss.getFields(fieldGlobPattern, fieldGlobPatterns).stream())
-			.filter(f -> !f.getName().equals(TYPENAME_FIELD))
-			.anyMatch(fieldPredicate);
+			.anyMatch(ss -> ss.contains(fieldGlobPattern));
 	}
 
 	/**
@@ -122,7 +78,6 @@ public class SelectionSetWrapper {
 			.stream()
 			.flatMap(ss -> ss.getFields(fieldGlobPattern, fieldGlobPatterns).stream())
 			.filter(f -> !f.getName().equals(TYPENAME_FIELD))
-			.filter(fieldPredicate)
 			.toList();
 	}
 
