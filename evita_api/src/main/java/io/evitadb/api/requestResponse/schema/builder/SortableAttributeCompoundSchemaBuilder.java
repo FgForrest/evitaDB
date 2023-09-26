@@ -62,7 +62,8 @@ public final class SortableAttributeCompoundSchemaBuilder
 	private final ReferenceSchemaContract referenceSchema;
 	private final SortableAttributeCompoundSchemaContract baseSchema;
 	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
-	private boolean updatedSchemaDirty;
+	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
+	private int lastMutationReflectedInSchema = 0;
 	private SortableAttributeCompoundSchemaContract updatedSchema;
 
 	SortableAttributeCompoundSchemaBuilder(
@@ -102,9 +103,12 @@ public final class SortableAttributeCompoundSchemaBuilder
 	@Override
 	@Nonnull
 	public SortableAttributeCompoundSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifySortableAttributeCompoundSchemaDescriptionMutation(getName(), description)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifySortableAttributeCompoundSchemaDescriptionMutation(getName(), description)
+			)
 		);
 		return this;
 	}
@@ -112,9 +116,12 @@ public final class SortableAttributeCompoundSchemaBuilder
 	@Override
 	@Nonnull
 	public SortableAttributeCompoundSchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
+			)
 		);
 		return this;
 	}
@@ -122,9 +129,12 @@ public final class SortableAttributeCompoundSchemaBuilder
 	@Override
 	@Nonnull
 	public SortableAttributeCompoundSchemaBuilder notDeprecatedAnymore() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(getName(), null)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation(getName(), null)
+			)
 		);
 		return this;
 	}
@@ -159,16 +169,28 @@ public final class SortableAttributeCompoundSchemaBuilder
 	@Delegate(types = SortableAttributeCompoundSchemaContract.class)
 	@Nonnull
 	public SortableAttributeCompoundSchemaContract toInstance() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty) {
-			SortableAttributeCompoundSchemaContract currentSchema = this.baseSchema;
-			for (EntitySchemaMutation mutation : this.mutations) {
-				currentSchema = ((SortableAttributeCompoundSchemaMutation)mutation).mutate(entitySchema, referenceSchema, currentSchema);
+		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
+			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// and reapply all mutations
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+				this.lastMutationReflectedInSchema = 0;
+			}
+			// if the last mutation reflected in the schema is zero we need to start from the base schema
+			// else we can continue modification last known updated schema by adding additional mutations
+			SortableAttributeCompoundSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+				this.baseSchema : this.updatedSchema;
+
+			// apply the mutations not reflected in the schema
+			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				final EntitySchemaMutation mutation = this.mutations.get(i);
+				currentSchema = ((SortableAttributeCompoundSchemaMutation) mutation).mutate(entitySchema, referenceSchema, currentSchema);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Attribute unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = false;
+			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
+			this.lastMutationReflectedInSchema = this.mutations.size();
 		}
 		return this.updatedSchema;
 	}

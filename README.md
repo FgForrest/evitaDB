@@ -174,9 +174,6 @@ you might encounter, and we'll try to fix them as soon as possible.
 - **evita_store**: binary serialization using Kryo library, persistent key/value datastore implementation
 - **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
 - **jacoco**: Maven POM that allows to aggregate test coverage for entire project
-- **workaround**:
-  - **roaringBitmap**: workaround shaded build allowing to link RoaringBitmap libraries as a single "automatic Java module",
-    direct linking of original libraries leads to problems with Java module system
 
 # Quality requirements for the code
 
