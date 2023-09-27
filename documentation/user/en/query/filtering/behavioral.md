@@ -1,6 +1,9 @@
 ---
-title: Facet filtering
+title: Behavioral filtering containers
 date: '17.1.2023'
+perex: |
+  Special behavioral filtering constraint containers are used only for the definition of a filter constraint scope, 
+  which has a different treatment in calculations.
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---

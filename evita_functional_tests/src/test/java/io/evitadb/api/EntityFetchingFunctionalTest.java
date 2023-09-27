@@ -49,6 +49,8 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -3948,6 +3950,52 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				assertArrayEquals(
 					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order appending the rest")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderAppendingTheRest(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] productsStartingWithD = originalProducts.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).startsWith("D"))
+			.map(EntityContract::getPrimaryKey)
+			.toArray(Integer[]::new);
+		Assert.isTrue(productsStartingWithD.length >= 5, "Not enough products starting with D found");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithD, 0, (int)(productsStartingWithD.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithD, (int)(productsStartingWithD.length * 0.5), productsStartingWithD.length);
+				ArrayUtils.reverse(exactOrder);
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeStartsWith(ATTRIBUTE_CODE, "D")
+						),
+						orderBy(
+							entityPrimaryKeyExact(exactOrder)
+						),
+						require(
+							page(1, productsStartingWithD.length)
+						)
+					)
+				);
+				assertEquals(productsStartingWithD.length, products.getRecordData().size());
+				assertEquals(productsStartingWithD.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					ArrayUtils.mergeArrays(
+						exactOrder, theRest
+					),
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)

@@ -55,7 +55,6 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	private final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder().build();
 	private SslContext sslContext;
 
-	@Setup(Level.Trial)
 	public void setUp() {
 		clientCertificateManager.getCertificatesFromServer(HOST, SystemConfig.DEFAULT_SYSTEM_PORT);
 		sslContext = clientCertificateManager.buildClientSslContext();
@@ -64,6 +63,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	/**
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
+	@Override
 	public EvitaSessionServiceBlockingStub getSession() {
 		return getSession(() -> {
 			final ManagedChannel grpcEvitaChannel = NettyChannelBuilder.forAddress(HOST, PORT)
@@ -74,7 +74,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 			final GrpcEvitaSessionResponse response = evitaClient.createReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
 				.setCatalogName(TEST_CATALOG)
 				.build());
-			grpcEvitaChannel.shutdown();
+			grpcEvitaChannel.shutdownNow();
 
 			final ManagedChannel channel = NettyChannelBuilder.forAddress(HOST, PORT)
 				.sslContext(sslContext)
@@ -90,6 +90,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	/**
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
+	@Override
 	public EvitaSessionServiceBlockingStub getSession(Supplier<EvitaSessionServiceBlockingStub> creatorFct) {
 		final EvitaSessionServiceBlockingStub session = this.session.get();
 		if (session == null) {
