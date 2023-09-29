@@ -30,6 +30,11 @@ based on the EvitaSessionContract interface.
 One way to simplify this process is to store the session ID in a shared memory scope (example class
 <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/interceptor/ClientSessionInterceptor.java</SourceClass>) 
 and set it to the metadata with every method call using a <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/interceptor/ClientSessionInterceptor.java</SourceClass>.
+In addition to `sessionId`, additional identifiers can be set in the metadata for [monitoring](../../operate/monitor.md) purposes. 
+Specifically, these are the `clientId` and `requestId` parameters, whose settings are used to add information about the 
+client that uses the database in a given instance (for example, it can be the name of the application using evitaDB) and 
+possibly an additional identifier for each query or method executed. Setting and using both of these parameters is 
+completely optional.
 
 gRPC works on the principle of Remote Method Calling (RPC), i.e. the client uses methods defined in protobuf services in
 its code and their implementation is called on the server, where the request is processed and the response is sent back 
