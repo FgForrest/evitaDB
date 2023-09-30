@@ -25,13 +25,17 @@ package io.evitadb.api.configuration;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.dataType.ClassifierType;
+import io.evitadb.utils.ClassifierUtils;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * DTO contains base server wide settings for the evitaDB.
  *
+ * @param name                                          Name of the server. It's used for identification purposes only.
  * @param coreThreadCount                               Defines count of threads that are spun up in {@link java.util.concurrent.ExecutorService} for handling
  *                                                      input requests as well as maintenance tasks. The more catalog in Evita
  *                                                      DB there is, the higher count of thread count might be required.
@@ -51,6 +55,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record ServerOptions(
+	@Nonnull String name,
 	int coreThreadCount,
 	int maxThreadCount,
 	int threadPriority,
@@ -61,6 +66,7 @@ public record ServerOptions(
 	boolean readOnly
 ) {
 
+	public static final String DEFAULT_SERVER_NAME = "evitaDB";
 	public static final int DEFAULT_CORE_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 10;
 	public static final int DEFAULT_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
 	public static final int DEFAULT_THREAD_PRIORITY = 5;
@@ -68,6 +74,10 @@ public record ServerOptions(
 	public static final int DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS = 1;
 	public static final int DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS = 30;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
+
+	public ServerOptions {
+		ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, name);
+	}
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -85,6 +95,7 @@ public record ServerOptions(
 
 	public ServerOptions() {
 		this(
+			DEFAULT_SERVER_NAME,
 			DEFAULT_CORE_THREAD_COUNT,
 			DEFAULT_MAX_THREAD_COUNT,
 			DEFAULT_THREAD_PRIORITY,
@@ -101,6 +112,7 @@ public record ServerOptions(
 	 */
 	@ToString
 	public static class Builder {
+		private String name = DEFAULT_SERVER_NAME;
 		private int coreThreadCount = DEFAULT_CORE_THREAD_COUNT;
 		private int maxThreadCount = DEFAULT_MAX_THREAD_COUNT;
 		private int threadPriority = DEFAULT_THREAD_PRIORITY;
@@ -122,6 +134,11 @@ public record ServerOptions(
 			this.killTimedOutShortRunningThreadsEverySeconds = serverOptions.killTimedOutShortRunningThreadsEverySeconds;
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity;
 			this.readOnly = serverOptions.readOnly;
+		}
+
+		public ServerOptions.Builder name(@Nullable String name) {
+			this.name = name;
+			return this;
 		}
 
 		public ServerOptions.Builder coreThreadCount(int coreThreadCount) {
@@ -166,6 +183,7 @@ public record ServerOptions(
 
 		public ServerOptions build() {
 			return new ServerOptions(
+				name,
 				coreThreadCount,
 				maxThreadCount,
 				threadPriority,

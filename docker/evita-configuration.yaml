@@ -1,4 +1,5 @@
 server:
+  name: ${server.name:evita-db-prod}
   coreThreadCount: ${server.coreThreadCount:4}
   maxThreadCount: ${server.maxThreadCount:16}
   threadPriority: ${server.threadPriority:5}
