@@ -142,7 +142,7 @@ public class LabManager {
 				new CorsFilter(
 					new LabExceptionHandler(
 						objectMapper,
-						GuiHandler.create(labConfig, apiOptions, objectMapper)
+						GuiHandler.create(labConfig, evita.getConfiguration().server(), apiOptions, objectMapper)
 					),
 					labConfig.getAllowedOrigins()
 				)
