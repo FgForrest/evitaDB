@@ -23,7 +23,6 @@
 
 package io.evitadb.api.exception;
 
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.NamingConvention;
 import lombok.Getter;
@@ -40,29 +39,29 @@ import java.io.Serial;
 public class CatalogAlreadyPresentException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -4492948359569503645L;
 	@Getter private final String catalogName;
-	@Getter private final CatalogSchemaContract existingSchema;
+	@Getter private final String existingCatalogName;
 
-	public CatalogAlreadyPresentException(@Nonnull String catalogName, @Nonnull CatalogSchemaContract existingEntitySchema) {
+	public CatalogAlreadyPresentException(@Nonnull String catalogName, @Nonnull String existingCatalogName) {
 		super(
 			"Catalog with name `" + catalogName + "` already exists! " +
 				"Please choose different catalog name."
 		);
 		this.catalogName = catalogName;
-		this.existingSchema = existingEntitySchema;
+		this.existingCatalogName = existingCatalogName;
 	}
 
 	public CatalogAlreadyPresentException(
 		@Nonnull String catalogName,
-		@Nonnull CatalogSchemaContract existingEntitySchema,
+		@Nonnull String existingCatalogName,
 		@Nonnull NamingConvention convention,
 		@Nonnull String conflictingName) {
 		super(
 			"Catalog `" + catalogName + "` and existing " +
-				"catalog `" + existingEntitySchema.getName() + "` produce the same " +
+				"catalog `" + existingCatalogName + "` produce the same " +
 				"name `" + conflictingName + "` in `" + convention + "` convention! " +
 				"Please choose different catalog name."
 		);
 		this.catalogName = catalogName;
-		this.existingSchema = existingEntitySchema;
+		this.existingCatalogName = existingCatalogName;
 	}
 }
