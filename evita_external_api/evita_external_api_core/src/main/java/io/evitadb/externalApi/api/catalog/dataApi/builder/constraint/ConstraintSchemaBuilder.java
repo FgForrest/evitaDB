@@ -34,6 +34,7 @@ import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.BigDecimalNumberRange;
@@ -584,7 +585,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 		if (!(buildContext.dataLocator() instanceof DataLocatorWithReference) &&
 			sharedContext.getEntitySchemaOrThrowException(buildContext.dataLocator().entityType()).isWithHierarchy()) {
 			final Set<ConstraintDescriptor> hierarchyConstraintsWithSilentImplicitClassifier = hierarchyConstraints.stream()
-				.filter(cd -> cd.creator().implicitClassifier() instanceof SilentImplicitClassifier)
+				.filter(cd -> cd.creator().implicitClassifier().orElse(null) instanceof SilentImplicitClassifier)
 				.collect(Collectors.toUnmodifiableSet());
 
 			fields.addAll(
@@ -603,7 +604,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 		// build constraints without dynamic classifier
 		final Set<ConstraintDescriptor> hierarchyConstraintsWithoutDynamicClassifier = hierarchyConstraints.stream()
-			.filter(cd -> !cd.creator().hasClassifierParameter() && !(cd.creator().implicitClassifier() instanceof SilentImplicitClassifier))
+			.filter(cd -> !cd.creator().hasClassifierParameter() && !(cd.creator().implicitClassifier().orElse(null) instanceof SilentImplicitClassifier))
 			.collect(Collectors.toUnmodifiableSet());
 		fields.addAll(
 			buildChildren(
@@ -772,7 +773,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	                                           @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                           @Nullable ValueTypeSupplier valueTypeSupplier) {
 		final ConstraintCreator creator = constraintDescriptor.creator();
-		final ConstraintValueStructure constraintValueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(creator);
+		final ConstraintValueStructure constraintValueStructure = creator.valueStructure();
 
 		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
 		final List<ChildParameterDescriptor> childParameters = creator.childParameters();
@@ -782,16 +783,16 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			return buildNoneConstraintValue();
 		} else if (constraintValueStructure == ConstraintValueStructure.PRIMITIVE) {
 			return buildPrimitiveConstraintValue(buildContext, valueParameters.get(0), false, valueTypeSupplier);
-		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_RANGE) {
+		} else if (constraintValueStructure == ConstraintValueStructure.RANGE) {
 			return buildWrapperRangeConstraintValue(buildContext, valueParameters, valueTypeSupplier);
-		} else if (constraintValueStructure == ConstraintValueStructure.CHILD) {
+		} else if (constraintValueStructure == ConstraintValueStructure.CONTAINER) {
 			final Map<String, SIMPLE_TYPE> childConstraint = buildChildConstraintValue(buildContext, childParameters.get(0));
 			Assert.isPremiseValid(
 				childConstraint.size() == 1,
-				() -> createSchemaBuildingError("`" + ConstraintValueStructure.CHILD + "` structure should have exactly one child constraint.")
+				() -> createSchemaBuildingError("`" + ConstraintValueStructure.CONTAINER + "` structure should have exactly one child constraint.")
 			);
 			return childConstraint.get(SINGLE_CHILD_CONSTRAINT_KEY);
-		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
+		} else if (constraintValueStructure == ConstraintValueStructure.COMPLEX) {
 			return obtainWrapperObjectConstraintValue(
 				buildContext,
 				valueParameters,

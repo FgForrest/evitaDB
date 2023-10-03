@@ -247,11 +247,14 @@ public class EvitaServer {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfiguration evitaServerConfig = parseConfiguration(configFileLocation, arguments);
 		this.evitaConfiguration = new EvitaConfiguration(
+			evitaServerConfig.name(),
 			evitaServerConfig.server(),
 			evitaServerConfig.storage(),
 			evitaServerConfig.cache()
 		);
 		this.apiOptions = evitaServerConfig.api();
+		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
+		ConsoleWriter.write(this.evitaConfiguration.name() + "\n", ConsoleColor.BRIGHT_YELLOW);
 	}
 
 	/**

@@ -21,35 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.constraint;
+package io.evitadb.externalApi.graphql.io;
+
+import javax.annotation.Nullable;
 
 /**
- * Specifies data structure of input JSON value. Mainly for defining how to extract individual data from input JSON value.
+ * DTO for passing client context information from client for entire GQL request execution.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @see io.evitadb.api.ClientContext
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public enum ConstraintValueStructure {
+public record ClientContextExtension(@Nullable String clientId,
+                                     @Nullable String requestId) {
+
+	static final String CLIENT_CONTEXT_EXTENSION = "clientContext";
+	static final String CLIENT_ID = "clientId";
+	static final String REQUEST_ID = "requestId";
 
 	/**
-	 * No particular value needed. Represented by boolean to enable/disable query due to the limitations of JSONs
-	 * that can have no value (null represents unknown value).
+	 * Client didn't send any client context information, but we want to still classify the usage somehow.
 	 */
-	NONE,
-	/**
-	 * Primitive value, such as string, integer and so on.
-	 */
-	PRIMITIVE,
-	/**
-	 * JSON object containing more primitive values or children as inner fields.
-	 */
-	WRAPPER_OBJECT,
-	/**
-	 * Special case of {@link #WRAPPER_OBJECT} where there are only {@code from} and {@code to} value parameters which
-	 * should result in range tuple.
-	 */
-	WRAPPER_RANGE,
-	/**
-	 * Single child or list of children constraints.
-	 */
-	CHILD
+	public static ClientContextExtension empty() {
+		return new ClientContextExtension(null, null);
+	}
 }

@@ -80,7 +80,8 @@ public final class ReferenceSchemaBuilder
 	private final EntitySchemaContract entitySchema;
 	private final ReferenceSchemaContract baseSchema;
 	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
-	private boolean updatedSchemaDirty;
+	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
+	private int lastMutationReflectedInSchema = 0;
 	private ReferenceSchemaContract updatedSchema;
 
 	ReferenceSchemaBuilder(
@@ -126,9 +127,12 @@ public final class ReferenceSchemaBuilder
 	@Override
 	@Nonnull
 	public ReferenceSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSchemaDescriptionMutation(getName(), description)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSchemaDescriptionMutation(getName(), description)
+			)
 		);
 		return this;
 	}
@@ -136,9 +140,12 @@ public final class ReferenceSchemaBuilder
 	@Override
 	@Nonnull
 	public ReferenceSchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), deprecationNotice)
+			)
 		);
 		return this;
 	}
@@ -146,54 +153,72 @@ public final class ReferenceSchemaBuilder
 	@Override
 	@Nonnull
 	public ReferenceSchemaBuilder notDeprecatedAnymore() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), null)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSchemaDeprecationNoticeMutation(getName(), null)
+			)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder withGroupType(@Nonnull String groupType) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSchemaRelatedEntityGroupMutation(getName(), groupType, false)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSchemaRelatedEntityGroupMutation(getName(), groupType, false)
+			)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder withGroupTypeRelatedToEntity(@Nonnull String groupType) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSchemaRelatedEntityGroupMutation(getName(), groupType, true)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSchemaRelatedEntityGroupMutation(getName(), groupType, true)
+			)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder withoutGroupType() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSchemaRelatedEntityGroupMutation(getName(), null, false)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSchemaRelatedEntityGroupMutation(getName(), null, false)
+			)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder indexed() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaIndexedMutation(getName(), true)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), true)
+			)
 		);
 		return this;
 	}
 
 	@Override
 	public ReferenceSchemaBuilder nonIndexed() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaIndexedMutation(getName(), false)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaIndexedMutation(getName(), false)
+			)
 		);
 		return this;
 	}
@@ -201,15 +226,21 @@ public final class ReferenceSchemaBuilder
 	@Override
 	public ReferenceSchemaBuilder faceted() {
 		if (toInstance().isIndexed()) {
-			this.updatedSchemaDirty = addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaFacetedMutation(getName(), true)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaFacetedMutation(getName(), true)
+				)
 			);
 		} else {
-			this.updatedSchemaDirty = addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				new SetReferenceSchemaIndexedMutation(getName(), true),
-				new SetReferenceSchemaFacetedMutation(getName(), true)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					new SetReferenceSchemaIndexedMutation(getName(), true),
+					new SetReferenceSchemaFacetedMutation(getName(), true)
+				)
 			);
 		}
 		return this;
@@ -217,9 +248,12 @@ public final class ReferenceSchemaBuilder
 
 	@Override
 	public ReferenceSchemaBuilder nonFaceted() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetReferenceSchemaFacetedMutation(getName(), false)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetReferenceSchemaFacetedMutation(getName(), false)
+			)
 		);
 		return this;
 	}
@@ -264,13 +298,16 @@ public final class ReferenceSchemaBuilder
 		);
 
 		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
-			this.updatedSchemaDirty = addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				attributeSchemaBuilder
-					.toReferenceMutation(getName())
-					.stream()
-					.map(it -> (EntitySchemaMutation) it)
-					.toArray(EntitySchemaMutation[]::new)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					attributeSchemaBuilder
+						.toReferenceMutation(getName())
+						.stream()
+						.map(it -> (EntitySchemaMutation) it)
+						.toArray(EntitySchemaMutation[]::new)
+				)
 			);
 		}
 		return this;
@@ -282,11 +319,14 @@ public final class ReferenceSchemaBuilder
 		checkSortableAttributeCompoundsWithoutAttribute(
 			attributeName, this.getSortableAttributeCompounds().values()
 		);
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceAttributeSchemaMutation(
-				this.getName(),
-				new RemoveAttributeSchemaMutation(attributeName)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceAttributeSchemaMutation(
+					this.getName(),
+					new RemoveAttributeSchemaMutation(attributeName)
+				)
 			)
 		);
 		return this;
@@ -364,13 +404,16 @@ public final class ReferenceSchemaBuilder
 		);
 
 		if (existingCompound.map(it -> !it.equals(compoundSchema)).orElse(true)) {
-			this.updatedSchemaDirty = addMutations(
-				this.catalogSchema, this.entitySchema, this.mutations,
-				schemaBuilder
-					.toReferenceMutation(getName())
-					.stream()
-					.map(it -> (EntitySchemaMutation) it)
-					.toArray(EntitySchemaMutation[]::new)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchema, this.entitySchema, this.mutations,
+					schemaBuilder
+						.toReferenceMutation(getName())
+						.stream()
+						.map(it -> (EntitySchemaMutation) it)
+						.toArray(EntitySchemaMutation[]::new)
+				)
 			);
 		}
 		return this;
@@ -379,11 +422,14 @@ public final class ReferenceSchemaBuilder
 	@Nonnull
 	@Override
 	public ReferenceSchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyReferenceSortableAttributeCompoundSchemaMutation(
-				this.getName(),
-				new RemoveSortableAttributeCompoundSchemaMutation(name)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyReferenceSortableAttributeCompoundSchemaMutation(
+					this.getName(),
+					new RemoveSortableAttributeCompoundSchemaMutation(name)
+				)
 			)
 		);
 		return this;
@@ -395,16 +441,28 @@ public final class ReferenceSchemaBuilder
 	@Delegate(types = ReferenceSchemaContract.class)
 	@Nonnull
 	public ReferenceSchemaContract toInstance() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty) {
-			ReferenceSchemaContract currentSchema = this.baseSchema;
-			for (EntitySchemaMutation mutation : this.mutations) {
-				currentSchema = ((ReferenceSchemaMutation)mutation).mutate(entitySchema, currentSchema);
+		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
+			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// and reapply all mutations
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+				this.lastMutationReflectedInSchema = 0;
+			}
+			// if the last mutation reflected in the schema is zero we need to start from the base schema
+			// else we can continue modification last known updated schema by adding additional mutations
+			ReferenceSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+				this.baseSchema : this.updatedSchema;
+
+			// apply the mutations not reflected in the schema
+			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				final EntitySchemaMutation mutation = this.mutations.get(i);
+				currentSchema = ((ReferenceSchemaMutation) mutation).mutate(entitySchema, currentSchema);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Attribute unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = false;
+			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
+			this.lastMutationReflectedInSchema = this.mutations.size();
 		}
 		return this.updatedSchema;
 	}

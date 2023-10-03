@@ -31,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum ClassifierType {
 
+	SERVER_NAME("Server name"),
 	CATALOG("Catalog"),
 	ENTITY("Entity"),
 	ATTRIBUTE("Attribute"),

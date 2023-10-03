@@ -26,12 +26,14 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
+import io.evitadb.api.ClientContext;
 import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -50,6 +52,10 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 	 */
 	@Nonnull private final DataFetcher<?> delegate;
 	/**
+	 * Client context provider. We need to pass the current client context to the async data fetcher.
+	 */
+	@Nonnull private final ClientContext clientContext;
+	/**
 	 * Executor responsible for executing data fetcher asynchronously. If null, data fetcher will work synchronously.
 	 */
 	@Nullable private final Executor executor;
@@ -61,18 +67,25 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 			log.debug("No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
 			return delegate.get(environment);
 		}
+
+		final Optional<String> currentClientId = clientContext.getClientId();
+		final Optional<String> currentRequestId = clientContext.getRequestId();
 		return CompletableFuture.supplyAsync(
-			new ShortRunningSupplier<>(() -> {
-				try {
-					return delegate.get(environment);
-				} catch (Exception e) {
-					if (e instanceof RuntimeException re) {
-						throw re;
-					} else {
-						throw new GraphQLInternalError("Unexpected exception occurred during data fetching.", e);
+			new ShortRunningSupplier<>(() -> clientContext.executeWithClientAndRequestId(
+				currentClientId.orElse(null),
+				currentRequestId.orElse(null),
+				() -> {
+					try {
+						return delegate.get(environment);
+					} catch (Exception e) {
+						if (e instanceof RuntimeException re) {
+							throw re;
+						} else {
+							throw new GraphQLInternalError("Unexpected exception occurred during data fetching.", e);
+						}
 					}
 				}
-			}),
+			)),
 			executor
 		);
 	}

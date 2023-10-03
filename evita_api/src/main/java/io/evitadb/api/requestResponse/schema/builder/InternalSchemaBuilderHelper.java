@@ -64,62 +64,25 @@ import java.util.stream.Stream;
 public interface InternalSchemaBuilderHelper {
 
 	/**
-	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
-	 * compute combination result with all previous mutations.
-	 */
-	default boolean addMutations(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull List<LocalCatalogSchemaMutation> existingMutations,
-		@Nonnull LocalCatalogSchemaMutation... newMutations
-	) {
-		return addMutations(
-			LocalCatalogSchemaMutation.class,
-			(existingMutation, newMutation) -> ((CombinableCatalogSchemaMutation)newMutation)
-				.combineWith(currentCatalogSchema, existingMutation),
-			existingMutations,
-			newMutations
-		);
-	}
-
-	/**
-	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
-	 * compute combination result with all previous mutations.
-	 */
-	default boolean addMutations(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull List<EntitySchemaMutation> existingMutations,
-		@Nonnull EntitySchemaMutation... newMutations
-	) {
-		return addMutations(
-			EntitySchemaMutation.class,
-			(existingMutation, newMutation) -> ((CombinableEntitySchemaMutation)newMutation)
-				.combineWith(currentCatalogSchema, currentEntitySchema, existingMutation),
-			existingMutations,
-			newMutations
-		);
-	}
-
-	/**
 	 * Method does the real heavy lifting of adding the mutation to the existing set of mutations.
 	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
 	 * compute combination result with all previous mutations.
 	 *
-	 * @param mutationType just for the Java generics sake, damn!
-	 * @param combiner again a lambda that satisfies the damned Java generics - we just need to call combineWith method
+	 * @param mutationType      just for the Java generics sake, damn!
+	 * @param combiner          again a lambda that satisfies the damned Java generics - we just need to call combineWith method
 	 * @param existingMutations set of existing mutations in the pipeline
-	 * @param newMutations array of new mutations we want to add to the pipeline
+	 * @param newMutations      array of new mutations we want to add to the pipeline
+	 * @param <T>               :) having Java more clever, we wouldn't need this
 	 * @return TRUE if the pipeline was modified and the cached schema needs te "recalculated"
-	 * @param <T> :) having Java more clever, we wouldn't need this
 	 */
 	@SafeVarargs
-	private static <T extends SchemaMutation> boolean addMutations(
+	private static <T extends SchemaMutation> MutationImpact addMutations(
 		@Nonnull Class<T> mutationType,
 		@Nonnull BiFunction<T, T, MutationCombinationResult<T>> combiner,
 		@Nonnull List<T> existingMutations,
 		@Nonnull T... newMutations
 	) {
-		boolean schemaUpdated = false;
+		MutationImpact schemaUpdated = MutationImpact.NO_IMPACT;
 		// go through all new mutations
 		for (T newMutation : newMutations) {
 			if (newMutation instanceof CombinableEntitySchemaMutation || newMutation instanceof CombinableCatalogSchemaMutation) {
@@ -151,7 +114,7 @@ public interface InternalSchemaBuilderHelper {
 									// or we may find out that the new mutation makes previous mutation obsolete
 									existingIt.remove();
 									index--;
-									schemaUpdated = true;
+									schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.MODIFIED_PREVIOUS);
 									examinedMutation = null;
 								} else if (combinationResult.origin() != existingMutation) {
 									// or we may find out that the new mutation makes previous mutation partially obsolete
@@ -177,24 +140,90 @@ public interface InternalSchemaBuilderHelper {
 							// replace all partially obsolete existing mutations outside the loop to avoid ConcurrentModificationException
 							for (MutationReplacement<T> replacement : replacements) {
 								existingMutations.set(replacement.index(), replacement.replaceMutation());
-								schemaUpdated = true;
+								schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.ADDED);
 							}
 							// clear applied replacements
 							replacements.clear();
 							// and if the new mutation still applies, append it to the end
 							if (examinedMutation != null) {
 								existingMutations.add(examinedMutation);
-								schemaUpdated = true;
+								schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.ADDED);
 							}
 						}
 					}
 				} while (mutationsToExamine != null);
 			} else {
 				existingMutations.add(newMutation);
-				schemaUpdated = true;
+				schemaUpdated = updateMutationImpactInternal(schemaUpdated, MutationImpact.ADDED);
 			}
 		}
 		return schemaUpdated;
+	}
+
+	/**
+	 * Method updates the impact of the mutation on the schema but only if the impact is more significant than
+	 * the existing one.
+	 *
+	 * @param existingImpactLevel the existing impact level
+	 * @param newImpactLevel      the new impact level
+	 * @return the new impact level if more significant than the existing one, otherwise the existing one
+	 */
+	@Nonnull
+	private static MutationImpact updateMutationImpactInternal(@Nonnull MutationImpact existingImpactLevel, MutationImpact newImpactLevel) {
+		if (existingImpactLevel.ordinal() < newImpactLevel.ordinal()) {
+			existingImpactLevel = newImpactLevel;
+		}
+		return existingImpactLevel;
+	}
+
+	/**
+	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
+	 * compute combination result with all previous mutations.
+	 */
+	default MutationImpact addMutations(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull List<LocalCatalogSchemaMutation> existingMutations,
+		@Nonnull LocalCatalogSchemaMutation... newMutations
+	) {
+		return addMutations(
+			LocalCatalogSchemaMutation.class,
+			(existingMutation, newMutation) -> ((CombinableCatalogSchemaMutation) newMutation)
+				.combineWith(currentCatalogSchema, existingMutation),
+			existingMutations,
+			newMutations
+		);
+	}
+
+	/**
+	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
+	 * compute combination result with all previous mutations.
+	 */
+	default MutationImpact addMutations(
+		@Nonnull CatalogSchemaContract currentCatalogSchema,
+		@Nonnull EntitySchemaContract currentEntitySchema,
+		@Nonnull List<EntitySchemaMutation> existingMutations,
+		@Nonnull EntitySchemaMutation... newMutations
+	) {
+		return addMutations(
+			EntitySchemaMutation.class,
+			(existingMutation, newMutation) -> ((CombinableEntitySchemaMutation) newMutation)
+				.combineWith(currentCatalogSchema, currentEntitySchema, existingMutation),
+			existingMutations,
+			newMutations
+		);
+	}
+
+	/**
+	 * Method updates the impact of the mutation on the schema but only if the impact is more significant than
+	 * the existing one.
+	 *
+	 * @param existingImpactLevel the existing impact level
+	 * @param newImpactLevel      the new impact level
+	 * @return the new impact level if more significant than the existing one, otherwise the existing one
+	 */
+	@Nonnull
+	default MutationImpact updateMutationImpact(@Nonnull MutationImpact existingImpactLevel, MutationImpact newImpactLevel) {
+		return updateMutationImpactInternal(existingImpactLevel, newImpactLevel);
 	}
 
 	/**
@@ -207,33 +236,33 @@ public interface InternalSchemaBuilderHelper {
 		@Nonnull NamedSchemaContract newSchema
 	) {
 		Stream.concat(
-			attributeSchemas
-				.stream()
-				.filter(it -> !(Objects.equals(it.getName(), newSchema.getName()) && newSchema instanceof AttributeSchemaContract))
-				.flatMap(it -> it.getNameVariants()
-					.entrySet()
+				attributeSchemas
 					.stream()
-					.filter(nameVariant -> nameVariant.getValue().equals(newSchema.getNameVariant(nameVariant.getKey())))
-					.map(
-						nameVariant -> new AttributeNamingConventionConflict(
-							it, null, nameVariant.getKey(), nameVariant.getValue()
+					.filter(it -> !(Objects.equals(it.getName(), newSchema.getName()) && newSchema instanceof AttributeSchemaContract))
+					.flatMap(it -> it.getNameVariants()
+						.entrySet()
+						.stream()
+						.filter(nameVariant -> nameVariant.getValue().equals(newSchema.getNameVariant(nameVariant.getKey())))
+						.map(
+							nameVariant -> new AttributeNamingConventionConflict(
+								it, null, nameVariant.getKey(), nameVariant.getValue()
+							)
+						)
+					),
+				compoundSchemas
+					.stream()
+					.filter(it -> !(Objects.equals(it.getName(), newSchema.getName()) && newSchema instanceof SortableAttributeCompoundSchemaContract))
+					.flatMap(it -> it.getNameVariants()
+						.entrySet()
+						.stream()
+						.filter(nameVariant -> nameVariant.getValue().equals(newSchema.getNameVariant(nameVariant.getKey())))
+						.map(
+							nameVariant -> new AttributeNamingConventionConflict(
+								null, it, nameVariant.getKey(), nameVariant.getValue()
+							)
 						)
 					)
-				),
-			compoundSchemas
-				.stream()
-				.filter(it -> !(Objects.equals(it.getName(), newSchema.getName()) && newSchema instanceof SortableAttributeCompoundSchemaContract))
-				.flatMap(it -> it.getNameVariants()
-					.entrySet()
-					.stream()
-					.filter(nameVariant -> nameVariant.getValue().equals(newSchema.getNameVariant(nameVariant.getKey())))
-					.map(
-						nameVariant -> new AttributeNamingConventionConflict(
-							null, it, nameVariant.getKey(), nameVariant.getValue()
-						)
-					)
-				)
-		)
+			)
 			.forEach(conflict -> {
 				if (newSchema instanceof AttributeSchemaContract newAttributeSchema) {
 					if (conflict.conflictingAttributeSchema() == null) {
@@ -346,10 +375,30 @@ public interface InternalSchemaBuilderHelper {
 	}
 
 	/**
+	 * Enum representing the impact of the mutation on the schema.
+	 */
+	enum MutationImpact {
+
+		/**
+		 * No mutation was added.
+		 */
+		NO_IMPACT,
+		/**
+		 * All or some of the mutations were added.
+		 */
+		ADDED,
+		/**
+		 * Some mutations might have been added, but already existing mutations were removed or replaced.
+		 */
+		MODIFIED_PREVIOUS
+
+	}
+
+	/**
 	 * Internal record enveloping information for replacing existing mutation in the pipeline with different one.
-	 * @param index the index where the existing mutation should be exchanged
+	 *
+	 * @param index           the index where the existing mutation should be exchanged
 	 * @param replaceMutation the mutation that should replace the existing mutation
-	 * @param <T>
 	 */
 	record MutationReplacement<T extends SchemaMutation>(
 		int index,
@@ -362,13 +411,12 @@ public interface InternalSchemaBuilderHelper {
 	 *
 	 * @param discarded if set to TRUE it continues to be combining `current` mutation  with other existing mutations,
 	 *                  but finally it discards it and does not append it to the list of mutations
-	 * @param origin represents the new mutation that should be used instead of existing mutation, NULL means that
+	 * @param origin    represents the new mutation that should be used instead of existing mutation, NULL means that
 	 *                  existing mutation should be discarded without any compensation
-	 * @param current represents the new mutation set that should be appended instead the currently added inserted
-	 *                mutation, NULL means that the added mutation should be discarded completely, multiple mutation
-	 *                set means that the current mutation should be dismantled to a pieces of which only a few should
-	 *                be added to the pipeline
-	 * @param <T>
+	 * @param current   represents the new mutation set that should be appended instead the currently added inserted
+	 *                  mutation, NULL means that the added mutation should be discarded completely, multiple mutation
+	 *                  set means that the current mutation should be dismantled to a pieces of which only a few should
+	 *                  be added to the pipeline
 	 */
 	record MutationCombinationResult<T extends SchemaMutation>(
 		boolean discarded,
@@ -382,6 +430,5 @@ public interface InternalSchemaBuilderHelper {
 		}
 
 	}
-
 
 }

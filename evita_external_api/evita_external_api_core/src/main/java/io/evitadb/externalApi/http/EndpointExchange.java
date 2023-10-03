@@ -60,7 +60,7 @@ public interface EndpointExchange extends AutoCloseable {
 	String preferredResponseContentType();
 
 	@Override
-	default void close() throws Exception {
+	default void close() {
 		// do nothing
 	}
 }

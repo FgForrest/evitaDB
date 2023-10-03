@@ -21,12 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.workaround;
+package io.evitadb.api.query.descriptor;
 
 /**
- * Empty class to enforce JavaDoc generation that is required by the SonaType rules.
+ * High-level indicator of how the constraint may look like based on its parameters.
+ * This is useful for generating APIs from it.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class ShadedRoaringBitmap {
+public enum ConstraintValueStructure {
+
+	/**
+	 * No particular value needed. Can be represented by a boolean to enable/disable constraint.
+	 */
+	NONE,
+	/**
+	 * Primitive value, such as string, integer and so on.
+	 */
+	PRIMITIVE,
+	/**
+	 * Special case of what would otherwise end up as a {@link #COMPLEX} structure where there are only {@code from} and {@code to} value parameters which
+	 * should result in range tuple.
+	 */
+	RANGE,
+	/**
+	 * Single child or list of children constraints.
+	 */
+	CONTAINER,
+	/**
+	 * Possibly a struct/object containing more primitive values or children as inner named values.
+	 */
+	COMPLEX
 }

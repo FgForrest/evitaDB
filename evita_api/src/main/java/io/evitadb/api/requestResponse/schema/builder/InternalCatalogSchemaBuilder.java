@@ -75,7 +75,8 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 
 	private final CatalogSchemaContract baseSchema;
 	private final List<LocalCatalogSchemaMutation> mutations = new LinkedList<>();
-	private boolean updatedSchemaDirty;
+	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
+	private int lastMutationReflectedInSchema = 0;
 	private CatalogSchemaContract updatedSchema;
 
 	public InternalCatalogSchemaBuilder(@Nonnull CatalogSchemaContract baseSchema, @Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations) {
@@ -93,9 +94,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Nonnull
 	@Override
 	public CatalogSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			this.baseSchema, this.mutations,
-			new ModifyCatalogSchemaDescriptionMutation(description)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.baseSchema, this.mutations,
+				new ModifyCatalogSchemaDescriptionMutation(description)
+			)
 		);
 		return this;
 	}
@@ -103,9 +107,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Override
 	@Nonnull
 	public CatalogSchemaBuilder verifyCatalogSchemaStrictly() {
-		this.updatedSchemaDirty = addMutations(
-			this.baseSchema, this.mutations,
-			new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.values())
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.baseSchema, this.mutations,
+				new DisallowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.values())
+			)
 		);
 		return this;
 	}
@@ -113,9 +120,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Override
 	@Nonnull
 	public CatalogSchemaBuilder verifyCatalogSchemaButCreateOnTheFly() {
-		this.updatedSchemaDirty = addMutations(
-			this.baseSchema, this.mutations,
-			new AllowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.values())
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.baseSchema, this.mutations,
+				new AllowEvolutionModeInCatalogSchemaMutation(CatalogEvolutionMode.values())
+			)
 		);
 		return this;
 	}
@@ -131,9 +141,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 							whichIs.accept(builder);
 							builder.toMutation()
 								.ifPresent(
-									mutations -> this.updatedSchemaDirty = addMutations(
-										this.baseSchema, this.mutations,
-										mutations
+									mutations -> this.updatedSchemaDirty = updateMutationImpact(
+										this.updatedSchemaDirty,
+										addMutations(
+											this.baseSchema, this.mutations,
+											mutations
+										)
 									)
 								);
 						}
@@ -147,12 +160,15 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 						})
 						.orElse(Stream.empty());
 
-					this.updatedSchemaDirty = addMutations(
-						this.baseSchema, this.mutations,
-						Stream.concat(
-							Stream.of(new CreateEntitySchemaMutation(entityType)),
-							entityMutation.map(it -> (LocalCatalogSchemaMutation)it)
-						).toArray(LocalCatalogSchemaMutation[]::new)
+					this.updatedSchemaDirty = updateMutationImpact(
+						this.updatedSchemaDirty,
+						addMutations(
+							this.baseSchema, this.mutations,
+							Stream.concat(
+								Stream.of(new CreateEntitySchemaMutation(entityType)),
+								entityMutation.map(it -> (LocalCatalogSchemaMutation) it)
+							).toArray(LocalCatalogSchemaMutation[]::new)
+						)
 					);
 				}
 			);
@@ -200,9 +216,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 		);
 
 		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
-			this.updatedSchemaDirty = addMutations(
-				this.baseSchema, this.mutations,
-				attributeSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.baseSchema, this.mutations,
+					attributeSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+				)
 			);
 		}
 		return this;
@@ -211,9 +230,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Override
 	@Nonnull
 	public CatalogSchemaBuilder withoutAttribute(@Nonnull String attributeName) {
-		this.updatedSchemaDirty = addMutations(
-			this.baseSchema, this.mutations,
-			new RemoveAttributeSchemaMutation(attributeName)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.baseSchema, this.mutations,
+				new RemoveAttributeSchemaMutation(attributeName)
+			)
 		);
 		return this;
 	}
@@ -230,16 +252,28 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Nonnull
 	@Override
 	public CatalogSchemaContract toInstance() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty) {
-			CatalogSchemaContract currentSchema = this.baseSchema;
-			for (CatalogSchemaMutation mutation : this.mutations) {
+		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
+			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// and reapply all mutations
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+				this.lastMutationReflectedInSchema = 0;
+			}
+			// if the last mutation reflected in the schema is zero we need to start from the base schema
+			// else we can continue modification last known updated schema by adding additional mutations
+			CatalogSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+				this.baseSchema : this.updatedSchema;
+
+			// apply the mutations not reflected in the schema
+			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				final CatalogSchemaMutation mutation = this.mutations.get(i);
 				currentSchema = mutation.mutate(currentSchema);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = false;
+			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
+			this.lastMutationReflectedInSchema = this.mutations.size();
 		}
 		return this.updatedSchema;
 	}

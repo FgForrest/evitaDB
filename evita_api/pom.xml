@@ -45,6 +45,10 @@
 			<version>${project.parent.version}</version>
 		</dependency>
 		<dependency>
+			<groupId>net.openhft</groupId>
+			<artifactId>zero-allocation-hashing</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>one.edee.oss</groupId>
 			<artifactId>proxycian_bytebuddy</artifactId>
 			<optional>true</optional>

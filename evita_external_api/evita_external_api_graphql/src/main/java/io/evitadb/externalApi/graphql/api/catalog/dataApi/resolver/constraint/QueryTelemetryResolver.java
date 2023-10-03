@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 
 import javax.annotation.Nonnull;
 import java.util.List;
@@ -44,8 +44,8 @@ import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
 public class QueryTelemetryResolver {
 
 	@Nonnull
-	public Optional<RequireConstraint> resolve(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-		final List<SelectedField> queryTelemetryFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.QUERY_TELEMETRY.name());
+	public Optional<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet) {
+		final List<SelectedField> queryTelemetryFields = extraResultsSelectionSet.getImmediateFields(ExtraResultsDescriptor.QUERY_TELEMETRY.name());
 		if (queryTelemetryFields.isEmpty()) {
 			return Optional.empty();
 		}

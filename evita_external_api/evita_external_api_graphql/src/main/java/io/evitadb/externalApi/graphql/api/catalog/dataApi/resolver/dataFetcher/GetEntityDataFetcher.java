@@ -44,7 +44,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.En
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -160,7 +160,7 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
     @Nonnull
     private Require buildRequire(@Nonnull DataFetchingEnvironment environment, @Nonnull Arguments arguments) {
 	    final EntityFetch entityFetch = entityFetchRequireResolver.resolveEntityFetch(
-		    SelectionSetWrapper.from(environment.getSelectionSet()),
+		    SelectionSetAggregator.from(environment.getSelectionSet()),
 		    arguments.locale(),
 		    entitySchema
 	    )
@@ -171,13 +171,13 @@ public class GetEntityDataFetcher implements DataFetcher<DataFetcherResult<Entit
 
     @Nonnull
     private static EntityQueryContext buildResultContext(@Nonnull Arguments arguments) {
-        return EntityQueryContext.builder()
-            .desiredLocale(arguments.locale())
-            .desiredPriceInCurrency(arguments.priceInCurrency())
-            .desiredPriceValidIn(arguments.priceValidIn())
-            .desiredpriceValidInNow(arguments.priceValidInNow())
-            .desiredPriceInPriceLists(arguments.priceInPriceLists())
-            .build();
+        return new EntityQueryContext(
+            arguments.locale(),
+            arguments.priceInCurrency(),
+            arguments.priceInPriceLists(),
+            arguments.priceValidIn(),
+            arguments.priceValidInNow()
+        );
     }
 
     /**

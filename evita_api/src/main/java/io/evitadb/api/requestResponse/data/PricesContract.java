@@ -71,6 +71,10 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	static Optional<PriceContract> computePriceForSale(@Nonnull Collection<PriceContract> entityPrices, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String[] priceListPriority, @Nonnull Predicate<PriceContract> filterPredicate) {
+		if (entityPrices.isEmpty()) {
+			return empty();
+		}
+
 		final Map<Serializable, Integer> pLists = createHashMap(priceListPriority.length);
 		for (int i = 0; i < priceListPriority.length; i++) {
 			final Serializable pList = priceListPriority[i];
@@ -357,6 +361,12 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	default boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority)
 		throws ContextMissingException {
+
+		final Collection<PriceContract> entityPrices = getPrices();
+		if (entityPrices.isEmpty()) {
+			return false;
+		}
+
 		switch (getPriceInnerRecordHandling()) {
 			case NONE, SUM -> {
 				return getPriceForSale(currency, atTheMoment, priceListPriority)
@@ -370,7 +380,7 @@ public interface PricesContract extends Versioned, Serializable {
 					final Serializable pList = priceListPriority[i];
 					pLists.put(pList, i);
 				}
-				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = getPrices()
+				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = entityPrices
 					.stream()
 					.filter(PriceContract::exists)
 					.filter(PriceContract::sellable)

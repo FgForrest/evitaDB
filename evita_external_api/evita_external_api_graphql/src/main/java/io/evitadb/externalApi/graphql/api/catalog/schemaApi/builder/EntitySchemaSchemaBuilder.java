@@ -185,7 +185,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			entitySchemaField,
-			new ReadDataFetcher(new EntitySchemaDataFetcher(entitySchema.getName()), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new EntitySchemaDataFetcher(entitySchema.getName()),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 	}
 
@@ -498,12 +502,20 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(new ReferenceSchemaEntityTypeNameVariantsDataFetcher(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(new ReferenceSchemaGroupTypeNameVariantsDataFetcher(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
@@ -589,12 +601,20 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(new ReferenceSchemaEntityTypeNameVariantsDataFetcher(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReadDataFetcher(new ReferenceSchemaGroupTypeNameVariantsDataFetcher(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 
 		if (!referenceSchema.getAttributes().isEmpty()) {

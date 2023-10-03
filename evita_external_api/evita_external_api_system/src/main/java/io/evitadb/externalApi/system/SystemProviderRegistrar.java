@@ -45,9 +45,6 @@ import io.undertow.util.StatusCodes;
 import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.ThreadInfo;
-import java.lang.management.ThreadMXBean;
 import java.util.Arrays;
 
 /**
@@ -56,6 +53,8 @@ import java.util.Arrays;
  * @author Tomáš Pozler, 2023
  */
 public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<SystemConfig> {
+	private static final String ENDPOINT_SERVER_NAME = "server-name";
+
 	@Nonnull
 	@Override
 	public String getExternalApiCode() {
@@ -90,22 +89,13 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 			fileName = certificate.substring(lastSeparatorIndex);
 		}
 
-		// todo lho temporary, delete
 		final PathHandler router = Handlers.path();
 		router.addExactPath(
-			"/td",
+			"/" + ENDPOINT_SERVER_NAME,
 			exchange -> {
-				ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
-				ThreadInfo[] threadInfos = threadMXBean.dumpAllThreads(true, true);
-
-				final StringBuilder body = new StringBuilder();
-				for (ThreadInfo threadInfo : threadInfos) {
-					body.append(threadInfo.toString());
-				}
-
 				exchange.setStatusCode(StatusCodes.OK);
 				exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "text/plain");
-				exchange.getResponseSender().send(body.toString());
+				exchange.getResponseSender().send(evita.getConfiguration().name());
 			}
 		);
 
@@ -136,6 +126,9 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						systemConfig.getAllowedOrigins()
 					)
 				),
+				Arrays.stream(systemConfig.getBaseUrls())
+					.map(it -> it + ENDPOINT_SERVER_NAME)
+					.toArray(String[]::new),
 				Arrays.stream(systemConfig.getBaseUrls())
 					.map(it -> it + fileName)
 					.toArray(String[]::new),

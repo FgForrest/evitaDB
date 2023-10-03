@@ -313,8 +313,6 @@ public interface QueryConstraints {
 	 * )
 	 * )
 	 * ```
-	 * 
-	 * TOBEDONE JNO - consider renaming to `referenceMatching`
 	*/
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {

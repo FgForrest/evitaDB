@@ -32,7 +32,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionTerminationResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcSessionType;
-import io.evitadb.externalApi.grpc.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.test.EvitaTestSupport;

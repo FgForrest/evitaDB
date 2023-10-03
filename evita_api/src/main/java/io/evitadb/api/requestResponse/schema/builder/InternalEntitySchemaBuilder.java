@@ -32,7 +32,6 @@ import io.evitadb.api.exception.SortableAttributeCompoundSchemaException;
 import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.associatedData.RemoveAssociatedDataSchemaMutation;
@@ -84,7 +83,8 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	private final EntitySchemaContract baseSchema;
 	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
 	private Supplier<CatalogSchemaContract> catalogSchemaAccessor;
-	private boolean updatedSchemaDirty;
+	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
+	private int lastMutationReflectedInSchema = 0;
 	private EntitySchemaContract updatedSchema;
 
 	public InternalEntitySchemaBuilder(
@@ -117,9 +117,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder verifySchemaStrictly() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.values())
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.values())
+			)
 		);
 		return this;
 	}
@@ -127,10 +130,13 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder verifySchemaButAllow(@Nonnull EvolutionMode... evolutionMode) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.values()),
-			new AllowEvolutionModeInEntitySchemaMutation(evolutionMode)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new DisallowEvolutionModeInEntitySchemaMutation(EvolutionMode.values()),
+				new AllowEvolutionModeInEntitySchemaMutation(evolutionMode)
+			)
 		);
 		return this;
 	}
@@ -138,39 +144,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder verifySchemaButCreateOnTheFly() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.values())
-		);
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new ModifyEntitySchemaDescriptionMutation(description)
-		);
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new ModifyEntitySchemaDeprecationNoticeMutation(deprecationNotice)
-		);
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder notDeprecatedAnymore() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new ModifyEntitySchemaDeprecationNoticeMutation(null)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new AllowEvolutionModeInEntitySchemaMutation(EvolutionMode.values())
+			)
 		);
 		return this;
 	}
@@ -178,9 +157,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withGeneratedPrimaryKey() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true)
+			)
 		);
 		return this;
 	}
@@ -188,9 +170,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutGeneratedPrimaryKey() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false)
+			)
 		);
 		return this;
 	}
@@ -198,9 +183,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withHierarchy() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithHierarchyMutation(true)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithHierarchyMutation(true)
+			)
 		);
 		return this;
 	}
@@ -208,9 +196,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutHierarchy() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithHierarchyMutation(false)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithHierarchyMutation(false)
+			)
 		);
 		return this;
 	}
@@ -218,9 +209,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withPrice() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithPriceMutation(true, 2)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(true, 2)
+			)
 		);
 		return this;
 	}
@@ -228,9 +222,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withPrice(int indexedDecimalPlaces) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithPriceMutation(true, indexedDecimalPlaces)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(true, indexedDecimalPlaces)
+			)
 		);
 		return this;
 	}
@@ -244,10 +241,13 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withPriceInCurrency(int indexedPricePlaces, @Nonnull Currency... currency) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithPriceMutation(true, indexedPricePlaces),
-			new AllowCurrencyInEntitySchemaMutation(currency)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(true, indexedPricePlaces),
+				new AllowCurrencyInEntitySchemaMutation(currency)
+			)
 		);
 		return this;
 	}
@@ -255,9 +255,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutPrice() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new SetEntitySchemaWithPriceMutation(false, 0)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new SetEntitySchemaWithPriceMutation(false, 0)
+			)
 		);
 		return this;
 	}
@@ -265,9 +268,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutPriceInCurrency(@Nonnull Currency currency) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new DisallowCurrencyInEntitySchemaMutation(currency)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new DisallowCurrencyInEntitySchemaMutation(currency)
+			)
 		);
 		return this;
 	}
@@ -275,9 +281,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withLocale(@Nonnull Locale... locale) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new AllowLocaleInEntitySchemaMutation(locale)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new AllowLocaleInEntitySchemaMutation(locale)
+			)
 		);
 		return this;
 	}
@@ -285,9 +294,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutLocale(@Nonnull Locale locale) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new DisallowLocaleInEntitySchemaMutation(locale)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new DisallowLocaleInEntitySchemaMutation(locale)
+			)
 		);
 		return this;
 	}
@@ -295,171 +307,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withGlobalAttribute(@Nonnull String attributeName) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new UseGlobalAttributeSchemaMutation(attributeName)
-		);
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder withAttribute(@Nonnull String attributeName, @Nonnull Class<? extends Serializable> ofType) {
-		return withAttribute(attributeName, ofType, null);
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaBuilder withAttribute(
-		@Nonnull String attributeName,
-		@Nonnull Class<? extends Serializable> ofType,
-		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
-	) {
-		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
-		catalogSchema.getAttribute(attributeName)
-			.ifPresent(it -> {
-				throw new AttributeAlreadyPresentInCatalogSchemaException(
-					catalogSchema.getName(), Objects.requireNonNull(it)
-				);
-			});
-		final Optional<AttributeSchemaContract> existingAttribute = getAttribute(attributeName);
-		final AttributeSchemaBuilder attributeSchemaBuilder =
-			existingAttribute
-				.map(it -> {
-					final AttributeSchemaBuilder builder = new AttributeSchemaBuilder(baseSchema, it);
-					isTrue(
-						ofType.equals(it.getType()),
-						() -> new AttributeAlreadyPresentInEntitySchemaException(
-							it, builder.toInstance(), null, attributeName
-						)
-					);
-					return builder;
-				})
-				.orElseGet(() -> new AttributeSchemaBuilder(baseSchema, attributeName, ofType));
-
-		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
-		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
-		checkSortableTraits(attributeName, attributeSchema);
-
-		// check the names in all naming conventions are unique in the catalog schema
-		checkNamesAreUniqueInAllNamingConventions(
-			this.getAttributes().values(),
-			this.getSortableAttributeCompounds().values(),
-			attributeSchema
-		);
-
-		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
-			this.updatedSchemaDirty = addMutations(
-				catalogSchema, this.baseSchema, this.mutations,
-				attributeSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
-			);
-		}
-		return this;
-	}
-
-	@Override
-	@Nonnull
-	public EntitySchemaBuilder withoutAttribute(@Nonnull String attributeName) {
-		checkSortableAttributeCompoundsWithoutAttribute(
-			attributeName, this.getSortableAttributeCompounds().values()
-		);
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new RemoveAttributeSchemaMutation(attributeName)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement... attributeElements
-	) {
-		return withSortableAttributeCompound(
-			name, attributeElements, null
-		);
-	}
-
-	@Override
-	public EntitySchemaBuilder withSortableAttributeCompound(
-		@Nonnull String name,
-		@Nonnull AttributeElement[] attributeElements,
-		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
-	) {
-		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
-		final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
-		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
-			catalogSchema,
-			this,
-			null,
-			existingCompound.orElse(null),
-			name,
-			Arrays.asList(attributeElements),
-			Collections.emptyList(),
-			true
-		);
-		final SortableAttributeCompoundSchemaBuilder schemaBuilder =
-			existingCompound
-				.map(it -> {
-					isTrue(
-						it.getAttributeElements().equals(Arrays.asList(attributeElements)),
-						() -> new AttributeAlreadyPresentInEntitySchemaException(
-							it, builder.toInstance(), null, name
-						)
-					);
-					return builder;
-				})
-				.orElse(builder);
-
-		ofNullable(whichIs).ifPresent(it -> it.accept(schemaBuilder));
-		final SortableAttributeCompoundSchemaContract compoundSchema = schemaBuilder.toInstance();
-		isTrue(
-			compoundSchema.getAttributeElements().size() > 1,
-			() -> new SortableAttributeCompoundSchemaException(
-				"Sortable attribute compound requires more than one attribute element!",
-				compoundSchema
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new UseGlobalAttributeSchemaMutation(attributeName)
 			)
-		);
-		isTrue(
-			compoundSchema.getAttributeElements().size() ==
-				compoundSchema.getAttributeElements()
-					.stream()
-					.map(AttributeElement::attributeName)
-					.distinct()
-					.count(),
-			() -> new SortableAttributeCompoundSchemaException(
-				"Attribute names of elements in sortable attribute compound must be unique!",
-				compoundSchema
-			)
-		);
-		checkSortableTraits(name, compoundSchema, this.getAttributes());
-
-		// check the names in all naming conventions are unique in the catalog schema
-		checkNamesAreUniqueInAllNamingConventions(
-			this.getAttributes().values(),
-			this.getSortableAttributeCompounds().values(),
-			compoundSchema
-		);
-
-		this.updatedSchemaDirty = addMutations(
-			catalogSchema, this, this.mutations,
-			new CreateSortableAttributeCompoundSchemaMutation(
-				compoundSchema.getName(),
-				compoundSchema.getDescription(),
-				compoundSchema.getDeprecationNotice(),
-				attributeElements
-			)
-		);
-		return this;
-	}
-
-	@Nonnull
-	@Override
-	public EntitySchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new RemoveSortableAttributeCompoundSchemaMutation(name)
 		);
 		return this;
 	}
@@ -514,9 +367,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 						conflict.convention(), conflict.conflictingName()
 					);
 				});
-			this.updatedSchemaDirty = addMutations(
-				catalogSchema, this.baseSchema, this.mutations,
-				associatedDataSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					catalogSchema, this.baseSchema, this.mutations,
+					associatedDataSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+				)
 			);
 		}
 		return this;
@@ -525,9 +381,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutAssociatedData(@Nonnull String dataName) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new RemoveAssociatedDataSchemaMutation(dataName)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new RemoveAssociatedDataSchemaMutation(dataName)
+			)
 		);
 		return this;
 	}
@@ -605,9 +464,225 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Override
 	@Nonnull
 	public EntitySchemaBuilder withoutReferenceTo(@Nonnull String name) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-			new RemoveReferenceSchemaMutation(name)
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new RemoveReferenceSchemaMutation(name)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder withDescription(@Nullable String description) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new ModifyEntitySchemaDescriptionMutation(description)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder deprecated(@Nonnull String deprecationNotice) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new ModifyEntitySchemaDeprecationNoticeMutation(deprecationNotice)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder notDeprecatedAnymore() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new ModifyEntitySchemaDeprecationNoticeMutation(null)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder withAttribute(@Nonnull String attributeName, @Nonnull Class<? extends Serializable> ofType) {
+		return withAttribute(attributeName, ofType, null);
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withAttribute(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> ofType,
+		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
+	) {
+		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
+		catalogSchema.getAttribute(attributeName)
+			.ifPresent(it -> {
+				throw new AttributeAlreadyPresentInCatalogSchemaException(
+					catalogSchema.getName(), Objects.requireNonNull(it)
+				);
+			});
+		final Optional<AttributeSchemaContract> existingAttribute = getAttribute(attributeName);
+		final AttributeSchemaBuilder attributeSchemaBuilder =
+			existingAttribute
+				.map(it -> {
+					final AttributeSchemaBuilder builder = new AttributeSchemaBuilder(baseSchema, it);
+					isTrue(
+						ofType.equals(it.getType()),
+						() -> new AttributeAlreadyPresentInEntitySchemaException(
+							it, builder.toInstance(), null, attributeName
+						)
+					);
+					return builder;
+				})
+				.orElseGet(() -> new AttributeSchemaBuilder(baseSchema, attributeName, ofType));
+
+		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
+		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
+		checkSortableTraits(attributeName, attributeSchema);
+
+		// check the names in all naming conventions are unique in the catalog schema
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			this.getSortableAttributeCompounds().values(),
+			attributeSchema
+		);
+
+		if (existingAttribute.map(it -> !it.equals(attributeSchema)).orElse(true)) {
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					catalogSchema, this.baseSchema, this.mutations,
+					attributeSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+				)
+			);
+		}
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public EntitySchemaBuilder withoutAttribute(@Nonnull String attributeName) {
+		checkSortableAttributeCompoundsWithoutAttribute(
+			attributeName, this.getSortableAttributeCompounds().values()
+		);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new RemoveAttributeSchemaMutation(attributeName)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withSortableAttributeCompound(
+		@Nonnull String name,
+		@Nonnull AttributeElement... attributeElements
+	) {
+		return withSortableAttributeCompound(
+			name, attributeElements, null
+		);
+	}
+
+	@Override
+	public EntitySchemaBuilder withSortableAttributeCompound(
+		@Nonnull String name,
+		@Nonnull AttributeElement[] attributeElements,
+		@Nullable Consumer<SortableAttributeCompoundSchemaBuilder> whichIs
+	) {
+		final Optional<SortableAttributeCompoundSchemaContract> existingCompound = getSortableAttributeCompound(name);
+		final CatalogSchemaContract catalogSchema = this.catalogSchemaAccessor.get();
+		final SortableAttributeCompoundSchemaBuilder builder = new SortableAttributeCompoundSchemaBuilder(
+			catalogSchema,
+			this,
+			null,
+			existingCompound.orElse(null),
+			name,
+			Arrays.asList(attributeElements),
+			Collections.emptyList(),
+			true
+		);
+		final SortableAttributeCompoundSchemaBuilder schemaBuilder =
+			existingCompound
+				.map(it -> {
+					isTrue(
+						it.getAttributeElements().equals(Arrays.asList(attributeElements)),
+						() -> new AttributeAlreadyPresentInEntitySchemaException(
+							it, builder.toInstance(), null, name
+						)
+					);
+					return builder;
+				})
+				.orElse(builder);
+
+		ofNullable(whichIs).ifPresent(it -> it.accept(schemaBuilder));
+		final SortableAttributeCompoundSchemaContract compoundSchema = schemaBuilder.toInstance();
+		isTrue(
+			compoundSchema.getAttributeElements().size() > 1,
+			() -> new SortableAttributeCompoundSchemaException(
+				"Sortable attribute compound requires more than one attribute element!",
+				compoundSchema
+			)
+		);
+		isTrue(
+			compoundSchema.getAttributeElements().size() ==
+				compoundSchema.getAttributeElements()
+					.stream()
+					.map(AttributeElement::attributeName)
+					.distinct()
+					.count(),
+			() -> new SortableAttributeCompoundSchemaException(
+				"Attribute names of elements in sortable attribute compound must be unique!",
+				compoundSchema
+			)
+		);
+		checkSortableTraits(name, compoundSchema, this.getAttributes());
+
+		// check the names in all naming conventions are unique in the catalog schema
+		checkNamesAreUniqueInAllNamingConventions(
+			this.getAttributes().values(),
+			this.getSortableAttributeCompounds().values(),
+			compoundSchema
+		);
+
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				catalogSchema, this, this.mutations,
+				new CreateSortableAttributeCompoundSchemaMutation(
+					compoundSchema.getName(),
+					compoundSchema.getDescription(),
+					compoundSchema.getDeprecationNotice(),
+					attributeElements
+				)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaBuilder withoutSortableAttributeCompound(@Nonnull String name) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+				new RemoveSortableAttributeCompoundSchemaMutation(name)
+			)
 		);
 		return this;
 	}
@@ -624,16 +699,28 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	@Delegate(types = EntitySchemaContract.class)
 	@Override
 	public EntitySchemaContract toInstance() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty) {
-			EntitySchemaContract currentSchema = this.baseSchema;
-			for (EntitySchemaMutation mutation : this.mutations) {
+		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
+			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// and reapply all mutations
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+				this.lastMutationReflectedInSchema = 0;
+			}
+			// if the last mutation reflected in the schema is zero we need to start from the base schema
+			// else we can continue modification last known updated schema by adding additional mutations
+			EntitySchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+				this.baseSchema : this.updatedSchema;
+
+			// apply the mutations not reflected in the schema
+			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				final EntitySchemaMutation mutation = this.mutations.get(i);
 				currentSchema = mutation.mutate(catalogSchemaAccessor.get(), currentSchema);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = false;
+			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
+			this.lastMutationReflectedInSchema = this.mutations.size();
 		}
 		return this.updatedSchema;
 	}
@@ -645,8 +732,9 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 		final ReferenceSchemaContract newReference = referenceSchemaBuilder.toInstance();
 		if (!Objects.equals(existingReference, newReference)) {
 			// remove all existing mutations for the reference schema (it needs to be replaced)
-			this.mutations
-				.removeIf(it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation && referenceSchemaMutation.getName().equals(newReference.getName()));
+			if (this.mutations.removeIf(it -> it instanceof ReferenceSchemaMutation referenceSchemaMutation && referenceSchemaMutation.getName().equals(newReference.getName()))) {
+				this.updatedSchemaDirty = updateMutationImpact(this.updatedSchemaDirty, MutationImpact.MODIFIED_PREVIOUS);
+			}
 			// check the names in all naming conventions are unique in the entity schema
 			toInstance()
 				.getReferences()
@@ -665,9 +753,12 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 						conflict.convention(), conflict.conflictingName()
 					);
 				});
-			this.updatedSchemaDirty = addMutations(
-				this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
-				referenceSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					this.catalogSchemaAccessor.get(), this.baseSchema, this.mutations,
+					referenceSchemaBuilder.toMutation().toArray(EMPTY_ARRAY)
+				)
 			);
 		}
 	}

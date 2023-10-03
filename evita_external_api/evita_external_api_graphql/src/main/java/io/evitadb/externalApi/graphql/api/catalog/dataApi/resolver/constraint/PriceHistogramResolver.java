@@ -28,7 +28,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 
@@ -50,14 +50,14 @@ import static io.evitadb.api.query.QueryConstraints.priceHistogram;
 public class PriceHistogramResolver {
 
 	@Nonnull
-	public Optional<RequireConstraint> resolve(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-		final List<SelectedField> priceHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.PRICE_HISTOGRAM.name());
+	public Optional<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet) {
+		final List<SelectedField> priceHistogramFields = extraResultsSelectionSet.getImmediateFields(ExtraResultsDescriptor.PRICE_HISTOGRAM.name());
 		if (priceHistogramFields.isEmpty()) {
 			return Optional.empty();
 		}
 
 		final Set<Integer> requestedBucketCounts = priceHistogramFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields(HistogramDescriptor.BUCKETS.name()).stream())
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), f.getSelectionSet()).stream())
 			.map(f -> (int) f.getArguments().get(AttributeHistogramDataFetcher.REQUESTED_BUCKET_COUNT))
 			.collect(Collectors.toSet());
 		Assert.isTrue(

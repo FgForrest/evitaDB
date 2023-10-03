@@ -1,6 +1,10 @@
 ---
 title: Range filtering
 date: '17.1.2023'
+perex: |
+  Range filtering is used to filter entities by the value of their attributes that are of a range type. It allows you to
+  reduce the entity set to those entities whose range attribute includes the parameter value. If the parameter value is 
+  itself a range, only those entities with an overlapping range attribute will be matched.
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---

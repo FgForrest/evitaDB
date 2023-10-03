@@ -91,9 +91,9 @@ class ConstraintProcessor {
 					constraintClass,
 					type,
 					propertyType,
-					creator.suffix() == null
+					creator.suffix().isEmpty()
 						? constraintDefinition.name()
-						: constraintDefinition.name() + StringUtils.capitalize(creator.suffix()),
+						: constraintDefinition.name() + StringUtils.capitalize(creator.suffix().get()),
 					constraintDefinition.shortDescription(),
 					Set.of(constraintDefinition.supportedIn()),
 					supportedValues,

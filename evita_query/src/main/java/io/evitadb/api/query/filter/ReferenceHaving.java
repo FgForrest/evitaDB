@@ -61,8 +61,6 @@ import java.io.Serializable;
  * )
  * ```
  *
- * TOBEDONE JNO - consider renaming to `referenceMatching`
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
@@ -101,7 +99,7 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Override
 	public boolean isNecessary() {
-		return getArguments().length == 1 && getChildren().length == 1;
+		return getArguments().length == 1 && getChildren().length >= 1;
 	}
 
 	@AliasForParameter("filter")

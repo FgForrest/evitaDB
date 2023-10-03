@@ -514,6 +514,7 @@ public class EntityObjectBuilder {
 				new BigDecimalDataFetcher(
 					new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema)
 				),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			);
 		} else {
@@ -522,6 +523,7 @@ public class EntityObjectBuilder {
 			);
 			associatedDataFieldDataFetcher = new ReadDataFetcher(
 				new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			);
 		}

@@ -61,7 +61,8 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	private final EntitySchemaContract entitySchema;
 	private final AssociatedDataSchemaContract baseSchema;
 	private final List<EntitySchemaMutation> mutations = new LinkedList<>();
-	private boolean updatedSchemaDirty;
+	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
+	private int lastMutationReflectedInSchema = 0;
 	private AssociatedDataSchemaContract updatedSchema;
 
 	AssociatedDataSchemaBuilder(
@@ -100,11 +101,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder localized() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetAssociatedDataSchemaLocalizedMutation(
-				getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaLocalizedMutation(
+					getName(),
+					true
+				)
 			)
 		);
 		return this;
@@ -113,11 +117,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder localized(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetAssociatedDataSchemaLocalizedMutation(
-				getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaLocalizedMutation(
+					getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return this;
@@ -126,11 +133,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder nullable() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetAssociatedDataSchemaNullableMutation(
-				getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaNullableMutation(
+					getName(),
+					true
+				)
 			)
 		);
 		return this;
@@ -139,11 +149,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Nonnull
 	@Override
 	public AssociatedDataSchemaEditor nullable(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new SetAssociatedDataSchemaNullableMutation(
-				getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new SetAssociatedDataSchemaNullableMutation(
+					getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return this;
@@ -152,11 +165,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyAssociatedDataSchemaDescriptionMutation(
-				getName(),
-				description
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyAssociatedDataSchemaDescriptionMutation(
+					getName(),
+					description
+				)
 			)
 		);
 		return this;
@@ -165,11 +181,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
-				getName(),
-				deprecationNotice
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
+					getName(),
+					deprecationNotice
+				)
 			)
 		);
 		return this;
@@ -178,11 +197,14 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Override
 	@Nonnull
 	public AssociatedDataSchemaBuilder notDeprecatedAnymore() {
-		this.updatedSchemaDirty = addMutations(
-			this.catalogSchema, this.entitySchema, this.mutations,
-			new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
-				getName(),
-				null
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				this.catalogSchema, this.entitySchema, this.mutations,
+				new ModifyAssociatedDataSchemaDeprecationNoticeMutation(
+					getName(),
+					null
+				)
 			)
 		);
 		return this;
@@ -194,16 +216,28 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	@Delegate(types = AssociatedDataSchemaContract.class)
 	@Nonnull
 	public AssociatedDataSchemaContract toInstance() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty) {
-			AssociatedDataSchemaContract currentSchema = this.baseSchema;
-			for (EntitySchemaMutation mutation : this.mutations) {
-				currentSchema = ((AssociatedDataSchemaMutation)mutation).mutate(currentSchema);
+		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
+			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// and reapply all mutations
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+				this.lastMutationReflectedInSchema = 0;
+			}
+			// if the last mutation reflected in the schema is zero we need to start from the base schema
+			// else we can continue modification last known updated schema by adding additional mutations
+			AssociatedDataSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+				this.baseSchema : this.updatedSchema;
+
+			// apply the mutations not reflected in the schema
+			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+				final EntitySchemaMutation mutation = this.mutations.get(i);
+				currentSchema = ((AssociatedDataSchemaMutation) mutation).mutate(currentSchema);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Attribute unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = false;
+			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
+			this.lastMutationReflectedInSchema = this.mutations.size();
 		}
 		return this.updatedSchema;
 	}

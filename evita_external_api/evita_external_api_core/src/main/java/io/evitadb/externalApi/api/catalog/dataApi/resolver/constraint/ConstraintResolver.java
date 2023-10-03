@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintCreator.ClassifierParameterDescriptor;
@@ -36,7 +37,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
+import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
@@ -234,9 +235,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	private List<Object> resolveValueToInstantiationArgs(@Nonnull ConstraintResolveContext resolveContext,
 	                                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                     @Nullable Object value) {
-		final ConstraintValueStructure valueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(
-			parsedConstraintDescriptor.constraintDescriptor().creator()
-		);
+		final ConstraintValueStructure valueStructure = parsedConstraintDescriptor.constraintDescriptor().creator().valueStructure();
 
 		if (valueStructure == ConstraintValueStructure.NONE &&
 			!parsedConstraintDescriptor.constraintDescriptor().creator().hasClassifierParameter()) {
@@ -323,7 +322,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		Object argument;
 		final String parameterName = parameterDescriptor.name();
 
-		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
+		if (constraintValueStructure == ConstraintValueStructure.COMPLEX) {
 			argument = extractValueArgumentFromWrapperObject(parsedConstraintDescriptor, value, parameterDescriptor);
 
 			// we want treat missing arrays as empty arrays for more client convenience
@@ -336,21 +335,21 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 					"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterName + "` to be non-null."
 				);
 			}
-		} else if (constraintValueStructure == ConstraintValueStructure.WRAPPER_RANGE) {
-			if (parameterName.equals(ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER)) {
+		} else if (constraintValueStructure == ConstraintValueStructure.RANGE) {
+			if (parameterName.equals(ConstraintCreator.RANGE_FROM_VALUE_PARAMETER)) {
 				argument = extractFromArgumentFromWrapperRange(parsedConstraintDescriptor, value);
 
 				if (parameterDescriptor.required() && argument == null) {
 					throw createInvalidArgumentException(
-						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER + "` argument of range to be non-null value."
+						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires `" + ConstraintCreator.RANGE_FROM_VALUE_PARAMETER + "` argument of range to be non-null value."
 					);
 				}
-			} else if (parameterName.equals(ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER)) {
+			} else if (parameterName.equals(ConstraintCreator.RANGE_TO_VALUE_PARAMETER)) {
 				argument = extractToArgumentFromWrapperRange(parsedConstraintDescriptor, value);
 
 				if (parameterDescriptor.required() && argument == null) {
 					throw createInvalidArgumentException(
-						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires `" + ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER + "` argument of range to be non-null value."
+						"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires `" + ConstraintCreator.RANGE_TO_VALUE_PARAMETER + "` argument of range to be non-null value."
 					);
 				}
 			} else {
@@ -435,7 +434,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			() -> createInvalidArgumentException("Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires range value.")
 		);
 		Assert.isTrue(
-			range.size() == ConstraintProcessingUtils.WRAPPER_RANGE_PARAMETERS_COUNT,
+			range.size() == ConstraintCreator.RANGE_PARAMETERS_COUNT,
 			() -> createInvalidArgumentException("Constraint `" + parsedConstraintDescriptor.originalKey() + "` has invalid range format.")
 		);
 
@@ -511,7 +510,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 		String argumentName = parameterDescriptor.name();
 		Object argument = null;
 
-		if (constraintValueStructure == ConstraintValueStructure.WRAPPER_OBJECT) {
+		if (constraintValueStructure == ConstraintValueStructure.COMPLEX) {
 			final Class<?> childParameterType = parameterDescriptor.type();
 
 			if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType) && Constraint.class.isAssignableFrom(childParameterType)) {
@@ -540,7 +539,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 					"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires parameter `" + parameterDescriptor.name() + "` to be non-null."
 				);
 			}
-		} else if (constraintValueStructure == ConstraintValueStructure.CHILD) {
+		} else if (constraintValueStructure == ConstraintValueStructure.CONTAINER) {
 			argument = value;
 
 			if (parameterDescriptor.required() && argument == null) {
@@ -703,7 +702,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                                        @Nullable Object value,
 	                                                        @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                                        @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
-		if (constraintValueStructure != ConstraintValueStructure.WRAPPER_OBJECT) {
+		if (constraintValueStructure != ConstraintValueStructure.COMPLEX) {
 			throw createInvalidArgumentException(
 				"Constraint `" + parsedConstraintDescriptor.originalKey() + "` requires additional child parameter but value isn't object."
 			);
