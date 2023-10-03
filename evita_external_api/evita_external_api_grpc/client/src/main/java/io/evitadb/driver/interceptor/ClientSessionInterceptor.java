@@ -21,8 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.grpc.interceptor;
+package io.evitadb.driver.interceptor;
 
+import io.evitadb.api.ClientContext;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -35,7 +36,9 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * This class is used to intercept client calls prior their sending to the server. If client did set sessionId and sessionType
@@ -44,6 +47,17 @@ import java.util.Objects;
  * @author Tomáš Pozler, 2022
  */
 public class ClientSessionInterceptor implements ClientInterceptor {
+	@Nullable
+	private final ClientContext clientContext;
+
+	public ClientSessionInterceptor(@Nullable ClientContext clientContext) {
+		this.clientContext = clientContext;
+	}
+
+	public ClientSessionInterceptor() {
+		this.clientContext = null;
+	}
+
 	/**
 	 * This method is intercepting client calls prior their sending to the server. When target method requires a session, then
 	 * the requested information set by the client will be checked in {@link SessionIdHolder}. If there is a set sessionId, then
@@ -63,6 +77,12 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 				if (sessionId != null) {
 					metadata.put(Metadata.Key.of(GrpcHeaders.SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), SessionIdHolder.getSessionId());
 					metadata.put(Metadata.Key.of(GrpcHeaders.CATALOG_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER), Objects.requireNonNull(SessionIdHolder.getCatalogName()));
+				}
+				if (clientContext != null) {
+					final Optional<String> clientId = clientContext.getClientId();
+					clientId.ifPresent(s -> metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), s));
+					final Optional<String> requestId = clientContext.getRequestId();
+					requestId.ifPresent(s -> metadata.put(Metadata.Key.of(GrpcHeaders.REQUEST_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), s));
 				}
 				super.start(listener, metadata);
 			}
@@ -86,7 +106,7 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 		/**
 		 * Sets sessionId to the context.
 		 *
-		 * @param catalogName   session to set
+		 * @param catalogName session to set
 		 * @param sessionId   session to set
 		 */
 		public static void setSessionId(String catalogName, String sessionId) {

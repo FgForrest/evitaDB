@@ -88,7 +88,7 @@ public class GraphQLClient extends ApiClient {
 
 	@Override
 	protected void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String document) throws IOException {
-		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null);
+		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null, null);
 		final String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
 		super.writeRequestBody(connection, requestBodyJson);

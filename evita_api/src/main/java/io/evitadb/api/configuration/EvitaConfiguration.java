@@ -23,24 +23,38 @@
 
 package io.evitadb.api.configuration;
 
+import io.evitadb.dataType.ClassifierType;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassifierUtils;
+import io.evitadb.utils.NetworkUtils;
 import lombok.ToString;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  * This class is simple DTO object holding general options of the Evita shared for all catalogs (or better - catalog
  * agnostic).
  *
+ * @param name    Name of the evitaDB instance. It's used for identification purposes only.
  * @param server  Contains server wide options.
  * @param storage This field contains all options related to underlying key-value store.
  * @param cache   Cache options contain settings crucial for Evita caching and cache invalidation.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaConfiguration(
+	@Nonnull String name,
 	@Nonnull ServerOptions server,
 	@Nonnull StorageOptions storage,
 	@Nonnull CacheOptions cache
 ) {
+	public static final String DEFAULT_SERVER_NAME = "evitaDB";
 
 	/**
 	 * Builder for the evitaDB options. Recommended to use to avoid binary compatibility problems in the future.
@@ -56,8 +70,40 @@ public record EvitaConfiguration(
 		return new Builder(configuration);
 	}
 
+	public EvitaConfiguration(@Nonnull String name, @Nonnull ServerOptions server, @Nonnull StorageOptions storage, @Nonnull CacheOptions cache) {
+		try {
+			if (DEFAULT_SERVER_NAME.equals(name)) {
+				final LongHashFunction hashFct = LongHashFunction.xx3();
+				// We use hash of hostname and storage directory to generate unique server name
+				final Path baseDirectoryPath = storage.storageDirectory().normalize();
+				final File baseDirectory = baseDirectoryPath.toFile();
+				if (!baseDirectory.exists()) {
+					Assert.isTrue(baseDirectory.mkdirs(), "Unable to create storage directory: " + baseDirectoryPath);
+				}
+				final BasicFileAttributes attrs = Files.readAttributes(baseDirectoryPath, BasicFileAttributes.class);
+				final long keyServerHash = hashFct.hashLongs(
+					new long[]{
+						hashFct.hashChars(NetworkUtils.getLocalHostName()),
+						hashFct.hashChars(baseDirectoryPath.toAbsolutePath().toString()),
+						attrs.creationTime().toMillis()
+					}
+				);
+				this.name = DEFAULT_SERVER_NAME + "-" + Long.toHexString(keyServerHash);
+			} else {
+				this.name = name;
+			}
+			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, name);
+			this.server = server;
+			this.storage = storage;
+			this.cache = cache;
+		} catch (IOException ex) {
+			throw new EvitaInternalError("Unable to access storage directory creation time!", ex);
+		}
+	}
+
 	public EvitaConfiguration() {
 		this(
+			DEFAULT_SERVER_NAME,
 			new ServerOptions(),
 			new StorageOptions(),
 			new CacheOptions()
@@ -69,6 +115,7 @@ public record EvitaConfiguration(
 	 */
 	@ToString
 	public static class Builder {
+		private String name = DEFAULT_SERVER_NAME;
 		private ServerOptions server = new ServerOptions();
 		private StorageOptions storage = new StorageOptions();
 		private CacheOptions cache = new CacheOptions();
@@ -80,6 +127,11 @@ public record EvitaConfiguration(
 			this.server = configuration.server;
 			this.storage = configuration.storage;
 			this.cache = configuration.cache;
+		}
+
+		public EvitaConfiguration.Builder name(String name) {
+			this.name = name;
+			return this;
 		}
 
 		public EvitaConfiguration.Builder server(ServerOptions server) {
@@ -99,7 +151,7 @@ public record EvitaConfiguration(
 
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				server, storage, cache
+				name, server, storage, cache
 			);
 		}
 

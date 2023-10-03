@@ -343,7 +343,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md")
+			getRootDirectory().resolve("documentation/user/en/operate/monitor.md")
 		).stream();
 	}
 
