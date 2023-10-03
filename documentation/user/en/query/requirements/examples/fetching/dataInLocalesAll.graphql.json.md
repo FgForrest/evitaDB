@@ -1,19 +1,17 @@
 ```json
 {
-  "data" : [
+  "data": [
     {
-      "primaryKey" : 64703,
-      "attributesGlobal" : {
-        "code" : "samsung"
+      "primaryKey": 64703,
+      "attributesGlobal": {
+        "code": "samsung"
       },
-      "attributesDe" : {
-        "name" : "Samsung"
+      "attributesCs": {
+        "name": "Samsung"
       },
-      "attributesEn" : {
-        "name" : "Samsung"
-      },
-      "attributesCs" : {
-        "name" : "Samsung"
+      "attributesDe": null,
+      "attributesEn": {
+        "name": "Samsung"
       }
     }
   ]

@@ -49,6 +49,8 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import one.edee.oss.pmptt.model.Hierarchy;
 import one.edee.oss.pmptt.model.HierarchyItem;
@@ -75,6 +77,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
+import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -174,9 +177,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	) {
 		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(theLeaf));
 		EntityReferenceWithParent workingNode = null;
-		final Integer start = Optional.ofNullable(level)
+		final Integer start = ofNullable(level)
 			.map(it -> it - 1)
-			.orElseGet(() -> Optional.ofNullable(distance).map(it -> parentItems.size() - it).orElse(0));
+			.orElseGet(() -> ofNullable(distance).map(it -> parentItems.size() - it).orElse(0));
 		for (int i = start; i < parentItems.size(); i++) {
 			HierarchyItem parentItem = parentItems.get(i);
 			workingNode = new EntityReferenceWithParent(Entities.CATEGORY, Integer.parseInt(parentItem.getCode()), workingNode);
@@ -189,9 +192,9 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	private static SealedEntity createParentEntityChain(@Nonnull Hierarchy categoryHierarchy, @Nonnull Map<Integer, SealedEntity> categoryIndex, int theLeaf, @Nullable Integer level, @Nullable Integer distance) {
 		final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(theLeaf));
 		EntityDecorator workingNode = null;
-		final Integer start = Optional.ofNullable(level)
+		final Integer start = ofNullable(level)
 			.map(it -> it - 1)
-			.orElseGet(() -> Optional.ofNullable(distance).map(it -> parentItems.size() - it).orElse(0));
+			.orElseGet(() -> ofNullable(distance).map(it -> parentItems.size() - it).orElse(0));
 		for (int i = start; i < parentItems.size(); i++) {
 			HierarchyItem parentItem = parentItems.get(i);
 			final EntityDecorator categoryDecorator = (EntityDecorator) categoryIndex.get(Integer.parseInt(parentItem.getCode()));
@@ -1078,6 +1081,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							)
 						),
 						require(
+							page(1, Integer.MAX_VALUE),
 							entityFetch(
 								associatedDataContent(ASSOCIATED_DATA_LABELS)
 							)
@@ -1120,6 +1124,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
 						),
 						require(
+							page(1, Integer.MAX_VALUE),
 							entityFetch(
 								priceContentAll()
 							)
@@ -1390,7 +1395,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 							entityFetch(
 								referenceContentWithAttributes(
 									Entities.CATEGORY,
-									attributeContent(ATTRIBUTE_CATEGORY_PRIORITY)
+									attributeContent(ATTRIBUTE_CATEGORY_SHADOW)
 								)
 							),
 							page(1, 4)
@@ -1405,7 +1410,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
 					for (ReferenceContract categoryRef : product.getReferences(Entities.CATEGORY)) {
 						assertEquals(1, categoryRef.getAttributeValues().size());
-						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_PRIORITY));
+						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
 					}
 				}
 				return null;
@@ -1449,9 +1454,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				for (SealedEntity product : productByPk.getRecordData()) {
 					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
 					for (ReferenceContract categoryRef : product.getReferences(Entities.CATEGORY)) {
-						assertEquals(2, categoryRef.getAttributeValues().size());
-						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_PRIORITY));
-						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
+						assertFalse(categoryRef.getAttributeValues().isEmpty());
 					}
 				}
 				return null;
@@ -1492,9 +1495,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				for (SealedEntity product : productByPk.getRecordData()) {
 					assertFalse(product.getReferences(Entities.CATEGORY).isEmpty());
 					for (ReferenceContract categoryRef : product.getReferences(Entities.CATEGORY)) {
-						assertEquals(2, categoryRef.getAttributeValues().size());
-						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_PRIORITY));
-						assertNotNull(categoryRef.getAttributeValue(ATTRIBUTE_CATEGORY_SHADOW));
+						assertFalse(categoryRef.getAttributeValues().isEmpty());
 					}
 				}
 				return null;
@@ -1528,7 +1529,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					)
 				);
 
-				assertEquals(20, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
 				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
 
 				for (SealedEntity product : productByPk.getRecordData()) {
@@ -2398,10 +2399,11 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						.map(it -> it.getReferencedEntity().orElseThrow())
 						.map(it -> it.getAttribute(ATTRIBUTE_NAME, String.class))
 						.toArray(String[]::new);
+					final String[] expectedNames = Arrays.stream(receivedOrderedNames)
+						.sorted((o1, o2) -> czechComparator.compare(o1, o2) * -1)
+						.toArray(String[]::new);
 					assertArrayEquals(
-						Arrays.stream(receivedOrderedNames)
-							.sorted((o1, o2) -> czechComparator.compare(o1, o2) * -1)
-							.toArray(String[]::new),
+						expectedNames,
 						receivedOrderedNames
 					);
 
@@ -2411,6 +2413,97 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						assertTrue(storeEntity.isPresent());
 						assertFalse(storeEntity.get().getAttributeValues().isEmpty());
 						assertFalse(storeEntity.get().getAssociatedDataValues().isEmpty());
+					}
+				}
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References can be eagerly deeply fetched, filtered and ordered primarily by group and secondarily by entity attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedByGroupPropertyPrimarilyAndEntityPropertySecondarily(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Map<Integer, Set<Integer>> productsWithLotsOfParameters = originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.PARAMETER).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.PARAMETER)
+						.stream()
+						.map(ref -> ref.getReferenceKey().primaryKey())
+						.collect(Collectors.toSet())
+				)
+			);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(productsWithLotsOfParameters.keySet().toArray(Integer[]::new)),
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									orderBy(
+										entityGroupProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										),
+										entityProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
+										)
+									),
+									entityFetch(attributeContent()),
+									entityGroupFetch(attributeContent())
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(productsWithLotsOfParameters.size(), productByPk.getRecordData().size());
+				assertEquals(productsWithLotsOfParameters.size(), productByPk.getTotalRecordCount());
+
+				final LocalizedStringComparator czechComparator = new LocalizedStringComparator(Collator.getInstance(CZECH_LOCALE));
+				for (final SealedEntity product : productByPk.getRecordData()) {
+					final Collection<ReferenceContract> references = product.getReferences(Entities.PARAMETER);
+
+					// references should be ordered by name
+					final String[][] receivedOrderedParameterComposedNames = references.stream()
+						.map(it -> {
+							final String parameterTypeName = it.getGroupEntity().orElseThrow().getAttribute(ATTRIBUTE_NAME, String.class);
+							final String parameterName = it.getReferencedEntity().orElseThrow().getAttribute(ATTRIBUTE_NAME, String.class);
+							return new String[]{parameterTypeName, parameterName};
+						})
+						.toArray(String[][]::new);
+					final String[][] expectedResult = Arrays.stream(receivedOrderedParameterComposedNames)
+						.sorted((o1, o2) -> {
+							final int typeResult = czechComparator.compare(o1[0], o2[0]) * -1;
+							if (typeResult == 0) {
+								return czechComparator.compare(o1[1], o2[1]);
+							} else {
+								return typeResult;
+							}
+						})
+						.toArray(String[][]::new);
+					assertEquals(expectedResult.length, receivedOrderedParameterComposedNames.length);
+					for (int i = 0; i < expectedResult.length; i++) {
+						final String[] expected = expectedResult[i];
+						final String[] actual = receivedOrderedParameterComposedNames[i];
+						assertArrayEquals(expected, actual);
 					}
 				}
 
@@ -2775,43 +2868,15 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered by both reference and entity attribute")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
-	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedByReferenceAndEntityAttribute(Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalParameters) {
+	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedByReferenceAndEntityAttribute(Evita evita, List<SealedEntity> originalProducts, Map<Integer, SealedEntity> originalCategories) {
 		final SealedEntity productWithLotsOfParameters = originalProducts.stream()
-			.filter(it -> it.getReferences(Entities.PARAMETER).size() > 4)
-			.max(Comparator.comparingInt(o -> o.getReferences(Entities.PARAMETER).size()))
+			.filter(it -> {
+				final Collection<ReferenceContract> references = it.getReferences(Entities.CATEGORY);
+				return references.stream().anyMatch(x -> x.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY) == null) &&
+					references.stream().anyMatch(x -> x.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY) != null);
+			})
+			.max(Comparator.comparingInt(o -> o.getReferences(Entities.CATEGORY).size()))
 			.orElseThrow();
-		final Map<Integer, SealedEntity> parametersById = originalParameters.stream()
-			.collect(
-				Collectors.toMap(
-					EntityContract::getPrimaryKey,
-					Function.identity()
-				)
-			);
-
-		final List<Long> categoryPriorities = productWithLotsOfParameters
-			.getReferences(Entities.PARAMETER)
-			.stream()
-			.map(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class))
-			.filter(Objects::nonNull)
-			.sorted()
-			.toList();
-		final Long secondCategoryPriority = categoryPriorities.get(1);
-		final List<Long> priorities = productWithLotsOfParameters.getReferences(Entities.PARAMETER)
-			.stream()
-			.filter(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class) >= secondCategoryPriority)
-			.map(it -> parametersById.get(it.getReferencedPrimaryKey()))
-			.map(it -> it.getAttribute(ATTRIBUTE_PRIORITY, Long.class))
-			.sorted()
-			.toList();
-		final Long secondPriority = priorities.get(1);
-		final List<ReferenceKey> expectedReferenceKeys = productWithLotsOfParameters.getReferences(Entities.PARAMETER)
-			.stream()
-			.filter(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class) >= secondCategoryPriority)
-			.map(it -> parametersById.get(it.getReferencedPrimaryKey()))
-			.filter(it -> it.getAttribute(ATTRIBUTE_PRIORITY, Long.class) >= secondPriority)
-			.map(it -> new ReferenceKey(Entities.PARAMETER, it.getPrimaryKey()))
-			.sorted()
-			.toList();
 
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -2821,26 +2886,22 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						collection(Entities.PRODUCT),
 						filterBy(
 							and(
-								entityPrimaryKeyInSet(productWithLotsOfParameters.getPrimaryKey())
+								entityPrimaryKeyInSet(productWithLotsOfParameters.getPrimaryKey()),
+								entityLocaleEquals(LOCALE_CZECH)
 							)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							entityFetch(
 								referenceContentWithAttributes(
-									Entities.PARAMETER,
-									filterBy(
-										and(
-											attributeGreaterThanEquals(ATTRIBUTE_CATEGORY_PRIORITY, secondCategoryPriority),
-											entityHaving(
-												attributeGreaterThanEquals(ATTRIBUTE_PRIORITY, secondPriority)
-											)
+									Entities.CATEGORY,
+									orderBy(
+										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC),
+										entityProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)
 										)
 									),
-									orderBy(
-										attributeNatural(ATTRIBUTE_CATEGORY_PRIORITY, OrderDirection.DESC)
-									),
-									entityFetch(attributeContent(), associatedDataContentAll())
+									entityFetch(attributeContent())
 								)
 							)
 						)
@@ -2851,25 +2912,39 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final List<ReferenceKey> fetchedReferenceIds = productByPk.getRecordData()
+				// references should be ordered by priority and where missing by categoryName
+				final Object[] receivedCategoryPriorities = productByPk.getRecordData()
 					.get(0)
-					.getReferences(Entities.PARAMETER)
+					.getReferences(Entities.CATEGORY)
 					.stream()
-					.map(ReferenceContract::getReferenceKey)
-					.sorted()
-					.toList();
+					.map(it -> ofNullable(it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY))
+						.orElseGet(() -> it.getReferencedEntity().get().getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH)))
+					.toArray();
 
-				assertEquals(expectedReferenceKeys, fetchedReferenceIds);
-
-				// references should be ordered by name
-				final Long[] receivedCategoryPriorities = productByPk.getRecordData()
-					.get(0)
-					.getReferences(Entities.PARAMETER)
+				final LocalizedStringComparator czechComparator = new LocalizedStringComparator(Collator.getInstance(CZECH_LOCALE));
+				final Object[] expectedOrder = productWithLotsOfParameters
+					.getReferences(Entities.CATEGORY)
 					.stream()
-					.map(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class))
-					.toArray(Long[]::new);
+					.map(it -> ofNullable(it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY))
+						.orElseGet(() -> {
+							final SealedEntity category = originalCategories.get(it.getReferencedPrimaryKey());
+							return category.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH);
+						}))
+					.sorted((o1, o2) -> {
+						if (o1 instanceof Long o1Long && o2 instanceof Long o2Long) {
+							return o1Long.compareTo(o2Long) * -1;
+						} else if (o1 instanceof String o1String && o2 instanceof String o2String) {
+							return czechComparator.compare(o1String, o2String);
+						} else if (o1 instanceof Long) {
+							return -1;
+						} else {
+							return 1;
+						}
+					})
+					.toArray();
+
 				assertArrayEquals(
-					Arrays.stream(receivedCategoryPriorities).sorted(Comparator.reverseOrder()).toArray(Long[]::new),
+					expectedOrder,
 					receivedCategoryPriorities
 				);
 
@@ -3612,7 +3687,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final SealedEntity referencedCategory = categoryReference.getReferencedEntity().orElseThrow();
 				assertEquals(theParentPk, referencedCategory.getParentEntity().orElseThrow().getPrimaryKey());
 				assertEquals(
-					createParentChain(categoryHierarchy, theChildPk, 2, null),
+					createParentChain(categoryHierarchy, theChildPk, 4, null),
 					referencedCategory.getParentEntity().orElseThrow()
 				);
 				return null;
@@ -3875,6 +3950,52 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 
 				assertArrayEquals(
 					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order appending the rest")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderAppendingTheRest(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] productsStartingWithD = originalProducts.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).startsWith("D"))
+			.map(EntityContract::getPrimaryKey)
+			.toArray(Integer[]::new);
+		Assert.isTrue(productsStartingWithD.length >= 5, "Not enough products starting with D found");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = Arrays.copyOfRange(productsStartingWithD, 0, (int)(productsStartingWithD.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(productsStartingWithD, (int)(productsStartingWithD.length * 0.5), productsStartingWithD.length);
+				ArrayUtils.reverse(exactOrder);
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeStartsWith(ATTRIBUTE_CODE, "D")
+						),
+						orderBy(
+							entityPrimaryKeyExact(exactOrder)
+						),
+						require(
+							page(1, productsStartingWithD.length)
+						)
+					)
+				);
+				assertEquals(productsStartingWithD.length, products.getRecordData().size());
+				assertEquals(productsStartingWithD.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					ArrayUtils.mergeArrays(
+						exactOrder, theRest
+					),
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)

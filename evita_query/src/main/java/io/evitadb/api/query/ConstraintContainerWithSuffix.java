@@ -50,4 +50,15 @@ public interface ConstraintContainerWithSuffix extends ConstraintWithSuffix {
 		return false;
 	}
 
+	/**
+	 * This method is used in {@link ConstraintContainer#toString()} implementation to exclude the additional child that is used
+	 * implicitly when this suffix is applied to this constraint.
+	 *
+	 * @param child to check
+	 * @return true, if this child should be omitted in {@link ConstraintContainer#toString()}
+	 */
+	default boolean isAdditionalChildImplicitForSuffix(@Nonnull Constraint<?> child) {
+		return false;
+	}
+
 }

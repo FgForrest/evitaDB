@@ -23,31 +23,24 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher;
 
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.concurrent.Executor;
 
 /**
  * Returns currently available catalog schema.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CatalogSchemaDataFetcher extends ReadDataFetcher<CatalogSchemaContract> {
-
-	public CatalogSchemaDataFetcher(@Nonnull ClientContext clientContext, @Nullable Executor executor) {
-		super(clientContext, executor);
-	}
+public class CatalogSchemaDataFetcher implements DataFetcher<CatalogSchemaContract> {
 
 	@Nonnull
 	@Override
-	public CatalogSchemaContract doGet(@Nonnull DataFetchingEnvironment environment) {
+	public CatalogSchemaContract get(@Nonnull DataFetchingEnvironment environment) {
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.getCatalogSchema();
 	}

@@ -90,6 +90,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -122,8 +123,6 @@ public class Entity implements SealedEntity {
 	/**
 	 * Contains version of this object and gets increased with any (direct) entity update. Allows to execute
 	 * optimistic locking i.e. avoiding parallel modifications.
-	 *
-	 * TOBEDONE JNO verify situations by writing new tests when this version gets incremented - it should correspond with EntityBodyStoragePart
 	 */
 	final int version;
 	/**
@@ -229,6 +228,11 @@ public class Entity implements SealedEntity {
 	 * a revived entity continuing with the versioning where it was stopped for the last time.
 	 */
 	private final boolean dropped;
+	/**
+	 * Contains map of all references by their name. This map is used for fast lookup of the references by their name
+	 * and is initialized lazily on first request.
+	 */
+	private Map<String, List<ReferenceContract>> referencesByName;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of original Entity from different
@@ -906,7 +910,7 @@ public class Entity implements SealedEntity {
 						(o, o2) -> {
 							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
 						},
-						LinkedHashMap::new
+						TreeMap::new
 					)
 				)
 		);
@@ -997,11 +1001,22 @@ public class Entity implements SealedEntity {
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
 		checkReferenceName(referenceName);
-		return references
-			.values()
-			.stream()
-			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
-			.collect(Collectors.toList());
+		if (this.referencesByName == null) {
+			this.referencesByName = references
+				.entrySet()
+				.stream()
+				.collect(
+					Collectors.groupingBy(
+						it -> it.getKey().referenceName(),
+						Collectors.mapping(
+							Entry::getValue,
+							Collectors.toList()
+						)
+					)
+				);
+		}
+		return ofNullable(referencesByName.get(referenceName))
+			.orElse(Collections.emptyList());
 	}
 
 	@Nonnull

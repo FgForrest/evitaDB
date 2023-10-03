@@ -197,10 +197,13 @@ public class EvitaClient implements EvitaContract {
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 			.usingTrustedRootCaCertificate(configuration.trustCertificate())
+			.trustStorePassword(configuration.trustStorePassword())
 			.mtls(configuration.mtlsEnabled())
 			.certificateClientFolderPath(configuration.certificateFolderPath())
+			.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
+			.clientPrivateKeyPassword(configuration.certificateKeyPassword())
 			.build();
 
 		final NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
@@ -223,7 +226,7 @@ public class EvitaClient implements EvitaContract {
 				// terminated
 				Thread.currentThread().interrupt();
 			}
-		};;
+		};
 		this.active.set(true);
 	}
 

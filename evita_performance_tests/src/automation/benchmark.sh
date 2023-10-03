@@ -35,7 +35,7 @@ function help {
 
 function _trap_exit() {
     set +x
-    
+
     echo
     if [ -n "$GH_ACTION" ] && [ "$GH_ACTION" == "1" ]; then
         date -Is

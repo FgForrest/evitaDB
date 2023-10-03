@@ -93,8 +93,25 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.getRecordAt(index);
 		} else {
-			return layer.getMergedArray(lookup)[index];
+			return layer.getMergedArray()[index];
 		}
+	}
+
+	/**
+	 * Method returns last record in the array.
+	 *
+	 * @return record id
+	 * @throws ArrayIndexOutOfBoundsException when array is empty
+	 */
+	public int getLastRecordId() throws ArrayIndexOutOfBoundsException {
+		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
+		final int result;
+		if (layer == null) {
+			result = this.lookup.getLastRecordId();
+		} else {
+			result = layer.getLastRecordId();
+		}
+		return result;
 	}
 
 	/**
@@ -105,19 +122,22 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.getArray();
 		} else {
-			return layer.getMergedArray(this.lookup);
+			return layer.getMergedArray();
 		}
 	}
 
 	/**
 	 * Method returns subset of underlying array of record ids.
+	 *
+	 * @param startIndex inclusive
+	 * @param endIndex   exclusive
 	 */
 	public int[] getSubArray(int startIndex, int endIndex) {
 		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
 			return Arrays.copyOfRange(this.lookup.getArray(), startIndex, endIndex);
 		} else {
-			return Arrays.copyOfRange(layer.getMergedArray(this.lookup), startIndex, endIndex);
+			return Arrays.copyOfRange(layer.getMergedArray(), startIndex, endIndex);
 		}
 	}
 
@@ -129,7 +149,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			this.lookup.addRecord(previousRecordId, recordId);
 		} else {
-			layer.addIntAfterRecord(lookup, previousRecordId, recordId);
+			layer.addIntAfterRecord(previousRecordId, recordId);
 		}
 	}
 
@@ -141,7 +161,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			this.lookup.addRecordOnIndex(index, recordId);
 		} else {
-			layer.addIntOnIndex(lookup, index, recordId);
+			layer.addIntOnIndex(index, recordId);
 		}
 	}
 
@@ -159,9 +179,23 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		} else {
 			int currentPrevRecId = previousRecordId;
 			for (int recordId : recordIds) {
-				layer.addIntAfterRecord(lookup, currentPrevRecId, recordId);
+				layer.addIntAfterRecord(currentPrevRecId, recordId);
 				currentPrevRecId = recordId;
 			}
+		}
+	}
+
+	/**
+	 * Method adds multiple record ids to the end of the array.
+	 *
+	 * @param recordIds record ids to add
+	 */
+	public void appendAll(int... recordIds) {
+		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		if (layer == null) {
+			this.lookup.appendRecords(recordIds);
+		} else {
+			layer.appendRecords(recordIds);
 		}
 	}
 
@@ -173,7 +207,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			this.lookup.removeRecord(recordId);
 		} else {
-			layer.removeIntOnPosition(lookup, recordId);
+			layer.removeRecord(recordId);
 		}
 	}
 
@@ -188,8 +222,24 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 			}
 		} else {
 			for (int recordId : recordIds) {
-				layer.removeIntOnPosition(lookup, recordId);
+				layer.removeRecord(recordId);
 			}
+		}
+	}
+
+	/**
+	 * Method removes all records between two indexes.
+	 *
+	 * @param startIndex inclusive
+	 * @param endIndex   exclusive
+	 * @return removed records
+	 */
+	public int[] removeRange(int startIndex, int endIndex) {
+		final UnorderedIntArrayChanges layer = getTransactionalMemoryLayer(this);
+		if (layer == null) {
+			return this.lookup.removeRange(startIndex, endIndex);
+		} else {
+			return layer.removeRange(startIndex, endIndex);
 		}
 	}
 
@@ -201,7 +251,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.size();
 		} else {
-			return layer.getMergedLength(this.lookup);
+			return layer.getMergedLength();
 		}
 	}
 
@@ -213,7 +263,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.size() == 0;
 		} else {
-			return layer.getMergedLength(this.lookup) == 0;
+			return layer.getMergedLength() == 0;
 		}
 	}
 
@@ -227,7 +277,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.findPosition(recordId);
 		} else {
-			return layer.indexOf(lookup, recordId);
+			return layer.indexOf(recordId);
 		}
 	}
 
@@ -239,7 +289,7 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.findPosition(recordId) != Integer.MIN_VALUE;
 		} else {
-			return layer.contains(this.lookup, recordId);
+			return layer.contains(recordId);
 		}
 	}
 
@@ -278,7 +328,12 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 
 	@Override
 	public UnorderedIntArrayChanges createLayer() {
-		return isTransactionAvailable() ? new UnorderedIntArrayChanges() : null;
+		return isTransactionAvailable() ? new UnorderedIntArrayChanges(this.lookup) : null;
+	}
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
 
 	@Nonnull
@@ -287,12 +342,8 @@ public class TransactionalUnorderedIntArray implements TransactionalLayerProduce
 		if (layer == null) {
 			return this.lookup.getArray();
 		} else {
-			return layer.getMergedArray(this.lookup);
+			return layer.getMergedArray();
 		}
 	}
 
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-	}
 }

@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serial;
-import java.util.List;
+import java.io.Serializable;
 import java.util.Map;
 
 /**
@@ -53,32 +53,31 @@ public class HierarchyIndexStoragePart implements StoragePart {
 	 */
 	@Getter private final int entityIndexPrimaryKey;
 	/**
-	 * Index contains information about every entity that has {@link HierarchicalPlacementContract} specified no matter
+	 * Index contains information about every entity that has parent specified no matter
 	 * whether it's part of the tree reachable from the {@link #roots} or {@link #orphans}. Key of the index is
 	 * {@link HierarchyNode#entityPrimaryKey()}.
 	 */
 	@Getter private final Map<Integer, HierarchyNode> itemIndex;
 	/**
 	 * List contains entity primary keys of all entities that have hierarchy placement set to root level (i.e. without
-	 * any parent). List contains ids sorted by {@link HierarchicalPlacementContract#getOrderAmongSiblings()}.
+	 * any parent).
 	 */
-	@Getter private final List<Integer> roots;
+	@Getter private final int[] roots;
 	/**
-	 * Index contains information about children of all entities having {@link HierarchicalPlacementContract} specified.
+	 * Index contains information about children of all entities having parent specified.
 	 * Every entity in {@link #itemIndex} has also record in this entity but only in case they are reachable from
-	 * {@link #roots} - either with empty array or array of its children sorted by their
-	 * {@link HierarchicalPlacementContract#getOrderAmongSiblings()}. If the entity is not reachable from any root
-	 * entity it's places into {@link #orphans} and is not present in this index.
+	 * {@link #roots}. If the entity is not reachable from any root entity it's places into {@link #orphans} and is not
+	 * present in this index.
 	 */
-	@Getter private final Map<Integer, int[]> levelIndex;
+	@Getter private final LevelIndex[] levelIndex;
 	/**
 	 * Array contains entity primary keys of all entities that are not reachable from {@link #roots}. This simple list
-	 * contains also children of orphan parents - i.e. primary keys of all unreachable entities that have
-	 * {@link HierarchicalPlacementContract} specified.
+	 * contains also children of orphan parents - i.e. primary keys of all unreachable entities that have parent
+	 * specified.
 	 */
 	@Getter private final int[] orphans;
 
-	public HierarchyIndexStoragePart(int entityIndexPrimaryKey, Map<Integer, HierarchyNode> itemIndex, List<Integer> roots, Map<Integer, int[]> levelIndex, int[] orphans) {
+	public HierarchyIndexStoragePart(int entityIndexPrimaryKey, Map<Integer, HierarchyNode> itemIndex, int[] roots, LevelIndex[] levelIndex, int[] orphans) {
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.itemIndex = itemIndex;
 		this.roots = roots;
@@ -96,5 +95,17 @@ public class HierarchyIndexStoragePart implements StoragePart {
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
 		return entityIndexPrimaryKey;
 	}
+
+	/**
+	 * This class represents single node in the hierarchy tree. It contains information about all children attached
+	 * to the parent key.
+	 *
+	 * @param parentId parent primary key
+	 * @param childrenIds array of children primary keys
+	 */
+	public record LevelIndex(
+		@Nonnull Integer parentId,
+		@Nonnull int[] childrenIds
+	) implements Serializable {}
 
 }

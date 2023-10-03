@@ -23,15 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.openApi;
 
-import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.ByteNumberRange;
-import io.evitadb.dataType.ComplexDataObject;
-import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.LongNumberRange;
-import io.evitadb.dataType.Range;
-import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.dataType.*;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.dataType.GenericObject;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
@@ -100,6 +92,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		SCALAR_SCHEMA_MAPPINGS.put(Locale.class, OpenApiScalar::createLocaleSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Currency.class, OpenApiScalar::createCurrencySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(UUID.class, OpenApiScalar::createUuidSchema);
+		SCALAR_SCHEMA_MAPPINGS.put(Predecessor.class, OpenApiScalar::createPredecessorSchema);
 		SCALAR_SCHEMA_MAPPINGS.put(Any.class, OpenApiScalar::createAnySchema);
 		SCALAR_SCHEMA_MAPPINGS.put(GenericObject.class, OpenApiScalar::createGenericObjectSchema);
 	}
@@ -306,6 +299,18 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		uuidSchema
 			.format(FORMAT_UUID)
 			.example("01081e6f-851f-46b1-9f8f-075b582b5d2e");
+		return uuidSchema;
+	}
+
+	/**
+	 * Creates schema for {@link Predecessor}
+	 */
+	@Nonnull
+	private static Schema<?> createPredecessorSchema() {
+		final Schema<?> uuidSchema = new IntegerSchema();
+		uuidSchema
+			.format(FORMAT_INT_32)
+			.example("44872");
 		return uuidSchema;
 	}
 

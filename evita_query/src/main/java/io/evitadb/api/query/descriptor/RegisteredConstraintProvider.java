@@ -110,6 +110,7 @@ class RegisteredConstraintProvider {
 		EntityPrimaryKeyExact.class,
 		EntityPrimaryKeyInFilter.class,
 		EntityProperty.class,
+		EntityGroupProperty.class,
 		// attribute
 		AttributeNatural.class,
 		AttributeSetExact.class,

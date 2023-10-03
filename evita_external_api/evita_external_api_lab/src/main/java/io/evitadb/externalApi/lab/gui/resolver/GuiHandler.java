@@ -45,8 +45,9 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Base64.Encoder;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -58,41 +59,55 @@ import java.util.regex.Pattern;
  */
 public class GuiHandler extends ResourceHandler {
 
+	public static final Encoder BASE_64_ENCODER = Base64.getEncoder();
+	private static final String EVITALAB_SERVER_NAME_COOKIE = "evitalab_servername";
 	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
-
 	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
-
 	@Nonnull private final LabConfig labConfig;
+	@Nonnull private final String serverName;
 	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final ObjectMapper objectMapper;
 
-	private GuiHandler(@Nonnull ResourceSupplier resourceSupplier,
-					   @Nonnull LabConfig labConfig,
-					   @Nonnull ApiOptions apiOptions,
-	                   @Nonnull ObjectMapper objectMapper) {
-		super(resourceSupplier);
-		this.labConfig = labConfig;
-		this.apiOptions = apiOptions;
-		this.objectMapper = objectMapper;
-	}
-
 	@Nonnull
-	public static GuiHandler create(@Nonnull LabConfig labConfig,
-	                                @Nonnull ApiOptions apiOptions,
-	                                @Nonnull ObjectMapper objectMapper) {
+	public static GuiHandler create(
+		@Nonnull LabConfig labConfig,
+		@Nonnull String serverName,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull ObjectMapper objectMapper
+	) {
 		try (final ResourceManager rm = new ClassPathResourceManager(GuiHandler.class.getClassLoader(), "META-INF/lab/gui/dist")) {
-			return new GuiHandler(new GuiResourceSupplier(rm), labConfig, apiOptions, objectMapper);
+			return new GuiHandler(new GuiResourceSupplier(rm), labConfig, serverName, apiOptions, objectMapper);
 		} catch (IOException e) {
 			throw new ExternalApiInternalError("Failed to load GUI resources.", e);
 		}
 	}
 
+	private GuiHandler(@Nonnull ResourceSupplier resourceSupplier,
+	                   @Nonnull LabConfig labConfig,
+	                   @Nonnull String serverName,
+	                   @Nonnull ApiOptions apiOptions,
+	                   @Nonnull ObjectMapper objectMapper) {
+		super(resourceSupplier);
+		this.labConfig = labConfig;
+		this.serverName = serverName;
+		this.apiOptions = apiOptions;
+		this.objectMapper = objectMapper;
+	}
+
 	@Override
 	public void handleRequest(HttpServerExchange exchange) throws Exception {
+		passServerName(exchange);
 		passReadOnlyFlag(exchange);
 		passPreconfiguredEvitaDBConnections(exchange);
 		super.handleRequest(exchange);
+	}
+
+	private void passServerName(@Nonnull HttpServerExchange exchange) {
+		exchange.getResponseHeaders().add(
+			Headers.SET_COOKIE,
+			createCookie(EVITALAB_SERVER_NAME_COOKIE, serverName)
+		);
 	}
 
 	/**
@@ -132,7 +147,8 @@ public class GuiHandler extends ResourceHandler {
 		final RestConfig restConfig = apiOptions.getEndpointConfiguration(RestProvider.CODE);
 		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
-			"evitaDB",
+			null,
+			serverName,
 			labConfig.getBaseUrls()[0] + LabManager.LAB_API_URL_PREFIX,
 			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
 			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
@@ -142,7 +158,7 @@ public class GuiHandler extends ResourceHandler {
 
 	@Nonnull
 	private String createCookie(@Nonnull String name, @Nonnull String value) {
-		return name + "=" + URLEncoder.encode(value, StandardCharsets.UTF_8) + "; SameSite=Strict";
+		return name + "=" + BASE_64_ENCODER.encodeToString(value.getBytes(StandardCharsets.UTF_8)) + ";SameSite=Strict";
 	}
 
 	@RequiredArgsConstructor

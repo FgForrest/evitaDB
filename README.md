@@ -12,27 +12,77 @@ examples and guides.</p>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
   &nbsp;
+  <a href="https://discord.gg/VsNBWxgmSw" title="Discord"><img src="https://img.shields.io/discord/999338870996992223?color=5865f2"/></a>
+  &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci-dev.yml"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
 </p>
 
 <p align="center">
-  <a href="https://evitadb.io/en/blog" title="Blog"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px"/></a>
+  <a href="https://evitadb.io/en/blog" title="Blog">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/blog.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/blog.png" width="50px">
+      <img alt="Blog" src="https://img.icons8.com/carbon-copy/100/888888/blog.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://evitadb.io/documentation/index" title="Documentation"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/saving-book.png" width="50px"/></a>
+  <a href="https://evitadb.io/documentation/index" title="Documentation">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/saving-book.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/saving-book.png" width="50px">
+      <img alt="Documentation" src="https://img.icons8.com/carbon-copy/100/888888/saving-book.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://evitadb.io/research/introduction" title="Research"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/microscope.png" width="50px"/></a>
+  <a href="https://evitadb.io/research/introduction" title="Research">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/microscope.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/microscope.png" width="50px">
+      <img alt="Research" src="https://img.icons8.com/carbon-copy/100/888888/microscope.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://twitter.com/evitadb_io" title="Twitter"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50px"/></a>
+  <a href="https://twitter.com/evitadb_io" title="Twitter">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/twitter.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/twitter.png" width="50px">
+      <img alt="Twitter" src="https://img.icons8.com/carbon-copy/100/888888/twitter.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://discord.gg/VsNBWxgmSw" title="Discord"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/discord-square.png" width="50"/></a>
+  <a href="https://discord.gg/VsNBWxgmSw" title="Discord">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/discord-square.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/discord-square.png" width="50px">
+      <img alt="Discord" src="https://img.icons8.com/carbon-copy/100/888888/discord-square.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://github.com/FgForrest/evitaDB/" title="GitHub"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px"/></a>
+  <a href="https://github.com/FgForrest/evitaDB/" title="GitHub">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/github.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/github.png" width="50px">
+      <img alt="GitHub" src="https://img.icons8.com/carbon-copy/100/888888/github.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px"/></a>
+  <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/fingerprint-scan.png" width="50px">
+      <img alt="PGP public key" src="https://img.icons8.com/carbon-copy/100/888888/fingerprint-scan.png" width="50px">
+    </picture>
+  </a>
   &nbsp;
-  <a href="https://jmh.morethan.io/?gist=abc12461f21d1cc66a541417edcb6ba7&topBar=Evita%20DB%20Latest%20performance%20results" title="Latest performance results"><img src="https://img.icons8.com/carbon-copy/100/FFFFFF/statistics.png" width="50px"/></a>
+  <a href="https://jmh.morethan.io/?gist=abc12461f21d1cc66a541417edcb6ba7&topBar=Evita%20DB%20Latest%20performance%20results" title="Latest performance results">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/statistics.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/carbon-copy/100/000000/statistics.png" width="50px">
+      <img alt="Latest performance results" src="https://img.icons8.com/carbon-copy/100/888888/statistics.png" width="50px">
+    </picture>
+  </a>
 </p>
 
 evitaDB is a specialized database with easy-to-use API for e-commerce systems. It is a low-latency NoSQL in-memory engine 
@@ -124,11 +174,6 @@ you might encounter, and we'll try to fix them as soon as possible.
 - **evita_store**: binary serialization using Kryo library, persistent key/value datastore implementation
 - **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
 - **jacoco**: Maven POM that allows to aggregate test coverage for entire project
-- **workaround**:
-  - **grpc**: workaround shaded build allowing to link gRPC libraries as a single "automatic Java module", 
-    direct linking of original libraries leads to problems with Java module system 
-  - **roaringBitmap**: workaround shaded build allowing to link RoaringBitmap libraries as a single "automatic Java module",
-    direct linking of original libraries leads to problems with Java module system
 
 # Quality requirements for the code
 

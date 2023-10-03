@@ -404,7 +404,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@SuppressWarnings("unchecked")
 	public boolean isAnyConstraintPresentInConjunctionScopeExcludingUserFilter(@Nonnull Class<? extends FilterConstraint>... constraintType) {
-		final ProcessingScope theScope = getProcessingScope();
+		final ProcessingScope<?> theScope = getProcessingScope();
 		final AtomicBoolean result = new AtomicBoolean();
 		theScope.doInConjunctionBlock(theConstraint -> {
 				if (Arrays.stream(constraintType).anyMatch(it -> it.isInstance(theConstraint))) {
@@ -437,7 +437,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nullable
 	public <T extends FilterConstraint> T findInConjunctionTree(@Nonnull Class<T> constraintType) {
-		final ProcessingScope theScope = getProcessingScope();
+		final ProcessingScope<?> theScope = getProcessingScope();
 		final List<T> foundConstraints = new LinkedList<>();
 		theScope.doInConjunctionBlock(theConstraint -> {
 			if (constraintType.isInstance(theConstraint)) {
@@ -464,7 +464,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 			"No translator found for query `" + filterConstraint.getClass() + "`!"
 		);
 
-		final ProcessingScope theScope = getProcessingScope();
+		final ProcessingScope<?> theScope = getProcessingScope();
 		if (theScope.isSuppressed(filterConstraint.getClass())) {
 			return;
 		}
@@ -602,8 +602,9 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns stream of indexes that should be all considered for record lookup.
 	 */
 	@Nonnull
-	public Stream<EntityIndex> getEntityIndexStream() {
+	public Stream<EntityIndex<?>> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
+		//noinspection unchecked
 		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
 	}
 
@@ -717,7 +718,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T, S extends EntityIndex> T executeInContext(
+	public final <T, S extends EntityIndex<S>> T executeInContext(
 		@Nonnull Class<S> indexType,
 		@Nonnull List<S> targetIndexes,
 		@Nullable EntityContentRequire requirements,
@@ -793,7 +794,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set and returns collection of all formulas.
 	 */
 	@Nonnull
-	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex, Stream<? extends Formula>> formulaFunction) {
+	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex<?>, Stream<? extends Formula>> formulaFunction) {
 		return getEntityIndexStream().flatMap(formulaFunction).toList();
 	}
 
@@ -801,7 +802,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
+	public Formula applyOnIndexes(@Nonnull Function<EntityIndex<?>, Formula> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().map(formulaFunction));
 	}
 
@@ -809,7 +810,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex, Stream<Formula>> formulaFunction) {
+	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex<?>, Stream<Formula>> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().flatMap(formulaFunction));
 	}
 
@@ -984,18 +985,22 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	public static class ProcessingScope<T extends Index<?>> {
 		/**
-		 * TODO JNO - document me
+		 * Contains the type of {@link Index} that is being used in the current scope in {@link #indexes} list.
+		 * All indexes must be assignable to this type
 		 */
 		@Nonnull @Getter
 		private final Class<T> indexType;
 		/**
+		 * Allows to lazily compute and access the list of {@link #indexes} and avoid paying a performance penalty if
+		 * the list is not necessary.
+		 * Might be null if the list of {@link #indexes} is known since the start.
+		 */
+		@Nullable
+		private final Supplier<List<T>> indexSupplier;
+		/**
 		 * Contains set of indexes, that should be used for accessing final indexes.
 		 */
 		private List<T> indexes;
-		/**
-		 * TODO JNO - document me
-		 */
-		private Supplier<List<T>> indexSupplier;
 		/**
 		 * Suppressed constraints contains set of {@link FilterConstraint} that will not be evaluated by this visitor
 		 * in current scope.

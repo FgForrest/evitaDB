@@ -79,10 +79,10 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldCreateCompoundIndexWithDifferentCardinalities() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"Z", 1})));
-		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"A", 2})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"B", 1})));
-		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[] {"C", 9})));
+		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"Z", 1})));
+		assertNull(sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"A", 2})));
+		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"B", 1})));
+		assertEquals(2, sortIndex.valueCardinalities.get(new ComparableArray(new Comparable<?>[]{"C", 9})));
 		assertArrayEquals(
 			new ComparableArray[]{
 				new ComparableArray(new Comparable<?>[]{null, 3}),
@@ -107,8 +107,8 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnCorrectBitmapForCardinalityOneAndCompoundIndex() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo(new Object[] {"E", null}));
-		assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Object[] {"E", 1}));
+		assertEquals(new BaseBitmap(9), sortIndex.getRecordsEqualTo(new Object[]{"E", null}));
+		assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Object[]{"E", 1}));
 	}
 
 	@Test
@@ -120,7 +120,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Test
 	void shouldReturnCorrectBitmapForCardinalityMoreThanOneAndCompoundIndex() {
 		final SortIndex sortIndex = createCompoundIndexWithBaseCardinalities();
-		assertEquals(new BaseBitmap(1, 7), sortIndex.getRecordsEqualTo(new Object[] {"C", 9}));
+		assertEquals(new BaseBitmap(1, 7), sortIndex.getRecordsEqualTo(new Object[]{"C", 9}));
 	}
 
 	@Test
@@ -212,14 +212,14 @@ class SortIndexTest implements TimeBoundedTestSupport {
 
 		assertArrayEquals(
 			new String[]{
-				normalize("A", Form.NFD), 
-				normalize("B", Form.NFD), 
-				normalize("Ň", Form.NFD), 
-				normalize("Ř", Form.NFD), 
-				normalize("Š", Form.NFD), 
-				normalize("T", Form.NFD), 
+				normalize("A", Form.NFD),
+				normalize("B", Form.NFD),
+				normalize("Ň", Form.NFD),
+				normalize("Ř", Form.NFD),
+				normalize("Š", Form.NFD),
+				normalize("T", Form.NFD),
 				normalize("Ž", Form.NFD)
-			}, 
+			},
 			sortIndex.sortedRecordsValues.getArray()
 		);
 		assertArrayEquals(new int[]{1, 4, 7, 6, 2, 3, 5}, sortIndex.sortedRecords.getArray());
@@ -335,22 +335,22 @@ class SortIndexTest implements TimeBoundedTestSupport {
 	@Nonnull
 	private SortIndex createCompoundIndexWithBaseCardinalities() {
 		final SortIndex sortIndex = new SortIndex(
-			new ComparatorSource[] {
+			new ComparatorSource[]{
 				new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 				new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST)
 			},
 			Locale.ENGLISH
 		);
 
-		sortIndex.addRecord(new Object[] {"B", 1}, 5);
-		sortIndex.addRecord(new Object[] {"A", 4}, 6);
-		sortIndex.addRecord(new Object[] {"C", 6}, 3);
-		sortIndex.addRecord(new Object[] {"C", null}, 2);
-		sortIndex.addRecord(new Object[] {"B", 1}, 4);
-		sortIndex.addRecord(new Object[] {"C", 9}, 1);
-		sortIndex.addRecord(new Object[] {"E", null}, 9);
-		sortIndex.addRecord(new Object[] {"C", 9}, 7);
-		sortIndex.addRecord(new Object[] {null, 3}, 8);
+		sortIndex.addRecord(new Object[]{"B", 1}, 5);
+		sortIndex.addRecord(new Object[]{"A", 4}, 6);
+		sortIndex.addRecord(new Object[]{"C", 6}, 3);
+		sortIndex.addRecord(new Object[]{"C", null}, 2);
+		sortIndex.addRecord(new Object[]{"B", 1}, 4);
+		sortIndex.addRecord(new Object[]{"C", 9}, 1);
+		sortIndex.addRecord(new Object[]{"E", null}, 9);
+		sortIndex.addRecord(new Object[]{"C", 9}, 7);
+		sortIndex.addRecord(new Object[]{null, 3}, 8);
 		return sortIndex;
 	}
 

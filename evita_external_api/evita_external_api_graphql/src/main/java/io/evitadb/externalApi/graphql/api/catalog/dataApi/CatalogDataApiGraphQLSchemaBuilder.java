@@ -70,6 +70,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutatingDataF
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLEnumTypeTransformer;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 
 import javax.annotation.Nonnull;
@@ -251,7 +252,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionsField() {
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
-			new CollectionsDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new CollectionsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 	}
 
@@ -286,11 +291,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			getUnknownEntityFieldBuilder.build(),
-			new GetUnknownEntityDataFetcher(
+			new ReadDataFetcher(
+				new GetUnknownEntityDataFetcher(
+					buildingContext.getSchema(),
+					buildingContext.getSupportedLocales()
+				),
 				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null),
-				buildingContext.getSchema(),
-				buildingContext.getSupportedLocales()
+				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
 	}
@@ -327,11 +334,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			listUnknownEntityFieldBuilder.build(),
-			new ListUnknownEntitiesDataFetcher(
+			new ReadDataFetcher(
+				new ListUnknownEntitiesDataFetcher(
+					buildingContext.getSchema(),
+					buildingContext.getSupportedLocales()
+				),
 				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null),
-				buildingContext.getSchema(),
-				buildingContext.getSupportedLocales()
+				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
 	}
@@ -382,11 +391,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			singleEntityFieldBuilder.build(),
-			new GetEntityDataFetcher(
+			new ReadDataFetcher(
+				new GetEntityDataFetcher(
+					buildingContext.getSchema(),
+					entitySchema
+				),
 				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null),
-				buildingContext.getSchema(),
-				entitySchema
+				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
 	}
@@ -412,11 +423,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityListFieldBuilder.build(),
-			new ListEntitiesDataFetcher(
+			new ReadDataFetcher(
+				new ListEntitiesDataFetcher(
+					buildingContext.getSchema(),
+					entitySchema
+				),
 				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null),
-				buildingContext.getSchema(),
-				entitySchema
+				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
 	}
@@ -448,11 +461,13 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 
 		return new BuiltFieldDescriptor(
 			entityQueryFieldBuilder.build(),
-			new QueryEntitiesDataFetcher(
+			new ReadDataFetcher(
+				new QueryEntitiesDataFetcher(
+					buildingContext.getSchema(),
+					entitySchema
+				),
 				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null),
-				buildingContext.getSchema(),
-				entitySchema
+				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
 	}
@@ -464,10 +479,10 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 			CatalogDataApiRootDescriptor.COUNT_COLLECTION
 				.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
 				.build(),
-			new CollectionSizeDataFetcher(
+			new ReadDataFetcher(
+				new CollectionSizeDataFetcher(entitySchema),
 				buildingContext.getEvita(),
-				buildingContext.getEvitaExecutor().orElse(null),
-				entitySchema
+				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
 	}

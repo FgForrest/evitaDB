@@ -2,19 +2,19 @@ POST /rest/evita/product/query
 
 {
   "filterBy" : {
-    "referenceBrandHaving" : [
+    "referenceGroupsHaving" : [
       {
         "entityHaving" : {
-          "attributeCodeEquals" : "sony"
+          "attributeCodeEquals" : "sale"
         }
       }
     ]
   },
   "orderBy" : [
     {
-      "referenceBrandProperty" : [
+      "referenceGroupsProperty" : [
         {
-          "attributeOrderInBrandNatural" : "ASC"
+          "attributeOrderInGroupNatural" : "ASC"
         }
       ]
     }
@@ -24,10 +24,15 @@ POST /rest/evita/product/query
       "attributeContent" : [
         "code"
       ],
-      "referenceBrandContentWithAttributes" : {
+      "referenceGroupsContentWithAttributes" : {
         "attributeContent" : [
-          "orderInBrand"
-        ]
+          "orderInGroup"
+        ],
+        "filterBy" : {
+          "entityHaving" : {
+            "attributeCodeEquals" : "sale"
+          }
+        }
       }
     }
   }

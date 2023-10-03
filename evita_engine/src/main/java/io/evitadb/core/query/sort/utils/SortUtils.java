@@ -26,14 +26,30 @@ package io.evitadb.core.query.sort.utils;
 import org.roaringbitmap.BatchIterator;
 import org.roaringbitmap.ImmutableBitmapDataProvider;
 
+import javax.annotation.Nonnull;
+import java.util.Arrays;
+
 /**
  * Class contains utility methods shared across multiple sorter implementations.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class SortUtils {
+	private final static int[] EMPTY_RESULT = new int[0];
 
-	private SortUtils() {
+	/**
+	 * Method returns the array of sorted entities capped at the peak index.
+	 *
+	 * @param sortedEntities     sorted entities
+	 * @param sortedEntitiesPeak peak index
+	 * @return sorted entities capped at the peak index
+	 */
+	public static int[] asResult(int[] sortedEntities, int sortedEntitiesPeak) {
+		if (sortedEntitiesPeak == 0) {
+			return EMPTY_RESULT;
+		}
+		return sortedEntities.length == sortedEntitiesPeak ?
+			sortedEntities : Arrays.copyOfRange(sortedEntities, 0, sortedEntitiesPeak);
 	}
 
 	/**
@@ -55,9 +71,10 @@ public class SortUtils {
 	 *
 	 * @return number of records copied (usually `endIndex` - `startIndex`, if there is enough space left in result array)
 	 */
-	public static int appendNotFoundResult(int[] result, int resultPeak, int startIndex, int endIndex, ImmutableBitmapDataProvider roaringBitmap) {
-		final int[] buffer = new int[512];
-
+	public static int appendNotFoundResult(
+		@Nonnull int[] result, int resultPeak, int startIndex, int endIndex,
+		@Nonnull ImmutableBitmapDataProvider roaringBitmap, @Nonnull int[] buffer
+	) {
 		final BatchIterator unsortedRecordIdsIt = roaringBitmap.getBatchIterator();
 		int readAcc = 0;
 		int actualPeak = resultPeak;
@@ -76,5 +93,8 @@ public class SortUtils {
 			}
 		}
 		return actualPeak;
+	}
+
+	private SortUtils() {
 	}
 }

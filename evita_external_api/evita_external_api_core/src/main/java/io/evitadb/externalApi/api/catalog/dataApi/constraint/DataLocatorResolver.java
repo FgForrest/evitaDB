@@ -44,6 +44,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class DataLocatorResolver {
 
+	private static final Set<ConstraintDomain> CONSTRAINT_DOMAINS_WITH_REFERENCE = Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET);
+
 	@Nonnull private final CatalogSchemaContract catalogSchema;
 
 	/**
@@ -61,7 +63,7 @@ public class DataLocatorResolver {
 	                                                    @Nonnull ConstraintDomain desiredChildDomainOfParameter) {
 		if (desiredChildDomainOfParameter == ConstraintDomain.DEFAULT || parentDataLocator.targetDomain().equals(desiredChildDomainOfParameter)) {
 			return parentDataLocator;
-		} else if (Set.of(ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.HIERARCHY_TARGET, ConstraintDomain.FACET).contains(desiredChildDomainOfParameter)) {
+		} else if (CONSTRAINT_DOMAINS_WITH_REFERENCE.contains(desiredChildDomainOfParameter)) {
 			Assert.isPremiseValid(
 				parentDataLocator instanceof DataLocatorWithReference,
 				() -> new ExternalApiInternalError("Cannot switch to `" + desiredChildDomainOfParameter + "` domain because parent domain doesn't contain any reference.")

@@ -12,7 +12,6 @@ import "GrpcExtraResults.proto";
 import "GrpcEnums.proto";
 import "GrpcCatalogSchema.proto";
 import "GrpcEntitySchema.proto";
-import "GrpcLocalMutation.proto";
 import "GrpcEntityMutation.proto";
 import "GrpcCatalogSchemaMutation.proto";
 import "GrpcCatalogSchemaMutations.proto";
@@ -98,9 +97,9 @@ message GrpcEntityRequest {
   // The string part of the parametrised query require part.
   string require = 3;
   // The positional query parameters.
-  repeated QueryParam positionalQueryParams = 4;
+  repeated GrpcQueryParam positionalQueryParams = 4;
   // The named query parameters.
-  map<string, QueryParam> namedQueryParams = 5;
+  map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
 // Response to GetEntity request.
@@ -225,9 +224,9 @@ message GrpcQueryRequest {
   // The string part of the parametrised query.
   string query = 1;
   // The positional query parameters.
-  repeated QueryParam positionalQueryParams = 2;
+  repeated GrpcQueryParam positionalQueryParams = 2;
   // The named query parameters.
-  map<string, QueryParam> namedQueryParams = 3;
+  map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
 // Response to Query request.
@@ -262,9 +261,9 @@ message GrpcUpsertEntityRequest {
   // The string part of the parametrised query require part.
   string require = 2;
   // The positional query parameters.
-  repeated QueryParam positionalQueryParams = 3;
+  repeated GrpcQueryParam positionalQueryParams = 3;
   // The named query parameters.
-  map<string, QueryParam> namedQueryParams = 4;
+  map<string, GrpcQueryParam> namedQueryParams = 4;
 }
 
 // Request for deleting an entity that should return the deleted entity with required richness.
@@ -276,9 +275,9 @@ message GrpcDeleteEntityRequest {
   // The string part of the parametrised query require part.
   string require = 3;
   // The positional query parameters.
-  repeated QueryParam positionalQueryParams = 4;
+  repeated GrpcQueryParam positionalQueryParams = 4;
   // The named query parameters.
-  map<string, QueryParam> namedQueryParams = 5;
+  map<string, GrpcQueryParam> namedQueryParams = 5;
 }
 
 // Request for deleting a collection of entities specified by a query.
@@ -286,9 +285,9 @@ message GrpcDeleteEntitiesRequest {
   // The string part of the parametrised query.
   string query = 1;
   // The positional query parameters.
-  repeated QueryParam positionalQueryParams = 2;
+  repeated GrpcQueryParam positionalQueryParams = 2;
   // The named query parameters.
-  map<string, QueryParam> namedQueryParams = 3;
+  map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
 // Response to UpsertEntity request. The used field is decided by the require block in the query.
@@ -348,7 +347,7 @@ message GrpcCloseTransactionRequest {
 }
 
 // Structure that supports storing all possible parameters that could be used within query.
-message QueryParam {
+message GrpcQueryParam {
   // The value of the parameter.
   oneof queryParam {
     // The string value.

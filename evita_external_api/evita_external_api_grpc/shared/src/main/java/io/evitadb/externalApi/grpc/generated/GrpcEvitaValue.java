@@ -223,6 +223,20 @@ private static final long serialVersionUID = 0L;
             valueCase_ = 13;
             break;
           }
+          case 114: {
+            io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder subBuilder = null;
+            if (valueCase_ == 14) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_).toBuilder();
+            }
+            value_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcPredecessor.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_);
+              value_ = subBuilder.buildPartial();
+            }
+            valueCase_ = 14;
+            break;
+          }
           case 402: {
             io.evitadb.externalApi.grpc.generated.GrpcStringArray.Builder subBuilder = null;
             if (valueCase_ == 50) {
@@ -474,6 +488,7 @@ private static final long serialVersionUID = 0L;
     LOCALEVALUE(11),
     CURRENCYVALUE(12),
     UUIDVALUE(13),
+    PREDECESSORVALUE(14),
     STRINGARRAYVALUE(50),
     INTEGERARRAYVALUE(51),
     LONGARRAYVALUE(52),
@@ -517,6 +532,7 @@ private static final long serialVersionUID = 0L;
         case 11: return LOCALEVALUE;
         case 12: return CURRENCYVALUE;
         case 13: return UUIDVALUE;
+        case 14: return PREDECESSORVALUE;
         case 50: return STRINGARRAYVALUE;
         case 51: return INTEGERARRAYVALUE;
         case 52: return LONGARRAYVALUE;
@@ -1081,6 +1097,49 @@ private static final long serialVersionUID = 0L;
        return (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcUuid.getDefaultInstance();
+  }
+
+  public static final int PREDECESSORVALUE_FIELD_NUMBER = 14;
+  /**
+   * <pre>
+   * Predecessor value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+   * @return Whether the predecessorValue field is set.
+   */
+  @java.lang.Override
+  public boolean hasPredecessorValue() {
+    return valueCase_ == 14;
+  }
+  /**
+   * <pre>
+   * Predecessor value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+   * @return The predecessorValue.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcPredecessor getPredecessorValue() {
+    if (valueCase_ == 14) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Predecessor value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder getPredecessorValueOrBuilder() {
+    if (valueCase_ == 14) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance();
   }
 
   public static final int STRINGARRAYVALUE_FIELD_NUMBER = 50;
@@ -1766,6 +1825,9 @@ private static final long serialVersionUID = 0L;
     if (valueCase_ == 13) {
       output.writeMessage(13, (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_);
     }
+    if (valueCase_ == 14) {
+      output.writeMessage(14, (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_);
+    }
     if (valueCase_ == 50) {
       output.writeMessage(50, (io.evitadb.externalApi.grpc.generated.GrpcStringArray) value_);
     }
@@ -1873,6 +1935,10 @@ private static final long serialVersionUID = 0L;
     if (valueCase_ == 13) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(13, (io.evitadb.externalApi.grpc.generated.GrpcUuid) value_);
+    }
+    if (valueCase_ == 14) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(14, (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_);
     }
     if (valueCase_ == 50) {
       size += com.google.protobuf.CodedOutputStream
@@ -2009,6 +2075,10 @@ private static final long serialVersionUID = 0L;
         if (!getUuidValue()
             .equals(other.getUuidValue())) return false;
         break;
+      case 14:
+        if (!getPredecessorValue()
+            .equals(other.getPredecessorValue())) return false;
+        break;
       case 50:
         if (!getStringArrayValue()
             .equals(other.getStringArrayValue())) return false;
@@ -2135,6 +2205,10 @@ private static final long serialVersionUID = 0L;
       case 13:
         hash = (37 * hash) + UUIDVALUE_FIELD_NUMBER;
         hash = (53 * hash) + getUuidValue().hashCode();
+        break;
+      case 14:
+        hash = (37 * hash) + PREDECESSORVALUE_FIELD_NUMBER;
+        hash = (53 * hash) + getPredecessorValue().hashCode();
         break;
       case 50:
         hash = (37 * hash) + STRINGARRAYVALUE_FIELD_NUMBER;
@@ -2439,6 +2513,13 @@ private static final long serialVersionUID = 0L;
           result.value_ = uuidValueBuilder_.build();
         }
       }
+      if (valueCase_ == 14) {
+        if (predecessorValueBuilder_ == null) {
+          result.value_ = value_;
+        } else {
+          result.value_ = predecessorValueBuilder_.build();
+        }
+      }
       if (valueCase_ == 50) {
         if (stringArrayValueBuilder_ == null) {
           result.value_ = value_;
@@ -2644,6 +2725,10 @@ private static final long serialVersionUID = 0L;
         }
         case UUIDVALUE: {
           mergeUuidValue(other.getUuidValue());
+          break;
+        }
+        case PREDECESSORVALUE: {
+          mergePredecessorValue(other.getPredecessorValue());
           break;
         }
         case STRINGARRAYVALUE: {
@@ -4629,6 +4714,183 @@ private static final long serialVersionUID = 0L;
       valueCase_ = 13;
       onChanged();;
       return uuidValueBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcPredecessor, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder, io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder> predecessorValueBuilder_;
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     * @return Whether the predecessorValue field is set.
+     */
+    @java.lang.Override
+    public boolean hasPredecessorValue() {
+      return valueCase_ == 14;
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     * @return The predecessorValue.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcPredecessor getPredecessorValue() {
+      if (predecessorValueBuilder_ == null) {
+        if (valueCase_ == 14) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance();
+      } else {
+        if (valueCase_ == 14) {
+          return predecessorValueBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    public Builder setPredecessorValue(io.evitadb.externalApi.grpc.generated.GrpcPredecessor value) {
+      if (predecessorValueBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        value_ = value;
+        onChanged();
+      } else {
+        predecessorValueBuilder_.setMessage(value);
+      }
+      valueCase_ = 14;
+      return this;
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    public Builder setPredecessorValue(
+        io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder builderForValue) {
+      if (predecessorValueBuilder_ == null) {
+        value_ = builderForValue.build();
+        onChanged();
+      } else {
+        predecessorValueBuilder_.setMessage(builderForValue.build());
+      }
+      valueCase_ = 14;
+      return this;
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    public Builder mergePredecessorValue(io.evitadb.externalApi.grpc.generated.GrpcPredecessor value) {
+      if (predecessorValueBuilder_ == null) {
+        if (valueCase_ == 14 &&
+            value_ != io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance()) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcPredecessor.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          value_ = value;
+        }
+        onChanged();
+      } else {
+        if (valueCase_ == 14) {
+          predecessorValueBuilder_.mergeFrom(value);
+        }
+        predecessorValueBuilder_.setMessage(value);
+      }
+      valueCase_ = 14;
+      return this;
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    public Builder clearPredecessorValue() {
+      if (predecessorValueBuilder_ == null) {
+        if (valueCase_ == 14) {
+          valueCase_ = 0;
+          value_ = null;
+          onChanged();
+        }
+      } else {
+        if (valueCase_ == 14) {
+          valueCase_ = 0;
+          value_ = null;
+        }
+        predecessorValueBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder getPredecessorValueBuilder() {
+      return getPredecessorValueFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder getPredecessorValueOrBuilder() {
+      if ((valueCase_ == 14) && (predecessorValueBuilder_ != null)) {
+        return predecessorValueBuilder_.getMessageOrBuilder();
+      } else {
+        if (valueCase_ == 14) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Predecessor value.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcPredecessor, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder, io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder> 
+        getPredecessorValueFieldBuilder() {
+      if (predecessorValueBuilder_ == null) {
+        if (!(valueCase_ == 14)) {
+          value_ = io.evitadb.externalApi.grpc.generated.GrpcPredecessor.getDefaultInstance();
+        }
+        predecessorValueBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcPredecessor, io.evitadb.externalApi.grpc.generated.GrpcPredecessor.Builder, io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcPredecessor) value_,
+                getParentForChildren(),
+                isClean());
+        value_ = null;
+      }
+      valueCase_ = 14;
+      onChanged();;
+      return predecessorValueBuilder_;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<

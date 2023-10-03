@@ -25,6 +25,7 @@ package io.evitadb.documentation;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.ConstraintWithSuffix;
@@ -260,17 +261,17 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 	}
 
 	private void printContainer(ConstraintContainer<?> constraint) {
-		if (constraint.getChildren().length == 0 && constraint.getAdditionalChildren().length == 0) {
+		if (constraint.getExplicitChildren().length == 0 && constraint.getExplicitAdditionalChildren().length == 0) {
 			printLeaf(constraint);
 			return;
 		}
 
 		level++;
 		if (constraint.isApplicable()) {
-			final Constraint<?>[] children = constraint.getChildren();
+			final Constraint<?>[] children = constraint.getExplicitChildren();
 			final int childrenLength = children.length;
 
-			final Constraint<?>[] additionalChildren = constraint.getAdditionalChildren();
+			final Constraint<?>[] additionalChildren = constraint.getExplicitAdditionalChildren();
 			final int additionalChildrenLength = additionalChildren.length;
 
 			final Serializable[] arguments = constraint.getArguments();
@@ -279,6 +280,11 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			// print arguments
 			for (int i = 0; i < argumentsLength; i++) {
 				final Serializable argument = arguments[i];
+
+				if (constraint instanceof ConstraintWithSuffix cws && cws.isArgumentImplicitForSuffix(argument)) {
+					continue;
+				}
+
 				result.append(newLine());
 				indent(indent, level);
 				result.append(formatValue(argument));
@@ -291,6 +297,11 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			// print additional children
 			for (int i = 0; i < additionalChildren.length; i++) {
 				final Constraint<?> additionalChild = additionalChildren[i];
+
+				if (constraint instanceof ConstraintContainerWithSuffix ccws && ccws.isAdditionalChildImplicitForSuffix(constraint)) {
+					continue;
+				}
+
 				additionalChild.accept(this);
 				if (i + 1 < additionalChildren.length || childrenLength > 0) {
 					nextConstraint();
@@ -300,6 +311,11 @@ public class JavaPrettyPrintingVisitor implements ConstraintVisitor {
 			// print children
 			for (int i = 0; i < childrenLength; i++) {
 				final Constraint<?> child = children[i];
+
+				if (constraint instanceof ConstraintContainerWithSuffix ccws && ccws.isChildImplicitForSuffix(constraint)) {
+					continue;
+				}
+
 				child.accept(this);
 				if (i + 1 < childrenLength) {
 					nextConstraint();

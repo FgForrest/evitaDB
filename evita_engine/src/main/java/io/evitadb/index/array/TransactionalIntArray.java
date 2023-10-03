@@ -39,6 +39,10 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
@@ -207,6 +211,7 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	/**
 	 * Returns iterator that allows to iterate through all record ids of the array.
 	 */
+	@Nonnull
 	public OfInt iterator() {
 		final IntArrayChanges layer = getTransactionalMemoryLayerIfExists(this);
 		if (layer == null) {
@@ -214,6 +219,19 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 		} else {
 			return new TransactionalIntArrayIterator(this.delegate, layer);
 		}
+	}
+
+	/**
+	 * Returns result of {@link #iterator()} wrapped into {@link IntStream}.
+	 * @return stream of record ids
+	 */
+	@Nonnull
+	public IntStream stream() {
+		final OfInt it = iterator();
+		return StreamSupport.intStream(
+			Spliterators.spliteratorUnknownSize(it, Spliterator.DISTINCT | Spliterator.ORDERED | Spliterator.SIZED),
+			false
+		);
 	}
 
 	@Override
@@ -256,4 +274,5 @@ public class TransactionalIntArray implements TransactionalLayerProducer<IntArra
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 	}
+
 }

@@ -144,7 +144,7 @@ public class DataGenerator {
 	 */
 	final Map<Serializable, Map<Object, Integer>> uniqueSequencer = new HashMap<>();
 	final Map<Serializable, SortableAttributesChecker> sortableAttributesChecker = new HashMap<>();
-	final Map<Integer, Integer> parameterIndex = new HashMap<>();
+	final Map<String, Map<Integer, Integer>> parameterIndex = new HashMap<>();
 	/**
 	 * Holds function that is used for generating price inner record handling strategy.
 	 */
@@ -394,7 +394,7 @@ public class DataGenerator {
 		@Nonnull BiFunction<String, Faker, Integer> referencedEntityResolver,
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
-		@Nonnull Map<Integer, Integer> parameterGroupIndex,
+		@Nonnull Map<String, Map<Integer, Integer>> parameterGroupIndex,
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
 		@Nonnull Function<Locale, Faker> localeFaker,
 		@Nonnull Faker genericFaker,
@@ -456,6 +456,8 @@ public class DataGenerator {
 								thatIs.setGroup(
 									referenceSchema.getReferencedGroupType(),
 									parameterGroupIndex.computeIfAbsent(
+										referencedType, __ -> new HashMap<>()
+									).computeIfAbsent(
 										referencedEntity,
 										parameterId -> referencedEntityResolver.apply(referenceSchema.getReferencedGroupType(), genericFaker)
 									)
@@ -927,7 +929,8 @@ public class DataGenerator {
 
 		/* finally apply schema changes */
 		final EntitySchemaContract result = schemaUpdater.apply(schemaBuilder);
-		return result instanceof EntitySchemaDecorator esd ? esd : new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) result);
+		return result instanceof EntitySchemaDecorator esd ?
+			esd : new EntitySchemaDecorator(() -> catalogSchema, (EntitySchema) result);
 	}
 
 	@Nonnull
@@ -1241,7 +1244,7 @@ public class DataGenerator {
 	/**
 	 * Returns index that maps parameters to their groups.
 	 */
-	public Map<Integer, Integer> getParameterIndex() {
+	public Map<String, Map<Integer, Integer>> getParameterIndex() {
 		return parameterIndex;
 	}
 
@@ -1389,7 +1392,7 @@ public class DataGenerator {
 		private final Function<Faker, PriceInnerRecordHandling> priceInnerRecordHandlingGenerator;
 		private final BiFunction<String, Faker, Integer> referencedEntityResolver;
 		private final Function<Locale, Faker> localizedFakerFetcher;
-		private final Map<Integer, Integer> parameterIndex;
+		private final Map<String, Map<Integer, Integer>> parameterIndex;
 		private final Map<EntityAttribute, Function<Faker, Object>> valueGenerators;
 
 		@Override

@@ -47,13 +47,13 @@ import io.evitadb.index.hierarchy.suppliers.HierarchyForParentBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownBitmapSupplier;
 import io.evitadb.index.hierarchy.suppliers.HierarchyRootsDownToLevelBitmapSupplier;
-import io.evitadb.index.list.TransactionalList;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart;
+import io.evitadb.store.spi.model.storageParts.index.HierarchyIndexStoragePart.LevelIndex;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -109,14 +109,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * List contains entity primary keys of all entities that have hierarchy placement set to root level (i.e. without
 	 * any parent).
 	 */
-	private final TransactionalList<Integer> roots;
+	private final TransactionalIntArray roots;
 	/**
 	 * Index contains information about children of all entities having parents specified.
 	 * Every entity in {@link #itemIndex} has also record in this entity but only in case they are reachable from
 	 * {@link #roots} - either with empty array or array of its children.If the entity is not reachable from any root
 	 * entity it's places into {@link #orphans} and is not present in this index.
 	 */
-	private final TransactionalMap<Integer, int[]> levelIndex;
+	private final TransactionalMap<Integer, TransactionalIntArray> levelIndex;
 	/**
 	 * Array contains entity primary keys of all entities that are not reachable from {@link #roots}. This simple list
 	 * contains also children of orphan parents - i.e. primary keys of all unreachable entities that have parent
@@ -134,20 +134,39 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 	public HierarchyIndex() {
 		this.dirty = new TransactionalBoolean();
-		this.roots = new TransactionalList<>(new LinkedList<>());
-		this.levelIndex = new TransactionalMap<>(new HashMap<>(32));
+		this.roots = new TransactionalIntArray(EMPTY_ARRAY);
+		this.levelIndex = new TransactionalMap<>(new HashMap<>(32), TransactionalIntArray.class, TransactionalIntArray::new);
 		this.itemIndex = new TransactionalMap<>(new HashMap<>(32));
 		this.orphans = new TransactionalIntArray();
 		this.memoizedAllNodeFormula = EmptyFormula.INSTANCE;
 	}
 
-	public HierarchyIndex(@Nonnull List<Integer> roots, Map<Integer, int[]> levelIndex, @Nonnull Map<Integer, HierarchyNode> itemIndex, @Nonnull int[] orphans) {
+	public HierarchyIndex(@Nonnull int[] roots, @Nonnull Map<Integer, TransactionalIntArray> levelIndex, @Nonnull Map<Integer, HierarchyNode> itemIndex, @Nonnull int[] orphans) {
 		this.dirty = new TransactionalBoolean();
-		this.roots = new TransactionalList<>(roots);
-		this.levelIndex = new TransactionalMap<>(levelIndex);
+		this.roots = new TransactionalIntArray(roots);
+		this.levelIndex = new TransactionalMap<>(levelIndex, TransactionalIntArray.class, TransactionalIntArray::new);
 		this.itemIndex = new TransactionalMap<>(itemIndex);
 		this.orphans = new TransactionalIntArray(orphans);
 		this.memoizedAllNodeFormula = createAllHierarchyNodesFormula();
+	}
+
+	public HierarchyIndex(@Nonnull int[] roots, @Nonnull LevelIndex[] levelIndex, @Nonnull Map<Integer, HierarchyNode> itemIndex, @Nonnull int[] orphans) {
+		this(
+			roots,
+			Arrays.stream(levelIndex)
+				.collect(
+					Collectors.toMap(
+						LevelIndex::parentId,
+						it -> new TransactionalIntArray(it.childrenIds()),
+						(ar1, ar2) -> {
+							throw new IllegalStateException("Duplicate key found in level index!");
+						},
+						HashMap::new
+					)
+				),
+			itemIndex,
+			orphans
+		);
 	}
 
 	@Override
@@ -159,7 +178,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			final HierarchyNode newHierarchyNode = new HierarchyNode(rootNode, null);
 			itemIndex.put(rootNode, newHierarchyNode);
 			roots.add(rootNode);
-			this.levelIndex.put(rootNode, EMPTY_ARRAY);
+			this.levelIndex.put(rootNode, new TransactionalIntArray());
 		}
 	}
 
@@ -180,15 +199,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 
 		if (parentPrimaryKey == null) {
 			roots.add(entityPrimaryKey);
-			roots.sort(Integer::compareTo);
 			// create the children set
 			createChildrenSetFromOrphansRecursively(entityPrimaryKey);
 		} else {
-			final boolean parentFound = levelIndex.computeIfPresent(
-				parentPrimaryKey,
-				(ppk, oldValue) -> ArrayUtils.insertIntIntoOrderedArray(entityPrimaryKey, oldValue, Integer::compare)
-			) != null;
-			if (parentFound) {
+			final Optional<TransactionalIntArray> parentRef = ofNullable(levelIndex.get(parentPrimaryKey));
+			if (parentRef.isPresent()) {
+				parentRef.get().add(entityPrimaryKey);
 				// create the children set
 				createChildrenSetFromOrphansRecursively(entityPrimaryKey);
 			} else {
@@ -225,10 +241,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Bitmap listHierarchyNodesFromRoot(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
-		for (Integer nodeId : this.roots) {
+		for (int nodeId : this.roots.getArray()) {
 			if (hierarchyFilteringPredicate.test(nodeId)) {
 				result.add(nodeId);
-				final int[] children = this.levelIndex.get(nodeId);
+				final TransactionalIntArray children = this.levelIndex.get(nodeId);
 				if (children != null) {
 					addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 				}
@@ -252,10 +268,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Nonnull
 	public Bitmap listHierarchyNodesFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
-		for (Integer nodeId : this.roots) {
+		for (Integer nodeId : this.roots.getArray()) {
 			if (hierarchyFilteringPredicate.test(nodeId)) {
 				result.add(nodeId);
-				final int[] children = this.levelIndex.get(nodeId);
+				final TransactionalIntArray children = this.levelIndex.get(nodeId);
 				if (children != null) {
 					addRecursively(hierarchyFilteringPredicate, result, children, levels - 1);
 				}
@@ -281,7 +297,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final CompositeIntArray result = new CompositeIntArray();
 		if (hierarchyFilteringPredicate.test(parentNode)) {
 			result.add(parentNode);
-			final int[] children = this.levelIndex.get(parentNode);
+			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			if (children != null) {
 				addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 			}
@@ -306,7 +322,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		final CompositeIntArray result = new CompositeIntArray();
 		if (hierarchyFilteringPredicate.test(parentNode)) {
 			result.add(parentNode);
-			final int[] children = this.levelIndex.get(parentNode);
+			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			if (children != null) {
 				addRecursively(hierarchyFilteringPredicate, result, children, levels - 1);
 			}
@@ -330,7 +346,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public Bitmap listHierarchyNodesFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		final CompositeIntArray result = new CompositeIntArray();
 		if (hierarchyFilteringPredicate.test(parentNode)) {
-			final int[] children = this.levelIndex.get(parentNode);
+			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			if (children != null) {
 				addRecursively(hierarchyFilteringPredicate, result, children, Integer.MAX_VALUE);
 			}
@@ -355,7 +371,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		assertNodeInIndex(parentNode);
 		final CompositeIntArray result = new CompositeIntArray();
 		if (hierarchyFilteringPredicate.test(parentNode)) {
-			final int[] children = this.levelIndex.get(parentNode);
+			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			// requested node might be in the orphans
 			if (children != null) {
 				addRecursively(hierarchyFilteringPredicate, result, children, levels);
@@ -420,7 +436,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public Bitmap getRootHierarchyNodes(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		return this.roots.isEmpty() ?
 			EmptyBitmap.INSTANCE :
-			new BaseBitmap(this.roots.stream().mapToInt(it -> it).filter(hierarchyFilteringPredicate).toArray());
+			new BaseBitmap(Arrays.stream(this.roots.getArray()).filter(hierarchyFilteringPredicate).toArray());
 	}
 
 	@Nonnull
@@ -442,13 +458,13 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (theParentNode == null) {
 			return EmptyBitmap.INSTANCE;
 		} else {
-			final int[] childrenIds = this.levelIndex.get(parentNode);
-			return ArrayUtils.isEmpty(childrenIds) ?
+			final TransactionalIntArray childrenIds = this.levelIndex.get(parentNode);
+			return childrenIds.isEmpty() ?
 				new BaseBitmap(parentNode) :
 				new BaseBitmap(
 					IntStream.concat(
 							IntStream.of(parentNode),
-							Arrays.stream(childrenIds)
+							childrenIds.stream()
 						)
 						.filter(hierarchyFilteringPredicate)
 						.toArray()
@@ -579,10 +595,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 */
 	public int getHierarchyNodeCountFromRootDownTo(int levels, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		int sum = 0;
-		for (Integer nodeId : this.roots) {
+		for (Integer nodeId : this.roots.getArray()) {
 			if (hierarchyFilteringPredicate.test(nodeId)) {
 				sum++;
-				final int[] children = this.levelIndex.get(nodeId);
+				final TransactionalIntArray children = this.levelIndex.get(nodeId);
 				if (children != null) {
 					sum += countRecursively(hierarchyFilteringPredicate, children, levels - 1);
 				}
@@ -597,7 +613,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public int getHierarchyNodeCountFromParent(int parentNode, @Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
 		int sum = 0;
 		if (hierarchyFilteringPredicate.test(parentNode)) {
-			final int[] children = this.levelIndex.get(parentNode);
+			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			if (children != null) {
 				sum += countRecursively(hierarchyFilteringPredicate, children, Integer.MAX_VALUE);
 			}
@@ -613,10 +629,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		assertNodeInIndex(parentNode);
 		int sum = 0;
 		if (hierarchyFilteringPredicate.test(parentNode)) {
-			final int[] children = this.levelIndex.get(parentNode);
+			final TransactionalIntArray children = this.levelIndex.get(parentNode);
 			// requested node might be in the orphans
 			if (children != null) {
-				sum += children.length;
+				sum += children.getLength();
 				sum += countRecursively(hierarchyFilteringPredicate, children, levels);
 			}
 		}
@@ -627,7 +643,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	 * Returns count of root hierarchy nodes.
 	 */
 	public int getRootHierarchyNodeCount(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate) {
-		return this.roots.isEmpty() ? 0 : (int) this.roots.stream().filter(hierarchyFilteringPredicate::test).count();
+		return this.roots.isEmpty() ? 0 : (int) (Arrays.stream(this.roots.getArray()).filter(hierarchyFilteringPredicate).count());
 	}
 
 	/**
@@ -638,12 +654,12 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (theParentNode == null) {
 			return 0;
 		} else {
-			final int[] childrenIds = this.levelIndex.get(parentNode);
-			return ArrayUtils.isEmpty(childrenIds) ?
+			final TransactionalIntArray childrenIds = this.levelIndex.get(parentNode);
+			return childrenIds.isEmpty() ?
 				1 :
 				(int) IntStream.concat(
 						IntStream.of(parentNode),
-						Arrays.stream(childrenIds)
+						childrenIds.stream()
 					)
 					.filter(hierarchyFilteringPredicate)
 					.count();
@@ -653,7 +669,7 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder(128);
-		for (Integer rootId : roots) {
+		for (Integer rootId : this.roots.getArray()) {
 			sb.append(rootId).append("\n");
 			toStringChildrenRecursively(levelIndex.get(rootId), 1, sb);
 		}
@@ -668,7 +684,14 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
 			return new HierarchyIndexStoragePart(
-				entityIndexPrimaryKey, this.itemIndex, this.roots, this.levelIndex, this.orphans.getArray()
+				entityIndexPrimaryKey, this.itemIndex,
+				this.roots.getArray(),
+				this.levelIndex
+					.entrySet()
+					.stream()
+					.map(it -> new HierarchyIndexStoragePart.LevelIndex(it.getKey(), it.getValue().getArray()))
+					.toArray(LevelIndex[]::new),
+				this.orphans.getArray()
 			);
 		} else {
 			return null;
@@ -727,24 +750,13 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 				makeOrphansRecursively(entityPrimaryKey);
 				// clear references in parent node
 				if (previousLocation.parentEntityPrimaryKey() == null) {
-					roots.remove((Integer) entityPrimaryKey);
+					roots.remove(entityPrimaryKey);
 				} else {
-					final int[] recomputedValue = levelIndex.computeIfPresent(
+					final TransactionalIntArray recomputedValue = levelIndex.computeIfPresent(
 						previousLocation.parentEntityPrimaryKey(),
 						(epk, parentNodeChildren) -> {
-							final int index = ArrayUtils.binarySearch(
-								parentNodeChildren, entityPrimaryKey, (o1, o2) -> {
-									final HierarchyNode o1Node = o1 == entityPrimaryKey ? previousLocation : this.itemIndex.get(o1);
-									final HierarchyNode o2Node = o2 == entityPrimaryKey ? previousLocation : this.itemIndex.get(o2);
-									// first compare the order of the items
-									return o1Node.compareTo(o2Node);
-								}
-							);
-							Assert.isPremiseValid(
-								index > -1,
-								"Hierarchy node " + entityPrimaryKey + " unexpectedly not found in children index!"
-							);
-							return ArrayUtils.removeIntFromArrayOnIndex(parentNodeChildren, index);
+							parentNodeChildren.remove(entityPrimaryKey);
+							return parentNodeChildren;
 						}
 					);
 					Assert.isPremiseValid(
@@ -782,11 +794,16 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 	}
 
 	private void makeOrphansRecursively(int entityPrimaryKey) {
-		final int[] removedNodeChildren = levelIndex.remove(entityPrimaryKey);
-		this.orphans.addAll(removedNodeChildren);
-		for (int removedNodeChild : removedNodeChildren) {
-			makeOrphansRecursively(removedNodeChild);
+		final TransactionalIntArray removedNodeChildren = levelIndex.remove(entityPrimaryKey);
+		if (removedNodeChildren != null) {
+			final OfInt it = removedNodeChildren.iterator();
+			while (it.hasNext()) {
+				final int removedNodeChild = it.nextInt();
+				this.orphans.add(removedNodeChild);
+				makeOrphansRecursively(removedNodeChild);
+			}
 		}
+		removedNodeChildren.removeLayer();
 	}
 
 	private void createChildrenSetFromOrphansRecursively(int entityPrimaryKey) {
@@ -799,23 +816,24 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 				children.add(orphanId);
 			}
 		}
-		final int[] childrenArray = children.toArray();
-		ArrayUtils.sortArray(Comparator.naturalOrder(), childrenArray);
-		for (int formerOrphanId : childrenArray) {
+		final TransactionalIntArray childrenArray = new TransactionalIntArray(children.toArray());
+		final OfInt childrenIt = childrenArray.iterator();
+		while (childrenIt.hasNext()) {
+			int formerOrphanId = childrenIt.nextInt();
 			this.orphans.remove(formerOrphanId);
+			createChildrenSetFromOrphansRecursively(formerOrphanId);
 		}
 		this.levelIndex.put(entityPrimaryKey, childrenArray);
-		for (int childrenId : childrenArray) {
-			createChildrenSetFromOrphansRecursively(childrenId);
-		}
 	}
 
-	private void addRecursively(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate, @Nonnull CompositeIntArray result, @Nonnull int[] children, int levels) {
-		for (int childId : children) {
+	private void addRecursively(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate, @Nonnull CompositeIntArray result, @Nonnull TransactionalIntArray children, int levels) {
+		final OfInt it = children.iterator();
+		while (it.hasNext()) {
+			int childId = it.nextInt();
 			if (hierarchyFilteringPredicate.test(childId)) {
 				result.add(childId);
 				if (levels > 0) {
-					final int[] childrenOfChildren = this.levelIndex.get(childId);
+					final TransactionalIntArray childrenOfChildren = this.levelIndex.get(childId);
 					if (childrenOfChildren != null) {
 						addRecursively(hierarchyFilteringPredicate, result, childrenOfChildren, levels - 1);
 					}
@@ -824,13 +842,15 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		}
 	}
 
-	private int countRecursively(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate, @Nonnull int[] children, int levels) {
+	private int countRecursively(@Nonnull HierarchyFilteringPredicate hierarchyFilteringPredicate, @Nonnull TransactionalIntArray children, int levels) {
 		int sum = 0;
-		for (int childId : children) {
+		final OfInt it = children.iterator();
+		while (it.hasNext()) {
+			int childId = it.nextInt();
 			if (hierarchyFilteringPredicate.test(childId)) {
 				sum++;
 				if (levels > 0) {
-					final int[] childrenOfChildren = this.levelIndex.get(childId);
+					final TransactionalIntArray childrenOfChildren = this.levelIndex.get(childId);
 					if (childrenOfChildren != null) {
 						sum += countRecursively(hierarchyFilteringPredicate, childrenOfChildren, levels - 1);
 					}
@@ -840,10 +860,15 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		return sum;
 	}
 
-	private void toStringChildrenRecursively(int[] nodeIds, int indent, StringBuilder sb) {
-		for (int nodeId : nodeIds) {
-			sb.append(" ".repeat(3 * indent)).append(nodeId).append("\n");
-			toStringChildrenRecursively(levelIndex.get(nodeId), indent + 1, sb);
+	private void toStringChildrenRecursively(@Nonnull TransactionalIntArray nodeIds, int indent, @Nonnull StringBuilder sb) {
+		final OfInt it = nodeIds.iterator();
+		while (it.hasNext()) {
+			int nodeId = it.nextInt();
+			ofNullable(levelIndex.get(nodeId))
+				.ifPresent(node -> {
+					sb.append(" ".repeat(3 * indent)).append(nodeId).append("\n");
+					toStringChildrenRecursively(node, indent + 1, sb);
+				});
 		}
 	}
 
@@ -858,11 +883,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			() -> {
 				final Collection<HierarchyNode> children = ofNullable(this.levelIndex.get(childrenId))
 					.map(it ->
-						Arrays.stream(it)
+						it.stream()
 							.filter(predicate)
 							.mapToObj(this.itemIndex::get)
 							.filter(Objects::nonNull)
-							.sorted()
 							.collect(Collectors.toList())
 					)
 					.orElse(Collections.emptyList());
@@ -881,11 +905,10 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (rootNode == null) {
 			level = 1;
 			distance = 1;
-			rootNodes = this.roots.stream()
-				.filter(predicate::test)
-				.map(this.itemIndex::get)
+			rootNodes = Arrays.stream(this.roots.getArray())
+				.filter(predicate)
+				.mapToObj(this.itemIndex::get)
 				.filter(Objects::nonNull)
-				.sorted()
 				.collect(Collectors.toList());
 		} else if (ofNullable(excludingRoot).orElse(false)) {
 			final HierarchyNode rootHierarchyNode = this.itemIndex.get(rootNode);
@@ -895,12 +918,11 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 			} else {
 				level = this.computeLevel(rootHierarchyNode);
 				rootNodes = ofNullable(this.levelIndex.get(rootNode))
-					.map(Arrays::stream)
-					.orElse(IntStream.empty())
+					.stream()
+					.flatMapToInt(TransactionalIntArray::stream)
 					.filter(predicate)
 					.mapToObj(this.itemIndex::get)
 					.filter(Objects::nonNull)
-					.sorted()
 					.collect(Collectors.toList());
 			}
 			distance = 1;

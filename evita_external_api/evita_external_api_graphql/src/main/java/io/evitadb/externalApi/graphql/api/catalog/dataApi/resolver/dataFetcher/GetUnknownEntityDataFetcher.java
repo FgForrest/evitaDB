@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -45,7 +45,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -53,7 +52,6 @@ import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -61,7 +59,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -80,7 +77,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResult<EntityClassifier>> {
+public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResult<EntityClassifier>> {
 
     /**
      * Schema of catalog to which this fetcher is mapped to.
@@ -95,11 +92,8 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
 
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public GetUnknownEntityDataFetcher(@Nonnull ClientContext clientContext,
-                                       @Nullable Executor executor,
-                                       @Nonnull CatalogSchemaContract catalogSchema,
+    public GetUnknownEntityDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                        @Nonnull Set<Locale> allPossibleLocales) {
-        super(clientContext, executor);
         this.catalogSchema = catalogSchema;
         this.allPossibleLocales = allPossibleLocales;
 
@@ -121,7 +115,7 @@ public class GetUnknownEntityDataFetcher extends ReadDataFetcher<DataFetcherResu
 
     @Nonnull
     @Override
-    public DataFetcherResult<EntityClassifier> doGet(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<EntityClassifier> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
 
         final FilterBy filterBy = buildFilterBy(arguments);

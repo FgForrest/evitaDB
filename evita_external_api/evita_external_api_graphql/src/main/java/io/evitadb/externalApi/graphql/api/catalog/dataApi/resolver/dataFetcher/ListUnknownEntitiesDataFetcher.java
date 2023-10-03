@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -45,7 +45,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -62,7 +61,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -81,7 +79,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<List<EntityClassifier>>> {
+public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>> {
 
     /**
      * Schema of catalog to which this fetcher is mapped to.
@@ -96,12 +94,8 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
 
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public ListUnknownEntitiesDataFetcher(@Nonnull ClientContext clientContext,
-                                          @Nullable Executor executor,
-                                          @Nonnull CatalogSchemaContract catalogSchema,
+    public ListUnknownEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                           @Nonnull Set<Locale> allPossibleLocales) {
-        super(clientContext, executor);
-
         this.catalogSchema = catalogSchema;
         this.allPossibleLocales = allPossibleLocales;
 
@@ -124,7 +118,7 @@ public class ListUnknownEntitiesDataFetcher extends ReadDataFetcher<DataFetcherR
 
     @Nonnull
     @Override
-    public DataFetcherResult<List<EntityClassifier>> doGet(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<List<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment, catalogSchema);
 
         final FilterBy filterBy = buildFilterBy(arguments);

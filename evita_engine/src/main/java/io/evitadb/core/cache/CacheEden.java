@@ -370,7 +370,12 @@ public class CacheEden {
 	 * to the eden cache for future requests.
 	 */
 	@Nonnull
-	private <S> S alterToResultRecordingFormula(long recordHash, @Nonnull CachedRecord cachedRecord, @Nonnull LongHashFunction hashFunction, @Nonnull CacheableFormula inputFormula) {
+	private <S> S alterToResultRecordingFormula(
+		long recordHash,
+		@Nonnull CachedRecord cachedRecord,
+		@Nonnull LongHashFunction hashFunction,
+		@Nonnull CacheableFormula inputFormula
+	) {
 		// otherwise, clone input formula and add logic, that will store the computed result to the cache
 		//noinspection unchecked
 		return (S) inputFormula.getCloneWithComputationCallback(

@@ -45,7 +45,7 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Data
-public class FacetIdIndex implements VoidTransactionMemoryProducer<Bitmap>, IndexDataStructure {
+public class FacetIdIndex implements VoidTransactionMemoryProducer<FacetIdIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Identification of the facet - links to {@link EntityReference#getPrimaryKey()}
@@ -114,8 +114,10 @@ public class FacetIdIndex implements VoidTransactionMemoryProducer<Bitmap>, Inde
 
 	@Nonnull
 	@Override
-	public Bitmap createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return transactionalLayer.getStateCopyWithCommittedChanges(this.records, transaction);
+	public FacetIdIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		return new FacetIdIndex(
+			this.facetId, transactionalLayer.getStateCopyWithCommittedChanges(this.records, transaction)
+		);
 	}
 
 	@Override

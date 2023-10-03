@@ -34,7 +34,6 @@ import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -53,7 +52,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferencedTypeEntityIndex extends EntityIndex implements VoidTransactionMemoryProducer<ReferencedTypeEntityIndex> {
+public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityIndex> {
 	/**
 	 * No prices are maintained in this index.
 	 */

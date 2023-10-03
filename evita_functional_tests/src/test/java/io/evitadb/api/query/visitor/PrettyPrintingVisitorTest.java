@@ -30,8 +30,10 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 
+import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.filter.AttributeSpecialValue.NOT_NULL;
+import static io.evitadb.api.query.filter.AttributeSpecialValue.NULL;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY;
 import static io.evitadb.api.query.require.StatisticsBase.WITHOUT_USER_FILTER;
@@ -204,7 +206,7 @@ class PrettyPrintingVisitorTest {
 	@Test
 	void shouldPrettyPrintEntireQuery() {
 		final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
-			Query.query(
+			query(
 				collection("PRODUCT"),
 				filterBy(
 					and(
@@ -294,9 +296,42 @@ class PrettyPrintingVisitorTest {
 	}
 
 	@Test
+	void shouldPrettyPrintQueryWithImplicitChildren() {
+		final String result = PrettyPrintingVisitor.toString(
+			query(
+				collection("PRODUCT"),
+				require(
+					referenceContentWithAttributes(
+						"brand",
+						filterBy(
+							attributeIs("visible", NULL)
+						)
+					)
+				)
+			),
+			"\t"
+		);
+		assertEquals(
+			"""
+            query(
+            \tcollection('PRODUCT'),
+            \trequire(
+            \t\treferenceContentWithAttributes(
+            \t\t\t'brand',
+            \t\t\tfilterBy(
+            \t\t\t\tattributeIs('visible', NULL)
+            \t\t\t)
+            \t\t)
+            \t)
+            )""",
+			result
+		);
+	}
+
+	@Test
 	void shouldPrettyPrintEntireQueryWithMissingParts() {
 		final StringWithParameters result = PrettyPrintingVisitor.toStringWithParameterExtraction(
-			Query.query(
+			query(
 				filterBy(
 					and(
 						attributeEquals("a", "b"),
@@ -346,6 +381,26 @@ class PrettyPrintingVisitorTest {
 				"a", "b", "def", NOT_NULL, "c", 1, 78, "utr", true, "d", 1, "e", 1
 			},
 			result.parameters().toArray(new Serializable[0])
+		);
+	}
+
+	@Test
+	void shouldPrettyPrintWithoutImplicitChildren() {
+		assertEquals(
+			"""
+				require(
+				\tentityFetch(
+				\t\treferenceContentAllWithAttributes()
+				\t)
+				)""",
+			PrettyPrintingVisitor.toString(
+				require(
+					entityFetch(
+						referenceContentAllWithAttributes()
+					)
+				),
+				"\t"
+			)
 		);
 	}
 

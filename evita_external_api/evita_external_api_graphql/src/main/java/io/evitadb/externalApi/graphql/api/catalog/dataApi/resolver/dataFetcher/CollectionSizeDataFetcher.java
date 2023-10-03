@@ -23,36 +23,28 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.concurrent.Executor;
 
 /**
  * Finds out size of particular collection.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CollectionSizeDataFetcher extends ReadDataFetcher<Integer> {
+@RequiredArgsConstructor
+public class CollectionSizeDataFetcher implements DataFetcher<Integer> {
 
 	@Nonnull private final EntitySchemaContract entitySchema;
 
-	public CollectionSizeDataFetcher(@Nonnull ClientContext clientContext,
-	                                 @Nullable Executor executor,
-	                                 @Nonnull EntitySchemaContract entitySchema) {
-		super(clientContext, executor);
-		this.entitySchema = entitySchema;
-	}
-
 	@Nonnull
 	@Override
-	public Integer doGet(@Nonnull DataFetchingEnvironment environment) {
+	public Integer get(@Nonnull DataFetchingEnvironment environment) {
 		final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
 		return evitaSession.getEntityCollectionSize(entitySchema.getName());
 	}

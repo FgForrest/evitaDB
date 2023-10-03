@@ -49,6 +49,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Extra
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.StringUtils;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -78,7 +79,7 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			restApiHandlingContext,
 			this.entityJsonSerializer,
-			Map.of()
+			StringUtils::toCamelCase
 		);
 	}
 
@@ -131,15 +132,14 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 
 	@Nonnull
 	@Override
-	protected JsonNode convertResultIntoJson(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> result) {
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
-			.recordPage(serializeRecordPage(response));
-		if (!response.getExtraResults().isEmpty()) {
+			.recordPage(serializeRecordPage(result));
+		if (!result.getExtraResults().isEmpty()) {
 			queryResponseBuilder
-				.extraResults(extraResultsJsonSerializer.serialize(response.getExtraResults()));
+				.extraResults(extraResultsJsonSerializer.serialize(result.getExtraResults()));
 		}
-
-		return restApiHandlingContext.getObjectMapper().valueToTree(queryResponseBuilder.build());
+		return queryResponseBuilder.build();
 	}
 
 	@Nonnull

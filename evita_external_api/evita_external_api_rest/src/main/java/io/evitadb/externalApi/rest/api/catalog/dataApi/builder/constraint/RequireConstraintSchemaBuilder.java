@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint;
 
 import io.evitadb.api.query.Constraint;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintType;
@@ -33,8 +32,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiSimpleType;
-import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Map;

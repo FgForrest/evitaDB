@@ -49,6 +49,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -230,7 +231,11 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 				gen.writeStartObject();
 				value.getReferences()
 					.stream()
-					.collect(Collectors.groupingBy(ReferenceContract::getReferenceName))
+					.collect(Collectors.groupingBy(
+						ReferenceContract::getReferenceName,
+						TreeMap::new,
+						Collectors.toList()
+					))
 					.forEach((refKey, refValue) -> writeReference(gen, refKey, refValue));
 				gen.writeEndObject();
 			});

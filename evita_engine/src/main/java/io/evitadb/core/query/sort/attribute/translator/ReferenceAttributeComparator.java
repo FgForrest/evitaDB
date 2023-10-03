@@ -23,14 +23,13 @@
 
 package io.evitadb.core.query.sort.attribute.translator;
 
+import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
-import io.evitadb.index.array.CompositeObjectArray;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Locale;
 import java.util.function.Function;
@@ -49,7 +48,7 @@ public class ReferenceAttributeComparator implements ReferenceComparator {
 	@Nullable private final ReferenceComparator nextComparator;
 	@Nonnull private final Function<ReferenceContract, Comparable<?>> attributeValueFetcher;
 	@Nonnull private final Comparator<Comparable<?>> comparator;
-	private CompositeObjectArray<ReferenceContract> nonSortedReferences;
+	private IntHashSet nonSortedReferences;
 
 	public ReferenceAttributeComparator(
 		@Nonnull String attributeName,
@@ -85,7 +84,7 @@ public class ReferenceAttributeComparator implements ReferenceComparator {
 	@Nonnull
 	@Override
 	public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
-		return new ReferenceAttributeComparator(nextComparator, attributeValueFetcher, comparator);
+		return new ReferenceAttributeComparator(comparatorForUnknownRecords, attributeValueFetcher, comparator);
 	}
 
 	@Nullable
@@ -94,34 +93,42 @@ public class ReferenceAttributeComparator implements ReferenceComparator {
 		return nextComparator;
 	}
 
-	@Nonnull
 	@Override
-	public Iterable<ReferenceContract> getNonSortedReferences() {
-		return ofNullable((Iterable<ReferenceContract>) nonSortedReferences)
-			.orElse(Collections.emptyList());
+	public int getNonSortedReferenceCount() {
+		return ofNullable(nonSortedReferences)
+			.map(IntHashSet::size)
+			.orElse(0);
 	}
 
 	@Override
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		final Comparable<?> attribute1 = attributeValueFetcher.apply(o1);
-		final Comparable<?> attribute2 = attributeValueFetcher.apply(o2);
+		final Comparable<?> attribute1 = o1 == null ? null : attributeValueFetcher.apply(o1);
+		final Comparable<?> attribute2 = o2 == null ? null : attributeValueFetcher.apply(o2);
 		if (attribute1 != null && attribute2 != null) {
 			return comparator.compare(attribute1, attribute2);
 		} else if (attribute1 == null && attribute2 != null) {
 			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(() -> new CompositeObjectArray<>(ReferenceContract.class));
-			this.nonSortedReferences.add(o1);
+				.orElseGet(IntHashSet::new);
+			if (o1 != null) {
+				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
+			}
 			return 1;
 		} else if (attribute1 != null) {
 			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(() -> new CompositeObjectArray<>(ReferenceContract.class));
-			this.nonSortedReferences.add(o2);
+				.orElseGet(IntHashSet::new);
+			if (o2 != null) {
+				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
+			}
 			return -1;
 		} else {
 			this.nonSortedReferences = ofNullable(this.nonSortedReferences)
-				.orElseGet(() -> new CompositeObjectArray<>(ReferenceContract.class));
-			this.nonSortedReferences.add(o1);
-			this.nonSortedReferences.add(o2);
+				.orElseGet(IntHashSet::new);
+			if (o1 != null) {
+				this.nonSortedReferences.add(o1.getReferencedPrimaryKey());
+			}
+			if (o2 != null) {
+				this.nonSortedReferences.add(o2.getReferencedPrimaryKey());
+			}
 			return 0;
 		}
 	}

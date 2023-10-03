@@ -31,6 +31,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.externalApi.dataType.Any;
 import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
@@ -86,6 +87,7 @@ public class AnyCoercing extends ObjectCoercing {
 		SERIALIZATION_COERCING_MAPPINGS.put(Locale.class, GraphQLScalars.LOCALE_COERCING);
 		SERIALIZATION_COERCING_MAPPINGS.put(Currency.class, GraphQLScalars.CURRENCY_COERCING);
 		SERIALIZATION_COERCING_MAPPINGS.put(UUID.class, GraphQLScalars.UUID_COERCING);
+		SERIALIZATION_COERCING_MAPPINGS.put(Predecessor.class, GraphQLScalars.PREDECESSOR_COERCING);
 	}
 
 	@Override

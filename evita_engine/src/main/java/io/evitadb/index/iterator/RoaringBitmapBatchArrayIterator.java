@@ -25,6 +25,8 @@ package io.evitadb.index.iterator;
 
 import org.roaringbitmap.BatchIterator;
 
+import javax.annotation.Nonnull;
+
 /**
  * Implementation of {@link BatchArrayIterator} for {@link org.roaringbitmap.RoaringBitmap}.
  *
@@ -35,9 +37,14 @@ public class RoaringBitmapBatchArrayIterator implements BatchArrayIterator {
 	private final BatchIterator delegate;
 	private int peek;
 
-	public RoaringBitmapBatchArrayIterator(BatchIterator delegate) {
+	/**
+	 * Beware the buffer array must not be used by any other thread.
+	 * @param delegate batch iterator
+	 * @param buffer buffer array
+	 */
+	public RoaringBitmapBatchArrayIterator(@Nonnull BatchIterator delegate, @Nonnull int[] buffer) {
 		this.delegate = delegate;
-		this.buffer = new int[512];
+		this.buffer = buffer;
 	}
 
 	@Override

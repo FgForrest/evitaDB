@@ -55,6 +55,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Currency;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -69,6 +70,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiNonNull.nonNull;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiObject.newObject;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiProperty.newProperty;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 
 /**
  * Implementation of {@link ConstraintSchemaBuilder} for REST API.
@@ -79,7 +81,7 @@ public abstract class OpenApiConstraintSchemaBuilder
 	extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, OpenApiSimpleType, OpenApiObject, OpenApiProperty> {
 
 	protected OpenApiConstraintSchemaBuilder(@Nonnull OpenApiConstraintSchemaBuildingContext sharedContext,
-											 @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, OpenApiSimpleType, OpenApiObject, OpenApiProperty>>> additionalBuilders,
+	                                         @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintSchemaBuilder<OpenApiConstraintSchemaBuildingContext, OpenApiSimpleType, OpenApiObject, OpenApiProperty>>> additionalBuilders,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> allowedConstraints,
 	                                         @Nonnull Set<Class<? extends Constraint<?>>> forbiddenConstraints) {
 		super(sharedContext, additionalBuilders, allowedConstraints, forbiddenConstraints);
@@ -205,43 +207,49 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 	@Nonnull
 	@Override
-	protected OpenApiSimpleType buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
-	                                                      @Nonnull ChildParameterDescriptor childParameter) {
+	protected Map<String, OpenApiSimpleType> buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
+	                                                                   @Nonnull ChildParameterDescriptor childParameter) {
 		final DataLocator childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
 		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator);
-		final OpenApiSimpleType childType;
+		final Map<String, OpenApiSimpleType> childTypes = createLinkedHashMap(1);
 
 		final Class<?> childParameterType = childParameter.type();
 		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
 			//noinspection unchecked
-			final ConstraintDescriptor childConstraintDescriptor = ConstraintDescriptorProvider.getConstraints(
-				(Class<? extends Constraint<?>>) childParameterType
-			).iterator().next(); // todo lho https://github.com/FgForrest/evitaDB/issues/158
+			ConstraintDescriptorProvider.getConstraints((Class<? extends Constraint<?>>) childParameterType)
+				.forEach(childConstraintDescriptor -> {
+					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
-			// we need switch child domain again manually based on property type of the child constraint because there
-			// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
-			final DataLocator childConstraintDataLocator = resolveChildDataLocator(
-				buildContext,
-				ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
-			);
-			childType = build(
-				childBuildContext.switchToChildContext(childConstraintDataLocator),
-				childConstraintDescriptor
-			);
+					// we need switch child domain again manually based on property type of the child constraint because there
+					// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
+					final DataLocator childConstraintDataLocator = resolveChildDataLocator(
+						buildContext,
+						ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
+					);
+					childTypes.put(
+						key,
+						build(
+							childBuildContext.switchToChildContext(childConstraintDataLocator),
+							childConstraintDescriptor
+						)
+					);
+				});
 		} else {
-			childType = obtainContainer(childBuildContext, childParameter);
-		}
-
-		if (childType instanceof OpenApiScalar) {
-			// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
-			return childType;
-		} else {
-			if (childParameterType.isArray() && !childParameter.uniqueChildren()) {
-				return arrayOf(childType);
+			final OpenApiSimpleType childType = obtainContainer(childBuildContext, childParameter);
+			if (childType instanceof OpenApiScalar) {
+				// child container didn't have any usable children, but we want to have at least marker constraint, thus boolean value was used instead
+				childTypes.put(SINGLE_CHILD_CONSTRAINT_KEY, childType);
 			} else {
-				return childType;
+				if (childParameterType.isArray() && !childParameter.uniqueChildren()) {
+					childTypes.put(SINGLE_CHILD_CONSTRAINT_KEY, arrayOf(childType));
+				} else {
+					childTypes.put(SINGLE_CHILD_CONSTRAINT_KEY, childType);
+				}
 			}
 		}
+
+		return childTypes;
+
 	}
 
 	@Nonnull
@@ -273,16 +281,38 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 		// build children values
 		childParameters.forEach(childParameter -> {
-			OpenApiSimpleType nestedChildConstraintValue = buildChildConstraintValue(buildContext, childParameter);
-			if (childParameter.required() &&
-				!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
-			) {
-				nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
-			}
+			final Map<String, OpenApiSimpleType> nestedChildConstraints = buildChildConstraintValue(buildContext, childParameter);
+			if (nestedChildConstraints.size() == 1) {
+				OpenApiSimpleType nestedChildConstraintValue = nestedChildConstraints.values().iterator().next();
+				if (childParameter.required() &&
+					!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
+				) {
+					nestedChildConstraintValue = nonNull(nestedChildConstraintValue);
+				}
 
-			wrapperObjectBuilder.property(newProperty()
-				.name(childParameter.name())
-				.type(nestedChildConstraintValue));
+				wrapperObjectBuilder.property(newProperty()
+					.name(childParameter.name())
+					.type(nestedChildConstraintValue));
+			} else {
+				nestedChildConstraints
+					.entrySet()
+					.forEach(nestedChildConstraint -> {
+						final String key = nestedChildConstraint.getKey();
+						Assert.isPremiseValid(
+							!key.equals(SINGLE_CHILD_CONSTRAINT_KEY),
+							() -> createSchemaBuildingError("Multiple nested child constraint variants but missing proper key.")
+						);
+
+						if (childParameter.required() &&
+							!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
+						) {
+							nestedChildConstraint.setValue(nonNull(nestedChildConstraint.getValue()));
+						}
+						wrapperObjectBuilder.property(newProperty()
+							.name(key)
+							.type(nestedChildConstraint.getValue()));
+					});
+			}
 		});
 
 		// build additional children values

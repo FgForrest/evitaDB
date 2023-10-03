@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainerWithSuffix;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
@@ -193,6 +194,7 @@ public abstract class ConstraintToJsonConverter {
 					parsedConstraintDescriptor,
 					creator.childParameters().get(0)
 				)
+				.map(JsonConstraint::value)
 				.orElse(jsonNodeFactory.objectNode());
 			case WRAPPER_OBJECT -> convertWrapperObjectStructure(
 				convertContext,
@@ -218,26 +220,32 @@ public abstract class ConstraintToJsonConverter {
 	}
 
 	@Nonnull
-	private Optional<JsonNode> convertChildParameter(@Nonnull ConstraintToJsonConvertContext convertContext,
-	                                                @Nonnull Constraint<?> constraint,
-	                                                @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                @Nonnull ChildParameterDescriptor parameterDescriptor) {
+	private Optional<JsonConstraint> convertChildParameter(@Nonnull ConstraintToJsonConvertContext convertContext,
+	                                                 @Nonnull Constraint<?> constraint,
+	                                                 @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                 @Nonnull ChildParameterDescriptor parameterDescriptor) {
 		final DataLocator childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
 		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator);
 		final Class<?> childParameterType = parameterDescriptor.type();
 
 		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
+		// leave out implicit children
+		if (parameterValue.isPresent() &&
+			constraint instanceof ConstraintContainerWithSuffix ccws &&
+			parameterValue.get() instanceof Constraint<?> &&
+			ccws.isChildImplicitForSuffix((Constraint<?>) parameterValue.get())) {
+			return Optional.empty();
+		}
 
 		if (!childParameterType.isArray() && !ClassUtils.isAbstract(childParameterType)) {
 			if (parameterValue.isEmpty()) {
 				return Optional.empty();
 			}
-			return convert(childConvertContext, (Constraint<?>) parameterValue.get())
-				.map(JsonConstraint::value);
+			return convert(childConvertContext, (Constraint<?>) parameterValue.get());
 		}
 		if (childParameterType.isArray()) {
 			if (parameterValue.isEmpty()) {
-				return Optional.of(jsonNodeFactory.arrayNode());
+				return Optional.of(new JsonConstraint(parameterDescriptor.name(), jsonNodeFactory.arrayNode()));
 			}
 
 			final Stream<? extends Constraint<?>> children = Arrays.stream((Object[]) parameterValue.get())
@@ -257,7 +265,7 @@ public abstract class ConstraintToJsonConverter {
 					// there are no children, we don't want render empty wrapper container
 					return Optional.empty();
 				}
-				return Optional.of(wrapperContainer);
+				return Optional.of(new JsonConstraint(parameterDescriptor.name(), wrapperContainer));
 			} else {
 				final ArrayNode jsonChildren = jsonNodeFactory.arrayNode();
 
@@ -268,7 +276,7 @@ public abstract class ConstraintToJsonConverter {
 					.toList();
 				if (convertedChildren.isEmpty()) {
 					// if there are no children we don't want to render array with empty wrapper containers
-					return Optional.of(jsonNodeFactory.arrayNode());
+					return Optional.of(new JsonConstraint(parameterDescriptor.name(), jsonNodeFactory.arrayNode()));
 				}
 
 				final long distinctChildren = convertedChildren.stream()
@@ -293,7 +301,7 @@ public abstract class ConstraintToJsonConverter {
 					});
 				}
 
-				return Optional.of(jsonChildren);
+				return Optional.of(new JsonConstraint(parameterDescriptor.name(), jsonChildren));
 			}
 		} else {
 			if (parameterValue.isEmpty()) {
@@ -304,7 +312,7 @@ public abstract class ConstraintToJsonConverter {
 			final ObjectNode wrapperContainer = jsonNodeFactory.objectNode();
 			convert(childDataLocator, child)
 				.ifPresent(jsonConstraint -> wrapperContainer.putIfAbsent(jsonConstraint.key(), jsonConstraint.value()));
-			return Optional.of(wrapperContainer);
+			return Optional.of(new JsonConstraint(parameterDescriptor.name(), wrapperContainer));
 		}
 	}
 
@@ -316,8 +324,16 @@ public abstract class ConstraintToJsonConverter {
 		final DataLocator childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
 		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator);
 
-		return parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor)
-			.flatMap(it -> convert(childConvertContext, (Constraint<?>) it));
+		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
+		// leave out implicit additional children
+		if (parameterValue.isPresent() &&
+			constraint instanceof ConstraintContainerWithSuffix ccws &&
+			parameterValue.get() instanceof Constraint<?> &&
+			ccws.isAdditionalChildImplicitForSuffix((Constraint<?>) parameterValue.get())) {
+			return Optional.empty();
+		}
+
+		return parameterValue.flatMap(it -> convert(childConvertContext, (Constraint<?>) it));
 	}
 
 	@Nonnull
@@ -361,10 +377,7 @@ public abstract class ConstraintToJsonConverter {
 
 		childParameterDescriptors.forEach(childParameterDescriptor ->
 			convertChildParameter(convertContext, constraint, parsedConstraintDescriptor, childParameterDescriptor)
-				.ifPresent(child -> wrapperObject.putIfAbsent(
-					childParameterDescriptor.name(),
-					child
-				)));
+				.ifPresent(child -> wrapperObject.putIfAbsent(child.key(), child.value())));
 
 		additionalChildParameterDescriptors.forEach(additionalChildParameterDescriptor -> {
 			convertAdditionalChildParameter(

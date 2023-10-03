@@ -24,8 +24,8 @@
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 
 import graphql.execution.DataFetcherResult;
+import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.ClientContext;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -50,7 +50,6 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
-import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -62,7 +61,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -77,7 +75,7 @@ import static io.evitadb.api.query.QueryConstraints.strip;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<List<EntityClassifier>>> {
+public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<List<EntityClassifier>>> {
 
     /**
      * Entity type of collection to which this fetcher is mapped to.
@@ -88,11 +86,8 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
     @Nonnull private final OrderConstraintResolver orderConstraintResolver;
     @Nonnull private final EntityFetchRequireResolver entityFetchRequireResolver;
 
-    public ListEntitiesDataFetcher(@Nonnull ClientContext clientContext,
-                                   @Nullable Executor executor,
-                                   @Nonnull CatalogSchemaContract catalogSchema,
+    public ListEntitiesDataFetcher(@Nonnull CatalogSchemaContract catalogSchema,
                                    @Nonnull EntitySchemaContract entitySchema) {
-        super(clientContext, executor);
         this.entitySchema = entitySchema;
 
         this.filterConstraintResolver = new FilterConstraintResolver(catalogSchema);
@@ -111,7 +106,7 @@ public class ListEntitiesDataFetcher extends ReadDataFetcher<DataFetcherResult<L
 
     @Nonnull
     @Override
-    public DataFetcherResult<List<EntityClassifier>> doGet(@Nonnull DataFetchingEnvironment environment) {
+    public DataFetcherResult<List<EntityClassifier>> get(@Nonnull DataFetchingEnvironment environment) {
         final Arguments arguments = Arguments.from(environment);
 
         final FilterBy filterBy = buildFilterBy(arguments);

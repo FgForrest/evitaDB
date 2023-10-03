@@ -1,19 +1,19 @@
 ```json
 {
-  "data" : {
-    "queryBrand" : {
-      "recordPage" : {
-        "data" : [
+  "data": {
+    "queryBrand": {
+      "recordPage": {
+        "data": [
           {
-            "primaryKey" : 64703,
-            "attributesGlobal" : {
-              "code" : "samsung"
+            "primaryKey": 64703,
+            "attributesGlobal": {
+              "code": "samsung"
             },
-            "attributesCs" : {
-              "name" : "Samsung"
+            "attributesEn": {
+              "name": "Samsung"
             },
-            "attributesEn" : {
-              "name" : "Samsung"
+            "attributesCs": {
+              "name": "Samsung"
             }
           }
         ]

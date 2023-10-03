@@ -43,7 +43,7 @@ import java.util.List;
  */
 @Data
 public class TargetIndexes<T extends Index<?>> {
-	public static final TargetIndexes<EntityIndex> EMPTY = new TargetIndexes<>("EMPTY", EntityIndex.class, Collections.emptyList());
+	public static final TargetIndexes<GlobalEntityIndex> EMPTY = new TargetIndexes<>("EMPTY", GlobalEntityIndex.class, Collections.emptyList());
 	private final String indexDescription;
 	private final FilterConstraint representedConstraint;
 	private final Class<T> indexType;

@@ -74,6 +74,7 @@ public class PriceBigDecimal extends FormattableBigDecimal {
         return super.isShouldFormat() || isWithCurrency();
     }
 
+    @Nonnull
     @Override
     public String toFormattedString() {
         if (!isWithCurrency()) {

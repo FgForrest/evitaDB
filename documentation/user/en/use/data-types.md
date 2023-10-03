@@ -67,6 +67,8 @@ evitaDB data types are limited to following list:
     formatted as `'CZK'`
 - [UUID](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/UUID.html),
     formatted as `2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9`
+- [Predecessor](#predecessor),
+    formatted as `789`
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
@@ -116,6 +118,8 @@ is how they are formatted. evitaDB data types are limited to following list:
     formatted as `"CZK"`
 - [UUID](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/UUID.html),
     formatted as `"2fbbfcf2-d4bb-4db9-9658-acf1d287cbe9"`
+- [Predecessor](#predecessor),
+  formatted as `789`
 
 </LanguageSpecific>
 
@@ -317,6 +321,75 @@ and Byte as upper bound.
 
 </LanguageSpecific>
 
+## Predecessor
+
+The <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Predecessor.java</SourceClass> is a special data type 
+used to define a single oriented linked list of entities of the same type. It represents a pointer to a previous entity 
+in the list. The head element is a special case and is represented by the constant `Predecessor#HEAD`. The predecessor 
+attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localised) of an 
+entity or its reference to another entity. It cannot be used to filter entities, but is very useful for sorting.
+
+### Motivation for linked lists in database sorting
+
+The linked list is a very optimal data structure for sorting entities in a database that holds large amounts of data. 
+Inserting a new element into a linked list is a constant time operation and requires only two updates:
+
+1) inserting a new element into the list, pointing to an existing element as its predecessor
+2) updating the original element pointing to the predecessor to point to the new element.
+
+Moving (updating) an element or removing an existing element from a linked list is also a constant time operation, 
+requiring similar two updates. The disadvantage of the linked list is its poor random access performance (get element 
+at n-th index) and list traversal, which requires a lot of random access to different parts of memory. However, these
+disadvantages can be mitigated by keeping the linked list in the form of an array or binary tree of properly positioned
+primary keys.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Aren't there any better approaches for keeping ordered list of entities?
+</NoteTitle>
+
+There are alternatives approaches to this problem, but they all have their downsides. Some of them are summarized in
+[the article "Keeping an ordered collection in PostgreSQL" by Nicolas Goy](https://medium.com/the-missing-bit/keeping-an-ordered-collection-in-postgresql-9da0348c4bbe). We went through similar journey and
+concluded that the linked list is the least of all evils:
+
+- It doesn't require mass updates of surrounding entities or occasional "reshuffling".
+- it doesn't force the client logic to be complicated (and it plays well with the UI drag'n'drop repositioning flow)
+- it is very data efficient - it only requires a single [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) 
+  (4B) per single item in the list
+
+</Note>
+
+### Maintaining consistency of the linked list
+
+Constructing a linked list could be a tricky process from a consistency point of view - especially in the 
+[warm-up](api/write-data.md#bulk-indexing) phase, when you need to reconstruct the data from an external primary store. 
+To be consistent at all times, you'd need to start with the entity that represents the head of the chain, then insert 
+its successor, and vice versa. This is often not trivial, and if you have two predecessor attributes with different 
+"order" for the same entities, it's absolutely impossible.
+
+That's why we designed our linked list implementation to tolerate partial inconsistencies, and to converge to 
+a consistent state as missing data is inserted. We support these inconsistency scenarios:
+
+- multiple head elements
+- multiple successor elements for a single predecessor
+- circular dependencies, where a head element points to an element in its tail
+
+The sorting by an inconsistent predecessor attribute sorts the entities by the chains in the following order:
+
+1) the chains starting with a head element (starting with the chain with most elements, to the chain with least elements)
+2) the chains with elements sharing the same predecessor (starting with the chain with most elements, to the chain with least elements)
+3) the chains with circular dependencies (starting with the chain with most elements, to the chain with least elements)
+
+When the dependencies are fixed, the sort order will converge to the correct one.
+The <SourceClass>evita_engine/src/main/java/io/evitadb/index/attribute/ChainIndex.java</SourceClass> will contain only 
+a single chain of correctly ordered elements and will return true when the `isConsistent()` method is called on it.
+
+The inconsistent state is also allowed in the transactional phase, but we recommend avoiding it and updating all 
+the elements involved (in any order) within a single transaction, which will ensure that the linked list remains 
+consistent for all other transactions.
+
 ## Complex data types
 
 <LanguageSpecific to="evitaql,java">
@@ -384,13 +457,13 @@ have both an accessor, a mutator method (i.e. `get` and `set` methods for the pr
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/data/NonSerializedData.java</SourceClass>
 annotation, are serialized into a complex type. See the following example:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Associated data POJO](/documentation/user/en/use/examples/dto.java)
 </SourceCodeTabs>
 
 Storing a complex type to entity is executed as follows:
 
-<SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java">
+<SourceCodeTabs requires="/documentation/user/en/use/examples/dto.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Storing associated data to an entity](/documentation/user/en/use/examples/storing.java)
 </SourceCodeTabs>
@@ -398,7 +471,7 @@ Storing a complex type to entity is executed as follows:
 As you can see, annotations can be placed either on methods or property fields, so that if you use
 [Lombok support](https://projectlombok.org/), you can still easily define the class as:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Associated data Lombok POJO](/documentation/user/en/use/examples/dto-lombok.java)
 </SourceCodeTabs>
 
@@ -411,7 +484,7 @@ is thrown.
 You can use collections in complex types, but the specific collection types must be extractable from the collection 
 generics in deserialization time. Look at the following example:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Associated data POJO with collections](/documentation/user/en/use/examples/dto-collection.java)
 </SourceCodeTabs>
 
@@ -451,7 +524,7 @@ void verifyProductStockAvailabilityIsProperlySerialized() {
 
 Retrieving a complex type from an entity is executed as follows:
 
-<SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java">
+<SourceCodeTabs requires="/documentation/user/en/use/examples/storing.java" local>
 
 [Loading associated data from an entity](/documentation/user/en/use/examples/loading.java)
 </SourceCodeTabs>

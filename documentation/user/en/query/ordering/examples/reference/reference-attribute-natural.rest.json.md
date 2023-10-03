@@ -1,168 +1,481 @@
 ```json
 {
-  "recordPage" : {
-    "data" : [
+  "recordPage": {
+    "data": [
       {
-        "primaryKey" : 113035,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 107827,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-inzone-h3"
+        "attributes": {
+          "global": {
+            "code": "zte-axon-10"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": -1
+              }
             }
           }
-        }
+        ]
       },
       {
-        "primaryKey" : 113038,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 108543,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-inzone-h7"
+        "attributes": {
+          "global": {
+            "code": "xiaomi-mi-watch-lite"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 107827
+              }
             }
           }
-        }
+        ]
       },
       {
-        "primaryKey" : 113040,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 108540,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-inzone-h9"
+        "attributes": {
+          "global": {
+            "code": "xiaomi-mi-watch"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 108543
+              }
             }
           }
-        }
+        ]
       },
       {
-        "primaryKey" : 113042,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113054,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-wh-1000xm4"
+        "attributes": {
+          "global": {
+            "code": "xiaomi-buds-3-pro"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 108540
+              }
             }
           }
-        }
+        ]
       },
       {
-        "primaryKey" : 113044,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113172,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-wh-1000xm5"
+        "attributes": {
+          "global": {
+            "code": "trust-kuza"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113054
+              }
             }
           }
-        }
+        ]
       },
       {
-        "primaryKey" : 113048,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113048,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-wh-ch710n"
+        "attributes": {
+          "global": {
+            "code": "sony-wh-ch710n"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113172
+              }
             }
           }
-        }
+        ]
       },
       {
-        "primaryKey" : 113051,
-        "type" : "Product",
-        "version" : 1,
-        "allLocales" : [
+        "primaryKey": 113035,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
           "en"
         ],
-        "attributes" : {
-          "global" : {
-            "code" : "sony-wh-xb910n"
+        "attributes": {
+          "global": {
+            "code": "sony-inzone-h3"
           }
         },
-        "brand" : {
-          "referencedPrimaryKey" : 113036,
-          "attributes" : {
-            "global" : {
-              "orderInBrand" : 0
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113048
+              }
             }
           }
-        }
+        ]
+      },
+      {
+        "primaryKey": 113013,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "skullcandy-hesh-anc"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113035
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 113010,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "skullcandy-dime"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113013
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 107443,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "samsung-galaxy-a32"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113010
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 113134,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "razer-deathadder-v2"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 107443
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 105289,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "rakuten-forma"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113134
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 105238,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "pocketbook-basic-lux-3"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 105289
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 104851,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "panasonic-toughbook-a3-2020"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 105238
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 107008,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "nokia-c2"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 104851
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 110962,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "msi-gp75-10sfsk-leopard"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 107008
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 113104,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "logitech-signature-m650"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 110962
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 106838,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "lg-stylo-5x"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 113104
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 106823,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "lg-k-series-k51"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 106838
+              }
+            }
+          }
+        ]
+      },
+      {
+        "primaryKey": 113392,
+        "type": "Product",
+        "version": 1,
+        "allLocales": [
+          "en"
+        ],
+        "attributes": {
+          "global": {
+            "code": "32-uhd-hdr-monitor-with-usb-type-c"
+          }
+        },
+        "groups": [
+          {
+            "referencedPrimaryKey": 66505,
+            "attributes": {
+              "global": {
+                "orderInGroup": 106823
+              }
+            }
+          }
+        ]
       }
     ],
-    "type" : "PAGE",
-    "totalRecordCount" : 7,
-    "first" : true,
-    "last" : true,
-    "hasPrevious" : false,
-    "hasNext" : false,
-    "singlePage" : true,
-    "empty" : false,
-    "pageSize" : 20,
-    "pageNumber" : 1,
-    "lastPageNumber" : 1,
-    "firstPageItemNumber" : 0,
-    "lastPageItemNumber" : 7
+    "type": "PAGE",
+    "totalRecordCount": 39,
+    "first": true,
+    "last": false,
+    "hasPrevious": false,
+    "hasNext": true,
+    "singlePage": false,
+    "empty": false,
+    "pageSize": 20,
+    "pageNumber": 1,
+    "lastPageNumber": 2,
+    "firstPageItemNumber": 0,
+    "lastPageItemNumber": 19
   }
 }
 ```

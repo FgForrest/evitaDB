@@ -10,14 +10,13 @@
       data {
         primaryKey
         attributes {
-          relatedFiles
-          code
-          visibility
-          breadCrumb
-          validity
           changed
-          status
+          code
           order
+          relatedFiles
+          status
+          validity
+          visibility
         }
       }
     }

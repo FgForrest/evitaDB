@@ -1,19 +1,23 @@
 {
   queryProduct(
     filterBy: {
-      referenceBrandHaving: [
+      referenceGroupsHaving: [
         {
           entityHaving: {
-            attributeCodeEquals: "sony"
+            attributeCodeEquals: "sale"
           }
         }
       ]
     },
-    orderBy: {
-      referenceBrandProperty: {
-        attributeOrderInBrandNatural: ASC
+    orderBy: [
+      {
+        referenceGroupsProperty: [
+          {
+            attributeOrderInGroupNatural: ASC
+          }
+        ]
       }
-    }
+    ]
   ) {
     recordPage {
       data {
@@ -21,10 +25,16 @@
         attributes {
           code
         }
-        brand {
+        groups(
+          filterBy: {
+          entityHaving: {
+            attributeCodeEquals: "sale"
+          }
+        }
+        ) {
           referencedPrimaryKey
           attributes {
-            orderInBrand
+            orderInGroup
           }
         }
       }

@@ -107,7 +107,7 @@ by disabling certificate verification.
 
 To create <Term>certificate authority</Term> execute following command:
 
-```bash
+```shell
 openssl req -x509 \
         -newkey rsa:2048 \ 
         -keyout rootCA.key \
@@ -189,7 +189,7 @@ DNS.1 = [domain]
 
 Then you need to create the certificate signing request `domain.csr` using following command: 
 
-```bash
+```shell
 openssl req -newkey rsa:2048 \
         -keyout domain.key \
         -out domain.csr
@@ -208,7 +208,7 @@ the [mTLS](#mutual-tls-for-grpc) is enabled.
 Generate new <Term>certificate</Term> signed by the [certificate authority](#creating-certificate-authority) 
 represented by the `rootCA.crt` and its <Term>private key</Term> `rootCA.key` using the following command:
 
-```bash
+```shell
 openssl x509 -req -CA rootCA.crt -CAkey rootCA.key \
         -in domain.csr -out domain.crt -days 365 \
         -extfile domain.ext

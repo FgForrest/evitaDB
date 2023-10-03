@@ -26,7 +26,6 @@ package io.evitadb.externalApi.rest.api.model;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptorTransformer;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiDictionary;
-import io.evitadb.externalApi.rest.api.openApi.OpenApiUnion;
 import io.evitadb.externalApi.rest.exception.OpenApiBuildingError;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;

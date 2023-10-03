@@ -107,13 +107,14 @@
 		<logback.version>1.4.11</logback.version>
 		<kryo.version>5.0.3</kryo.version>
 		<jackson.version>2.15.2</jackson.version>
-		<roaringbitmap.version>0.9.47</roaringbitmap.version>
+		<snakeyaml.version>2.2</snakeyaml.version>
+		<roaringbitmap.version>1.0.0</roaringbitmap.version>
 		<junit.jupiter.version>5.10.0</junit.jupiter.version>
 		<maven.compiler.version>3.10.1</maven.compiler.version>
 		<maven.toolchains.version>3.0.0</maven.toolchains.version>
 		<jboss.version>3.5.0.Final</jboss.version>
 		<lombok.version>1.18.24</lombok.version>
-		<grpc.version>1.57.2</grpc.version>
+		<grpc.version>1.58.0</grpc.version>
 		<bouncyCastle.version>1.70</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.94.Final</nettyHandler.version>
@@ -132,8 +133,6 @@
 		<module>evita_test_support</module>
 		<module>evita_functional_tests</module>
 		<module>evita_performance_tests</module>
-		<module>workaround/grpc</module>
-		<module>workaround/roaringBitmap</module>
 		<module>jacoco</module>
 	</modules>
 
@@ -203,6 +202,11 @@
 				<groupId>com.fasterxml.jackson.datatype</groupId>
 				<artifactId>jackson-datatype-jdk8</artifactId>
 				<version>${jackson.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.yaml</groupId>
+				<artifactId>snakeyaml</artifactId>
+				<version>${snakeyaml.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>ch.qos.logback</groupId>

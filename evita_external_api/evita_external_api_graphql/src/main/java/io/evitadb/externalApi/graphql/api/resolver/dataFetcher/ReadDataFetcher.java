@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.api.ClientContext;
 import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;
@@ -37,15 +38,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Async data fetcher which hides the async implementation of data fetcher. Should be used only for reading data fetchers
+ * Async data fetcher which executes the logic of delegate fetcher in the future. Should be used only for reading data fetchers
  * as mutating data fetcher shouldn't be run in parallel anyway.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
 @Slf4j
-public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
+public class ReadDataFetcher implements DataFetcher<Object> {
 
+	/**
+	 * Underlying data fetcher with actual fetching logic.
+	 */
+	@Nonnull private final DataFetcher<?> delegate;
 	/**
 	 * Client context provider. We need to pass the current client context to the async data fetcher.
 	 */
@@ -60,7 +65,7 @@ public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 		if (executor == null) {
 			// no executor, no async call
 			log.debug("No executor for processing data fetcher `" + getClass().getName() + "`, processing synchronously.");
-			return doGet(environment);
+			return delegate.get(environment);
 		}
 
 		final Optional<String> currentClientId = clientContext.getClientId();
@@ -69,15 +74,19 @@ public abstract class ReadDataFetcher<T> implements DataFetcher<Object> {
 			new ShortRunningSupplier<>(() -> clientContext.executeWithClientAndRequestId(
 				currentClientId.orElse(null),
 				currentRequestId.orElse(null),
-				() -> doGet(environment)
+				() -> {
+					try {
+						return delegate.get(environment);
+					} catch (Exception e) {
+						if (e instanceof RuntimeException re) {
+							throw re;
+						} else {
+							throw new GraphQLInternalError("Unexpected exception occurred during data fetching.", e);
+						}
+					}
+				}
 			)),
 			executor
 		);
 	}
-
-	/**
-	 * Actual data fetching logic.
-	 */
-	@Nullable
-	protected abstract T doGet(@Nonnull DataFetchingEnvironment environment);
 }

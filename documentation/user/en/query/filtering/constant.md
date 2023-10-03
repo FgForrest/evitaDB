@@ -51,7 +51,7 @@ ordering constraint.
 ##### List of products filtered by entity primary key
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Entities filtered by the primary keys](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql.md)</MDInclude>
 

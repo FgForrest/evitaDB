@@ -36,8 +36,6 @@ import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.NettyChannelBuilder;
 import io.netty.handler.ssl.SslContext;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Setup;
 
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -52,18 +50,20 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	private static final String HOST = AbstractApiConfiguration.LOCALHOST;
 	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
 
-	private final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder().build();
+	private ClientCertificateManager clientCertificateManager;
 	private SslContext sslContext;
 
-	@Setup(Level.Trial)
 	public void setUp() {
-		clientCertificateManager.getCertificatesFromServer(HOST, SystemConfig.DEFAULT_SYSTEM_PORT);
+		clientCertificateManager = new ClientCertificateManager.Builder()
+			.useGeneratedCertificate(true, HOST, SystemConfig.DEFAULT_SYSTEM_PORT)
+			.build();
 		sslContext = clientCertificateManager.buildClientSslContext();
 	}
 
 	/**
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
+	@Override
 	public EvitaSessionServiceBlockingStub getSession() {
 		return getSession(() -> {
 			final ManagedChannel grpcEvitaChannel = NettyChannelBuilder.forAddress(HOST, PORT)
@@ -74,7 +74,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 			final GrpcEvitaSessionResponse response = evitaClient.createReadOnlySession(GrpcEvitaSessionRequest.newBuilder()
 				.setCatalogName(TEST_CATALOG)
 				.build());
-			grpcEvitaChannel.shutdown();
+			grpcEvitaChannel.shutdownNow();
 
 			final ManagedChannel channel = NettyChannelBuilder.forAddress(HOST, PORT)
 				.sslContext(sslContext)
@@ -90,6 +90,7 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	/**
 	 * Returns an existing session unique for the thread or creates new one.
 	 */
+	@Override
 	public EvitaSessionServiceBlockingStub getSession(Supplier<EvitaSessionServiceBlockingStub> creatorFct) {
 		final EvitaSessionServiceBlockingStub session = this.session.get();
 		if (session == null) {

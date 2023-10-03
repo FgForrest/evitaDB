@@ -510,6 +510,7 @@ public class EvitaDataTypes {
 		queryDataTypes.add(Locale.class);
 		queryDataTypes.add(Currency.class);
 		queryDataTypes.add(UUID.class);
+		queryDataTypes.add(Predecessor.class);
 		SUPPORTED_QUERY_DATA_TYPES = Collections.unmodifiableSet(queryDataTypes);
 
 		final LinkedHashMap<Class<?>, Class<?>> primitiveWrappers = new LinkedHashMap<>();
@@ -684,6 +685,8 @@ public class EvitaDataTypes {
 			return value.toString();
 		} else if (value instanceof UUID) {
 			return CHAR_STRING_DELIMITER + value.toString() + CHAR_STRING_DELIMITER;
+		} else if (value instanceof Predecessor) {
+			return value.toString();
 		} else if (value == null) {
 			throw new EvitaInternalError(
 				"Null argument value should never ever happen. Null values are excluded in constructor of the class!"
@@ -759,6 +762,8 @@ public class EvitaDataTypes {
 			return 0;
 		} else if (unknownObject instanceof UUID) {
 			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE + 2 * MemoryMeasuringConstants.LONG_SIZE;
+		} else if (unknownObject instanceof Predecessor) {
+			return MemoryMeasuringConstants.OBJECT_HEADER_SIZE + MemoryMeasuringConstants.INT_SIZE;
 		} else if (unknownObject instanceof final ComplexDataObject complexDataObject) {
 			return MemoryMeasuringConstants.REFERENCE_SIZE + complexDataObject.estimateSize();
 		} else if (unknownObject instanceof final DataItem dataItem) {

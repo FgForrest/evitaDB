@@ -12,13 +12,13 @@
         attributesGlobal: attributes {
           code
         }
+        attributesCs: attributes(locale: cs) {
+          name
+        }
         attributesDe: attributes(locale: de) {
           name
         }
         attributesEn: attributes(locale: en) {
-          name
-        }
-        attributesCs: attributes(locale: cs) {
           name
         }
       }

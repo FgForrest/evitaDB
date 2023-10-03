@@ -2,7 +2,8 @@ POST /rest/evita/product/query
 
 {
   "filterBy" : {
-    "attributeCodeEquals" : "garmin-vivoactive-4"
+    "attributeCodeEquals" : "garmin-vivoactive-4",
+    "entityLocaleEquals" : "en"
   },
   "require" : {
     "entityFetch" : {
@@ -12,14 +13,14 @@ POST /rest/evita/product/query
       "referenceParameterValuesContent" : {
         "entityFetch" : {
           "attributeContent" : [
-            "code"
+            "name"
           ]
         },
         "orderBy" : [
           {
             "entityProperty" : [
               {
-                "attributeCodeNatural" : "DESC"
+                "attributeNameNatural" : "DESC"
               }
             ]
           }

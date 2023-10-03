@@ -1,6 +1,9 @@
 ---
 title: String filtering
 date: '17.1.2023'
+perex: |
+  There are several filtering constraints designed to work especially with string attributes. They are useful for 
+  looking for entities with attributes that contain a specific string.
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
@@ -50,7 +53,7 @@ Returns a few products having a string *epix* in the attribute *code*.
 ##### Products having a `epix` string in the `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products having a `epix` string in the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-contains.evitaql.md)</MDInclude>
 
@@ -111,7 +114,7 @@ Returns a few pages of products that start with a *garmin* string in the *code* 
 ##### Products having a `garmin` string at the beginning of the `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products having a `garmin` string at the beginning of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-starts-with.evitaql.md)</MDInclude>
 
@@ -172,7 +175,7 @@ Returns a few products that end with a *solar* string in the *code* attribute.
 ##### Products having a `solar` string at the end of the `code` attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products having a `solar` string at the end of the `code` attribute](/documentation/user/en/query/filtering/examples/string/attribute-ends-with.evitaql.md)</MDInclude>
 

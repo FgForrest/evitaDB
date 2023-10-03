@@ -45,6 +45,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.dataType.data.DataItemArray;
 import io.evitadb.dataType.data.DataItemMap;
@@ -172,6 +173,7 @@ public class KryoFactory {
 		kryoInstance.register(Currency[].class, new GenericArraySerializer<>(Currency.class), index++);
 		kryoInstance.register(UUID.class, new UuidSerializer(), index++);
 		kryoInstance.register(UUID[].class, new GenericArraySerializer<>(UUID.class), index++);
+		kryoInstance.register(Predecessor.class, new PredecessorSerializer(), index++);
 		kryoInstance.register(ComplexDataObject.class, new ComplexDataObjectSerializer(), index++);
 		kryoInstance.register(ComplexDataObject[].class, new GenericArraySerializer<>(ComplexDataObject.class), index++);
 		kryoInstance.register(Set.class, new SetSerializer<>(count -> new HashSet<>((int) Math.ceil(count / .75f), .75f)), index++);

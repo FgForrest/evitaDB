@@ -55,7 +55,8 @@ public class EntityGroupFetchTranslator implements RequireConstraintTranslator<E
 	public ExtraResultProducer apply(EntityGroupFetch entityGroupFetch, ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		if (extraResultPlanningVisitor.isEntityTypeKnown()) {
 			final EntitySchemaContract schema = extraResultPlanningVisitor.isScopeEmpty() ?
-				extraResultPlanningVisitor.getSchema() : getReferencedSchema(extraResultPlanningVisitor);
+				extraResultPlanningVisitor.getSchema() :
+				getReferencedSchema(extraResultPlanningVisitor);
 
 			if (schema != null) {
 				extraResultPlanningVisitor.executeInContext(

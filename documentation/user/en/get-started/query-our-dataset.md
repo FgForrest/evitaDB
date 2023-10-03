@@ -46,22 +46,28 @@ This option requires more work, but you will have control over the performance, 
 in the set. To access the dataset on your hardware, you need to:
 
 1. [download the archive with the dataset](https://evitadb.io/download/evita-demo-dataset.zip)
-   ```bash
+   ```shell
    wget https://evitadb.io/download/evita-demo-dataset.zip
    ```
 
 2. unzip the contents to the `data` folder
-   ```bash
+   ```shell
    unzip -d data evita-demo-dataset.zip
    ```
 
 3. pull the evitaDB docker image
-   ```bash
+   ```shell
    docker pull index.docker.io/evitadb/evitadb:latest
    ```
 4. start the evitaDB server
-   ```bash
+   ```shell
    docker run --name evitadb -i --net=host \
+          -v "./data:/evita/data" \
+          index.docker.io/evitadb/evitadb:latest
+   
+   # there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS 
+   # and you need to open ports manually
+   docker run --name evitadb -i -p 5555:5555 -p 5556:5556 -p 5557:5557 \
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
    ```
@@ -124,7 +130,7 @@ thousands of products.
 Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
-<SourceCodeTabs>
+<SourceCodeTabs local>
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.java)
 </SourceCodeTabs>
 

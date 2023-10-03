@@ -5,7 +5,8 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 			query(
 				collection("Product"),
 				filterBy(
-					attributeEquals("code", "garmin-vivoactive-4")
+					attributeEquals("code", "garmin-vivoactive-4"),
+					entityLocaleEquals(Locale.forLanguageTag("en"))
 				),
 				require(
 					entityFetch(
@@ -14,11 +15,11 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 							"parameterValues",
 							orderBy(
 								entityProperty(
-									attributeNatural("code", DESC)
+									attributeNatural("name", DESC)
 								)
 							),
 							entityFetch(
-								attributeContent("code")
+								attributeContent("name")
 							)
 						)
 					)

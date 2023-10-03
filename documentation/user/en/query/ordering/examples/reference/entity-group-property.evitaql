@@ -1,0 +1,29 @@
+query(
+    collection('Product'),
+    filterBy(
+        attributeEquals('code', 'garmin-vivoactive-4'),
+        entityLocaleEquals('en')
+    ),
+    require(
+        entityFetch(
+            attributeContent('code'),
+            referenceContent(
+                'parameterValues',
+                orderBy(
+                    entityGroupProperty(
+                        attributeNatural('name', ASC)
+                    ),
+                    entityProperty(
+                        attributeNatural('name', ASC)
+                    )
+                ),
+                entityFetch(
+                    attributeContent('name')
+                ),
+                entityGroupFetch(
+                    attributeContent('name')
+                )
+            )
+        )
+    )
+)

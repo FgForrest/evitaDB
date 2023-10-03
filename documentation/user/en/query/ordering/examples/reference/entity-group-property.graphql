@@ -1,0 +1,49 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "garmin-vivoactive-4",
+      entityLocaleEquals: en
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        parameterValues(
+          orderBy: [
+          {
+            entityGroupProperty: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          },
+          {
+            entityProperty: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          }
+        ]
+        ) {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            attributes {
+              name
+            }
+          }
+          groupEntity {
+            primaryKey
+            attributes {
+              name
+            }
+          }
+        }
+      }
+    }
+  }
+}

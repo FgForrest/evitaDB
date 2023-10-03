@@ -111,7 +111,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@SuppressWarnings({"StatementWithEmptyBody", "Convert2MethodRef"})
+@SuppressWarnings({"Convert2MethodRef"})
 @DisplayName("Evita base API")
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)

@@ -44,7 +44,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.TreeMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -143,7 +143,7 @@ public class AssociatedData implements AssociatedDataContract {
 						(attributeValue, attributeValue2) -> {
 							throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
 						},
-						() -> (Map<AssociatedDataKey, AssociatedDataValue>)new LinkedHashMap<AssociatedDataKey, AssociatedDataValue>()
+						() -> (Map<AssociatedDataKey, AssociatedDataValue>) new TreeMap<AssociatedDataKey, AssociatedDataValue>()
 					)
 				)
 			)

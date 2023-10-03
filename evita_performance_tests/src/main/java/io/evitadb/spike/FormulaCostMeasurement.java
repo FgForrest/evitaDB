@@ -41,7 +41,6 @@ import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormul
 import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
-import io.evitadb.core.query.sort.attribute.MergedSortedRecordsSupplier;
 import io.evitadb.index.histogram.suppliers.HistogramBitmapSupplier;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spike.mock.BucketsRecordState;
@@ -50,7 +49,6 @@ import io.evitadb.spike.mock.InnerRecordIdsWithPriceRecordsRecordState;
 import io.evitadb.spike.mock.IntegerBitmapState;
 import io.evitadb.spike.mock.PriceBucketRecordState;
 import io.evitadb.spike.mock.PriceIdsWithPriceRecordsRecordState;
-import io.evitadb.spike.mock.SortedRecordProvidersSetState;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -265,14 +263,6 @@ public class FormulaCostMeasurement {
 			null
 		);
 		blackhole.consume(testedFormula.compute());
-	}
-
-	@Benchmark
-	public void mergedSortedRecordsSupplier(SortedRecordProvidersSetState sortedRecordProvidersSet, Blackhole blackhole) {
-		final MergedSortedRecordsSupplier testedFormula = new MergedSortedRecordsSupplier(
-			sortedRecordProvidersSet.getProviders(), null
-		);
-		blackhole.consume(testedFormula.getSortedRecordsProvider());
 	}
 
 }

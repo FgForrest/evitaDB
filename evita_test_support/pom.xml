@@ -81,6 +81,11 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
+			<artifactId>evita_external_api_lab</artifactId>
+			<version>${project.parent.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>${project.parent.groupId}</groupId>
 			<artifactId>evita_java_driver</artifactId>
 			<version>${project.parent.version}</version>
 		</dependency>
@@ -113,7 +118,6 @@
 		<dependency>
 			<groupId>org.yaml</groupId>
 			<artifactId>snakeyaml</artifactId>
-			<version>2.2</version>
 		</dependency>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>

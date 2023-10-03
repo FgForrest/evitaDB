@@ -173,14 +173,14 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return single product by non-localized attribute")
 	void shouldReturnSingleProductByNonLocalizedAttribute(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
-		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final SealedEntity entityWithCode = findEntity(
+		final SealedEntity entity = findEntity(
 			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute) &&
+			it -> it.getAttribute(ATTRIBUTE_CODE) != null &&
 				it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null &&
 				it.getAllLocales().contains(CZECH_LOCALE) &&
 				it.getAllLocales().contains(Locale.ENGLISH)
 		);
+		final String codeAttribute = entity.getAttribute(ATTRIBUTE_CODE);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -207,13 +207,13 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 				GET_PRODUCT_PATH,
 				equalTo(
 					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entityWithCode.getPrimaryKey())
+						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
 						.e(EntityDescriptor.LOCALES.name(), List.of(CZECH_LOCALE.toString()))
 						.e(EntityDescriptor.ALL_LOCALES.name(), List.of(CZECH_LOCALE.toString(), Locale.ENGLISH.toString()))
 						.e(EntityDescriptor.ATTRIBUTES.name(), map()
 							.e(ATTRIBUTE_CODE, codeAttribute)
-							.e(ATTRIBUTE_NAME, entityWithCode.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
+							.e(ATTRIBUTE_NAME, entity.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE))
 							.build())
 						.build()
 				)

@@ -205,6 +205,14 @@ public enum GrpcEvitaDataType
   UUID(20),
   /**
    * <pre>
+   * Represents Predecessor data type.
+   * </pre>
+   *
+   * <code>PREDECESSOR = 21;</code>
+   */
+  PREDECESSOR(21),
+  /**
+   * <pre>
    * Represents string array data type.
    * </pre>
    *
@@ -544,6 +552,14 @@ public enum GrpcEvitaDataType
   public static final int UUID_VALUE = 20;
   /**
    * <pre>
+   * Represents Predecessor data type.
+   * </pre>
+   *
+   * <code>PREDECESSOR = 21;</code>
+   */
+  public static final int PREDECESSOR_VALUE = 21;
+  /**
+   * <pre>
    * Represents string array data type.
    * </pre>
    *
@@ -757,6 +773,7 @@ public enum GrpcEvitaDataType
       case 18: return LOCALE;
       case 19: return CURRENCY;
       case 20: return UUID;
+      case 21: return PREDECESSOR;
       case 50: return STRING_ARRAY;
       case 51: return BYTE_ARRAY;
       case 52: return SHORT_ARRAY;

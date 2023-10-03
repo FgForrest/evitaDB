@@ -50,6 +50,8 @@ public class ClassifierUtils {
 	 * Keywords must be written in camel case, validating method will check all cases.
 	 */
 	private static final Map<ClassifierType, Set<String>> RESERVED_KEYWORDS = Map.of(
+		ClassifierType.SERVER_NAME,
+		Set.of(),
 		ClassifierType.CATALOG,
 		Set.of(
 			"system" // would collide with special system API endpoints for managing evitaDB

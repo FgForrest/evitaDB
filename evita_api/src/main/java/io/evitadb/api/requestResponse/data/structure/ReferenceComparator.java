@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collections;
 import java.util.Comparator;
 
 /**
@@ -57,10 +56,9 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 			return null;
 		}
 
-		@Nonnull
 		@Override
-		public Iterable<ReferenceContract> getNonSortedReferences() {
-			return Collections.emptyList();
+		public int getNonSortedReferenceCount() {
+			return 0;
 		}
 
 		@Override
@@ -83,8 +81,7 @@ public interface ReferenceComparator extends Comparator<ReferenceContract> {
 	 *
 	 * Method will produce result after {@link #compare(Object, Object)} was called on all the entities.
 	 */
-	@Nonnull
-	Iterable<ReferenceContract> getNonSortedReferences();
+	int getNonSortedReferenceCount();
 
 	/**
 	 * Method allows creating combined comparator from this instance and passed instance.

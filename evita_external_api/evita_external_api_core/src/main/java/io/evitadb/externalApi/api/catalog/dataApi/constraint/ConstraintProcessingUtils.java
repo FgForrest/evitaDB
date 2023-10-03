@@ -31,6 +31,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
@@ -159,21 +160,28 @@ public class ConstraintProcessingUtils {
 	@Nonnull
 	public static ConstraintValueStructure getValueStructureForConstraintCreator(@Nonnull ConstraintCreator creator) {
 		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
-		final List<ChildParameterDescriptor> childParameter = creator.childParameters();
+		final List<ChildParameterDescriptor> childParameters = creator.childParameters();
 		final List<AdditionalChildParameterDescriptor> additionalChildParameters = creator.additionalChildParameters();
 
 		final ConstraintValueStructure valueStructure;
-		if (valueParameters.isEmpty() && childParameter.isEmpty() && additionalChildParameters.isEmpty()) {
+		if (valueParameters.isEmpty() && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.NONE;
-		} else if (valueParameters.size() == 1 && childParameter.isEmpty() && additionalChildParameters.isEmpty()) {
+		} else if (valueParameters.size() == 1 && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
 			valueStructure = ConstraintValueStructure.PRIMITIVE;
-		} else if (valueParameters.size() == WRAPPER_RANGE_PARAMETERS_COUNT &&
-			childParameter.isEmpty() &&
+		} else if (
+			valueParameters.size() == WRAPPER_RANGE_PARAMETERS_COUNT &&
+			childParameters.isEmpty() &&
 			additionalChildParameters.isEmpty() &&
 			valueParameters.stream().filter(p -> p.name().equals(WRAPPER_RANGE_FROM_VALUE_PARAMETER) || p.name().equals(WRAPPER_RANGE_TO_VALUE_PARAMETER)).count() == WRAPPER_RANGE_PARAMETERS_COUNT &&
-			valueParameters.get(0).type().equals(valueParameters.get(1).type())) {
+			valueParameters.get(0).type().equals(valueParameters.get(1).type())
+		) {
 			valueStructure = ConstraintValueStructure.WRAPPER_RANGE;
-		} else if (valueParameters.isEmpty() && childParameter.size() == 1 && additionalChildParameters.isEmpty()) {
+		} else if (
+			valueParameters.isEmpty() &&
+			childParameters.size() == 1 &&
+			ClassUtils.isAbstract(childParameters.get(0).type()) &&
+			additionalChildParameters.isEmpty()
+		) {
 			valueStructure = ConstraintValueStructure.CHILD;
 		} else {
 			valueStructure = ConstraintValueStructure.WRAPPER_OBJECT;

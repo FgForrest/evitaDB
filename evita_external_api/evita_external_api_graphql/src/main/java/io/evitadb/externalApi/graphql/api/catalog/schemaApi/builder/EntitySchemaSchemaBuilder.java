@@ -50,7 +50,6 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.RemoveEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
@@ -64,6 +63,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySc
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
+import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
 
@@ -185,7 +185,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 		return new BuiltFieldDescriptor(
 			entitySchemaField,
-			new EntitySchemaDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null), entitySchema.getName())
+			new ReadDataFetcher(
+				new EntitySchemaDataFetcher(entitySchema.getName()),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 	}
 
@@ -498,12 +502,20 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReferenceSchemaEntityTypeNameVariantsDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReferenceSchemaGroupTypeNameVariantsDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 		buildingContext.registerDataFetcher(
 			ReferenceSchemaDescriptor.THIS_GENERIC,
@@ -589,12 +601,20 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
-			new ReferenceSchemaEntityTypeNameVariantsDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 		buildingContext.registerDataFetcher(
 			objectName,
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
-			new ReferenceSchemaGroupTypeNameVariantsDataFetcher(buildingContext.getEvita(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 
 		if (!referenceSchema.getAttributes().isEmpty()) {

@@ -86,7 +86,7 @@ To list all nested categories of *Accessories* category issue this query:
 ##### List of all subcategories of the *Accessories* category
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Single root hierarchy example](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-simple.evitaql.md)</MDInclude>
 
@@ -128,7 +128,7 @@ Yes, it can. Although, it's apparently one of the edge cases, it's possible. Thi
 
 ... will return all subcategories of the *Wireless headphones* and *Wired headphones* and their subcategories:
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Multi-root hierarchy example](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-multi.evitaql.md)</MDInclude>
 
@@ -207,7 +207,7 @@ The query returns the first page of a total of 26 pages of items.
 ##### List of all products in the *Accessories* category or its subcategories
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product listing from *Accessories* category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-simple.evitaql.md)</MDInclude>
 
@@ -284,7 +284,7 @@ The query returns the first page of a total of 2 pages of items.
 ##### List of all categories in the hierarchy tree
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Category listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-simple.evitaql.md)</MDInclude>
 
@@ -355,7 +355,7 @@ The query returns the first page of a total of 212 pages of items:
 ##### List of all products assigned to any category in the hierarchy tree
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product listing assigned to a category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-root-reference-simple.evitaql.md)</MDInclude>
 
@@ -406,7 +406,7 @@ top root - so only the top-level categories are returned.
 ##### List of all root categories of the hierarchy
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Top categories listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-top-categories.evitaql.md)</MDInclude>
 
@@ -440,7 +440,7 @@ In the case of the `hierarchyWithin` the result will contain direct children of 
 ##### List of all direct subcategories of the *Accessories* category
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Accessories children categories listing](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-direct-categories.evitaql.md)</MDInclude>
 
@@ -493,7 +493,7 @@ some of its subcategories. Let's try the *Smartwatches* subcategory:
 ##### List of all products directly related to the *Smartwatches* category
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Product directly assigned to Smartwatches category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-direct-categories-smart.evitaql.md)</MDInclude>
 
@@ -546,7 +546,7 @@ As we can see the requested parent category *Accessories* is excluded from the r
 ##### List of all subcategories of the *Accessories* category except the *Accessories* category itself
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Category listing excluding parent](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding-root.evitaql.md)</MDInclude>
 
@@ -595,7 +595,7 @@ assigned to *Exotic keyboards*:
 ##### List of all products related to subcategories of the *Keyboard* category except to the *Keyboard* category itself
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Products in subcategories of Keyboard category](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-excluding-root.evitaql.md)</MDInclude>
 
@@ -683,7 +683,7 @@ validity restrictions).
 ##### List of all valid subcategories of the *Accessories* category
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Accessories category listing with validity constraint](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-having.evitaql.md)</MDInclude>
 
@@ -728,7 +728,7 @@ You can see that Christmas products like *Retlux Blue christmas lightning*, *Ret
 ##### List of all *Accessories* products valid in October 2023
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Accessories category product listing with validity constraint](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having.evitaql.md)</MDInclude>
 
@@ -764,7 +764,7 @@ When you change the date and time in range constraint for *validity* attribute t
 ##### List of all *Accessories* products valid in December 2023
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Accessories category product listing with validity constraint](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-having-december.evitaql.md)</MDInclude>
 
@@ -865,7 +865,7 @@ The category *Wireless Headphones* and all its subcategories will not be shown i
 ##### List of all subcategories of the *Accessories* category except *Wireless headphones*
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Accessories category listing excluding *Wireless headphones*](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-self-excluding.evitaql.md)</MDInclude>
 
@@ -911,7 +911,7 @@ present in the listing.
 ##### List of all *Accessories* products except *Wireless headphones*
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Accessories category product listing except *Wireless headphones*](/documentation/user/en/query/filtering/examples/hierarchy/hierarchy-within-reference-except.evitaql.md)</MDInclude>
 

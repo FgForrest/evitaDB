@@ -39,9 +39,9 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This class verifies {@link TransactionalMemory} contract.
@@ -56,7 +56,7 @@ class TransactionalMemoryTest {
 	private HashMap<String, Integer> underlyingData3B;
 	private TransactionalMap<String, Integer> tested1;
 	private TransactionalMap<String, Integer> tested2;
-	private TransactionalMap<String, Map<String, Integer>> tested3;
+	private TransactionalMap<String, TransactionalMap<String, Integer>> tested3;
 	private Transaction transaction;
 
 	@BeforeEach
@@ -79,7 +79,7 @@ class TransactionalMemoryTest {
 		underlyingData3A.put("c", 3);
 		underlyingData3B.put("d", 4);
 
-		tested3 = new TransactionalMap<>(new LinkedHashMap<>());
+		tested3 = new TransactionalMap<>(new LinkedHashMap<>(), TransactionalMap::new);
 		for (Entry<String, Map<String, Integer>> entry : underlyingData3.entrySet()) {
 			tested3.put(entry.getKey(), new TransactionalMap<>(entry.getValue()));
 		}
@@ -135,14 +135,14 @@ class TransactionalMemoryTest {
 		assertNull(tested3.get("a").get("a"));
 		assertNull(underlyingData3A.get("a"));
 		final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
-		assertFalse(committed3A instanceof TransactionalMap);
+		assertTrue(committed3A instanceof TransactionalMap);
 		assertEquals(Integer.valueOf(1), committed3A.get("a"));
 		assertEquals(Integer.valueOf(3), committed3A.get("c"));
 
 		assertNull(tested3.get("b").get("b"));
 		assertNull(underlyingData3B.get("b"));
 		final Map<String, Integer> committed3B = consumer.getCommited3().get("b");
-		assertFalse(committed3B instanceof TransactionalMap);
+		assertTrue(committed3B instanceof TransactionalMap);
 		assertEquals(Integer.valueOf(2), committed3B.get("b"));
 		assertEquals(Integer.valueOf(4), committed3B.get("d"));
 	}
@@ -167,7 +167,7 @@ class TransactionalMemoryTest {
 		assertNull(tested3.get("a").get("a"));
 		assertNull(underlyingData3A.get("a"));
 		final Map<String, Integer> committed3A = consumer.getCommited3().get("a");
-		assertFalse(committed3A instanceof TransactionalMap);
+		assertTrue(committed3A instanceof TransactionalMap);
 		assertEquals(Integer.valueOf(99), committed3A.get("a"));
 
 		assertNull(tested3.get("b").get("b"));
@@ -220,7 +220,7 @@ class TransactionalMemoryTest {
 	private class TestTransactionalLayerConsumer implements TransactionalLayerConsumer {
 		@Getter private Map<String, Integer> commited1;
 		@Getter private Map<String, Integer> commited2;
-		@Getter private Map<String, Map<String, Integer>> commited3;
+		@Getter private Map<String, TransactionalMap<String, Integer>> commited3;
 
 		@Override
 		public void collectTransactionalChanges(TransactionalLayerMaintainer transactionalLayer) {

@@ -33,7 +33,6 @@ import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Arrays;
 
 /**
  * Ancestor for sharing the same logic among multiple {@link Sorter} implementations.
@@ -46,48 +45,35 @@ abstract class AbstractRecordsSorter implements Sorter {
 	 * Completes the result by cutting the result smaller than requested count but appending all not found record ids
 	 * before the cut.
 	 */
-	@Nonnull
-	protected static int[] returnResultAppendingUnknown(
+	protected static int returnResultAppendingUnknown(
 		@Nonnull QueryContext queryContext,
-		@Nonnull SortResult sortPartialResult,
 		@Nonnull RoaringBitmap notFoundRecords,
 		@Nullable Sorter unknownRecordIdsSorter,
 		int startIndex,
-		int endIndex
+		int endIndex,
+		@Nonnull int[] result,
+		int peak,
+		@Nonnull int[] buffer
 	) {
 		unknownRecordIdsSorter = ConditionalSorter.getFirstApplicableSorter(unknownRecordIdsSorter, queryContext);
-		final int[] sortedResult = sortPartialResult.result();
-		final int sortedResultPeak = sortPartialResult.peak();
 		final int finalResultPeak;
-		if (sortedResultPeak < sortedResult.length && !notFoundRecords.isEmpty()) {
-			final int recomputedStartIndex = Math.max(0, startIndex - sortedResultPeak);
-			final int recomputedEndIndex = Math.max(0, endIndex - sortedResultPeak);
+		if (peak < result.length && !notFoundRecords.isEmpty()) {
+			final int recomputedStartIndex = Math.max(0, startIndex - peak);
+			final int recomputedEndIndex = Math.max(0, endIndex - peak);
 			if (unknownRecordIdsSorter == null) {
 				finalResultPeak = SortUtils.appendNotFoundResult(
-					sortedResult, sortedResultPeak, recomputedStartIndex, recomputedEndIndex, notFoundRecords
+					result, peak, recomputedStartIndex, recomputedEndIndex, notFoundRecords, buffer
 				);
 			} else {
-				final int[] rest = unknownRecordIdsSorter.sortAndSlice(
+				finalResultPeak = unknownRecordIdsSorter.sortAndSlice(
 					queryContext, new ConstantFormula(new BaseBitmap(notFoundRecords)),
-					recomputedStartIndex, recomputedEndIndex
+					recomputedStartIndex, recomputedEndIndex, result, peak
 				);
-				System.arraycopy(rest, 0, sortedResult, sortedResultPeak, rest.length);
-				finalResultPeak = sortedResultPeak + rest.length;
 			}
 		} else {
-			finalResultPeak = sortedResultPeak;
+			finalResultPeak = peak;
 		}
-		return finalResultPeak < sortedResult.length ? Arrays.copyOf(sortedResult, finalResultPeak) : sortedResult;
+		return finalResultPeak;
 	}
 
-	/**
-	 * DTO for passing both sorted result and peak index position in it, signalizing last index that was "sorted".
-	 *
-	 * @param result sorted result of record ids (may contain padding - see {@link #peak})
-	 * @param peak   peak index position in the result (delimits real record ids and empty space)
-	 */
-	protected record SortResult(
-		@Nonnull int[] result,
-		int peak
-	) {}
 }

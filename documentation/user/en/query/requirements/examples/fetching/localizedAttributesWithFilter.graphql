@@ -19,6 +19,9 @@
         attributesEn: attributes(locale: en) {
           name
         }
+        attributesDe: attributes(locale: de) {
+          name
+        }
       }
     }
   }

@@ -25,6 +25,7 @@ package io.evitadb.core.query.algebra.price.termination;
 
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -201,10 +202,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	protected Bitmap computeInternal() {
 		// retrieve filtered entity ids from the delegate formula
 		final RoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
-		final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(computedRoaringBitmap.getBatchIterator());
 
 		// if there are any entities found
-		if (entityIdIterator.hasNext()) {
+		if (!computedRoaringBitmap.isEmpty()) {
 			// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
 			final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 				getDelegate(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
@@ -223,38 +223,46 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// create new roaring bitmap builder for records excluded by predicate
 			final RoaringBitmapWriter<RoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
-			// iterate through all entity ids
-			while (entityIdIterator.hasNext()) {
-				final int[] batch = entityIdIterator.nextBatch();
-				final int lastExpectedEntity = entityIdIterator.getPeek() > 0 ? batch[entityIdIterator.getPeek() - 1] : -1;
-				for (int i = 0; i < entityIdIterator.getPeek(); i++) {
-					final int entityId = batch[i];
+			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
+			try {
+				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(
+					computedRoaringBitmap.getBatchIterator(), buffer
+				);
+				// iterate through all entity ids
+				while (entityIdIterator.hasNext()) {
+					final int[] batch = entityIdIterator.nextBatch();
+					final int lastExpectedEntity = entityIdIterator.getPeek() > 0 ? batch[entityIdIterator.getPeek() - 1] : -1;
+					for (int i = 0; i < entityIdIterator.getPeek(); i++) {
+						final int entityId = batch[i];
 
-					boolean noPriceFoundAtAll = true;
-					for (PriceRecordLookup priceRecordIt : priceRecordIterators) {
-						final boolean anyPriceFound = priceRecordIt.forEachPriceOfEntity(
-							entityId,
-							lastExpectedEntity,
-							foundPrice -> {
-								// write entity primary key for the price located on found index if it passes predicate
-								if (priceFilter.test(foundPrice)) {
-									writer.add(entityId);
-									priceRecordsFunnel.add(foundPrice);
-								} else {
-									predicateExcludedWriter.add(entityId);
+						boolean noPriceFoundAtAll = true;
+						for (PriceRecordLookup priceRecordIt : priceRecordIterators) {
+							final boolean anyPriceFound = priceRecordIt.forEachPriceOfEntity(
+								entityId,
+								lastExpectedEntity,
+								foundPrice -> {
+									// write entity primary key for the price located on found index if it passes predicate
+									if (priceFilter.test(foundPrice)) {
+										writer.add(entityId);
+										priceRecordsFunnel.add(foundPrice);
+									} else {
+										predicateExcludedWriter.add(entityId);
+									}
 								}
+							);
+							if (anyPriceFound) {
+								noPriceFoundAtAll = false;
+								break;
 							}
-						);
-						if (anyPriceFound) {
-							noPriceFoundAtAll = false;
-							break;
+						}
+
+						if (noPriceFoundAtAll) {
+							throw new EvitaInternalError("No price found for entity with id " + entityId + "!");
 						}
 					}
-
-					if (noPriceFoundAtAll) {
-						throw new EvitaInternalError("No price found for entity with id " + entityId + "!");
-					}
 				}
+			} finally {
+				SharedBufferPool.INSTANCE.free(buffer);
 			}
 
 			// remember the prices selected during computation
