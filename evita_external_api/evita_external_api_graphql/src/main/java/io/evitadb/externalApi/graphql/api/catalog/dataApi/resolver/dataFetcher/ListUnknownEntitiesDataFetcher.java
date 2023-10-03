@@ -44,7 +44,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.En
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -165,7 +165,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
         entityFetchRequireResolver.resolveEntityFetch(
-                SelectionSetWrapper.from(environment.getSelectionSet()),
+                SelectionSetAggregator.from(environment.getSelectionSet()),
                 null,
                 catalogSchema,
                 allPossibleLocales

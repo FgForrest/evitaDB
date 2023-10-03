@@ -25,6 +25,7 @@ package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintCreator;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
+import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.builder.constraint.ConstraintSchemaBuilder;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -34,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
@@ -83,13 +85,14 @@ public class ConstraintKeyBuilder {
 			return StringUtils.toSpecificCase(constraintDescriptor.fullName(), PROPERTY_NAME_NAMING_CONVENTION);
 		}
 
-		final StringBuilder keyBuilder = new StringBuilder();
+		final StringBuilder keyBuilder = new StringBuilder(3);
 		if (!prefix.isEmpty()) {
 			keyBuilder.append(prefix);
 		}
 		if (creator.hasClassifier()) {
-			if (creator.hasImplicitClassifier()) {
-				if (creator.implicitClassifier() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
+			final Optional<ImplicitClassifier> implicitClassifier = creator.implicitClassifier();
+			if (implicitClassifier.isPresent()) {
+				if (implicitClassifier.get() instanceof FixedImplicitClassifier fixedImplicitClassifier) {
 					keyBuilder.append(StringUtils.toSpecificCase(fixedImplicitClassifier.classifier(), PROPERTY_NAME_PART_NAMING_CONVENTION));
 				}
 			} else {

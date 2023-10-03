@@ -223,7 +223,8 @@ public class ClientCertificateManager {
 	public SslContext buildClientSslContext() {
 		try {
 			final Path usedCertificatePath = getUsedRootCaCertificatePath();
-			final TrustManager trustManagerTrustingProvidedRootCertificate = getTrustManager(usedCertificatePath);
+			final TrustManager trustManagerTrustingProvidedRootCertificate = usedCertificatePath == null ?
+				null : getTrustManager(usedCertificatePath);
 			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
 				.applicationProtocolConfig(
 					new ApplicationProtocolConfig(
@@ -239,7 +240,7 @@ public class ClientCertificateManager {
 			}
 			if (!usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
 				sslContextBuilder.trustManager(trustManagerTrustingProvidedRootCertificate);
-			} else if (getUsedRootCaCertificatePath().toFile().exists()) {
+			} else if (usedCertificatePath != null && usedCertificatePath.toFile().exists()) {
 				sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
 			}
 			return sslContextBuilder.build();

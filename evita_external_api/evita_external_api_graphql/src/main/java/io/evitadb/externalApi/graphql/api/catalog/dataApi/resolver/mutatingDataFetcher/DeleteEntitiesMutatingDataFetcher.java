@@ -45,7 +45,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Fi
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -155,7 +155,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 		final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
 		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
-			SelectionSetWrapper.from(environment.getSelectionSet()),
+			SelectionSetAggregator.from(environment.getSelectionSet()),
 			extractDesiredLocale(filterBy),
 			entitySchema
 		);

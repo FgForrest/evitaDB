@@ -23,20 +23,14 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.constraint;
 
-import io.evitadb.api.query.descriptor.ConstraintCreator;
-import io.evitadb.api.query.descriptor.ConstraintCreator.AdditionalChildParameterDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescriptor;
-import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.ClassUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -103,15 +97,6 @@ public class ConstraintProcessingUtils {
 		ConstraintPropertyType.FACET, ConstraintDomain.FACET
 	);
 
-
-	/**
-	 * Wrapper range properties
-	 */
-
-	public static final String WRAPPER_RANGE_FROM_VALUE_PARAMETER = "from";
-	public static final String WRAPPER_RANGE_TO_VALUE_PARAMETER = "to";
-	public static final int WRAPPER_RANGE_PARAMETERS_COUNT = 2;
-
 	/**
 	 * Finds correct query JSON key prefix by property type.
 	 */
@@ -152,41 +137,5 @@ public class ConstraintProcessingUtils {
 	public static ConstraintDomain getDomainForPropertyType(@Nonnull ConstraintPropertyType propertyType) {
 		return Optional.ofNullable(PROPERTY_TYPE_TO_DOMAIN.get(propertyType))
 			.orElseThrow(() -> new ExternalApiInternalError("Property type `" + propertyType + "` doesn't have assigned default domain."));
-	}
-
-	/**
-	 * Decides which value structure a query in API should have depending on creator parameters.
-	 */
-	@Nonnull
-	public static ConstraintValueStructure getValueStructureForConstraintCreator(@Nonnull ConstraintCreator creator) {
-		final List<ValueParameterDescriptor> valueParameters = creator.valueParameters();
-		final List<ChildParameterDescriptor> childParameters = creator.childParameters();
-		final List<AdditionalChildParameterDescriptor> additionalChildParameters = creator.additionalChildParameters();
-
-		final ConstraintValueStructure valueStructure;
-		if (valueParameters.isEmpty() && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
-			valueStructure = ConstraintValueStructure.NONE;
-		} else if (valueParameters.size() == 1 && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
-			valueStructure = ConstraintValueStructure.PRIMITIVE;
-		} else if (
-			valueParameters.size() == WRAPPER_RANGE_PARAMETERS_COUNT &&
-			childParameters.isEmpty() &&
-			additionalChildParameters.isEmpty() &&
-			valueParameters.stream().filter(p -> p.name().equals(WRAPPER_RANGE_FROM_VALUE_PARAMETER) || p.name().equals(WRAPPER_RANGE_TO_VALUE_PARAMETER)).count() == WRAPPER_RANGE_PARAMETERS_COUNT &&
-			valueParameters.get(0).type().equals(valueParameters.get(1).type())
-		) {
-			valueStructure = ConstraintValueStructure.WRAPPER_RANGE;
-		} else if (
-			valueParameters.isEmpty() &&
-			childParameters.size() == 1 &&
-			ClassUtils.isAbstract(childParameters.get(0).type()) &&
-			additionalChildParameters.isEmpty()
-		) {
-			valueStructure = ConstraintValueStructure.CHILD;
-		} else {
-			valueStructure = ConstraintValueStructure.WRAPPER_OBJECT;
-		}
-
-		return valueStructure;
 	}
 }
