@@ -69,6 +69,11 @@ public class StringUtils {
 	 * Universal word splitter inspired by <a href="https://regex101.com/library/zT4rM9">this</a>.
 	 */
 	private static final Pattern STRING_WITH_CASE_WORD_SPLITTING_PATTERN = Pattern.compile("([^\\s\\-_A-Z]+)|([A-Z]+[^\\s\\-_A-Z]*)");
+	/**
+	 * Finds unsupported characters in concrete cases (not base case).
+	 * Characters are based on {@link ClassifierUtils#SUPPORTED_FORMAT_PATTERN} regex.
+	 */
+	private static final Pattern UNSUPPORTED_CHARACTERS_FOR_WORD_SPLITTING_PATTERN = Pattern.compile("[.:+\\-@/\\\\|`~]");
 
 	/**
 	 * Displays bytes in human-readable form (i.e. using shortening for kB, MB, GB and so on).
@@ -354,11 +359,13 @@ public class StringUtils {
 			return List.of();
 		}
 
+		String newString = s;
+
 		// remove unsupported characters in concrete cases (not base case)
 		// characters are based on ClassifierUtils#SUPPORTED_FORMAT_PATTERN regex
-		s = s.replaceAll("[.:+\\-@/\\\\|`~]", " ");
+		newString = UNSUPPORTED_CHARACTERS_FOR_WORD_SPLITTING_PATTERN.matcher(newString).replaceAll(" ");
 
-		return STRING_WITH_CASE_WORD_SPLITTING_PATTERN.matcher(s)
+		return STRING_WITH_CASE_WORD_SPLITTING_PATTERN.matcher(newString)
 			.results()
 			.map(MatchResult::group)
 			.toList();

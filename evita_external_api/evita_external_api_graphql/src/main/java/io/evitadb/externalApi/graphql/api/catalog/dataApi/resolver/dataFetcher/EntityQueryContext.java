@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import lombok.Builder;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -45,7 +46,10 @@ import java.util.Locale;
  */
 @Builder(toBuilder = true)
 @Data
+@RequiredArgsConstructor
 public final class EntityQueryContext {
+
+	private static final EntityQueryContext EMPTY = new EntityQueryContext(null, null, null, null, false);
 
 	@Nullable
 	private final Locale desiredLocale;
@@ -55,10 +59,10 @@ public final class EntityQueryContext {
 	private final String[] desiredPriceInPriceLists;
 	@Nullable
 	private final OffsetDateTime desiredPriceValidIn;
-	private final boolean desiredpriceValidInNow;
+	private final boolean desiredPriceValidInNow;
 
 	@Nonnull
 	public static EntityQueryContext empty() {
-		return EntityQueryContext.builder().build();
+		return EMPTY;
 	}
 }

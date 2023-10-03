@@ -49,7 +49,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.En
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -163,7 +163,7 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
         final List<RequireConstraint> requireConstraints = new LinkedList<>();
 
         final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
-            SelectionSetWrapper.from(environment.getSelectionSet()),
+            SelectionSetAggregator.from(environment.getSelectionSet()),
             extractDesiredLocale(filterBy),
             entitySchema
         );
@@ -205,13 +205,13 @@ public class ListEntitiesDataFetcher implements DataFetcher<DataFetcherResult<Li
             .map(PriceInPriceLists::getPriceLists)
             .orElse(null);
 
-        return EntityQueryContext.builder()
-            .desiredLocale(desiredLocale)
-            .desiredPriceInCurrency(desiredPriceInCurrency)
-            .desiredPriceValidIn(desiredPriceValidIn)
-            .desiredpriceValidInNow(desiredpriceValidInNow)
-            .desiredPriceInPriceLists(desiredPriceInPriceLists)
-            .build();
+        return new EntityQueryContext(
+            desiredLocale,
+            desiredPriceInCurrency,
+            desiredPriceInPriceLists,
+            desiredPriceValidIn,
+            desiredpriceValidInNow
+        );
     }
 
     @Nullable
