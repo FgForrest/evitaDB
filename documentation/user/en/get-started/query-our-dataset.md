@@ -64,6 +64,12 @@ in the set. To access the dataset on your hardware, you need to:
    docker run --name evitadb -i --net=host \
           -v "./data:/evita/data" \
           index.docker.io/evitadb/evitadb:latest
+   
+   # there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS 
+   # and you need to open ports manually
+   docker run --name evitadb -i -p 5555:5555 -p 5556:5556 -p 5557:5557 \
+          -v "./data:/evita/data" \
+          index.docker.io/evitadb/evitadb:latest
    ```
 
 When this procedure is completed you should see the similar output in the console:
