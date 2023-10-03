@@ -27,7 +27,6 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.InetAddress;
 import java.net.SocketAddress;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -216,7 +215,9 @@ public interface ClientContext {
 			context.push(new Context(context.peek().clientId(), requestId));
 			return lambda.get();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 

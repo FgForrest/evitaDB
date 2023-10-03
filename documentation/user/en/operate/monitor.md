@@ -34,9 +34,18 @@ This mechanism is not part of an evitaQL language. Check documentation for your 
 </LanguageSpecific>
 <LanguageSpecific to="java">
 
-[//]: # (TODO JNO: document Java)
-**Work in progress**
-This will be documented in the near future.
+If you are using the Java remote client, you are suggested to provide the `clientId` in
+<SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>
+for all requests. The `requestId` is then provided by wrapping your code in a lambda passed to `executeWithRequestId`
+method on <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Provide the client and request ids to the server](/documentation/user/en/operate/example/call-server-with-ids.java)
+</SourceCodeTabs>
+
+If you use embedded variant of evitaDB server there is no sense to provide `clientId` since there is only one client.
+The `requestId` is then provided the same way as described above.
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
