@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.system;
 
-import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.http.ExternalApiProviderWithConsoleOutput;
 import io.evitadb.externalApi.http.ExternalApiServer;
 import io.evitadb.externalApi.system.configuration.SystemConfig;
 import io.evitadb.utils.ConsoleWriter;
@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
  * @author Tomáš Pozler, 2023
  */
 @RequiredArgsConstructor
-public class SystemProvider implements ExternalApiProvider<SystemConfig> {
+public class SystemProvider implements ExternalApiProviderWithConsoleOutput<SystemConfig> {
 	public static final String CODE = "system";
 
 	@Nonnull
@@ -53,6 +53,10 @@ public class SystemProvider implements ExternalApiProvider<SystemConfig> {
 	@Nonnull
 	@Getter
 	private final HttpHandler apiHandler;
+
+	@Nonnull
+	@Getter
+	private final String[] serverNameUrls;
 
 	@Nonnull
 	@Getter
@@ -77,7 +81,11 @@ public class SystemProvider implements ExternalApiProvider<SystemConfig> {
 	}
 
 	@Override
-	public void afterStart() {
+	public void writeToConsole() {
+		for (String serverNameUrl : serverNameUrls) {
+			ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));
+			ConsoleWriter.write(serverNameUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
 		for (String certificateUrl : rootCertificateUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
 			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);

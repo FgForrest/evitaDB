@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.lab;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
@@ -135,6 +136,7 @@ public class LabManager {
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(endpointPath, p -> new CorsEndpoint(labConfig));
 		corsEndpoint.addMetadata(Set.of(Methods.GET.toString()), true, true);
 
+		final EvitaConfiguration configuration = evita.getConfiguration();
 		labRouter.add(
 			Methods.GET,
 			endpointPath.toString(),
@@ -142,7 +144,7 @@ public class LabManager {
 				new CorsFilter(
 					new LabExceptionHandler(
 						objectMapper,
-						GuiHandler.create(labConfig, evita.getConfiguration().server(), apiOptions, objectMapper)
+						GuiHandler.create(labConfig, configuration.name(), apiOptions, objectMapper)
 					),
 					labConfig.getAllowedOrigins()
 				)

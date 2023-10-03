@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.lab.gui.resolver;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.graphql.GraphQLProvider;
@@ -60,40 +59,40 @@ import java.util.regex.Pattern;
  */
 public class GuiHandler extends ResourceHandler {
 
+	public static final Encoder BASE_64_ENCODER = Base64.getEncoder();
 	private static final String EVITALAB_SERVER_NAME_COOKIE = "evitalab_servername";
 	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
-
 	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
-	public static final Encoder BASE_64_ENCODER = Base64.getEncoder();
-
 	@Nonnull private final LabConfig labConfig;
-	@Nonnull private final ServerOptions serverOptions;
+	@Nonnull private final String serverName;
 	@Nonnull private final ApiOptions apiOptions;
 	@Nonnull private final ObjectMapper objectMapper;
 
-	private GuiHandler(@Nonnull ResourceSupplier resourceSupplier,
-					   @Nonnull LabConfig labConfig,
-					   @Nonnull ServerOptions serverOptions,
-					   @Nonnull ApiOptions apiOptions,
-	                   @Nonnull ObjectMapper objectMapper) {
-		super(resourceSupplier);
-		this.labConfig = labConfig;
-		this.serverOptions = serverOptions;
-		this.apiOptions = apiOptions;
-		this.objectMapper = objectMapper;
-	}
-
 	@Nonnull
-	public static GuiHandler create(@Nonnull LabConfig labConfig,
-	                                @Nonnull ServerOptions serverOptions,
-	                                @Nonnull ApiOptions apiOptions,
-	                                @Nonnull ObjectMapper objectMapper) {
+	public static GuiHandler create(
+		@Nonnull LabConfig labConfig,
+		@Nonnull String serverName,
+		@Nonnull ApiOptions apiOptions,
+		@Nonnull ObjectMapper objectMapper
+	) {
 		try (final ResourceManager rm = new ClassPathResourceManager(GuiHandler.class.getClassLoader(), "META-INF/lab/gui/dist")) {
-			return new GuiHandler(new GuiResourceSupplier(rm), labConfig, serverOptions, apiOptions, objectMapper);
+			return new GuiHandler(new GuiResourceSupplier(rm), labConfig, serverName, apiOptions, objectMapper);
 		} catch (IOException e) {
 			throw new ExternalApiInternalError("Failed to load GUI resources.", e);
 		}
+	}
+
+	private GuiHandler(@Nonnull ResourceSupplier resourceSupplier,
+	                   @Nonnull LabConfig labConfig,
+	                   @Nonnull String serverName,
+	                   @Nonnull ApiOptions apiOptions,
+	                   @Nonnull ObjectMapper objectMapper) {
+		super(resourceSupplier);
+		this.labConfig = labConfig;
+		this.serverName = serverName;
+		this.apiOptions = apiOptions;
+		this.objectMapper = objectMapper;
 	}
 
 	@Override
@@ -107,7 +106,7 @@ public class GuiHandler extends ResourceHandler {
 	private void passServerName(@Nonnull HttpServerExchange exchange) {
 		exchange.getResponseHeaders().add(
 			Headers.SET_COOKIE,
-			createCookie(EVITALAB_SERVER_NAME_COOKIE, serverOptions.name())
+			createCookie(EVITALAB_SERVER_NAME_COOKIE, serverName)
 		);
 	}
 
@@ -149,7 +148,7 @@ public class GuiHandler extends ResourceHandler {
 		final GraphQLConfig graphQLConfig = apiOptions.getEndpointConfiguration(GraphQLProvider.CODE);
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			null,
-			serverOptions.name(),
+			serverName,
 			labConfig.getBaseUrls()[0] + LabManager.LAB_API_URL_PREFIX,
 			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
 			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null)

@@ -10,6 +10,8 @@ The evitaDB server is configured in YAML format and its default settings are bes
 snippet:
 
 ```yaml
+name: evitaDB                                     # [see Name configuration](#name)
+
 server:                                           # [see Server configuration](#server-configuration)
   coreThreadCount: 4
   maxThreadCount: 16
@@ -203,6 +205,15 @@ variables that are present when the server is started. The format used in this f
 ${argument_name:defaultValue}
 ```
 </Note>
+
+## Name
+
+The server name is a unique name for the evitaDB server instance and should be unique for each instance (environment) 
+of the evitaDB installation. If no name is specified and the default `evitaDB` is left intact, it is automatically 
+appended with a hash value calculated from the server host name, the main server storage directory path and 
+the timestamp of the storage directory creation. This is done to ensure that the server name is unique even if 
+the server is started multiple times on the same machine. The server name is used in clients to distinguish one server 
+from another and to handle unique server certificates correctly.
 
 ## Server configuration
 

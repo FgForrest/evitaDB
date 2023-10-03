@@ -21,32 +21,20 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.configuration;
+package io.evitadb.externalApi.http;
 
-import io.evitadb.utils.NetworkUtils;
-
-import javax.annotation.Nonnull;
-import java.net.InetAddress;
+import io.evitadb.externalApi.configuration.AbstractApiConfiguration;
 
 /**
- * Defines a host and port combination.
+ * Extension of the {@link ExternalApiProvider} that allows to print output to console.
  *
- * @param host defines the hostname and port the endpoints will listen on
- * @param port defines the port API endpoint will listen on
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record HostDefinition(
-	@Nonnull InetAddress host,
-	int port
-) {
+public interface ExternalApiProviderWithConsoleOutput<T extends AbstractApiConfiguration> extends ExternalApiProvider<T> {
 
 	/**
-	 * Returns human comprehensible host name of the configured host.
+	 * Method is called at the moment the provider is initialized and allows to print output to console.
 	 */
-	@Nonnull
-	public String hostName() {
-		return NetworkUtils.getHostName(host);
-	}
+	void writeToConsole();
 
 }
