@@ -41,7 +41,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.test.client.query.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure;
+import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
 import io.evitadb.utils.Assert;
@@ -49,7 +49,6 @@ import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.xml.parsers.ParserConfigurationException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -183,12 +182,12 @@ public abstract class ConstraintToJsonConverter {
 		);
 
 		final ConstraintCreator creator = parsedConstraintDescriptor.constraintDescriptor().creator();
-		final ConstraintValueStructure valueStructure = ConstraintProcessingUtils.getValueStructureForConstraintCreator(creator);
+		final ConstraintValueStructure valueStructure = creator.valueStructure();
 		final JsonNode constraintValue = switch (valueStructure) {
 			case NONE -> convertNoneStructure();
 			case PRIMITIVE -> convertValueParameter(constraint, creator.valueParameters().get(0)).orElse(null);
-			case WRAPPER_RANGE -> convertWrapperRangeStructure(constraint, creator.valueParameters());
-			case CHILD -> convertChildParameter(
+			case RANGE -> convertWrapperRangeStructure(constraint, creator.valueParameters());
+			case CONTAINER -> convertChildParameter(
 					convertContext,
 					constraint,
 					parsedConstraintDescriptor,
@@ -196,7 +195,7 @@ public abstract class ConstraintToJsonConverter {
 				)
 				.map(JsonConstraint::value)
 				.orElse(jsonNodeFactory.objectNode());
-			case WRAPPER_OBJECT -> convertWrapperObjectStructure(
+			case COMPLEX -> convertWrapperObjectStructure(
 				convertContext,
 				constraint,
 				parsedConstraintDescriptor,
@@ -350,8 +349,8 @@ public abstract class ConstraintToJsonConverter {
 		final ValueParameterDescriptor fromParameter = parameterDescriptors.get(0);
 		final ValueParameterDescriptor toParameter = parameterDescriptors.get(1);
 		Assert.isPremiseValid(
-			fromParameter.name().equals(ConstraintProcessingUtils.WRAPPER_RANGE_FROM_VALUE_PARAMETER) &&
-				toParameter.name().equals(ConstraintProcessingUtils.WRAPPER_RANGE_TO_VALUE_PARAMETER) &&
+			fromParameter.name().equals(ConstraintCreator.RANGE_FROM_VALUE_PARAMETER) &&
+				toParameter.name().equals(ConstraintCreator.RANGE_TO_VALUE_PARAMETER) &&
 				fromParameter.type().equals(toParameter.type()),
 			"Constraint `" + constraint.getClass().getSimpleName() + "` doesn't have matching value parameters for wrapper range."
 		);

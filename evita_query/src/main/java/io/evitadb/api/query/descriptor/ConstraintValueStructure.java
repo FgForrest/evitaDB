@@ -21,18 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.catalog.dataApi.constraint;
+package io.evitadb.api.query.descriptor;
 
 /**
- * Specifies data structure of input JSON value. Mainly for defining how to extract individual data from input JSON value.
+ * High-level indicator of how the constraint may look like based on its parameters.
+ * This is useful for generating APIs from it.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 public enum ConstraintValueStructure {
 
 	/**
-	 * No particular value needed. Represented by boolean to enable/disable query due to the limitations of JSONs
-	 * that can have no value (null represents unknown value).
+	 * No particular value needed. Can be represented by a boolean to enable/disable constraint.
 	 */
 	NONE,
 	/**
@@ -40,16 +40,16 @@ public enum ConstraintValueStructure {
 	 */
 	PRIMITIVE,
 	/**
-	 * JSON object containing more primitive values or children as inner fields.
-	 */
-	WRAPPER_OBJECT,
-	/**
-	 * Special case of {@link #WRAPPER_OBJECT} where there are only {@code from} and {@code to} value parameters which
+	 * Special case of what would otherwise end up as a {@link #COMPLEX} structure where there are only {@code from} and {@code to} value parameters which
 	 * should result in range tuple.
 	 */
-	WRAPPER_RANGE,
+	RANGE,
 	/**
 	 * Single child or list of children constraints.
 	 */
-	CHILD
+	CONTAINER,
+	/**
+	 * Possibly a struct/object containing more primitive values or children as inner named values.
+	 */
+	COMPLEX
 }

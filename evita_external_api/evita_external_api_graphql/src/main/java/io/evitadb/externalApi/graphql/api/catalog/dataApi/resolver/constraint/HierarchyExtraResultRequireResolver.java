@@ -44,7 +44,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.Hier
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor.HierarchyParentsSiblingsSpecification;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyRequireHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -84,15 +84,15 @@ public class HierarchyExtraResultRequireResolver {
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
-	public Collection<RequireConstraint> resolve(@Nonnull SelectionSetWrapper extraResultsSelectionSet,
+	public Collection<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet,
 	                                             @Nullable Locale desiredLocale) {
-		final List<SelectedField> hierarchyFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.HIERARCHY.name());
+		final List<SelectedField> hierarchyFields = extraResultsSelectionSet.getImmediateFields(ExtraResultsDescriptor.HIERARCHY.name());
 		if (hierarchyFields.isEmpty()) {
 			return List.of();
 		}
 
 		return hierarchyFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
 			.map(referenceField -> {
 				if (HierarchyDescriptor.SELF.name().equals(referenceField.getName())) {
 					return resolveHierarchyOfSelf(referenceField, desiredLocale);
@@ -174,7 +174,7 @@ public class HierarchyExtraResultRequireResolver {
 	                                                                  @Nonnull DataLocator hierarchyDataLocator,
 	                                                                  @Nullable Locale desiredLocale) {
 		return field.getSelectionSet()
-			.getFields("*")
+			.getImmediateFields()
 			.stream()
 			.map(specificHierarchyField -> resolveHierarchyRequire(
 				specificHierarchyField,
@@ -241,8 +241,8 @@ public class HierarchyExtraResultRequireResolver {
 	                                                @Nullable EntitySchemaContract hierarchyEntitySchema,
 	                                                @Nullable Locale desiredLocale) {
 		return entityFetchRequireResolver.resolveEntityFetch(
-			SelectionSetWrapper.from(
-				field.getSelectionSet().getFields(LevelInfoDescriptor.ENTITY.name())
+			SelectionSetAggregator.from(
+				SelectionSetAggregator.getImmediateFields(LevelInfoDescriptor.ENTITY.name(), field.getSelectionSet())
 					.stream()
 					.map(SelectedField::getSelectionSet)
 					.toList()
@@ -255,16 +255,14 @@ public class HierarchyExtraResultRequireResolver {
 
 	@Nullable
 	private HierarchyStatistics resolveHierarchyStatistics(@Nonnull SelectedField field) {
-		final SelectionSetWrapper levelInfoFields = SelectionSetWrapper.from(field.getSelectionSet());
-
 		final Set<StatisticsType> statisticsTypes = createHashSet(2);
-		if (levelInfoFields.contains(LevelInfoDescriptor.CHILDREN_COUNT.name())) {
+		if (SelectionSetAggregator.containsImmediate(LevelInfoDescriptor.CHILDREN_COUNT.name(), field.getSelectionSet())) {
 			statisticsTypes.add(StatisticsType.CHILDREN_COUNT);
 		}
-		if (levelInfoFields.contains(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name())) {
+		if (SelectionSetAggregator.containsImmediate(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), field.getSelectionSet())) {
 			statisticsTypes.add(StatisticsType.QUERIED_ENTITY_COUNT);
 		}
-		if (levelInfoFields.isEmpty()) {
+		if (SelectionSetAggregator.isEmpty(field.getSelectionSet())) {
 			// no statistics were requested
 			return null;
 		}

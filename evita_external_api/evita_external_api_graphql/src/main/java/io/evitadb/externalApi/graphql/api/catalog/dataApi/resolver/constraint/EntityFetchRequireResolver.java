@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 
+import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -46,7 +47,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceFiel
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForSaleFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
@@ -83,12 +84,12 @@ public class EntityFetchRequireResolver {
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
 
 	@Nonnull
-	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                @Nullable Locale desiredLocale,
 	                                                @Nonnull CatalogSchemaContract catalogSchemaContract,
 	                                                @Nonnull Set<Locale> allPossibleLocales) {
 		return resolveContentRequirements(
-			selectionSetWrapper,
+			selectionSetAggregator,
 			desiredLocale,
 			catalogSchemaContract,
 			allPossibleLocales
@@ -97,11 +98,11 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	public Optional<EntityFetch> resolveEntityFetch(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                @Nullable Locale desiredLocale,
 	                                                @Nullable EntitySchemaContract currentEntitySchema) {
 		return resolveContentRequirements(
-			selectionSetWrapper,
+			selectionSetAggregator,
 			desiredLocale,
 			currentEntitySchema
 		)
@@ -109,11 +110,11 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	public Optional<EntityGroupFetch> resolveGroupFetch(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	public Optional<EntityGroupFetch> resolveGroupFetch(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                    @Nullable Locale desiredLocale,
 	                                                    @Nullable EntitySchemaContract currentEntitySchema) {
 		return resolveContentRequirements(
-			selectionSetWrapper,
+			selectionSetAggregator,
 			desiredLocale,
 			currentEntitySchema
 		)
@@ -121,23 +122,23 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                                        @Nullable Locale desiredLocale,
 	                                                                        @Nonnull CatalogSchemaContract catalogSchemaContract,
 	                                                                        @Nonnull Set<Locale> allPossibleLocales) {
-		if (!needsEntityBody(selectionSetWrapper)) {
+		if (!needsEntityBody(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
 		final List<EntityContentRequire> entityContentRequires = new LinkedList<>();
-		resolveAttributeContent(selectionSetWrapper, catalogSchemaContract).ifPresent(entityContentRequires::add);
-		resolveDataInLocales(selectionSetWrapper, desiredLocale, allPossibleLocales).ifPresent(entityContentRequires::add);
+		resolveAttributeContent(selectionSetAggregator, catalogSchemaContract).ifPresent(entityContentRequires::add);
+		resolveDataInLocales(selectionSetAggregator, desiredLocale, allPossibleLocales).ifPresent(entityContentRequires::add);
 
 		return Optional.of(entityContentRequires);
 	}
 
 	@Nonnull
-	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private Optional<List<EntityContentRequire>> resolveContentRequirements(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                                        @Nullable Locale desiredLocale,
 	                                                                        @Nullable EntitySchemaContract currentEntitySchema) {
 		// no entity schema, no available data to fetch
@@ -145,84 +146,84 @@ public class EntityFetchRequireResolver {
 			return Optional.empty();
 		}
 
-		if (!needsEntityBody(selectionSetWrapper, currentEntitySchema)) {
+		if (!needsEntityBody(selectionSetAggregator, currentEntitySchema)) {
 			return Optional.empty();
 		}
 
 		final List<EntityContentRequire> entityContentRequires = new LinkedList<>();
-		resolveHierarchyContent(selectionSetWrapper, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
-		resolveAttributeContent(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
-		resolveAssociatedDataContent(selectionSetWrapper, currentEntitySchema).ifPresent(entityContentRequires::add);
-		resolvePriceContent(selectionSetWrapper).ifPresent(entityContentRequires::add);
-		entityContentRequires.addAll(resolveReferenceContent(selectionSetWrapper, desiredLocale, currentEntitySchema));
-		resolveDataInLocales(selectionSetWrapper, desiredLocale, currentEntitySchema.getLocales()).ifPresent(entityContentRequires::add);
+		resolveHierarchyContent(selectionSetAggregator, desiredLocale, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolveAttributeContent(selectionSetAggregator, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolveAssociatedDataContent(selectionSetAggregator, currentEntitySchema).ifPresent(entityContentRequires::add);
+		resolvePriceContent(selectionSetAggregator).ifPresent(entityContentRequires::add);
+		entityContentRequires.addAll(resolveReferenceContent(selectionSetAggregator, desiredLocale, currentEntitySchema));
+		resolveDataInLocales(selectionSetAggregator, desiredLocale, currentEntitySchema.getLocales()).ifPresent(entityContentRequires::add);
 
 		return Optional.of(entityContentRequires);
 	}
 
-	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return needsVersion(selectionSetWrapper) ||
-			needsLocales(selectionSetWrapper) ||
-			needsAttributes(selectionSetWrapper);
+	private boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return needsVersion(selectionSetAggregator) ||
+			needsLocales(selectionSetAggregator) ||
+			needsAttributes(selectionSetAggregator);
 	}
 
-	private boolean needsEntityBody(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
-		return needsVersion(selectionSetWrapper) ||
-			needsParent(selectionSetWrapper) ||
-			needsParents(selectionSetWrapper) ||
-			needsLocales(selectionSetWrapper) ||
-			needsAttributes(selectionSetWrapper) ||
-			needsAssociatedData(selectionSetWrapper) ||
-			needsPrices(selectionSetWrapper) ||
-			needsReferences(selectionSetWrapper, currentEntitySchema);
+	private boolean needsEntityBody(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
+		return needsVersion(selectionSetAggregator) ||
+			needsParent(selectionSetAggregator) ||
+			needsParents(selectionSetAggregator) ||
+			needsLocales(selectionSetAggregator) ||
+			needsAttributes(selectionSetAggregator) ||
+			needsAssociatedData(selectionSetAggregator) ||
+			needsPrices(selectionSetAggregator) ||
+			needsReferences(selectionSetAggregator, currentEntitySchema);
 	}
 
-	private boolean needsVersion(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.VERSION.name());
+	private boolean needsVersion(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.VERSION.name());
 	}
 
-	private boolean needsParent(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name());
+	private boolean needsParent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name());
 	}
 
-	private boolean needsParents(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.PARENTS.name());
+	private boolean needsParents(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PARENTS.name());
 	}
 
-	private boolean needsLocales(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.LOCALES.name()) ||
-			selectionSetWrapper.contains(GraphQLEntityDescriptor.ALL_LOCALES.name());
+	private boolean needsLocales(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.LOCALES.name()) ||
+			selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ALL_LOCALES.name());
 	}
 
-	private boolean needsAttributes(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(AttributesProviderDescriptor.ATTRIBUTES.name());
+	private boolean needsAttributes(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(AttributesProviderDescriptor.ATTRIBUTES.name());
 	}
 
-	private boolean needsAssociatedData(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.ASSOCIATED_DATA.name());
+	private boolean needsAssociatedData(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.ASSOCIATED_DATA.name());
 	}
 
-	private boolean needsPrices(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		return selectionSetWrapper.contains(GraphQLEntityDescriptor.PRICE.name() + "*");
+	private boolean needsPrices(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		return selectionSetAggregator.containsImmediate(GraphQLEntityDescriptor.PRICE.name() + "*");
 	}
 
-	private boolean needsReferences(@Nonnull SelectionSetWrapper selectionSetWrapper, @Nonnull EntitySchemaContract currentEntitySchema) {
+	private boolean needsReferences(@Nonnull SelectionSetAggregator selectionSetAggregator, @Nonnull EntitySchemaContract currentEntitySchema) {
 		return currentEntitySchema.getReferences()
 			.values()
 			.stream()
 			.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.anyMatch(selectionSetWrapper::contains);
+			.anyMatch(selectionSetAggregator::containsImmediate);
 	}
 
 	@Nonnull
-	private Optional<HierarchyContent> resolveHierarchyContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private Optional<HierarchyContent> resolveHierarchyContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
 															   @Nullable Locale desiredLocale,
 	                                                           @Nonnull EntitySchemaContract currentEntitySchema) {
-		if (!needsParents(selectionSetWrapper) && !needsParent(selectionSetWrapper)) {
+		if (!needsParents(selectionSetAggregator) && !needsParent(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
-		final List<SelectedField> parentsFields = selectionSetWrapper.getFields(GraphQLEntityDescriptor.PARENTS.name());
+		final List<SelectedField> parentsFields = selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PARENTS.name());
 		Assert.isTrue(
 			parentsFields.size() <= 1,
 			() -> new GraphQLInvalidResponseUsageException("Only one `" + GraphQLEntityDescriptor.PARENTS.name() + "` field is supported.")
@@ -241,14 +242,14 @@ public class EntityFetchRequireResolver {
 					.orElse(null);
 
 				final EntityFetch entityFetch = resolveEntityFetch(
-					SelectionSetWrapper.from(parentsField.getSelectionSet()),
+					SelectionSetAggregator.from(parentsField.getSelectionSet()),
 					desiredLocale,
 					currentEntitySchema
 				).orElse(null);
 
 				return hierarchyContent(stopAt, entityFetch);
 			}).or(() -> {
-				if (!selectionSetWrapper.getFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
+				if (!selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name()).isEmpty()) {
 					// we need only direct parent to be able to return parentPrimaryKey
 					return Optional.of(hierarchyContent(stopAt(distance(1))));
 				} else {
@@ -258,15 +259,15 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AttributeContent> resolveAttributeContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private Optional<AttributeContent> resolveAttributeContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                           @Nonnull AttributeSchemaProvider<?> attributeSchemaProvider) {
-		if (!needsAttributes(selectionSetWrapper)) {
+		if (!needsAttributes(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
-		final String[] neededAttributes = selectionSetWrapper.getFields(AttributesProviderDescriptor.ATTRIBUTES.name())
+		final String[] neededAttributes = selectionSetAggregator.getImmediateFields(AttributesProviderDescriptor.ATTRIBUTES.name())
 			.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
 			.map(f -> attributeSchemaProvider.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
@@ -278,15 +279,15 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<AssociatedDataContent> resolveAssociatedDataContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private Optional<AssociatedDataContent> resolveAssociatedDataContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                                     @Nonnull EntitySchemaContract currentEntitySchema) {
-		if (!needsAssociatedData(selectionSetWrapper)) {
+		if (!needsAssociatedData(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
-		final String[] neededAssociatedData = selectionSetWrapper.getFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
+		final String[] neededAssociatedData = selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
 			.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
 			.map(f -> currentEntitySchema.getAssociatedDataByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
 			.filter(Optional::isPresent)
 			.map(Optional::get)
@@ -301,15 +302,15 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<PriceContent> resolvePriceContent(@Nonnull SelectionSetWrapper selectionSetWrapper) {
-		if (!needsPrices(selectionSetWrapper)) {
+	private Optional<PriceContent> resolvePriceContent(@Nonnull SelectionSetAggregator selectionSetAggregator) {
+		if (!needsPrices(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
-		if (selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICES.name())
+		if (selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICES.name())
 				.stream()
 				.anyMatch(f -> f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name()) == null || f.getArguments().get(PricesFieldHeaderDescriptor.CURRENCY.name()) != null) ||
-			selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE.name())
+			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE.name())
 				.stream()
 				.anyMatch(f -> f.getArguments().get(PriceFieldHeaderDescriptor.CURRENCY.name()) != null)) {
 			return Optional.of(priceContentAll());
@@ -318,7 +319,7 @@ public class EntityFetchRequireResolver {
 
 			// check price for sale fields
 			neededPriceLists.addAll(
-				selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE_FOR_SALE.name())
+				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE_FOR_SALE.name())
 					.stream()
 					.map(f -> (String) f.getArguments().get(PriceForSaleFieldHeaderDescriptor.PRICE_LIST.name()))
 					.filter(Objects::nonNull)
@@ -327,7 +328,7 @@ public class EntityFetchRequireResolver {
 
 			// check price fields
 			neededPriceLists.addAll(
-				selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICE.name())
+				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICE.name())
 					.stream()
 					.map(f -> (String) f.getArguments().get(PriceFieldHeaderDescriptor.PRICE_LIST.name()))
 					.collect(Collectors.toSet())
@@ -336,7 +337,7 @@ public class EntityFetchRequireResolver {
 			// check prices fields
 			//noinspection unchecked
 			neededPriceLists.addAll(
-				selectionSetWrapper.getFields(GraphQLEntityDescriptor.PRICES.name())
+				selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.PRICES.name())
 					.stream()
 					.flatMap(f -> ((List<String>) f.getArguments().get(PricesFieldHeaderDescriptor.PRICE_LISTS.name())).stream())
 					.collect(Collectors.toSet())
@@ -348,10 +349,10 @@ public class EntityFetchRequireResolver {
 
 
 	@Nonnull
-	private List<ReferenceContent> resolveReferenceContent(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private List<ReferenceContent> resolveReferenceContent(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                       @Nullable Locale desiredLocale,
 	                                                       @Nonnull EntitySchemaContract currentEntitySchema) {
-		if (!needsReferences(selectionSetWrapper, currentEntitySchema)) {
+		if (!needsReferences(selectionSetAggregator, currentEntitySchema)) {
 			return List.of();
 		}
 
@@ -360,7 +361,7 @@ public class EntityFetchRequireResolver {
 			.stream()
 			.map(it -> new FieldsForReferenceHolder(
 				it,
-				selectionSetWrapper.getFields(it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+				selectionSetAggregator.getImmediateFields(it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
 			))
 			.filter(it -> !it.fields().isEmpty())
 			.map(it -> new RequirementForReferenceHolder(
@@ -442,19 +443,17 @@ public class EntityFetchRequireResolver {
 
 	@Nonnull
 	private Optional<AttributeContent> resolveReferenceAttributeContent(@Nonnull FieldsForReferenceHolder fieldsForReferenceHolder) {
-		final SelectionSetWrapper attributeFields = SelectionSetWrapper.from(
-			fieldsForReferenceHolder.fields()
-				.stream()
-				.flatMap(it -> SelectionSetWrapper.from(it.getSelectionSet()).getFields(ReferenceDescriptor.ATTRIBUTES.name()).stream())
-				.map(SelectedField::getSelectionSet)
-				.toList()
-		);
+		final List<DataFetchingFieldSelectionSet> attributeFields = fieldsForReferenceHolder.fields()
+			.stream()
+			.flatMap(it -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.ATTRIBUTES.name(), it.getSelectionSet()).stream())
+			.map(SelectedField::getSelectionSet)
+			.toList();
 
 		if (attributeFields.isEmpty()) {
 			return Optional.empty();
 		}
 
-		final String[] neededAttributes = attributeFields.getFields("*")
+		final String[] neededAttributes = SelectionSetAggregator.getImmediateFields(attributeFields)
 			.stream()
 			.map(f -> fieldsForReferenceHolder.referenceSchema().getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION))
 			.filter(Optional::isPresent)
@@ -469,10 +468,10 @@ public class EntityFetchRequireResolver {
 	@Nonnull
 	private Optional<EntityFetch> resolveReferenceEntityRequirement(@Nullable Locale desiredLocale,
 	                                                                @Nonnull FieldsForReferenceHolder fieldsForReference) {
-		final SelectionSetWrapper referencedEntitySelectionSet = SelectionSetWrapper.from(
+		final SelectionSetAggregator referencedEntitySelectionSet = SelectionSetAggregator.from(
 			fieldsForReference.fields()
 				.stream()
-				.flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.REFERENCED_ENTITY.name()).stream())
+				.flatMap(it2 -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.REFERENCED_ENTITY.name(), it2.getSelectionSet()).stream())
 				.map(SelectedField::getSelectionSet)
 				.toList()
 		);
@@ -492,10 +491,10 @@ public class EntityFetchRequireResolver {
 	@Nonnull
 	private Optional<EntityGroupFetch> resolveReferenceGroupRequirement(@Nullable Locale desiredLocale,
 	                                                          @Nonnull FieldsForReferenceHolder fieldsForReference) {
-		final SelectionSetWrapper referencedGroupSelectionSet = SelectionSetWrapper.from(
+		final SelectionSetAggregator referencedGroupSelectionSet = SelectionSetAggregator.from(
 			fieldsForReference.fields()
 				.stream()
-				.flatMap(it2 -> it2.getSelectionSet().getFields(ReferenceDescriptor.GROUP_ENTITY.name()).stream())
+				.flatMap(it2 -> SelectionSetAggregator.getImmediateFields(ReferenceDescriptor.GROUP_ENTITY.name(), it2.getSelectionSet()).stream())
 				.map(SelectedField::getSelectionSet)
 				.toList()
 		);
@@ -508,26 +507,27 @@ public class EntityFetchRequireResolver {
 	}
 
 	@Nonnull
-	private Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetWrapper selectionSetWrapper,
+	private Optional<DataInLocales> resolveDataInLocales(@Nonnull SelectionSetAggregator selectionSetAggregator,
 	                                                     @Nullable Locale desiredLocale,
 	                                                     @Nonnull Set<Locale> allPossibleLocales) {
-		if (!needsAttributes(selectionSetWrapper) && !needsAssociatedData(selectionSetWrapper)) {
+		if (!needsAttributes(selectionSetAggregator) && !needsAssociatedData(selectionSetAggregator)) {
 			return Optional.empty();
 		}
 
-		final Set<Locale> neededLocales = createHashSet(allPossibleLocales.size());
+		// todo lho this should be set but list is more performant
+		final List<Locale> neededLocales = new LinkedList<>();
 		if (desiredLocale != null) {
 			neededLocales.add(desiredLocale);
 		}
 		neededLocales.addAll(
-			selectionSetWrapper.getFields(GraphQLEntityDescriptor.ATTRIBUTES.name())
+			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.ATTRIBUTES.name())
 				.stream()
 				.map(f -> (Locale) f.getArguments().get(AttributesFieldHeaderDescriptor.LOCALE.name()))
 				.filter(Objects::nonNull)
 				.collect(Collectors.toSet())
 		);
 		neededLocales.addAll(
-			selectionSetWrapper.getFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
+			selectionSetAggregator.getImmediateFields(GraphQLEntityDescriptor.ASSOCIATED_DATA.name())
 				.stream()
 				.map(f -> (Locale) f.getArguments().get(AssociatedDataFieldHeaderDescriptor.LOCALE.name()))
 				.filter(Objects::nonNull)
