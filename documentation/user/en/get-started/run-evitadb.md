@@ -205,13 +205,13 @@ Once Docker is installed, you need to grab the evitaDB image from
 You can do both in one command using `docker run`. This is the easiest way to run evitaDB for testing purposes:
 
 ```shell
-# run on foreground, destroy container after exit, use host ports without NAT
+# Linux variant: run on foreground, destroy container after exit, use host ports without NAT
 docker run --name evitadb -i --rm --net=host \ 
 index.docker.io/evitadb/evitadb:latest
 
-# there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS 
+# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
 # and you need to open ports manually
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 - p 5557:5557 \ 
+docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \ 
 index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -224,14 +224,32 @@ When you start the evitaDB server you should see the following information in th
 |  __/\ V /| | || (_| | |_| | |_) |
  \___| \_/ |_|\__\__,_|____/|____/ 
 
-You'll see some version here
+alpha build 0.9-SNAPSHOT (keep calm and report bugs 😉)
 Visit us at: https://evitadb.io
 
-Root CA Certificate fingerprint:        You'll see some fingerprint here
-API `graphQL` listening on              https://your-server:5555/gql/
-API `rest` listening on                 https://your-server:5555/rest/
-API `gRPC` listening on                 https://your-server:5556/
-API `system` listening on               http://your-server:5557/system/
+Log config used: META-INF/logback.xml
+Server name: evitaDB-a22be76c5dbd8c33
+13:40:48.034 INFO  i.e.e.g.GraphQLManager - Built GraphQL API in 0.000002503s
+13:40:48.781 INFO  i.e.e.r.RestManager - Built REST API in 0.000000746s
+13:40:49.612 INFO  i.e.e.l.LabManager - Built Lab in 0.000000060s
+Root CA Certificate fingerprint:        8A:78:A6:ED:E9:D6:83:0F:8D:99:A6:F2:1A:D5:41:B9:12:40:24:67:55:84:2C:4A:65:F7:B5:E7:33:00:35:9C
+API `graphQL` listening on              https://localhost:5555/gql/
+API `rest` listening on                 https://localhost:5555/rest/
+API `gRPC` listening on                 https://localhost:5556/
+API `system` listening on               http://localhost:5557/system/
+   - server name served at:             http://localhost:5557/system/server-name
+   - CA certificate served at:          http://localhost:5557/system/evitaDB-CA-selfSigned.crt
+   - server certificate served at:      http://localhost:5557/system/server.crt
+   - client certificate served at:      http://localhost:5557/system/client.crt
+   - client private key served at:      http://localhost:5557/system/client.key
+
+************************* WARNING!!! *************************
+You use mTLS with automatically generated client certificate.
+This is not safe for production environments!
+Supply the certificate for production manually and set `useGeneratedCertificate` to false.
+************************* WARNING!!! *************************
+
+API `lab` listening on                  https://localhost:5555/lab/
 ```
 
 More information about running evitaDB Server in Docker is available in the [separate chapter](../operate/run.md).

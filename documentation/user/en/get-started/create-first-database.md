@@ -26,11 +26,11 @@ So the evitaDB instance is now up and running and ready to communicate.
 We assume that you already have the following Docker image up and running from the [previous chapter](run-evitadb.md):
 
 ```shell
-# run on foreground, destroy container after exit, use host ports without NAT
+# Linux variant: run on foreground, destroy container after exit, use host ports without NAT
 docker run --name evitadb -i --rm --net=host \ 
 index.docker.io/evitadb/evitadb:latest
 
-# there is open issue https://github.com/docker/roadmap/issues/238 for Windows / Mac OS 
+# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
 # and you need to open ports manually
 docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \ 
 index.docker.io/evitadb/evitadb:latest
