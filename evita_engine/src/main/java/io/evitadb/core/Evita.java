@@ -512,19 +512,30 @@ public final class Evita implements EvitaContract {
 					// check the names in all naming conventions are unique in the entity schema
 					this.catalogs.values()
 						.stream()
-						.map(CatalogContract::getSchema)
-						.flatMap(it -> it.getNameVariants()
-							.entrySet()
-							.stream()
-							.filter(nameVariant -> nameVariant.getValue().equals(catalogSchema.getNameVariant(nameVariant.getKey())))
-							.map(nameVariant -> new CatalogNamingConventionConflict(it, nameVariant.getKey(), nameVariant.getValue()))
-						)
+						.flatMap(it -> {
+							final Stream<Entry<NamingConvention, String>> nameStream;
+							if (it instanceof CorruptedCatalog) {
+								nameStream = NamingConvention.generate(it.getName())
+									.entrySet()
+									.stream();
+							} else {
+								nameStream = it.getSchema()
+									.getNameVariants()
+									.entrySet()
+									.stream();
+							}
+							return nameStream
+								.map(name -> new CatalogNameInConvention(it.getName(), name.getKey(), name.getValue()));
+						})
+						.filter(nameVariant -> nameVariant.name().equals(catalogSchema.getNameVariant(nameVariant.convention())))
+						.map(nameVariant -> new CatalogNamingConventionConflict(nameVariant.catalogName(), nameVariant.convention(), nameVariant.name()))
 						.forEach(conflict -> {
 							throw new CatalogAlreadyPresentException(
-								catalogName, conflict.conflictingSchema(),
+								catalogName, conflict.conflictingCatalogName(),
 								conflict.convention(), conflict.conflictingName()
 							);
 						});
+
 					return new Catalog(
 						catalogSchema,
 						cacheSupervisor,
@@ -532,7 +543,7 @@ public final class Evita implements EvitaContract {
 						reflectionLookup
 					);
 				} else {
-					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getSchema());
+					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getName());
 				}
 			}
 		);
@@ -545,7 +556,7 @@ public final class Evita implements EvitaContract {
 	private void renameCatalogInternal(@Nonnull ModifyCatalogSchemaNameMutation modifyCatalogSchemaName) {
 		final String currentName = modifyCatalogSchemaName.getCatalogName();
 		final String newName = modifyCatalogSchemaName.getNewCatalogName();
-		isTrue(!catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, catalogs.get(newName).getSchema()));
+		isTrue(!catalogs.containsKey(newName), () -> new CatalogAlreadyPresentException(newName, newName));
 		final CatalogContract catalogToBeRenamed = getCatalogInstanceOrThrowException(currentName);
 
 		closeAllActiveSessionsTo(currentName);
@@ -737,8 +748,8 @@ public final class Evita implements EvitaContract {
 		final EvitaSessionContract newSession = sessionRegistry.addSession(
 			catalog.supportsTransaction(),
 			() -> sessionTraits.isReadWrite() ?
-				new EvitaSession(catalog, reflectionLookup, terminationCallback, this::replaceCatalogReference, sessionTraits) :
-				new EvitaSession(catalog, reflectionLookup, terminationCallback, sessionTraits)
+				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, this::replaceCatalogReference, sessionTraits) :
+				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, sessionTraits)
 		);
 
 		if (sessionTraits.isReadWrite()) {
@@ -867,7 +878,7 @@ public final class Evita implements EvitaContract {
 	 * DTO for passing the identified conflict in catalog names for certain naming convention.
 	 */
 	record CatalogNamingConventionConflict(
-		@Nonnull CatalogSchemaContract conflictingSchema,
+		@Nonnull String conflictingCatalogName,
 		@Nonnull NamingConvention convention,
 		@Nonnull String conflictingName
 	) {
@@ -959,4 +970,11 @@ public final class Evita implements EvitaContract {
 			}
 		}
 	}
+
+	private record CatalogNameInConvention(
+		@Nonnull String catalogName,
+		@Nonnull NamingConvention convention,
+		@Nonnull String name
+	) {}
+
 }

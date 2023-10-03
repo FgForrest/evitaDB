@@ -492,6 +492,10 @@ public class ExternalApiServer implements AutoCloseable {
 				ConsoleColor.DARK_BLUE,
 				ConsoleDecoration.UNDERLINE
 			);
+
+			if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput consoleOutput) {
+				consoleOutput.writeToConsole();
+			}
 		}
 	}
 

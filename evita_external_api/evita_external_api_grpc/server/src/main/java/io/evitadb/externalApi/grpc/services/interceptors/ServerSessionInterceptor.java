@@ -38,15 +38,20 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
+import io.grpc.Grpc;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.SocketAddress;
 import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ID_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.REQUEST_ID_HEADER;
 import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ADDRESS_HEADER;
 
 /**
  * This class is used to intercept calls to gRPC services by setting a session to
@@ -81,6 +86,9 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 * Context that holds current {@link EvitaSessionContract} session.
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
+	public static final Context.Key<String> REQUEST_ID = Context.key(REQUEST_ID_HEADER);
+	public static final Context.Key<String> CLIENT_ID = Context.key(CLIENT_ID_HEADER);
+	public static final Context.Key<SocketAddress> CLIENT_ADDRESS = Context.key(CLIENT_ADDRESS_HEADER);
 	/**
 	 * Reference to the {@link EvitaContract} instance.
 	 */
@@ -112,10 +120,20 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			serverCall.close(status, metadata);
 			return new ServerCall.Listener<>() {};
 		}
-		if (activeSession.isEmpty()) {
-			return serverCallHandler.startCall(serverCall, metadata);
+		final Metadata.Key<String> clientMetadata = Metadata.Key.of(CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
+		final Metadata.Key<String> requestMetadata = Metadata.Key.of(REQUEST_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
+		final String clientId = metadata.get(clientMetadata);
+		final String requestId = metadata.get(requestMetadata);
+		final SocketAddress clientAddress = serverCall.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
+
+		Context context = Context.current()
+			.withValue(CLIENT_ID, clientId)
+			.withValue(REQUEST_ID, requestId)
+			.withValue(CLIENT_ADDRESS, clientAddress);
+		if (activeSession.isPresent()) {
+			context = context.withValue(SESSION, activeSession.get());
 		}
-		final Context context = Context.current().withValue(SESSION, activeSession.get());
+
 		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
 	}
 

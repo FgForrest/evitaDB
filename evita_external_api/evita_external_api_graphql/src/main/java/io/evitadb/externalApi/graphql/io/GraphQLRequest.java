@@ -26,11 +26,13 @@ package io.evitadb.externalApi.graphql.io;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import graphql.ExecutionInput;
+import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Client request for GraphQL.
@@ -39,7 +41,8 @@ import java.util.Map;
  */
 public record GraphQLRequest(@Nonnull String query,
                              @Nullable String operationName,
-                             @Nullable Map<String, Object> variables) {
+                             @Nullable Map<String, Object> variables,
+                             @Nullable Map<String, Object> extensions) {
 
     public GraphQLRequest {
         Assert.notNull(
@@ -51,8 +54,32 @@ public record GraphQLRequest(@Nonnull String query,
     @JsonCreator
     private static GraphQLRequest fromJson(@Nonnull @JsonProperty("query") String query,
                                            @Nullable @JsonProperty("operationName") String operationName,
-                                           @Nullable @JsonProperty("variables") Map<String, Object> variables) {
-        return new GraphQLRequest(query, operationName, variables);
+                                           @Nullable @JsonProperty("variables") Map<String, Object> variables,
+                                           @Nullable @JsonProperty("extensions") Map<String, Object> extensions) {
+        return new GraphQLRequest(query, operationName, variables, extensions);
+    }
+
+    /**
+     * Returns client context extensions from sent extensions. If no client context extension is sent, the
+     * {@link ClientContextExtension#empty()} is returned, so we can at least somehow classify the request.
+     */
+    @Nonnull
+    public ClientContextExtension clientContextExtension() {
+        return Optional.ofNullable(extensions())
+            .map(it -> it.get(ClientContextExtension.CLIENT_CONTEXT_EXTENSION))
+            .map(it -> {
+                Assert.isTrue(
+                    it instanceof Map<?, ?>,
+                    () -> new GraphQLInvalidArgumentException("Client context extension is invalid.")
+                );
+                //noinspection unchecked
+                return (Map<String, Object>) it;
+            })
+            .map(it -> new ClientContextExtension(
+                (String) it.get(ClientContextExtension.CLIENT_ID),
+                (String) it.get(ClientContextExtension.REQUEST_ID)
+            ))
+            .orElse(ClientContextExtension.empty());
     }
 
     /**
@@ -70,6 +97,9 @@ public record GraphQLRequest(@Nonnull String query,
         }
         if (variables() != null) {
             executionInputBuilder.variables(variables());
+        }
+        if (extensions() != null) {
+            executionInputBuilder.extensions(extensions());
         }
 
         return executionInputBuilder.build();

@@ -36,8 +36,6 @@ import io.evitadb.performance.artificial.AbstractArtificialBenchmarkState;
 import io.grpc.ManagedChannel;
 import io.grpc.netty.NettyChannelBuilder;
 import io.netty.handler.ssl.SslContext;
-import org.openjdk.jmh.annotations.Level;
-import org.openjdk.jmh.annotations.Setup;
 
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -52,11 +50,13 @@ public abstract class GrpcArtificialBenchmarkState extends AbstractArtificialBen
 	private static final String HOST = AbstractApiConfiguration.LOCALHOST;
 	private static final int PORT = GrpcConfig.DEFAULT_GRPC_PORT;
 
-	private final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder().build();
+	private ClientCertificateManager clientCertificateManager;
 	private SslContext sslContext;
 
 	public void setUp() {
-		clientCertificateManager.getCertificatesFromServer(HOST, SystemConfig.DEFAULT_SYSTEM_PORT);
+		clientCertificateManager = new ClientCertificateManager.Builder()
+			.useGeneratedCertificate(true, HOST, SystemConfig.DEFAULT_SYSTEM_PORT)
+			.build();
 		sslContext = clientCertificateManager.buildClientSslContext();
 	}
 

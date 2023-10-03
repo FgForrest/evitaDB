@@ -31,6 +31,8 @@ import lombok.ToString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 
@@ -38,6 +40,7 @@ import java.util.concurrent.TimeUnit;
  * This is a configuration class for the {@link EvitaClient}. It allows to configure the basic
  * setting necessary for client to run.
  *
+ * @param clientId                  The identification of the client.
  * @param host                      The IP address or host name where the gRPC server listens.
  * @param port                      The port the gRPC server listens on.
  * @param systemApiPort             The port the system API server listens on.
@@ -58,6 +61,7 @@ import java.util.concurrent.TimeUnit;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public record EvitaClientConfiguration(
+	@Nonnull String clientId,
 	@Nonnull String host,
 	int port,
 	int systemApiPort,
@@ -90,6 +94,7 @@ public record EvitaClientConfiguration(
 	 */
 	@ToString
 	public static class Builder {
+		private String clientId;
 		private String host = "localhost";
 		private int port = DEFAULT_GRPC_API_PORT;
 		private int systemApiPort = DEFAULT_SYSTEM_API_PORT;
@@ -107,6 +112,17 @@ public record EvitaClientConfiguration(
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
 
 		Builder() {
+			try {
+				final InetAddress inetAddress = InetAddress.getLocalHost();
+				clientId = "gRPC client at " + inetAddress.getHostName();
+			} catch (UnknownHostException e) {
+				clientId = "Generic gRPC client";
+			}
+		}
+
+		public EvitaClientConfiguration.Builder clientId(@Nonnull String clientId) {
+			this.clientId = clientId;
+			return this;
 		}
 
 		public EvitaClientConfiguration.Builder host(@Nonnull String host) {
@@ -182,6 +198,7 @@ public record EvitaClientConfiguration(
 
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
+				clientId,
 				host,
 				port,
 				systemApiPort,

@@ -21,8 +21,13 @@ Once Docker is installed, you need to grab the evitaDB image from
 You can do both in one command using `docker run`. This is the easiest way to run evitaDB for testing purposes:
 
 ```shell
-# run on foreground, destroy container after exit, use host ports without NAT
+# Linux variant: run on foreground, destroy container after exit, use host ports without NAT
 docker run --name evitadb -i --rm --net=host \ 
+index.docker.io/evitadb/evitadb:latest
+
+# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
+# and you need to open ports manually
+docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \ 
 index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -102,7 +107,7 @@ The simplified command shares the network with the host, which is not always the
 open/re-mapping ports opened inside the Docker container in the following way:
 
 ```shell
-# run on foreground, destroy container after exit, use host ports without NAT
+# run on foreground, destroy container after exit, use exact mapping for host ports
 docker run --name evitadb -i --rm \
 -p 5555:5555 \ 
 -p 5556:5556 \ 
