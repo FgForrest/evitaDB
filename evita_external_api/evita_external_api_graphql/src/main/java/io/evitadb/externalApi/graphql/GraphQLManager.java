@@ -219,7 +219,7 @@ public class GraphQLManager {
 				new CorsFilter(
 					new GraphQLExceptionHandler(
 						objectMapper,
-						new GraphQLHandler(objectMapper, evita.getConfiguration(), registeredGraphQLApi.graphQLReference())
+						new GraphQLHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference())
 					),
 					graphQLConfig.getAllowedOrigins()
 				)

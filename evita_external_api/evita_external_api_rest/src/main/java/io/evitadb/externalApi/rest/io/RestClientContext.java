@@ -21,46 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
+package io.evitadb.externalApi.rest.io;
 
-import io.undertow.server.HttpServerExchange;
+import io.evitadb.api.ClientContext;
+import io.evitadb.externalApi.utils.ExternalApiClientContext;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * An endpoint request/response exchange. Used as context object for endpoint processing.
+ * Implementation of {@link ExternalApiClientContext} for REST API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface EndpointExchange extends AutoCloseable {
+public class RestClientContext extends ExternalApiClientContext {
 
-	/**
-	 * Underlying HTTP server exchange
-	 */
+	private static final String PROTOCOL = "REST";
+
+	public RestClientContext(@Nonnull ClientContext internalClientContext) {
+		super(internalClientContext);
+	}
+
 	@Nonnull
-	HttpServerExchange serverExchange();
-
-	/**
-	 * HTTP method of the request.
-	 */
-	@Nonnull
-	String httpMethod();
-
-	/**
-	 * Parsed content type of request body, if any request body is present.
-	 */
-	@Nullable
-	String requestBodyContentType();
-
-	/**
-	 * Preferred content type of response body, if any response body is will be send.
-	 */
-	@Nullable
-	String preferredResponseContentType();
-
 	@Override
-	default void close() {
-		// do nothing
+	protected String getProtocol() {
+		return PROTOCOL;
 	}
 }

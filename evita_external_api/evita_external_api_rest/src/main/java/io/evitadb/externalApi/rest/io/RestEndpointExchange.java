@@ -92,7 +92,7 @@ public class RestEndpointExchange implements EndpointExchange {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void close() {
 		if (session != null) {
 			session.close();
 		}

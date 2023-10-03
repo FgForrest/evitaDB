@@ -124,7 +124,7 @@ public class GrpcServer {
 			.intercept(new GlobalExceptionHandlerInterceptor())
 			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
-			.addService(new EvitaSessionService())
+			.addService(new EvitaSessionService(evita))
 			.build();
 	}
 }

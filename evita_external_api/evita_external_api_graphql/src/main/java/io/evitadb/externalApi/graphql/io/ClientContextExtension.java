@@ -21,46 +21,27 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.http;
+package io.evitadb.externalApi.graphql.io;
 
-import io.undertow.server.HttpServerExchange;
-
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * An endpoint request/response exchange. Used as context object for endpoint processing.
+ * DTO for passing client context information from client for entire GQL request execution.
  *
+ * @see io.evitadb.api.ClientContext
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface EndpointExchange extends AutoCloseable {
+public record ClientContextExtension(@Nullable String clientId,
+                                     @Nullable String requestId) {
+
+	static final String CLIENT_CONTEXT_EXTENSION = "clientContext";
+	static final String CLIENT_ID = "clientId";
+	static final String REQUEST_ID = "requestId";
 
 	/**
-	 * Underlying HTTP server exchange
+	 * Client didn't send any client context information, but we want to still classify the usage somehow.
 	 */
-	@Nonnull
-	HttpServerExchange serverExchange();
-
-	/**
-	 * HTTP method of the request.
-	 */
-	@Nonnull
-	String httpMethod();
-
-	/**
-	 * Parsed content type of request body, if any request body is present.
-	 */
-	@Nullable
-	String requestBodyContentType();
-
-	/**
-	 * Preferred content type of response body, if any response body is will be send.
-	 */
-	@Nullable
-	String preferredResponseContentType();
-
-	@Override
-	default void close() {
-		// do nothing
+	public static ClientContextExtension empty() {
+		return new ClientContextExtension(null, null);
 	}
 }

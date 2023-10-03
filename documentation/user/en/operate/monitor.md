@@ -52,14 +52,7 @@ property of a GraphQL request:
 }
 ```
 
-Both identifiers are optional and default to this object: 
-
-```json
-"clientContext": {
-  "clientId": "unknownGraphQLClient",
-  "requestId": null
-}
-```
+Both identifiers are optional.
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -72,11 +65,6 @@ X-EvitaDB-ClientID: Next.js application
 X-EvitaDB-RequestID: 05e620b2-5b40-4932-b585-bf3bb6bde4b3
 ```
 
-Both headers are optional and default to these values: 
-
-```
-X-EvitaDB-ClientID: unknownRestClient
-X-EvitaDB-RequestID: <null>
-```
+Both headers are optional.
 
 </LanguageSpecific>

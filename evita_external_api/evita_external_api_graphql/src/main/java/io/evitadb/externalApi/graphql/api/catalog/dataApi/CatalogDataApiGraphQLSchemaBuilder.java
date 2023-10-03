@@ -252,7 +252,11 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildCollectionsField() {
 		return new BuiltFieldDescriptor(
 			CatalogDataApiRootDescriptor.COLLECTIONS.to(staticEndpointBuilderTransformer).build(),
-			new ReadDataFetcher(new CollectionsDataFetcher(), buildingContext.getEvitaExecutor().orElse(null))
+			new ReadDataFetcher(
+				new CollectionsDataFetcher(),
+				buildingContext.getEvita(),
+				buildingContext.getEvitaExecutor().orElse(null)
+			)
 		);
 	}
 
@@ -292,6 +296,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					buildingContext.getSupportedLocales()
 				),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -334,6 +339,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					buildingContext.getSupportedLocales()
 				),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -390,6 +396,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					entitySchema
 				),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -421,6 +428,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					entitySchema
 				),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -458,6 +466,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 					buildingContext.getSchema(),
 					entitySchema
 				),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -472,6 +481,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build(),
 			new ReadDataFetcher(
 				new CollectionSizeDataFetcher(entitySchema),
+				buildingContext.getEvita(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
