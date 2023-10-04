@@ -1,0 +1,17 @@
+query(
+    collection('Product'),
+    filterBy(
+        referenceHaving(
+            'brand',
+            entityPrimaryKeyInSet(66465)
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent('code'),
+            referenceContentWithAttributes(
+                'brand'
+            )
+        )
+    )
+)

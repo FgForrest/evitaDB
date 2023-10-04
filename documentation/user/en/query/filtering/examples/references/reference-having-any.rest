@@ -1,0 +1,16 @@
+POST /rest/evita/product/query
+
+{
+  "filterBy" : {
+    "referenceRelatedProductsHaving" : [ ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "referenceRelatedProductsContentWithAttributes" : {
+        "attributeContent" : [
+          "category"
+        ]
+      }
+    }
+  }
+}

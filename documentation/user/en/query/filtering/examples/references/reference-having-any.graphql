@@ -1,0 +1,19 @@
+{
+  queryProduct(
+    filterBy: {
+      referenceRelatedProductsHaving: [ ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        relatedProducts {
+          referencedPrimaryKey
+          attributes {
+            category
+          }
+        }
+      }
+    }
+  }
+}
