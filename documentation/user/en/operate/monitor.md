@@ -1,6 +1,9 @@
 ---
 title: Monitor
-perex:
+perex: |
+  evitaDB's monitoring facilities are designed to help you monitor running evitaDB instances as well as to help you 
+  optimise your application during development. All monitoring facilities are based on our operational experience and 
+  development of e-commerce projects.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 ---
