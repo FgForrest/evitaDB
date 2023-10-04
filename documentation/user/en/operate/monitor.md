@@ -42,7 +42,7 @@ If you are using the Java remote client, you are suggested to provide the `clien
 for all requests. The `requestId` is then provided by wrapping your code in a lambda passed to `executeWithRequestId`
 method on <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface.
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly local>
 
 [Provide the client and request ids to the server](/documentation/user/en/operate/example/call-server-with-ids.java)
 </SourceCodeTabs>
