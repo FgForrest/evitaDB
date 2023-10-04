@@ -514,8 +514,7 @@ public class EntityFetchRequireResolver {
 			return Optional.empty();
 		}
 
-		// todo lho this should be set but list is more performant
-		final List<Locale> neededLocales = new LinkedList<>();
+		final Set<Locale> neededLocales = createHashSet(allPossibleLocales.size());
 		if (desiredLocale != null) {
 			neededLocales.add(desiredLocale);
 		}
