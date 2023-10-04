@@ -2364,6 +2364,38 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities having a reference of particular name")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByHavingAReferenceOfParticularName(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(
+								Entities.BRAND
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !sealedEntity.getReferences(Entities.BRAND).isEmpty(),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by referenced entity of particular id")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
