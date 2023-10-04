@@ -21,6 +21,5 @@
 #   limitations under the License.
 #
 
-rm -r src/main/resources/META-INF/lab/gui/dist
-echo "Deleted previous version"
-mvn com.googlecode.maven-download-plugin:download-maven-plugin:1.7.1:wget
+mvn one.edee.oss:github-release-asset-downloader-maven-plugin:1.0.1:download-asset
+git add src/main/resources/META-INF/lab/gui
