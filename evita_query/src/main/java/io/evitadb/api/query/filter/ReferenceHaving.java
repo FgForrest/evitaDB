@@ -37,27 +37,32 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `referenceAttribute` container is filtering query that filters returned entities by their reference
- * attributes that must match the inner condition.
+ * The `referenceHaving` constraint eliminates entities which has no reference of particular name satisfying set of
+ * filtering constraints. You can examine either the attributes specified on the relation itself or wrap the filtering
+ * constraint in {@link EntityHaving} constraint to examine the attributes of the referenced entity.
+ * The constraint is similar to SQL <a href="https://www.w3schools.com/sql/sql_exists.asp">`EXISTS`</a> operator.
  *
- * Example:
- *
- * ```
- * referenceHavingAttribute(
- * 'CATEGORY',
- * eq('code', 'KITCHENWARE')
- * )
- * ```
- *
- * or
+ * Example (select entities having reference brand with category attribute equal to alternativeProduct):
  *
  * ```
  * referenceHavingAttribute(
- * 'CATEGORY',
- * and(
- * isTrue('visible'),
- * eq('code', 'KITCHENWARE')
+ *     'brand',
+ *     attributeEquals('category', 'alternativeProduct')
  * )
+ * ```
+ *
+ * Example (select entities having any reference brand):
+ *
+ * ```
+ * referenceHavingAttribute('brand')
+ * ```
+ *
+ * Example (select entities having any reference brand of primary key 1):
+ *
+ * ```
+ * referenceHavingAttribute(
+ *     'brand',
+ *     entityPrimaryKeyInSet(1)
  * )
  * ```
  *
@@ -76,11 +81,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 		super(arguments, children);
 	}
 
-	/**
-	 * Private constructor that creates unnecessary / not applicable version of the query.
-	 */
-	private ReferenceHaving(@Nonnull @Classifier String referenceName) {
-		super(referenceName);
+	public ReferenceHaving(@Nonnull @Classifier String referenceName) {
+		super(new Serializable[]{referenceName});
 	}
 
 	@Creator
@@ -99,7 +101,12 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Override
 	public boolean isNecessary() {
-		return getArguments().length == 1 && getChildren().length >= 1;
+		return getArguments().length == 1;
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return getArguments().length == 1;
 	}
 
 	@AliasForParameter("filter")
