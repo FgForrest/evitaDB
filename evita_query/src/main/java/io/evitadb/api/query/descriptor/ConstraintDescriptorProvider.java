@@ -97,7 +97,6 @@ public class ConstraintDescriptorProvider {
 	                                                           @Nonnull ConstraintPropertyType propertyType,
 	                                                           @Nonnull String fullName,
 	                                                           @Nullable String classifier) {
-		// todo lho how to optimize classifier lookup?
 		final Set<ConstraintDescriptor> descriptorCandidates = CONSTRAINT_DESCRIPTOR_RECONSTRUCTION_LOOKUP_INDEX.get(new ConstraintReconstructionLookupKey(
 			type,
 			propertyType,
