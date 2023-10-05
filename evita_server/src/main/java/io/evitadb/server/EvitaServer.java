@@ -153,10 +153,13 @@ public class EvitaServer {
 				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
 			ConsoleColor.DARK_GREEN
 		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)\n", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		ConsoleWriter.write("Visit us at: ");
-		ConsoleWriter.write("https://evitadb.io\n\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logMsg).map(it -> " (" + it + ")").orElse("") + "\n", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logMsg).map(it -> " (" + it + ")").orElse("") + "", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
 			.map(it -> Paths.get("").resolve(it))
@@ -254,7 +257,8 @@ public class EvitaServer {
 		);
 		this.apiOptions = evitaServerConfig.api();
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
-		ConsoleWriter.write(this.evitaConfiguration.name() + "\n", ConsoleColor.BRIGHT_YELLOW);
+		ConsoleWriter.write(this.evitaConfiguration.name(), ConsoleColor.BRIGHT_YELLOW);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 	}
 
 	/**

@@ -84,23 +84,28 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 	public void writeToConsole() {
 		for (String serverNameUrl : serverNameUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(serverNameUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
 		for (String certificateUrl : rootCertificateUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write(certificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
 		for (String certificateUrl : serverCertificateUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write(certificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
 		for (String certificateUrl : clientCertificateUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(certificateUrl + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write(certificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
 		for (String clientPrivateKey : clientPrivateKeyUrls) {
 			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(clientPrivateKey + "\n", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write(clientPrivateKey, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 			ConsoleWriter.write("""
                 
                 ************************* WARNING!!! *************************
