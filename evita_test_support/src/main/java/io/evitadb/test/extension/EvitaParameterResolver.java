@@ -436,16 +436,19 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
 		evitaServer.run();
 
+		final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+		if (cfg == null) {
+			// system provider was not initialized
+			return evitaServer;
+		}
+		final String testUrl = cfg.getBaseUrls()[0] + "server-name";
+
 		// verify the server is running
+		Exception lastException;
 		int initAttempt = 0;
 		do {
 			try {
-				final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
-				if (cfg == null) {
-					// system provider was not initialized
-					return evitaServer;
-				}
-				final URL website = new URL(cfg.getBaseUrls()[0] + "server-name");
+				final URL website = new URL(testUrl);
 				try (
 					final Reader reader = Channels.newReader(Channels.newChannel(website.openStream()), StandardCharsets.UTF_8);
 				) {
@@ -454,7 +457,8 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					reader.read(buffer);
 					return evitaServer;
 				}
-			} catch (Exception ignored) {
+			} catch (Exception ex) {
+				lastException = ex;
 				try {
 					// if not ready wait for a while
 					Thread.sleep(200);
@@ -466,7 +470,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// try at most 5 times
 		} while (initAttempt < 5);
 
-		throw new IllegalStateException("Evita server has't started within a second!");
+		throw new IllegalStateException("Evita server hasn't started on url `" + testUrl + "` within a second!", lastException);
 	}
 
 	@Override
