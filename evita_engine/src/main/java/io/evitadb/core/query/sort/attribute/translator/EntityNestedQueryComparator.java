@@ -40,10 +40,12 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
+import lombok.Setter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
@@ -76,6 +78,10 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * constraint later to this point of execution.
 	 */
 	@Nullable @Getter private EntityGroupProperty groupOrderBy;
+	/**
+	 * Locale valid for nested scope (if set on particular scope level).
+	 */
+	@Nullable @Getter @Setter private Locale locale;
 	/**
 	 * The array of sorters that should be used for sorting referenced entities. The sorters order is key for sorting
 	 * priority (primary, secondary, etc.).

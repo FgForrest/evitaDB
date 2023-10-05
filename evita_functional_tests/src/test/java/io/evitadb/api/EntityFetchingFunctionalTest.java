@@ -2740,7 +2740,10 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					productsWithLotsOfStores.keySet().iterator().next(),
 					referenceContent(
 						Entities.STORE,
-						filterBy(entityPrimaryKeyInSet(randomStores)),
+						filterBy(
+							entityPrimaryKeyInSet(randomStores),
+							entityLocaleEquals(LOCALE_CZECH)
+						),
 						orderBy(
 							entityProperty(
 								attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
@@ -2769,8 +2772,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					.map(it -> it.getReferencedEntity().orElseThrow())
 					.map(it -> it.getAttribute(ATTRIBUTE_NAME, String.class))
 					.toArray(String[]::new);
+
+				final Collator collator = Collator.getInstance(CZECH_LOCALE);
 				assertArrayEquals(
-					Arrays.stream(receivedOrderedNames).sorted(Comparator.reverseOrder()).toArray(String[]::new),
+					Arrays.stream(receivedOrderedNames)
+						.sorted(new LocalizedStringComparator(collator).reversed())
+						.toArray(String[]::new),
 					receivedOrderedNames
 				);
 

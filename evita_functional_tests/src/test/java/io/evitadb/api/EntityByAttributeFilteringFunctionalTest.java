@@ -44,6 +44,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -2414,6 +2415,29 @@ public class EntityByAttributeFilteringFunctionalTest {
 									Entities.BRAND,
 									attributeEquals(ATTRIBUTE_CODE, "apple")
 								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should fail to order by localized attribute when locale is not known")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToOrderByLocalizedAttributeWhenLocaleIsNotKnown(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								attributeNatural(ATTRIBUTE_NAME)
 							)
 						),
 						EntityReference.class

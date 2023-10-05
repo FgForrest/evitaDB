@@ -116,7 +116,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryContext implements AutoCloseable {
+public class QueryContext implements AutoCloseable, LocaleProvider {
 	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
 
 	/**
@@ -730,6 +730,7 @@ public class QueryContext implements AutoCloseable {
 	/**
 	 * Returns language specified in {@link EvitaRequest}. Language is valid for entire query.
 	 */
+	@Override
 	@Nullable
 	public Locale getLocale() {
 		return evitaRequest.getLocale();

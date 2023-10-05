@@ -44,10 +44,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetGroupPredicate;
-import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetGroupSorter;
-import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetPredicate;
-import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.createFacetSorter;
+import static io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator.*;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummary} to {@link FacetSummaryProducer}.
@@ -103,8 +100,8 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 			facetSummary.getStatisticsDepth(),
 			referenceSchema -> facetSummary.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
 			referenceSchema -> facetSummary.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			referenceSchema -> facetSummary.getOrderBy().map(it -> createFacetSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
-			referenceSchema -> facetSummary.getOrderGroupBy().map(it -> createFacetGroupSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
+			referenceSchema -> facetSummary.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummary.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema)).orElse(null),
+			referenceSchema -> facetSummary.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummary.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema)).orElse(null),
 			facetSummary.getFacetEntityRequirement().orElse(null),
 			facetSummary.getGroupEntityRequirement().orElse(null)
 		);

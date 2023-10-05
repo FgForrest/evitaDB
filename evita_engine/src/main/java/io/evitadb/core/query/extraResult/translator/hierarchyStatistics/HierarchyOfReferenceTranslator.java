@@ -96,6 +96,7 @@ public class HierarchyOfReferenceTranslator
 				.map(
 					it -> extraResultPlanner.createSorter(
 						it,
+						null,
 						globalIndex,
 						entityType,
 						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
