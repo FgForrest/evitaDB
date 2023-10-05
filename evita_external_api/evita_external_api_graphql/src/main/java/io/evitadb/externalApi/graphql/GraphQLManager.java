@@ -238,6 +238,18 @@ public class GraphQLManager {
 				)
 			)
 		);
+		// GraphQL handler for WebSocket web API, may be later used even for the main web API with GET method
+		graphQLRouter.add(
+			Methods.GET,
+			registeredGraphQLApi.path().toString(),
+			new CorsFilter(
+				new GraphQLExceptionHandler(
+					objectMapper,
+					new GraphQLWebSocketHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference())
+				),
+				graphQLConfig.getAllowedOrigins()
+			)
+		);
 		// CORS pre-flight handler for the GraphQL handler
 		graphQLRouter.add(
 			Methods.OPTIONS,
@@ -245,34 +257,7 @@ public class GraphQLManager {
 			new BlockingHandler(
 				new CorsPreflightHandler(
 					graphQLConfig.getAllowedOrigins(),
-					Set.of(Methods.POST_STRING),
-					Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
-				)
-			)
-		);
-
-
-		// GraphQL handler for WebSocket web API
-		// todo lho this is only prototype
-		graphQLRouter.add(
-			Methods.GET,
-			registeredGraphQLApi.path() + "-ws",
-			new GraphQLExceptionHandler(
-				objectMapper,
-				new CorsFilter(
-					new GraphQLWebSocketHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference()),
-					graphQLConfig.getAllowedOrigins()
-				)
-			)
-		);
-		// CORS pre-flight handler for the GraphQL handler
-		graphQLRouter.add(
-			Methods.OPTIONS,
-			registeredGraphQLApi.path() + "-ws",
-			new BlockingHandler(
-				new CorsPreflightHandler(
-					graphQLConfig.getAllowedOrigins(),
-					Set.of(Methods.POST_STRING),
+					Set.of(Methods.GET_STRING, Methods.POST_STRING),
 					Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
 				)
 			)

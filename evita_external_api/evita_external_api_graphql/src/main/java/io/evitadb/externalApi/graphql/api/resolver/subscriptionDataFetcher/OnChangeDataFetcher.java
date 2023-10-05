@@ -21,21 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
+package io.evitadb.externalApi.graphql.api.resolver.subscriptionDataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.core.Evita;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import org.reactivestreams.FlowAdapters;
 
 import javax.annotation.Nonnull;
-import java.util.UUID;
 import java.util.concurrent.Flow.Publisher;
-import java.util.function.Function;
 
 /**
  * TODO lho docs
@@ -43,7 +40,7 @@ import java.util.function.Function;
  * @author Lukáš Hornych, 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-public abstract class ChangeCaptureDataFetcher<C extends ChangeCapture> implements DataFetcher<org.reactivestreams.Publisher<C>> {
+public abstract class OnChangeDataFetcher<C extends ChangeCapture> implements DataFetcher<org.reactivestreams.Publisher<C>> {
 
 	protected final Evita evita;
 

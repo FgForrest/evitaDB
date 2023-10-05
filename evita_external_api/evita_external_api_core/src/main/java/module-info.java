@@ -49,6 +49,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model;
 	exports io.evitadb.externalApi.api.catalog.model;
 	exports io.evitadb.externalApi.api.system.model;
+	exports io.evitadb.externalApi.api.system.model.cdc;
 	exports io.evitadb.externalApi.certificate;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;

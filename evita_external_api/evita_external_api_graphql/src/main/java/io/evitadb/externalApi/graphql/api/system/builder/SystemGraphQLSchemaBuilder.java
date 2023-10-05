@@ -25,16 +25,36 @@ package io.evitadb.externalApi.graphql.api.system.builder;
 
 import graphql.schema.*;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.CorruptedCatalog;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.EntitySchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.LocalCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.TopLevelCatalogSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.CreateAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.ModifyAssociatedDataSchemaTypeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.RemoveAssociatedDataSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaLocalizedMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.associatedData.SetAssociatedDataSchemaNullableMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.entity.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.reference.*;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutationDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutationDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogDescriptor;
 import io.evitadb.externalApi.api.system.model.CatalogUnionDescriptor;
 import io.evitadb.externalApi.api.system.model.CorruptedCatalogDescriptor;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.FinalGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.builder.GraphQLSchemaBuildingContext;
@@ -51,7 +71,7 @@ import io.evitadb.externalApi.graphql.api.system.model.SystemRootDescriptor;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.CatalogsDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.LivenessDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher.OnSystemChangeDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscriptionDataFetcher.OnSystemChangeDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.CreateCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.DeleteCatalogIfExistsMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
@@ -61,8 +81,6 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.Flow.Publisher;
-import java.util.concurrent.SubmissionPublisher;
 
 /**
  * Implementation of {@link FinalGraphQLSchemaBuilder} for building evitaDB management manipulation schema.
@@ -90,6 +108,95 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerType(corruptedCatalogObject);
 		buildingContext.registerType(buildCatalogUnion(catalogObject, corruptedCatalogObject));
 
+		// entity schema mutations
+		buildingContext.registerType(AllowCurrencyInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(AllowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(AllowLocaleInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(CreateEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(DisallowCurrencyInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(DisallowEvolutionModeInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(DisallowLocaleInEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyEntitySchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyEntitySchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyEntitySchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetEntitySchemaWithGeneratedPrimaryKeyMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetEntitySchemaWithHierarchyMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetEntitySchemaWithPriceMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// associated data schema mutations
+		buildingContext.registerType(CreateAssociatedDataSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAssociatedDataSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAssociatedDataSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAssociatedDataSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAssociatedDataSchemaTypeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveAssociatedDataSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAssociatedDataSchemaLocalizedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAssociatedDataSchemaNullableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// attribute schema mutations
+		buildingContext.registerType(CreateAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAttributeSchemaDefaultValueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAttributeSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAttributeSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAttributeSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyAttributeSchemaTypeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// attribute schema mutations
+		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
+		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ReferenceSortableAttributeCompoundSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// reference schema mutations
+		buildingContext.registerType(CreateReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceSchemaCardinalityMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceSchemaDeprecationNoticeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityGroupMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyReferenceSchemaRelatedEntityMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveReferenceSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetReferenceSchemaFacetedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetReferenceSchemaIndexedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		buildingContext.registerType(EntitySchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// catalog schema mutations
+		buildingContext.registerType(ModifyEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaDescriptionMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(AllowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(DisallowEvolutionModeInCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// global attribute schema mutations
+		buildingContext.registerType(CreateGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaGloballyUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// other mutation objects should be already created by EntitySchemaSchemaBuilder
+		buildingContext.registerType(LocalCatalogSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		// top level schema mutations
+		buildingContext.registerType(CreateEntitySchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(ModifyCatalogSchemaNameMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(RemoveCatalogSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		buildingContext.registerType(TopLevelCatalogSchemaMutationAggregateDescriptor.THIS.to(objectBuilderTransformer).build());
+
+		buildingContext.registerType(ChangeSystemCaptureDescriptor.THIS.to(objectBuilderTransformer).build());
+
 		buildingContext.registerQueryField(buildLivenessField());
 		buildingContext.registerQueryField(buildCatalogField());
 		buildingContext.registerQueryField(buildCatalogsField());
@@ -100,22 +207,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		buildingContext.registerMutationField(buildReplaceCatalogField());
 		buildingContext.registerMutationField(buildDeleteCatalogIfExistsField());
 
-
-		buildingContext.registerType(GraphQLObjectType.newObject()
-			.name("ChangeSystemCapture")
-			.field(GraphQLFieldDefinition.newFieldDefinition()
-				.name("catalog")
-				.type(GraphQLScalars.STRING)
-				.build())
-			.build());
-
-		buildingContext.registerSubscriptionField(new BuiltFieldDescriptor(
-			GraphQLFieldDefinition.newFieldDefinition()
-				.name("onSystemChange")
-				.type(GraphQLTypeReference.typeRef("ChangeSystemCapture"))
-				.build(),
-			new OnSystemChangeDataFetcher(evita)
-		));
+		buildingContext.registerSubscriptionField(buildOnSystemChangeField());
 
 		return buildingContext.buildGraphQLSchema();
 	}
@@ -310,6 +402,18 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		return new BuiltFieldDescriptor(
 			deleteCatalogIfExistsCatalogField,
 			new DeleteCatalogIfExistsMutatingDataFetcher(evita)
+		);
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildOnSystemChangeField() {
+		final GraphQLFieldDefinition onSystemChangeField = SystemRootDescriptor.ON_SYSTEM_CHANGE
+			.to(staticEndpointBuilderTransformer)
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onSystemChangeField,
+			new OnSystemChangeDataFetcher(evita)
 		);
 	}
 }

@@ -21,31 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.system.resolver.dataFetcher;
+package io.evitadb.externalApi.api.model.cdc;
 
-import graphql.schema.DataFetchingEnvironment;
-import io.evitadb.api.requestResponse.cdc.CaptureContent;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
-import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
-import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import javax.annotation.Nonnull;
-import java.util.concurrent.Flow.Publisher;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
  * TODO lho docs
  *
  * @author Lukáš Hornych, 2023
  */
-public class OnSystemChangeDataFetcher extends ChangeCaptureDataFetcher<ChangeSystemCapture> {
+public interface ChangeCaptureDescriptor {
 
-	public OnSystemChangeDataFetcher(@Nonnull Evita evita) {
-		super(evita);
-	}
-
-	@Nonnull
-	@Override
-	protected Publisher<ChangeSystemCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
-		return evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.HEADER));
-	}
+	// todo jno: feel free to reimplement this... this is the way how we could track if the subscriber received all events
+	PropertyDescriptor INDEX = PropertyDescriptor.builder()
+		.name("index")
+		.description("""
+			An index of the event in the ordered CDC log.
+			""")
+		.type(nonNull(Long.class))
+		.build();
 }
