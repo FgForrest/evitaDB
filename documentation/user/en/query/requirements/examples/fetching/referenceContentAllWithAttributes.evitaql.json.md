@@ -9,17 +9,14 @@
       "references": {
         "brand": [
           {
-            "referencedKey": 66465,
-            "attributes": {
-              "orderInBrand": 0
-            }
+            "referencedKey": 66465
           }
         ],
         "categories": [
           {
             "referencedKey": 66472,
             "attributes": {
-              "orderInCategory": -2147483648
+              "orderInCategory": "Predecessor[predecessorId=-1]"
             }
           }
         ],
@@ -238,6 +235,12 @@
             "attributes": {
               "variant": false
             }
+          }
+        ],
+        "stockVisibilities": [
+          {
+            "group": 0,
+            "referencedKey": 119334
           }
         ],
         "stocks": [

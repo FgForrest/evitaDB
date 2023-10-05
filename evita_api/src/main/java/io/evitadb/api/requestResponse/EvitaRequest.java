@@ -258,7 +258,8 @@ public class EvitaRequest {
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
 		@Nonnull FilterBy filterBy,
-		@Nullable OrderBy orderBy
+		@Nullable OrderBy orderBy,
+		@Nullable Locale locale
 	) {
 
 		this.requiresEntity = true;
@@ -282,7 +283,7 @@ public class EvitaRequest {
 		this.priceLists = evitaRequest.getRequiresPriceLists();
 		this.additionalPriceLists = evitaRequest.getFetchesAdditionalPriceLists();
 		this.localeExamined = true;
-		this.locale = evitaRequest.getLocale();
+		this.locale = locale == null ? evitaRequest.getLocale() : locale;
 		this.requiredLocales = null;
 		this.requiredLocaleSet = null;
 		this.requiresParent = null;
@@ -878,11 +879,12 @@ public class EvitaRequest {
 	public EvitaRequest deriveCopyWith(
 		@Nonnull String entityType,
 		@Nullable FilterBy filterConstraint,
-		@Nullable OrderBy orderConstraint
+		@Nullable OrderBy orderConstraint,
+		@Nullable Locale locale
 	) {
 		return new EvitaRequest(
 			this,
-			entityType, filterConstraint, orderConstraint
+			entityType, filterConstraint, orderConstraint, locale
 		);
 	}
 

@@ -466,12 +466,22 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitReferenceHavingConstraint(@Nonnull EvitaQLParser.ReferenceHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceHaving(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				visitChildConstraint(ctx.args.filter, FilterConstraint.class)
-			)
+			() -> {
+				if (ctx.classifierWithFilterConstraintArgs() != null) {
+					return new ReferenceHaving(
+						ctx.classifierWithFilterConstraintArgs().classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+						visitChildConstraint(ctx.classifierWithFilterConstraintArgs().filter, FilterConstraint.class)
+					);
+				} else {
+					return new ReferenceHaving(
+						ctx.classifierArgs().classifier.accept(classifierTokenVisitor).asSingleClassifier()
+					);
+				}
+			}
 		);
 	}
+
+
 
 	@Override
 	public FilterConstraint visitHierarchyWithinConstraint(@Nonnull EvitaQLParser.HierarchyWithinConstraintContext ctx) {

@@ -4686,7 +4686,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							facetSummaryOfReference(
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
-								filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								filterGroupBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
 								orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
@@ -4708,7 +4711,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                        facetSummary {
 		                            parameter(
 		                                filterGroupBy: {
-		                                    attributeCodeLessThanEquals: "K"
+		                                    attributeCodeLessThanEquals: "K",
+		                                    entityLocaleEquals: en		                                   
 			                            },
 			                            orderGroupBy: {
 			                                attributeNameNatural: DESC
@@ -4762,7 +4766,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							facetSummaryOfReference(
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
-								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								filterBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
 								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
@@ -4792,7 +4799,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                            count
 			                            facetStatistics(
 			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K"
+		                                        attributeCodeLessThanEquals: "K",
+		                                        entityLocaleEquals: en
 				                            },
 				                            orderBy: {
 				                                attributeNameNatural: DESC
@@ -4848,7 +4856,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							facetSummaryOfReference(
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
-								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								filterBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
 								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
@@ -4888,7 +4899,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                            count
 			                            facetStatistics(
 			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K"
+		                                        attributeCodeLessThanEquals: "K",
+		                                        entityLocaleEquals: en		                                       
 				                            },
 				                            orderBy: {
 				                                attributeNameNatural: DESC

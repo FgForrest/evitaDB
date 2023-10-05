@@ -1340,6 +1340,198 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldCreateCatalogEvenIfOneCatalogIsCorrupted() {
+		evita.defineCatalog(TEST_CATALOG + "_1")
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG + "_1",
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+				);
+			}
+		);
+
+		evita.defineCatalog(TEST_CATALOG + "_2")
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG + "_2",
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+				);
+			}
+		);
+
+		evita.close();
+
+		// damage the TEST_CATALOG_1 contents
+		try {
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
+		} catch (Exception ex) {
+			fail(ex);
+		}
+
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		final PortManager portManager = getPortManager();
+		final String dataSetName = "evitaTest";
+		final int[] ports = portManager.allocatePorts(dataSetName, 3);
+		try {
+			try (ExternalApiServer externalApiServer = new ExternalApiServer(
+				evita,
+				ApiOptions.builder()
+					.certificate(
+						CertificateSettings.builder()
+							.folderPath(getEvitaTestDirectory() + "-certificates")
+							.build()
+					)
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.build()
+			)) {
+				externalApiServer.start();
+			}
+
+			final Set<String> catalogNames = evita.getCatalogNames();
+			assertEquals(3, catalogNames.size());
+
+			assertThrows(
+				CatalogCorruptedException.class,
+				() -> {
+					evita.updateCatalog(
+						TEST_CATALOG + "_1",
+						session -> {
+							session.getAllEntityTypes();
+						}
+					);
+				}
+			);
+
+			// but allow creating new catalog
+			evita.defineCatalog(TEST_CATALOG + "_3")
+				.updateViaNewSession(evita);
+
+			assertTrue(evita.getCatalogNames().contains(TEST_CATALOG + "_3"));
+
+		} finally {
+			portManager.releasePorts(dataSetName);
+		}
+	}
+
+	@Test
+	void shouldReplaceCorruptedCatalogWithCorrectOne() {
+		evita.defineCatalog(TEST_CATALOG + "_1")
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG + "_1",
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+				);
+			}
+		);
+
+		evita.defineCatalog(TEST_CATALOG + "_2")
+			.updateViaNewSession(evita);
+		evita.updateCatalog(
+			TEST_CATALOG + "_2",
+			session -> {
+				session
+					.defineEntitySchema(Entities.PRODUCT);
+
+				session.upsertEntity(
+					session.createNewEntity(Entities.PRODUCT, 1)
+				);
+			}
+		);
+
+		evita.close();
+
+		// damage the TEST_CATALOG_1 contents
+		try {
+			final Path productCollectionFile = getEvitaTestDirectory().resolve(TEST_CATALOG + "_1" + File.separator + Entities.PRODUCT.toLowerCase() + CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX);
+			Files.write(productCollectionFile, "Mangled content!".getBytes(StandardCharsets.UTF_8));
+		} catch (Exception ex) {
+			fail(ex);
+		}
+
+		evita = new Evita(
+			getEvitaConfiguration()
+		);
+
+		final PortManager portManager = getPortManager();
+		final String dataSetName = "evitaTest";
+		final int[] ports = portManager.allocatePorts(dataSetName, 3);
+		try {
+			try (ExternalApiServer externalApiServer = new ExternalApiServer(
+				evita,
+				ApiOptions.builder()
+					.certificate(
+						CertificateSettings.builder()
+							.folderPath(getEvitaTestDirectory() + "-certificates")
+							.build()
+					)
+					.enable(GraphQLProvider.CODE, new GraphQLConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[0]))
+					.enable(GrpcProvider.CODE, new GrpcConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[1]))
+					.enable(RestProvider.CODE, new RestConfig(AbstractApiConfiguration.LOCALHOST + ":" + ports[2]))
+					.build()
+			)) {
+				externalApiServer.start();
+			}
+
+			final Set<String> catalogNames = evita.getCatalogNames();
+			assertEquals(3, catalogNames.size());
+
+			assertThrows(
+				CatalogCorruptedException.class,
+				() -> {
+					evita.updateCatalog(
+						TEST_CATALOG + "_1",
+						session -> {
+							session.getAllEntityTypes();
+						}
+					);
+				}
+			);
+
+			// but allow creating new catalog
+			evita.defineCatalog(TEST_CATALOG + "_3")
+				.updateViaNewSession(evita);
+
+			assertTrue(evita.getCatalogNames().contains(TEST_CATALOG + "_3"));
+			evita.replaceCatalog(TEST_CATALOG + "_3", TEST_CATALOG + "_1");
+
+			final Set<String> catalogNamesAgain = evita.getCatalogNames();
+			assertEquals(3, catalogNamesAgain.size());
+
+			// exception should not be thrown again
+			evita.updateCatalog(
+				TEST_CATALOG + "_1",
+				session -> {
+					session.getAllEntityTypes();
+				}
+			);
+
+		} finally {
+			portManager.releasePorts(dataSetName);
+		}
+	}
+
+	@Test
 	void shouldProperlyHandleFetchingOfNotYetKnownEntities() {
 		evita.updateCatalog(
 			TEST_CATALOG,

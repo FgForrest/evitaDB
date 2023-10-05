@@ -27,6 +27,7 @@ import io.evitadb.api.query.Constraint;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.ClassUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,21 +41,55 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}.
- *
- * @param suffix name suffix associated with this creator
- * @param instantiator executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}
- * @param suffix suffix of creator, defining {@link ConstraintDescriptor#fullName()}
- * @param parameters descriptors of original parameters of {@link #instantiator()} in same order to be able to reconstruct
- *                   the original constraint
- * @param implicitClassifier fixed implicit classifier, alternative to dynamic classifier parameter
- *
+ * Contains metadata for reconstructing original constraint described by {@link ConstraintDescriptor}. Because
+ * lots of data need to be computed, they are cached once they are computed.
+
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public record ConstraintCreator(@Nonnull Executable instantiator,
-								@Nullable String suffix,
-                                @Nonnull List<ParameterDescriptor> parameters,
-                                @Nullable ImplicitClassifier implicitClassifier) {
+public class ConstraintCreator {
+
+	/**
+	 * Name of creator parameter representing left side of a range.
+	 */
+	public static final String RANGE_FROM_VALUE_PARAMETER = "from";
+	/**
+	 * Name of creator parameter representing right side of a range.
+	 */
+	public static final String RANGE_TO_VALUE_PARAMETER = "to";
+	/**
+	 * Number of creator parameter to qualify it as a range.
+	 */
+	public static final int RANGE_PARAMETERS_COUNT = 2;
+
+	// base data
+	/**
+	 * Executable element (constructor or factory method) to instantiate original constraint from {@link #parameters()}.
+	 */
+	@Nonnull private final Executable instantiator;
+	/**
+	 * Suffix of creator, defining {@link ConstraintDescriptor#fullName()}.
+	 */
+	@Nullable private final String suffix;
+	/**
+	 * Descriptors of original parameters of instantiator in same order to be able to reconstruct
+	 * the original constraint.
+	 */
+	@Nonnull private final List<ParameterDescriptor> parameters;
+	/**
+	 * fixed implicit classifier, alternative to dynamic classifier parameter
+	 */
+	@Nullable private final ImplicitClassifier implicitClassifier;
+
+	// computed data
+	@Nullable private Boolean hasClassifierParameter;
+	@Nullable private ClassifierParameterDescriptor classifierParameter;
+	@Nullable private Boolean hasValueParameters;
+	@Nullable private List<ValueParameterDescriptor> valueParameters;
+	@Nullable private Boolean hasChildParameters;
+	@Nullable private List<ChildParameterDescriptor> childParameters;
+	@Nullable private Boolean hasAdditionalChildParameters;
+	@Nullable private List<AdditionalChildParameterDescriptor> additionalChildParameters;
+	@Nullable private ConstraintValueStructure valueStructure;
 
 	public ConstraintCreator(@Nonnull Executable instantiator,
 	                         @Nonnull List<ParameterDescriptor> parameters) {
@@ -103,10 +138,10 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 	 */
 	public Constraint<?> instantiateConstraint(@Nonnull Object[] args, @Nonnull String parsedName) {
 		try {
-			instantiator().trySetAccessible();
-			if (instantiator() instanceof Constructor<?> constructor) {
+			instantiator.trySetAccessible();
+			if (instantiator instanceof Constructor<?> constructor) {
 				return (Constraint<?>) constructor.newInstance(args);
-			} else if (instantiator() instanceof Method method) {
+			} else if (instantiator instanceof Method method) {
 				return (Constraint<?>) method.invoke(null, args);
 			} else {
 				throw new EvitaInternalError("Unsupported creator.");
@@ -117,25 +152,47 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 				throw invalidUsageException;
 			}
 			throw new EvitaInternalError(
-				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + instantiator().getDeclaringClass().getName() + "`: " + e.getMessage(),
+				"Could not instantiate constraint `" + parsedName + "` to original constraint `" + instantiator.getDeclaringClass().getName() + "`: " + e.getMessage(),
 				"Could not recreate constraint `" + parsedName + "`.",
 				e
 			);
 		}
 	}
 
+
+	/**
+	 * Returns optional suffix of this creator.
+	 */
+	@Nonnull
+	public Optional<String> suffix() {
+		return Optional.ofNullable(suffix);
+	}
+
 	/**
 	 * Whether constraint has implicit classifier instead of classifier parameter.
 	 */
 	public boolean hasImplicitClassifier() {
-		return implicitClassifier() != null;
+		return implicitClassifier != null;
+	}
+
+	@Nonnull
+	public Optional<ImplicitClassifier> implicitClassifier() {
+		return Optional.ofNullable(implicitClassifier);
 	}
 
 	/**
 	 * Whether there is classifier parameter in {@link #parameters()}.
 	 */
 	public boolean hasClassifierParameter() {
-		return parameters().stream().anyMatch(ClassifierParameterDescriptor.class::isInstance);
+		if (hasClassifierParameter == null) {
+			classifierParameter = parameters().stream()
+				.filter(ClassifierParameterDescriptor.class::isInstance)
+				.map(ClassifierParameterDescriptor.class::cast)
+				.findFirst()
+				.orElse(null);
+			hasClassifierParameter = classifierParameter != null;
+		}
+		return hasClassifierParameter;
 	}
 
 	/**
@@ -145,15 +202,20 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 		return hasClassifierParameter() || hasImplicitClassifier();
 	}
 
+	@Nonnull
+	public List<ParameterDescriptor> parameters() {
+		return parameters;
+	}
+
 	/**
 	 * Finds classifier parameter in {@link #parameters()}.
 	 */
 	@Nonnull
 	public Optional<ClassifierParameterDescriptor> classifierParameter() {
-		return parameters().stream()
-			.filter(ClassifierParameterDescriptor.class::isInstance)
-			.map(ClassifierParameterDescriptor.class::cast)
-			.findFirst();
+		if (hasClassifierParameter == null) {
+			hasClassifierParameter();
+		}
+		return Optional.ofNullable(classifierParameter);
 	}
 
 	/**
@@ -161,10 +223,14 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 	 */
 	@Nonnull
 	public List<ValueParameterDescriptor> valueParameters() {
-		return parameters().stream()
-			.filter(ValueParameterDescriptor.class::isInstance)
-			.map(ValueParameterDescriptor.class::cast)
-			.toList();
+		if (hasValueParameters == null) {
+			valueParameters = parameters().stream()
+				.filter(ValueParameterDescriptor.class::isInstance)
+				.map(ValueParameterDescriptor.class::cast)
+				.toList();
+			hasValueParameters = !valueParameters.isEmpty();
+		}
+		return valueParameters;
 	}
 
 	/**
@@ -172,10 +238,14 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 	 */
 	@Nonnull
 	public List<ChildParameterDescriptor> childParameters() {
-		return parameters().stream()
-			.filter(ChildParameterDescriptor.class::isInstance)
-			.map(ChildParameterDescriptor.class::cast)
-			.toList();
+		if (hasChildParameters == null) {
+			childParameters = parameters().stream()
+				.filter(ChildParameterDescriptor.class::isInstance)
+				.map(ChildParameterDescriptor.class::cast)
+				.toList();
+			hasChildParameters = !childParameters.isEmpty();
+		}
+		return childParameters;
 	}
 
 	/**
@@ -183,10 +253,50 @@ public record ConstraintCreator(@Nonnull Executable instantiator,
 	 */
 	@Nonnull
 	public List<AdditionalChildParameterDescriptor> additionalChildParameters() {
-		return parameters().stream()
-			.filter(AdditionalChildParameterDescriptor.class::isInstance)
-			.map(AdditionalChildParameterDescriptor.class::cast)
-			.toList();
+		if (hasAdditionalChildParameters == null) {
+			additionalChildParameters = parameters().stream()
+				.filter(AdditionalChildParameterDescriptor.class::isInstance)
+				.map(AdditionalChildParameterDescriptor.class::cast)
+				.toList();
+			hasAdditionalChildParameters = !additionalChildParameters.isEmpty();
+		}
+		return additionalChildParameters;
+	}
+
+	/**
+	 * Summarizes creator parameters into a single structure type.
+	 */
+	@Nonnull
+	public ConstraintValueStructure valueStructure() {
+		if (valueStructure == null) {
+			final List<ValueParameterDescriptor> valueParameters = valueParameters();
+			final List<ChildParameterDescriptor> childParameters = childParameters();
+			final List<AdditionalChildParameterDescriptor> additionalChildParameters = additionalChildParameters();
+
+			if (valueParameters.isEmpty() && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
+				valueStructure = ConstraintValueStructure.NONE;
+			} else if (valueParameters.size() == 1 && childParameters.isEmpty() && additionalChildParameters.isEmpty()) {
+				valueStructure = ConstraintValueStructure.PRIMITIVE;
+			} else if (
+				valueParameters.size() == RANGE_PARAMETERS_COUNT &&
+					childParameters.isEmpty() &&
+					additionalChildParameters.isEmpty() &&
+					valueParameters.stream().filter(p -> p.name().equals(RANGE_FROM_VALUE_PARAMETER) || p.name().equals(RANGE_TO_VALUE_PARAMETER)).count() == RANGE_PARAMETERS_COUNT &&
+					valueParameters.get(0).type().equals(valueParameters.get(1).type())
+			) {
+				valueStructure = ConstraintValueStructure.RANGE;
+			} else if (
+				valueParameters.isEmpty() &&
+					childParameters.size() == 1 &&
+					ClassUtils.isAbstract(childParameters.get(0).type()) &&
+					additionalChildParameters.isEmpty()
+			) {
+				valueStructure = ConstraintValueStructure.CONTAINER;
+			} else {
+				valueStructure = ConstraintValueStructure.COMPLEX;
+			}
+		}
+		return valueStructure;
 	}
 
 	/**

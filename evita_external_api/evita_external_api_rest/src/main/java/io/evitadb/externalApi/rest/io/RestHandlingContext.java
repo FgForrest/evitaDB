@@ -39,16 +39,31 @@ import java.util.Map;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-@AllArgsConstructor
 public class RestHandlingContext {
 
 	@Nonnull @Getter protected final ObjectMapper objectMapper;
 
 	@Nonnull @Getter protected final Evita evita;
+	@Nonnull @Getter protected final RestClientContext clientContext;
 
 	@Nonnull @Getter private final OpenAPI openApi;
 	@Nonnull @Getter private final Map<String, Class<? extends Enum<?>>> enumMapping;
 	@Nonnull @Getter private final Operation endpointOperation;
 
 	@Getter private final boolean localized;
+
+	public RestHandlingContext(@Nonnull ObjectMapper objectMapper,
+	                           @Nonnull Evita evita,
+	                           @Nonnull OpenAPI openApi,
+	                           @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping,
+	                           @Nonnull Operation endpointOperation,
+	                           boolean localized) {
+		this.objectMapper = objectMapper;
+		this.evita = evita;
+		this.clientContext = new RestClientContext(evita);
+		this.openApi = openApi;
+		this.enumMapping = enumMapping;
+		this.endpointOperation = endpointOperation;
+		this.localized = localized;
+	}
 }

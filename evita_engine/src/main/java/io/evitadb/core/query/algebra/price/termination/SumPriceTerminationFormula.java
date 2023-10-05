@@ -30,6 +30,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.core.cache.payload.FlattenedFormula;
 import io.evitadb.core.cache.payload.FlattenedFormulaWithFilteredPricesAndFilteredOutRecords;
+import io.evitadb.core.query.SharedBufferPool;
 import io.evitadb.core.query.algebra.AbstractCacheableFormula;
 import io.evitadb.core.query.algebra.CacheableFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -235,10 +236,9 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 	protected Bitmap computeInternal() {
 		// retrieve filtered entity ids from the delegate formula
 		final RoaringBitmap computedRoaringBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(getDelegate().compute());
-		final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(computedRoaringBitmap.getBatchIterator());
 
 		// if there are any entities found
-		if (entityIdIterator.hasNext()) {
+		if (!computedRoaringBitmap.isEmpty()) {
 			// collect all FilteredPriceRecordAccessor that were involved in computing delegate result
 			final Collection<FilteredPriceRecordAccessor> filteredPriceRecordAccessors = FormulaFinder.find(
 				getDelegate(), FilteredPriceRecordAccessor.class, LookUp.SHALLOW
@@ -257,53 +257,62 @@ public class SumPriceTerminationFormula extends AbstractCacheableFormula impleme
 			final RoaringBitmapWriter<RoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
 			// create new roaring bitmap builder for records excluded by predicate
 			final RoaringBitmapWriter<RoaringBitmap> predicateExcludedWriter = RoaringBitmapBackedBitmap.buildWriter();
-			// go through all entity primary keys
-			while (entityIdIterator.hasNext()) {
-				final int[] batch = entityIdIterator.nextBatch();
-				final int lastExpectedEntity = entityIdIterator.getPeek() > 0 ? batch[entityIdIterator.getPeek() - 1] : -1;
-				for (int i = 0; i < entityIdIterator.getPeek(); i++) {
-					final int entityId = batch[i];
-					// clear working inner record identity map
-					entityInnerRecordPrice.clear();
 
-					// now iterate over price sets in price list priority
-					for (final PriceRecordLookup priceRecords : priceRecordIterators) {
-						priceRecords.forEachPriceOfEntity(
-							entityId,
-							lastExpectedEntity,
-							foundPrice -> {
-								// record price found for this inner entity id - but only if not already present
-								// if it's present it means the price was already found in more prioritized price list
-								final int innerRecordId = foundPrice.innerRecordId();
-								final PriceRecordContract innerRecordPrice = entityInnerRecordPrice.get(innerRecordId);
-								if (innerRecordPrice == null) {
-									entityInnerRecordPrice.put(innerRecordId, foundPrice);
+			final int[] buffer = SharedBufferPool.INSTANCE.obtain();
+			try {
+				final BatchArrayIterator entityIdIterator = new RoaringBitmapBatchArrayIterator(
+					computedRoaringBitmap.getBatchIterator(), buffer
+				);
+				// go through all entity primary keys
+				while (entityIdIterator.hasNext()) {
+					final int[] batch = entityIdIterator.nextBatch();
+					final int lastExpectedEntity = entityIdIterator.getPeek() > 0 ? batch[entityIdIterator.getPeek() - 1] : -1;
+					for (int i = 0; i < entityIdIterator.getPeek(); i++) {
+						final int entityId = batch[i];
+						// clear working inner record identity map
+						entityInnerRecordPrice.clear();
+
+						// now iterate over price sets in price list priority
+						for (final PriceRecordLookup priceRecords : priceRecordIterators) {
+							priceRecords.forEachPriceOfEntity(
+								entityId,
+								lastExpectedEntity,
+								foundPrice -> {
+									// record price found for this inner entity id - but only if not already present
+									// if it's present it means the price was already found in more prioritized price list
+									final int innerRecordId = foundPrice.innerRecordId();
+									final PriceRecordContract innerRecordPrice = entityInnerRecordPrice.get(innerRecordId);
+									if (innerRecordPrice == null) {
+										entityInnerRecordPrice.put(innerRecordId, foundPrice);
+									}
 								}
-							}
+							);
+						}
+
+						Assert.isPremiseValid(
+							!entityInnerRecordPrice.isEmpty(),
+							"Price for entity with PK " + entityId + " unexpectedly not found!"
 						);
-					}
 
-					Assert.isPremiseValid(
-						!entityInnerRecordPrice.isEmpty(),
-						"Price for entity with PK " + entityId + " unexpectedly not found!"
-					);
+						int cumulatedPrice = 0;
+						final ObjectContainer<PriceRecordContract> values = entityInnerRecordPrice.values();
+						for (ObjectCursor<PriceRecordContract> value : values) {
+							cumulatedPrice += this.transformer.applyAsInt(value.value);
+						}
 
-					int cumulatedPrice = 0;
-					final ObjectContainer<PriceRecordContract> values = entityInnerRecordPrice.values();
-					for (ObjectCursor<PriceRecordContract> value : values) {
-						cumulatedPrice += this.transformer.applyAsInt(value.value);
-					}
-
-					final PriceRecordContract virtualPriceRecord = new CumulatedVirtualPriceRecord(entityId, cumulatedPrice, queryPriceMode);
-					if (priceFilter.test(virtualPriceRecord)) {
-						// if so - entity id continues to output of this formula
-						writer.add(entityId);
-						// from now on - work with the lowest entity price grouped by inner record
-						priceRecordsFunnel.add(virtualPriceRecord);
-					} else {
-						predicateExcludedWriter.add(entityId);
+						final PriceRecordContract virtualPriceRecord = new CumulatedVirtualPriceRecord(entityId, cumulatedPrice, queryPriceMode);
+						if (priceFilter.test(virtualPriceRecord)) {
+							// if so - entity id continues to output of this formula
+							writer.add(entityId);
+							// from now on - work with the lowest entity price grouped by inner record
+							priceRecordsFunnel.add(virtualPriceRecord);
+						} else {
+							predicateExcludedWriter.add(entityId);
+						}
 					}
 				}
+			} finally {
+				SharedBufferPool.INSTANCE.free(buffer);
 			}
 
 			// now produce filtered virtual (accumulated) price records

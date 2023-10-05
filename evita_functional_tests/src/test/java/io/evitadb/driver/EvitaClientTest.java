@@ -56,10 +56,12 @@ import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.configuration.ApiOptions;
@@ -120,6 +122,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 @ExtendWith(EvitaParameterResolver.class)
 class EvitaClientTest implements TestConstants, EvitaTestSupport {
+	public static final String ATTRIBUTE_ORDER = "order";
+	public static final String ATTRIBUTE_UUID = "uuid";
 	private final static int SEED = 42;
 	private static final String EVITA_CLIENT_DATA_SET = "EvitaClientDataSet";
 
@@ -158,6 +162,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
 		try (final EvitaClient setupClient = new EvitaClient(evitaClientConfiguration)) {
 			final DataGenerator dataGenerator = new DataGenerator();
+
 			setupClient.defineCatalog(TEST_CATALOG);
 			// create bunch or entities for referencing in products
 			setupClient.updateCatalog(
@@ -169,7 +174,14 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 						.updateVia(session);
 
 					dataGenerator.generateEntities(
-							dataGenerator.getSampleBrandSchema(session),
+							dataGenerator.getSampleBrandSchema(
+								session,
+								builder -> {
+									builder.withAttribute(ATTRIBUTE_UUID, UUID.class);
+									session.updateEntitySchema(builder);
+									return builder.toInstance();
+								}
+							),
 							randomEntityPicker,
 							SEED
 						)
@@ -177,15 +189,35 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 						.forEach(it -> createEntity(session, generatedEntities, it));
 
 					dataGenerator.generateEntities(
-							dataGenerator.getSampleCategorySchema(session),
+							dataGenerator.getSampleCategorySchema(
+								session,
+								builder -> {
+									session.updateEntitySchema(builder);
+									return builder.toInstance();
+								}
+							),
 							randomEntityPicker,
 							SEED
 						)
 						.limit(10)
 						.forEach(it -> createEntity(session, generatedEntities, it));
 
+					dataGenerator.registerValueGenerator(
+						Entities.PRICE_LIST, ATTRIBUTE_ORDER,
+						faker -> Predecessor.HEAD
+					);
+
 					dataGenerator.generateEntities(
-							dataGenerator.getSamplePriceListSchema(session),
+							dataGenerator.getSamplePriceListSchema(
+								session,
+								builder -> {
+									builder.withAttribute(
+										ATTRIBUTE_ORDER, Predecessor.class, AttributeSchemaEditor::sortable
+									);
+									session.updateEntitySchema(builder);
+									return builder.toInstance();
+								}
+							),
 							randomEntityPicker,
 							SEED
 						)
@@ -193,7 +225,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 						.forEach(it -> createEntity(session, generatedEntities, it));
 
 					dataGenerator.generateEntities(
-							dataGenerator.getSampleStoreSchema(session),
+							dataGenerator.getSampleStoreSchema(
+								session,
+								builder -> {
+									session.updateEntitySchema(builder);
+									return builder.toInstance();
+								}
+							),
 							randomEntityPicker,
 							SEED
 						)
@@ -201,7 +239,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 						.forEach(it -> createEntity(session, generatedEntities, it));
 
 					dataGenerator.generateEntities(
-							dataGenerator.getSampleParameterGroupSchema(session),
+							dataGenerator.getSampleParameterGroupSchema(
+								session,
+								builder -> {
+									session.updateEntitySchema(builder);
+									return builder.toInstance();
+								}
+							),
 							randomEntityPicker,
 							SEED
 						)
@@ -209,7 +253,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 						.forEach(it -> createEntity(session, generatedEntities, it));
 
 					dataGenerator.generateEntities(
-							dataGenerator.getSampleParameterSchema(session),
+							dataGenerator.getSampleParameterSchema(
+								session,
+								builder -> {
+									session.updateEntitySchema(builder);
+									return builder.toInstance();
+								}
+							),
 							randomEntityPicker,
 							SEED
 						)
@@ -218,8 +268,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 
 					final EntitySchemaContract productSchema = dataGenerator.getSampleProductSchema(
 						session,
-						entitySchemaBuilder -> {
-							entitySchemaBuilder
+						builder -> {
+							builder
 								.withGlobalAttribute(ATTRIBUTE_CODE)
 								.withReferenceToEntity(
 									Entities.PARAMETER,
@@ -227,6 +277,8 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 									Cardinality.ZERO_OR_MORE,
 									thatIs -> thatIs.faceted().withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 								);
+							session.updateEntitySchema(builder);
+							return builder.toInstance();
 						}
 					);
 

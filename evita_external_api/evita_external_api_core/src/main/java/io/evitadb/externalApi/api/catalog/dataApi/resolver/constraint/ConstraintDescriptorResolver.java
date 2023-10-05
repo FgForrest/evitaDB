@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.constraint;
 
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
+import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
 import io.evitadb.api.query.descriptor.ConstraintPropertyType;
@@ -49,7 +50,6 @@ import java.util.Map.Entry;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.CLASSIFIER_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 
 /**
  * Used to parse input constraint key in {@link ConstraintResolver} to find corresponding {@link ConstraintDescriptor} for it.
@@ -155,7 +155,7 @@ class ConstraintDescriptorResolver {
 			return Optional.empty();
 		}
 		return Optional.of(
-			StringUtils.toSpecificCase(String.join("", classifierWords), CLASSIFIER_NAMING_CONVENTION)
+			StringUtils.uncapitalize(String.join("", classifierWords))
 		);
 	}
 
@@ -165,7 +165,7 @@ class ConstraintDescriptorResolver {
 			!fullNameWords.isEmpty(),
 			() -> new ExternalApiInternalError("Full name cannot be empty.")
 		);
-		return StringUtils.toSpecificCase(String.join("", fullNameWords), PROPERTY_NAME_NAMING_CONVENTION);
+		return StringUtils.uncapitalize(String.join("", fullNameWords));
 	}
 
 	/**
@@ -177,9 +177,10 @@ class ConstraintDescriptorResolver {
 	                                                 @Nonnull ConstraintDescriptor constraintDescriptor,
 	                                                 @Nonnull Optional<String> rawClassifier) {
 		return rawClassifier.map(c -> {
-			if (constraintDescriptor.creator().hasImplicitClassifier()) {
+			final Optional<ImplicitClassifier> implicitClassifier = constraintDescriptor.creator().implicitClassifier();
+			if (implicitClassifier.isPresent()) {
 				// there is possible only fixed classifier because silent has no value
-				return ((FixedImplicitClassifier) constraintDescriptor.creator().implicitClassifier()).classifier();
+				return ((FixedImplicitClassifier) implicitClassifier.get()).classifier();
 			}
 
 			final DataLocator parentDataLocator = resolveContext.dataLocator();

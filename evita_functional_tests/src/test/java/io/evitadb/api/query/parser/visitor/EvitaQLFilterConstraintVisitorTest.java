@@ -1048,6 +1048,14 @@ class EvitaQLFilterConstraintVisitorTest {
                 ),
                 constraint3
         );
+
+        final FilterConstraint constraint4 = parseFilterConstraintUnsafe("referenceHaving ( 'a' )");
+        assertEquals(
+            referenceHaving(
+                "a"
+            ),
+            constraint4
+        );
     }
 
     @Test

@@ -29,20 +29,22 @@ import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.AttributeNatural;
+import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator;
+import io.evitadb.core.query.sort.attribute.translator.EntityGroupPropertyTranslator;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.attribute.translator.EntityPropertyTranslator;
+import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
 
@@ -67,8 +69,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	/* initialize list of all OrderConstraints handlers once for a lifetime */
 	static {
 		TRANSLATORS = CollectionUtils.createHashMap(8);
+		TRANSLATORS.put(OrderBy.class, new OrderByTranslator());
 		TRANSLATORS.put(AttributeNatural.class, new AttributeNaturalTranslator());
 		TRANSLATORS.put(EntityProperty.class, new EntityPropertyTranslator());
+		TRANSLATORS.put(EntityGroupProperty.class, new EntityGroupPropertyTranslator());
 	}
 
 	/**
@@ -79,7 +83,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	 * Pre-initialized comparator initialized during entity filtering (if it's performed) allowing to order references
 	 * by sorter defined on referenced entity (requiring nested query).
 	 */
-	@Getter private EntityNestedQueryComparator nestedQueryComparator;
+	private EntityNestedQueryComparator nestedQueryComparator;
 	/**
 	 * Contains the created comparator from the ordering query source tree.
 	 */
@@ -112,23 +116,28 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 	}
 
 	/**
-	 * Sets the nested query comparator when {@link EntityProperty} constraint is encountered.
+	 * Method returns a nested query comparator for sorting along properties of referenced entity or group.
+	 * @return nested query comparator or null if no nested query comparator was created
 	 */
-	public void setNestedQueryComparator(@Nonnull EntityNestedQueryComparator entityNestedQueryComparator) {
-		Assert.isTrue(
-			this.nestedQueryComparator == null,
-			"The constraint `entityProperty` could be used only once within `referenceProperty` parent container!"
-		);
-		this.nestedQueryComparator = entityNestedQueryComparator;
+	@Nonnull
+	public EntityNestedQueryComparator getOrCreateNestedQueryComparator() {
+		if (this.nestedQueryComparator == null) {
+			this.nestedQueryComparator = new EntityNestedQueryComparator();
+			this.addComparator(this.nestedQueryComparator);
+		}
+		return this.nestedQueryComparator;
 	}
 
 	/**
-	 * Returns last computed comparator. Method is targeted for internal usage by translators and is not expected to be
-	 * called from anywhere else.
+	 * Method appends a comparator for comparing the attributes.
+	 * @param comparator comparator to be appended
 	 */
-	@Nullable
-	public ReferenceComparator getLastUsedComparator() {
-		return comparator;
+	public void addComparator(@Nonnull ReferenceComparator comparator) {
+		if (this.comparator == null) {
+			this.comparator = comparator;
+		} else {
+			this.comparator = this.comparator.andThen(comparator);
+		}
 	}
 
 	@Override
@@ -152,10 +161,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor {
 				}
 			}
 			// process the container query itself
-			comparator = translator.createComparator(orderConstraint, this);
+			translator.createComparator(orderConstraint, this);
 		} else if (orderConstraint instanceof ConstraintLeaf) {
 			// process the leaf query
-			comparator = translator.createComparator(orderConstraint, this);
+			translator.createComparator(orderConstraint, this);
 		} else {
 			// sanity check only
 			throw new EvitaInternalError("Should never happen");

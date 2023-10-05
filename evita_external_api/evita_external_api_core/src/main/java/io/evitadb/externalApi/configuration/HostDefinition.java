@@ -23,9 +23,10 @@
 
 package io.evitadb.externalApi.configuration;
 
+import io.evitadb.utils.NetworkUtils;
+
 import javax.annotation.Nonnull;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 
 /**
  * Defines a host and port combination.
@@ -45,11 +46,7 @@ public record HostDefinition(
 	 */
 	@Nonnull
 	public String hostName() {
-		try {
-			return host.isAnyLocalAddress() ? InetAddress.getLocalHost().getHostName() : host.getCanonicalHostName();
-		} catch (UnknownHostException ignored) {
-			return host.getCanonicalHostName();
-		}
+		return NetworkUtils.getHostName(host);
 	}
 
 }

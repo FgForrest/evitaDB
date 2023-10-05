@@ -290,35 +290,38 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * This `referenceAttribute` container is filtering query that filters returned entities by their reference
-	 * attributes that must match the inner condition.
+	 * The `referenceHaving` constraint eliminates entities which has no reference of particular name satisfying set of
+	 * filtering constraints. You can examine either the attributes specified on the relation itself or wrap the filtering
+	 * constraint in {@link EntityHaving} constraint to examine the attributes of the referenced entity.
+	 * The constraint is similar to SQL <a href="https://www.w3schools.com/sql/sql_exists.asp">`EXISTS`</a> operator.
 	 * 
-	 * Example:
-	 * 
-	 * ```
-	 * referenceHavingAttribute(
-	 * 'CATEGORY',
-	 * eq('code', 'KITCHENWARE')
-	 * )
-	 * ```
-	 * 
-	 * or
+	 * Example (select entities having reference brand with category attribute equal to alternativeProduct):
 	 * 
 	 * ```
 	 * referenceHavingAttribute(
-	 * 'CATEGORY',
-	 * and(
-	 * isTrue('visible'),
-	 * eq('code', 'KITCHENWARE')
-	 * )
+	 *     'brand',
+	 *     attributeEquals('category', 'alternativeProduct')
 	 * )
 	 * ```
 	 * 
-	 * TOBEDONE JNO - consider renaming to `referenceMatching`
+	 * Example (select entities having any reference brand):
+	 * 
+	 * ```
+	 * referenceHavingAttribute('brand')
+	 * ```
+	 * 
+	 * Example (select entities having any reference brand of primary key 1):
+	 * 
+	 * ```
+	 * referenceHavingAttribute(
+	 *     'brand',
+	 *     entityPrimaryKeyInSet(1)
+	 * )
+	 * ```
 	*/
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
-		return ArrayUtils.isEmpty(constraint) ? null : new ReferenceHaving(referenceName, constraint);
+		return referenceName == null ? null : new ReferenceHaving(referenceName, constraint);
 	}
 
 	/**
@@ -476,7 +479,7 @@ public interface QueryConstraints {
 	 * Example:
 	 * 
 	 * <pre>
-	 * contains('code', 'eve')
+	 * contains('code', 'evitaDB')
 	 * </pre>
 	 * 
 	 * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute
@@ -2081,8 +2084,8 @@ public interface QueryConstraints {
 	 * 
 	 * In the `orderBy` clause within the {@link io.evitadb.api.query.require.ReferenceContent} requirement,
 	 * the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints
-	 * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty}
-	 * container is used there.
+	 * in `referenceContent` automatically refer to the reference attributes, unless the {@link EntityProperty} or
+	 * {@link EntityGroupProperty} container is used there.
 	 * 
 	 * The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a brand
 	 * entity). The response will only return the products that have a reference to the "Sony" brand, all of which contain the
@@ -2162,6 +2165,83 @@ public interface QueryConstraints {
 			return null;
 		}
 		return new EntityProperty(constraints);
+	}
+
+	/**
+	 * The `entityGroupProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement. It
+	 * allows to change the context of the reference ordering from attributes of the reference itself to attributes of
+	 * the entity group the reference is aggregated within.
+	 * 
+	 * In other words, if the `Product` entity has multiple references to `Parameter` entities (blue/red/yellow) grouped
+	 * within `ParameterType` (color) entity, you can sort those references by, for example, the `priority` or `name`
+	 * attribute of the `ParameterType` entity.
+	 * 
+	 * Example:
+	 * 
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         attributeEquals('code', 'garmin-vivoactive-4')
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code'),
+	 *             referenceContent(
+	 *                 'parameterValues',
+	 *                 orderBy(
+	 *                     entityGroupProperty(
+	 *                         attributeNatural('code', DESC)
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(
+	 *                     attributeContent('code')
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	 * 
+	 * Most of the time, you will want to group primarily by a group property and secondarily by a referenced entity
+	 * property, which can be achieved in the following way:
+	 * 
+	 * Example:
+	 * 
+	 * <pre>
+	 * query(
+	 *     collection('Product'),
+	 *     filterBy(
+	 *         attributeEquals('code', 'garmin-vivoactive-4')
+	 *     ),
+	 *     require(
+	 *         entityFetch(
+	 *             attributeContent('code'),
+	 *             referenceContent(
+	 *                 'parameterValues',
+	 *                 orderBy(
+	 *                     entityGroupProperty(
+	 *                         attributeNatural('code', DESC)
+	 *                     ),
+	 *                     entityProperty(
+	 *                         attributeNatural('code', DESC)
+	 *                     )
+	 *                 ),
+	 *                 entityFetch(
+	 *                     attributeContent('code')
+	 *                 )
+	 *             )
+	 *         )
+	 *     )
+	 * )
+	 * </pre>
+	*/
+	@Nullable
+	static EntityGroupProperty entityGroupProperty(@Nullable OrderConstraint... constraints) {
+		if (constraints == null) {
+			return null;
+		}
+		return new EntityGroupProperty(constraints);
 	}
 
 	/**

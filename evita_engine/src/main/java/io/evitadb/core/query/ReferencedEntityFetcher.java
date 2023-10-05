@@ -34,13 +34,14 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityGroupProperty;
+import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -72,12 +73,15 @@ import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.translator.EntityNestedQueryComparator;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.bitmap.collection.IntegerIntoBitmapCollector;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -90,17 +94,18 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -218,24 +223,25 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityCollection referencedCollection,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever
 	) {
-		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
-		final QueryContext nestedQueryContext = referencedCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
-		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
-			fetchRequest.getHierarchyContent(),
-			referenceEntityFetch,
-			fetchRequest.getDefaultReferenceRequirement(),
-			nestedQueryContext
-		);
-
 		final Map<Integer, SealedEntity> entityIndex;
-		try {
-			queryContext.pushStep(QueryPhase.FETCHING_REFERENCES, "Reference name: `" + referenceName + "`");
-
-			entityIndex = fetchEntitiesByIdsIntoIndex(
-				referencedRecordIds, fetchRequest, nestedQueryContext, referencedCollection, subReferenceFetcher, existingEntityRetriever
+		try (final QueryContext nestedQueryContext = referencedCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession())) {
+			final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
+			final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
+				fetchRequest.getHierarchyContent(),
+				referenceEntityFetch,
+				fetchRequest.getDefaultReferenceRequirement(),
+				nestedQueryContext
 			);
-		} finally {
-			nestedQueryContext.popStep();
+
+			try {
+				queryContext.pushStep(QueryPhase.FETCHING_REFERENCES, "Reference name: `" + referenceName + "`");
+
+				entityIndex = fetchEntitiesByIdsIntoIndex(
+					referencedRecordIds, fetchRequest, nestedQueryContext, referencedCollection, subReferenceFetcher, existingEntityRetriever
+				);
+			} finally {
+				nestedQueryContext.popStep();
+			}
 		}
 		return entityIndex;
 	}
@@ -258,23 +264,24 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull EntityCollection hierarchyCollection,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever
 	) {
-		final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
-		final QueryContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession());
-		final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
-			null,
-			referenceEntityFetch,
-			fetchRequest.getDefaultReferenceRequirement(),
-			nestedQueryContext
-		);
-
 		final Map<Integer, SealedEntity> entityIndex;
-		try {
-			queryContext.pushStep(QueryPhase.FETCHING_PARENTS);
-			entityIndex = fetchEntitiesByIdsIntoIndex(
-				parentIds, fetchRequest, nestedQueryContext, hierarchyCollection, subReferenceFetcher, existingEntityRetriever
+		try (final QueryContext nestedQueryContext = hierarchyCollection.createQueryContext(queryContext, fetchRequest, queryContext.getEvitaSession())) {
+			final Map<String, RequirementContext> referenceEntityFetch = fetchRequest.getReferenceEntityFetch();
+			final ReferenceFetcher subReferenceFetcher = createSubReferenceFetcher(
+				null,
+				referenceEntityFetch,
+				fetchRequest.getDefaultReferenceRequirement(),
+				nestedQueryContext
 			);
-		} finally {
-			nestedQueryContext.popStep();
+
+			try {
+				queryContext.pushStep(QueryPhase.FETCHING_PARENTS);
+				entityIndex = fetchEntitiesByIdsIntoIndex(
+					parentIds, fetchRequest, nestedQueryContext, hierarchyCollection, subReferenceFetcher, existingEntityRetriever
+				);
+			} finally {
+				nestedQueryContext.popStep();
+			}
 		}
 		return entityIndex;
 	}
@@ -436,7 +443,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			validityMappingOptional.ifPresent(it -> it.restrictTo(new BaseBitmap(allReferencedEntityIds)));
 			initNestedQueryComparator(
 				entityNestedQueryComparator,
-				referenceSchema.getReferencedEntityType(),
+				referenceSchema,
 				queryContext
 			);
 			return allReferencedEntityIds;
@@ -447,7 +454,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					referenceSchema.getName(),
 					and(
 						ArrayUtils.mergeArrays(
-							new FilterConstraint[] {entityPrimaryKeyInSet(allReferencedEntityIds)},
+							new FilterConstraint[]{entityPrimaryKeyInSet(allReferencedEntityIds)},
 							filterBy.getChildren()
 						)
 					)
@@ -458,7 +465,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
 				return EMPTY_INTS;
 			} else {
-				final IntSet referencedPrimaryKeys = new IntHashSet(referencedEntityIndexes.size());
+				final CompositeIntArray referencedPrimaryKeys = new CompositeIntArray();
 				final Formula entityPrimaryKeyFormula = new ConstantFormula(new BaseBitmap(entityPrimaryKeys));
 				final IntSet foundReferencedIds = new IntHashSet(referencedEntityIndexes.size());
 				Formula lastIndexFormula = null;
@@ -557,7 +564,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 		initNestedQueryComparator(
 			entityNestedQueryComparator,
-			referenceSchema.getReferencedEntityType(),
+			referenceSchema,
 			filterByVisitor.getQueryContext()
 		);
 
@@ -566,16 +573,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	private static void initNestedQueryComparator(
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull String entityType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull QueryContext queryContext
 	) {
 		// in case there is ordering specified and no nested query filter constraint, we need to handle ordering here
 		if (entityNestedQueryComparator != null && !entityNestedQueryComparator.isInitialized()) {
 			initializeComparatorFromGlobalIndex(
+				referenceSchema,
 				queryContext.getEntityCollectionOrThrowException(
-					entityType,
+					referenceSchema.getReferencedEntityType(),
 					"order references"
 				),
+				ofNullable(referenceSchema.getReferencedGroupType())
+					.filter(it -> referenceSchema.isReferencedGroupTypeManaged())
+					.map(it -> queryContext.getEntityCollectionOrThrowException(it, "order references by group"))
+					.orElse(null),
 				entityNestedQueryComparator,
 				queryContext.getEvitaRequest(),
 				queryContext.getEvitaSession()
@@ -587,7 +599,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Initializes the {@link Sorter} implementation in the passed `entityNestedQueryComparator` from the global index
 	 * of the passed `targetEntityCollection`.
 	 *
+	 * @param referenceSchemaContract     the schema of the reference
 	 * @param targetEntityCollection      collection of the referenced entity type
+	 * @param targetEntityGroupCollection collection of the referenced entity type group
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
 	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
 	 *                                    in an optimal way
@@ -595,20 +609,49 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param evitaSession                current session
 	 */
 	private static void initializeComparatorFromGlobalIndex(
+		@Nonnull ReferenceSchemaContract referenceSchemaContract,
 		@Nonnull EntityCollection targetEntityCollection,
+		@Nullable EntityCollection targetEntityGroupCollection,
 		@Nonnull EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract evitaSession
 	) {
-		final OrderBy orderBy = new OrderBy(entityNestedQueryComparator.getOrderBy().getChildren());
-		final QueryContext nestedQueryContext = targetEntityCollection.createQueryContext(
-			evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy),
-			evitaSession
-		);
+		final EntityProperty entityOrderBy = entityNestedQueryComparator.getOrderBy();
+		if (entityOrderBy != null) {
+			final OrderBy orderBy = new OrderBy(entityOrderBy.getChildren());
+			try (
+				final QueryContext nestedQueryContext = targetEntityCollection.createQueryContext(
+					evitaRequest.deriveCopyWith(
+						targetEntityCollection.getEntityType(), null, orderBy,
+						entityNestedQueryComparator.getLocale()
+					),
+					evitaSession
+				)
+			) {
+				final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+				final Sorter sorter = queryPlan.getSorter();
+				entityNestedQueryComparator.setSorter(nestedQueryContext, sorter);
+			}
+		}
+		final EntityGroupProperty entityGroupOrderBy = entityNestedQueryComparator.getGroupOrderBy();
+		if (entityGroupOrderBy != null) {
+			Assert.isTrue(
+				targetEntityGroupCollection != null,
+				"The `entityGroupProperty` ordering is specified in the query but the reference `" + referenceSchemaContract.getName() + "` does not have managed entity group collection!"
+			);
 
-		final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-		final Sorter sorter = queryPlan.getSorter();
-		entityNestedQueryComparator.initSorter(nestedQueryContext, sorter);
+			final OrderBy orderBy = new OrderBy(entityGroupOrderBy.getChildren());
+			try (
+				final QueryContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
+					evitaRequest.deriveCopyWith(targetEntityCollection.getEntityType(), null, orderBy, entityNestedQueryComparator.getLocale()),
+					evitaSession
+				)
+			) {
+				final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+				final Sorter sorter = queryPlan.getSorter();
+				entityNestedQueryComparator.setGroupSorter(nestedQueryContext, sorter);
+			}
+		}
 	}
 
 	@Nonnull
@@ -639,6 +682,32 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					recordIds
 				)
 			);
+	}
+
+	/**
+	 * Method allows to replace plain EntityReferenceWithParent with EntityDecorator chain respecting the parent-child
+	 * relationship. The method is invoked recursively on each parent.
+	 */
+	@Nonnull
+	private static SealedEntity replaceWithSealedEntities(
+		@Nonnull EntityReferenceWithParent entityReference,
+		@Nonnull Map<Integer, SealedEntity> parentBodies
+	) {
+		final SealedEntity sealedEntity = parentBodies.get(entityReference.getPrimaryKey());
+		final EntityDecorator entityDecorator = (EntityDecorator) sealedEntity;
+		return Entity.decorate(
+			entityDecorator,
+			entityReference.getParentEntity()
+				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
+				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
+			entityDecorator.getLocalePredicate(),
+			new HierarchySerializablePredicate(true),
+			entityDecorator.getAttributePredicate(),
+			entityDecorator.getAssociatedDataPredicate(),
+			entityDecorator.getReferencePredicate(),
+			entityDecorator.getPricePredicate(),
+			entityDecorator.getAlignedNow()
+		);
 	}
 
 	/**
@@ -691,20 +760,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	public <T extends SealedEntity> T initReferenceIndex(@Nonnull T entity, @Nonnull EntityCollectionContract entityCollection) {
 		// we need to ensure that references are fetched in order to be able to provide information about them
 		final T richEnoughEntity = ((EntityCollection) entityCollection).ensureReferencesFetched(entity);
+		final Entity theEntity = richEnoughEntity instanceof EntityDecorator entityDecorator ?
+			entityDecorator.getDelegate() : (Entity) richEnoughEntity;
+
 		// prefetch the parents
 		if (entityCollection.getSchema().isWithHierarchy()) {
 			prefetchParents(
 				hierarchyContent,
 				queryContext,
 				entityCollection,
-				richEnoughEntity instanceof EntityDecorator entityDecorator ?
-					entityDecorator.getParentWithoutCheckingPredicate()
-						.stream()
-						.toArray() :
-					richEnoughEntity.getParentEntity()
-						.stream()
-						.mapToInt(EntityClassifier::getPrimaryKey)
-						.toArray()
+				() -> theEntity.getParent().stream().toArray()
 			);
 		}
 		// prefetch the entities
@@ -714,24 +779,37 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			queryContext,
 			entityCollection.getSchema(),
 			existingEntityRetriever,
-			(referenceName, entityPk) -> toFormula(
-				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
+			(referenceName, entityPk) ->
+				// we can ignore the entityPk, because this method processes only single entity,
+				// and it can't be anything else than the pk of this entity
+				toFormula(
+					theEntity
+						.getReferences(referenceName)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray()
+				),
+			(referenceName, entityPk) ->
+				// we can ignore the entityPk, because this method processes only single entity,
+				// and it can't be anything else than the pk of this entity
+				toFormula(
+					theEntity
+						.getReferences(referenceName)
+						.stream()
+						.map(ReferenceContract::getGroup)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.mapToInt(GroupEntityReference::getPrimaryKey)
+						.toArray()
+				),
+			(referenceName, groupId) ->
+				theEntity
 					.getReferences(referenceName)
 					.stream()
+					.filter(it -> it.getGroup().map(GroupEntityReference::primaryKey).map(groupId::equals).orElse(false))
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray()
-			),
-			(referenceName, entityPk) -> toFormula(
-				(richEnoughEntity instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : richEnoughEntity)
-					.getReferences(referenceName)
-					.stream()
-					.map(ReferenceContract::getGroup)
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.mapToInt(GroupEntityReference::getPrimaryKey)
-					.toArray()
-			),
-			new int[]{richEnoughEntity.getPrimaryKey()}
+					.toArray(),
+			new int[]{theEntity.getPrimaryKey()}
 		);
 
 		return richEnoughEntity;
@@ -751,15 +829,39 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				hierarchyContent,
 				queryContext,
 				entityCollection,
-				entities.stream()
-					.flatMapToInt(
+				() -> richEnoughEntities.stream()
+					.map(
 						it -> it instanceof EntityDecorator entityDecorator ?
-							entityDecorator.getParentWithoutCheckingPredicate().stream() :
-							it.getParentEntity().map(EntityClassifier::getPrimaryKey).stream().mapToInt(__ -> __)
+							entityDecorator.getDelegate().getParent() :
+							((Entity) it).getParent()
 					)
+					.filter(OptionalInt::isPresent)
+					.mapToInt(OptionalInt::getAsInt)
 					.toArray()
 			);
 		}
+
+		final Supplier<Map<Integer, Entity>> entityIndexSupplier = new EntityIndexSupplier<>(richEnoughEntities);
+		final ReferenceMapping groupToEntityIdMapping = new ReferenceMapping(
+			entityCollection.getSchema().getReferences().size(),
+			referenceName -> richEnoughEntities
+				.stream()
+				.flatMap(it -> it.getReferences(referenceName).stream())
+				.filter(it -> it.getGroup().isPresent())
+				.collect(
+					Collectors.groupingBy(
+						it -> it.getGroup().get().getPrimaryKey(),
+						Collectors.mapping(
+							ReferenceContract::getReferencedPrimaryKey,
+							Collectors.collectingAndThen(
+								IntegerIntoBitmapCollector.INSTANCE,
+								Bitmap::getArray
+							)
+						)
+					)
+				)
+		);
+
 		// prefetch the entities
 		prefetchEntities(
 			requirementContext,
@@ -768,22 +870,21 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			entityCollection.getSchema(),
 			existingEntityRetriever,
 			(referenceName, entityPk) -> toFormula(
-				richEnoughEntities.stream()
-					.map(it -> (it instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it))
-					.flatMap(it -> it.getReferences(referenceName).stream())
+				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
+					.stream()
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 					.toArray()
 			),
 			(referenceName, entityPk) -> toFormula(
-				richEnoughEntities.stream()
-					.map(it -> (it instanceof EntityDecorator entityDecorator ? entityDecorator.getDelegate() : it))
-					.flatMap(it -> it.getReferences(referenceName).stream())
+				entityIndexSupplier.get().get(entityPk).getReferences(referenceName)
+					.stream()
 					.map(ReferenceContract::getGroup)
 					.filter(Optional::isPresent)
 					.map(Optional::get)
 					.mapToInt(GroupEntityReference::getPrimaryKey)
 					.toArray()
 			),
+			groupToEntityIdMapping::get,
 			entities.stream()
 				.mapToInt(SealedEntity::getPrimaryKey)
 				.toArray()
@@ -818,7 +919,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	@Nonnull
 	@Override
-	public Comparator<ReferenceContract> getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
+	public ReferenceComparator getEntityComparator(@Nonnull ReferenceSchemaContract referenceSchema) {
 		return ofNullable(fetchedEntities.get(referenceSchema.getName()))
 			.map(PrefetchedEntities::referenceComparator)
 			.orElse(ReferenceComparator.DEFAULT);
@@ -869,6 +970,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityGroupIdsFormula,
+		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull int[] entityPrimaryKey
 	) {
 		final AtomicReference<FilterByVisitor> filterByVisitor = new AtomicReference<>();
@@ -895,48 +997,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
 
 						final Optional<OrderingDescriptor> orderingDescriptor = ofNullable(requirements.orderBy())
-							.map(OrderBy::getChild)
 							.map(ob -> ReferenceOrderByVisitor.getComparator(queryContext, ob));
 
 						final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(entityPrimaryKey.length);
-						final Map<Integer, SealedEntity> entityIndex;
-						// are we requested to (are we able to) fetch the entity bodies?
-						if (referenceSchema.isReferencedEntityTypeManaged()) {
-							final int[] filteredReferencedEntityIds = getFilteredReferencedEntityIds(
-								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, requirements.filterBy(), validityMapping,
-								orderingDescriptor
-									.map(OrderingDescriptor::nestedQueryComparator)
-									.orElse(null), referencedEntityIdsFormula
-							);
-							// set them to the comparator instance, if such is provided
-							// this prepares the "pre-sorted" arrays in this comparator for faster sorting
-							orderingDescriptor
-								.map(OrderingDescriptor::nestedQueryComparator)
-								.ifPresent(comparator -> comparator.setFilteredEntities(filteredReferencedEntityIds));
 
-							if (requirements.entityFetch() != null && !ArrayUtils.isEmpty(filteredReferencedEntityIds)) {
-								// if so, fetch them
-								entityIndex = fetchReferencedEntities(
-									queryContext,
-									referenceSchema,
-									referenceSchema.getReferencedEntityType(),
-									pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
-									requirements.entityFetch(),
-									filteredReferencedEntityIds
-								);
-							} else {
-								entityIndex = Collections.emptyMap();
-							}
-						} else {
-							// if not, leave the index empty
-							entityIndex = Collections.emptyMap();
-						}
-
+						final int[] filteredReferencedGroupEntityIds;
 						final Map<Integer, SealedEntity> entityGroupIndex;
 						// are we requested to (are we able to) fetch the entity group bodies?
 						if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null) {
 							// if so, fetch them
-							final int[] filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
+							filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
 								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, null, null,
 								null, referencedEntityGroupIdsFormula
 							);
@@ -955,7 +1025,46 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							}
 						} else {
 							// if not, leave the index empty
+							filteredReferencedGroupEntityIds = null;
 							entityGroupIndex = Collections.emptyMap();
+						}
+
+						final Map<Integer, SealedEntity> entityIndex;
+						// are we requested to (are we able to) fetch the entity bodies?
+						if (referenceSchema.isReferencedEntityTypeManaged()) {
+							final int[] filteredReferencedEntityIds = getFilteredReferencedEntityIds(
+								entityPrimaryKey, queryContext, referenceSchema, filterByVisitor, requirements.filterBy(), validityMapping,
+								orderingDescriptor
+									.map(OrderingDescriptor::nestedQueryComparator)
+									.orElse(null), referencedEntityIdsFormula
+							);
+							// set them to the comparator instance, if such is provided
+							// this prepares the "pre-sorted" arrays in this comparator for faster sorting
+							orderingDescriptor
+								.map(OrderingDescriptor::nestedQueryComparator)
+								.ifPresent(
+									comparator -> comparator.setFilteredEntities(
+										filteredReferencedEntityIds, filteredReferencedGroupEntityIds,
+										entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+									)
+								);
+
+							if (requirements.entityFetch() != null && !ArrayUtils.isEmpty(filteredReferencedEntityIds)) {
+								// if so, fetch them
+								entityIndex = fetchReferencedEntities(
+									queryContext,
+									referenceSchema,
+									referenceSchema.getReferencedEntityType(),
+									pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
+									requirements.entityFetch(),
+									filteredReferencedEntityIds
+								);
+							} else {
+								entityIndex = Collections.emptyMap();
+							}
+						} else {
+							// if not, leave the index empty
+							entityIndex = Collections.emptyMap();
 						}
 
 						return new PrefetchedEntities(
@@ -976,22 +1085,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Method executes all the necessary hierarchical entities fetch.  Execution reuses potentially existing fetched
 	 * hierarchical entities from the last enrichment of the same entity.
 	 *
-	 * @param hierarchyContent the requirement specification for the hierarchical entities
-	 * @param queryContext     query context used for querying the entity
-	 * @param parentsId        the array of parent entity primary keys to prefetch
+	 * @param hierarchyContent  the requirement specification for the hierarchical entities
+	 * @param queryContext      query context used for querying the entity
+	 * @param parentIdsSupplier the function returning the array of parent entity primary keys to prefetch
 	 */
 	private void prefetchParents(
 		@Nullable HierarchyContent hierarchyContent,
 		@Nonnull QueryContext queryContext,
 		@Nonnull EntityCollectionContract entityCollection,
-		@Nonnull int[] parentsId
+		@Nonnull Supplier<int[]> parentIdsSupplier
 	) {
 		// prefetch only if there is any requirement
 		if (hierarchyContent != null) {
-			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentsId.length);
+			final int[] parentIds = parentIdsSupplier.get();
+			final IntObjectHashMap<EntityClassifierWithParent> parentEntityReferences = new IntObjectHashMap<>(parentIds.length);
 			final boolean bodyRequired = hierarchyContent.getEntityFetch().isPresent();
 			final IntHashSet allReferencedParents = bodyRequired ?
-				new IntHashSet(parentsId.length * 3) : null;
+				new IntHashSet(parentIds.length * 3) : null;
 
 			// initialize used data structures
 			final String entityType = entityCollection.getEntityType();
@@ -1003,7 +1113,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 
 			// first, construct EntityReferenceWithParent for each requested parent id
-			for (int parentId : parentsId) {
+			for (int parentId : parentIds) {
 				final AtomicReference<EntityReferenceWithParent> theParent = new AtomicReference<>();
 				if (bodyRequired) {
 					allReferencedParents.add(parentId);
@@ -1042,7 +1152,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 
 				// replace the previous EntityReferenceWithParent with EntityDecorator with filled parent
-				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentsId.length);
+				final IntObjectHashMap<EntityClassifierWithParent> parentSealedEntities = new IntObjectHashMap<>(parentIds.length);
 				for (IntObjectCursor<EntityClassifierWithParent> parentRef : parentEntityReferences) {
 					parentSealedEntities.put(
 						parentRef.key,
@@ -1059,32 +1169,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				this.parentEntities = parentEntityReferences;
 			}
 		}
-	}
-
-	/**
-	 * Method allows to replace plain EntityReferenceWithParent with EntityDecorator chain respecting the parent-child
-	 * relationship. The method is invoked recursively on each parent.
-	 */
-	@Nonnull
-	private SealedEntity replaceWithSealedEntities(
-		@Nonnull EntityReferenceWithParent entityReference,
-		@Nonnull Map<Integer, SealedEntity> parentBodies
-	) {
-		final SealedEntity sealedEntity = parentBodies.get(entityReference.getPrimaryKey());
-		final EntityDecorator entityDecorator = (EntityDecorator) sealedEntity;
-		return Entity.decorate(
-			entityDecorator,
-			entityReference.getParentEntity()
-				.map(parentEntity -> (EntityClassifierWithParent) replaceWithSealedEntities((EntityReferenceWithParent) parentEntity, parentBodies))
-				.orElse(EntityClassifierWithParent.CONCEALED_ENTITY),
-			entityDecorator.getLocalePredicate(),
-			new HierarchySerializablePredicate(true),
-			entityDecorator.getAttributePredicate(),
-			entityDecorator.getAssociatedDataPredicate(),
-			entityDecorator.getReferencePredicate(),
-			entityDecorator.getPricePredicate(),
-			entityDecorator.getAlignedNow()
-		);
 	}
 
 	/**
@@ -1245,7 +1329,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable ValidEntityToReferenceMapping validityMapping,
 		@Nonnull Map<Integer, SealedEntity> entityGroupIndex,
 
-		@Nullable Comparator<ReferenceContract> referenceComparator
+		@Nullable ReferenceComparator referenceComparator
 
 	) {
 
@@ -1317,6 +1401,60 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Override
 		public Optional<SealedEntity> getExistingGroupEntity(@Nonnull String referenceName, int primaryKey) {
 			return entityDecorator.getReferenceWithoutCheckingPredicate(referenceName, primaryKey).flatMap(ReferenceContract::getGroupEntity);
+		}
+	}
+
+	/**
+	 * This DTO envelopes cached access to referenced entity group primary key to referenced entity primary keys mapping.
+	 * This mapping is used in {@link EntityNestedQueryComparator#setFilteredEntities(int[], int[], Function)} method
+	 * when the references are sorted first by group entity and then by referenced entity.
+	 */
+	private static class ReferenceMapping {
+		private final Map<String, Map<Integer, int[]>> mapping;
+		private final Function<String, Map<Integer, int[]>> computeFct;
+
+		public ReferenceMapping(int expectedSize, @Nonnull Function<String, Map<Integer, int[]>> computeFct) {
+			this.mapping = CollectionUtils.createHashMap(expectedSize);
+			this.computeFct = computeFct;
+		}
+
+		/**
+		 * Returns (and lazily computes) array of referenced entity primary keys for passed `groupEntityPrimaryKey` of
+		 * group entity.
+		 *
+		 * @param referenceName         name of the reference
+		 * @param groupEntityPrimaryKey primary key of the group entity
+		 * @return array of referenced entity primary keys
+		 */
+		@Nonnull
+		public int[] get(@Nonnull String referenceName, int groupEntityPrimaryKey) {
+			return mapping.computeIfAbsent(referenceName, computeFct).get(groupEntityPrimaryKey);
+		}
+
+	}
+
+	/**
+	 * This class lazily provides (and caches) index of entities by their primary key. The entities always
+	 * represent the original entity in the evitaDB and not the {@link EntityDecorator} wrapper.
+	 */
+	@RequiredArgsConstructor
+	private static class EntityIndexSupplier<T extends SealedEntity> implements Supplier<Map<Integer, Entity>> {
+		private final List<T> richEnoughEntities;
+		private Map<Integer, Entity> memoizedResult;
+
+		@Override
+		public Map<Integer, Entity> get() {
+			if (memoizedResult == null) {
+				memoizedResult = richEnoughEntities.stream()
+					.collect(
+						Collectors.toMap(
+							EntityContract::getPrimaryKey,
+							it -> it instanceof EntityDecorator entityDecorator ?
+								entityDecorator.getDelegate() : (Entity) it
+						)
+					);
+			}
+			return memoizedResult;
 		}
 	}
 }

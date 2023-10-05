@@ -24,12 +24,13 @@
 package io.evitadb.test.client.query;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 
 import javax.annotation.Nonnull;
 
 /**
  * Holds converted {@link io.evitadb.api.query.Constraint} into JSON with `key` being name of constraint and `value`
- * being body depending on {@link io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintValueStructure} of
+ * being body depending on {@link ConstraintValueStructure} of
  * particular constraint.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023

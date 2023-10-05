@@ -60,7 +60,6 @@ public record ServerOptions(
 	int closeSessionsAfterSecondsOfInactivity,
 	boolean readOnly
 ) {
-
 	public static final int DEFAULT_CORE_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 10;
 	public static final int DEFAULT_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
 	public static final int DEFAULT_THREAD_PRIORITY = 5;

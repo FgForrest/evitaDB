@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
@@ -102,6 +103,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof LocalTime localTime) return jsonNodeFactory.textNode(serialize(localTime));
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
+		if (value instanceof Predecessor predecessor) return jsonNodeFactory.numberNode(serialize(predecessor));
 		if (value instanceof PriceContract price) return serialize(price);
 		if (value.getClass().isEnum()) return jsonNodeFactory.textNode(serialize((Enum<?>) value));
 
@@ -214,6 +216,10 @@ public class ObjectJsonSerializer {
 		rangeNode.add(range.getPreciseFrom() != null ? serializeObject(range.getPreciseFrom()) : jsonNodeFactory.nullNode());
 		rangeNode.add(range.getPreciseTo() != null ? serializeObject(range.getPreciseTo()) : jsonNodeFactory.nullNode());
 		return rangeNode;
+	}
+
+	private int serialize(@Nonnull Predecessor predecessor) {
+		return predecessor.predecessorId();
 	}
 
 	private JsonNode serialize(@Nonnull PriceContract price) {

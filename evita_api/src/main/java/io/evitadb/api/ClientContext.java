@@ -27,10 +27,12 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.SocketAddress;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 import static java.util.Optional.ofNullable;
 
@@ -72,7 +74,7 @@ public interface ClientContext {
 	 */
 	default void executeWithClientAndRequestId(
 		@Nonnull String clientId,
-		@Nonnull String requestId,
+		@Nullable String requestId,
 		@Nonnull Runnable lambda
 	) {
 		Deque<Context> context = CLIENT_CONTEXT.get();
@@ -138,7 +140,7 @@ public interface ClientContext {
 	}
 
 	/**
-	 * Method executes the `lambda` function within the scope of client defined context and returns its result.
+	 * Method executes the `lambda` function within the scope of client-defined context and returns its result.
 	 *
 	 * @param clientId  string that will be constant per a connected client,
 	 *                  example values: Next.JS Middleware, evitaDB console etc.
@@ -151,7 +153,7 @@ public interface ClientContext {
 	 */
 	default <T> T executeWithClientAndRequestId(
 		@Nonnull String clientId,
-		@Nonnull String requestId,
+		@Nullable String requestId,
 		@Nonnull Supplier<T> lambda
 	) {
 		Deque<Context> context = CLIENT_CONTEXT.get();
@@ -213,7 +215,9 @@ public interface ClientContext {
 			context.push(new Context(context.peek().clientId(), requestId));
 			return lambda.get();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 
@@ -266,4 +270,34 @@ public interface ClientContext {
 	) {
 	}
 
+	class ClientIdBuilder {
+
+		private static final String SERVER_CLIENT_ID_FORMAT = "%s|%s|%s";
+		private static final Pattern CLIENT_ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
+
+		public static String from(@Nullable String clientId) {
+			return clientId;
+		}
+
+		public static String from(@Nonnull String protocol, @Nonnull SocketAddress clientAddress, @Nonnull String clientId) {
+			return String.format(
+				SERVER_CLIENT_ID_FORMAT,
+				protocol,
+				clientAddress,
+				CLIENT_ID_FORBIDDEN_CHARACTERS.matcher(clientId).replaceAll("-")
+			);
+		}
+
+		public String build() {
+			return null;
+		}
+	}
+
+	class RequestIdBuilder {
+		private static final Pattern REQEST_ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
+
+		public static String from(@Nullable String clientId) {
+			return clientId;
+		}
+	}
 }

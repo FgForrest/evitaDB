@@ -362,7 +362,7 @@ filtering of entities by the fact that they refer to a particular part of the tr
 Special constraints are used only for the definition of a filter constraint scope, which has a different treatment in 
 calculations:
 
-- [user filter](filtering/special.md#user-filter)
+- [user filter](filtering/behavioral.md#user-filter)
 
 ## Order by
 
@@ -377,6 +377,7 @@ Order constraints allow you to define a rule that controls the order of entities
 - [price natural](ordering/price.md#price-natural)
 - [reference property](ordering/reference.md#reference-property)
 - [entity property](ordering/reference.md#entity-property)
+- [entity group property](ordering/reference.md#entity-group-property)
 - [random](ordering/random.md#random)
 
 ## Require

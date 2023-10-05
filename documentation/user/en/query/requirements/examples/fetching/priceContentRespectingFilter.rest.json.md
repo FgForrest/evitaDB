@@ -33,8 +33,8 @@
           "currency": "EUR",
           "innerRecordId": null,
           "sellable": true,
-          "priceWithoutTax": "88.86",
-          "priceWithTax": "107.52",
+          "priceWithoutTax": "88.43",
+          "priceWithTax": "107.0",
           "taxRate": "21.0",
           "validity": null
         }
@@ -45,8 +45,8 @@
         "currency": "EUR",
         "innerRecordId": null,
         "sellable": true,
-        "priceWithoutTax": "88.86",
-        "priceWithTax": "107.52",
+        "priceWithoutTax": "88.43",
+        "priceWithTax": "107.0",
         "taxRate": "21.0",
         "validity": null
       }

@@ -85,7 +85,7 @@ public final class AttributeSchemaBuilder
 	}
 
 	@Override
-	protected boolean addMutations(@Nonnull AttributeSchemaMutation mutation) {
+	protected MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation) {
 		return addMutations(
 			this.catalogSchema, this.entitySchema, this.mutations, (EntitySchemaMutation) mutation
 		);
@@ -99,11 +99,15 @@ public final class AttributeSchemaBuilder
 
 	@Nonnull
 	@Override
-	public Collection<AttributeSchemaMutation> toAttributeMutation() {
-		return this.mutations
+	public List<AttributeSchemaMutation> toAttributeMutation() {
+		// faster version of the:
+		/* return this.mutations
 			.stream()
 			.map(it -> (AttributeSchemaMutation) it)
 			.collect(Collectors.toList());
+			*/
+		//noinspection unchecked,rawtypes
+		return (List) this.mutations;
 	}
 
 	@Override

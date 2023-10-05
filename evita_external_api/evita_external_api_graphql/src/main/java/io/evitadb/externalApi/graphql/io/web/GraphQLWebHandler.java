@@ -33,6 +33,7 @@ import graphql.execution.UnknownOperationException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
@@ -77,6 +78,9 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 @RequiredArgsConstructor
 public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchange, GraphQLResponse<?>> {
 
+    /**
+     * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
+     */
     private static final Set<Class<? extends GraphQLException>> GRAPHQL_USER_ERRORS = Set.of(
         CoercingSerializeException.class,
         CoercingParseValueException.class,
@@ -88,9 +92,20 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchang
     @Nonnull
     private final ObjectMapper objectMapper;
     @Nonnull
+    private final GraphQLClientContext clientContext;
+    @Nonnull
     private final EvitaConfiguration evitaConfiguration;
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
+
+    public GraphQLHandler(@Nonnull ObjectMapper objectMapper,
+                          @Nonnull Evita evita,
+                          @Nonnull AtomicReference<GraphQL> graphQL) {
+        this.objectMapper = objectMapper;
+        this.clientContext = new GraphQLClientContext(evita);
+        this.evitaConfiguration = evita.getConfiguration();
+        this.graphQL = graphQL;
+    }
 
     @Nonnull
     @Override
@@ -105,7 +120,13 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchang
     @Nonnull
     protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLWebEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final GraphQLResponse<?> graphQLResponse = executeRequest(graphQLRequest);
+        final ClientContextExtension clientContextExtension = graphQLRequest.clientContextExtension();
+        final GraphQLResponse<?> graphQLResponse = clientContext.executeWithClientAndRequestId(
+            exchange.serverExchange().getSourceAddress(),
+            clientContextExtension.clientId(),
+            clientContextExtension.requestId(),
+            () -> executeRequest(graphQLRequest)
+        );
         return new SuccessEndpointResponse<>(graphQLResponse);
     }
 

@@ -34,7 +34,6 @@ import io.netty.handler.ssl.ApplicationProtocolConfig.SelectorFailureBehavior;
 import io.netty.handler.ssl.ApplicationProtocolNames;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -47,10 +46,12 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.Reader;
 import java.net.URL;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.KeyStore;
@@ -68,9 +69,9 @@ import static java.util.Optional.ofNullable;
  * used in the {@link SslContext} building process.
  */
 @Slf4j
-@RequiredArgsConstructor
 public class ClientCertificateManager {
 	private static final Path DEFAULT_CLIENT_CERTIFICATE_FOLDER_PATH = Paths.get(System.getProperty("java.io.tmpdir"), "evita-client-certificates");
+	private static final String TRUST_STORE_FILE_NAME = "trustStore.jks";
 	/**
 	 * Password for the trust store that stores all of trusted CAs by the client.
 	 */
@@ -82,12 +83,276 @@ public class ClientCertificateManager {
 	private final String clientPrivateKeyPassword;
 	private final boolean isMtlsEnabled;
 	private final boolean useGeneratedCertificate;
-	private final String host;
-	private final int port;
 	private final boolean usingTrustedRootCaCertificate;
-	private static final String TRUST_STORE_FILE_NAME = "trustStore.jks";
+
 	public static Path getDefaultClientCertificateFolderPath() {
 		return DEFAULT_CLIENT_CERTIFICATE_FOLDER_PATH;
+	}
+
+	/**
+	 * Fetches the certificate from the server and stores it in the client certificate folder.
+	 *
+	 * @param host server host
+	 * @param port server port
+	 * @return path to the folder with the certificates specific to the server instance
+	 */
+	@Nonnull
+	private static Path getCertificatesFromServer(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath) {
+		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
+		try {
+			final String serverName = getServerName(apiEndpoint);
+			final Path serverSpecificDirectory = certificateClientFolderPath.resolve(serverName);
+			final File clientFolder = new File(serverSpecificDirectory.toUri());
+			if (!clientFolder.exists()) {
+				Assert.isTrue(clientFolder.mkdirs(), "Cannot create folder `" + clientFolder + "`!");
+			} else {
+				final File rootCaCert = new File(serverSpecificDirectory.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName()).toUri());
+				final File cert = new File(serverSpecificDirectory.resolve(CertificateUtils.getGeneratedClientCertificateFileName()).toUri());
+				final File key = new File(serverSpecificDirectory.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).toUri());
+				if (rootCaCert.exists() && cert.exists() && key.exists()) {
+					return serverSpecificDirectory;
+				}
+			}
+
+			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedRootCaCertificateFileName());
+			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificateFileName());
+			downloadFileFromServer(apiEndpoint, serverSpecificDirectory, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
+
+			return serverSpecificDirectory;
+		} catch (IOException e) {
+			throw new EvitaInvalidUsageException("Failed to download certificates from server", e);
+		}
+	}
+
+	/**
+	 * Fetches the certificate from the server and stores it in the client certificate folder.
+	 *
+	 * @param host server host
+	 * @param port server port
+	 * @return path to the folder with the certificates specific to the server instance
+	 */
+	@Nonnull
+	private static Path identifyServerDirectory(@Nonnull String host, int port, @Nonnull Path certificateClientFolderPath) {
+		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
+		try {
+			final String serverName = getServerName(apiEndpoint);
+			return certificateClientFolderPath.resolve(serverName);
+		} catch (IOException e) {
+			throw new EvitaInvalidUsageException("Failed to download certificates from server", e);
+		}
+	}
+
+	/**
+	 * Reads a server name from the server.
+	 *
+	 * @param apiEndpoint The endpoint to fetch the file from.
+	 * @throws IOException If the API could not be reached.
+	 */
+	@Nonnull
+	private static String getServerName(@Nonnull String apiEndpoint) throws IOException {
+		final URL website = new URL(apiEndpoint + "server-name");
+		try (
+			final Reader reader = Channels.newReader(Channels.newChannel(website.openStream()), StandardCharsets.UTF_8);
+		) {
+			final StringBuilder stringBuilder = new StringBuilder(128);
+			final char[] buffer = new char[128];
+			int read;
+			while ((read = reader.read(buffer)) != -1) {
+				stringBuilder.append(buffer, 0, read);
+			}
+			return stringBuilder.toString();
+		}
+	}
+
+	/**
+	 * Downloads a file from the server and stores it in the client certificate folder.
+	 *
+	 * @param apiEndpoint The endpoint to fetch the file from.
+	 * @param baseDir     the name of the directory for the file
+	 * @param filename    The name of the file to fetch.
+	 * @throws IOException If the file could not be downloaded.
+	 */
+	private static void downloadFileFromServer(@Nonnull String apiEndpoint, @Nonnull Path baseDir, @Nonnull String filename) throws IOException {
+		final URL website = new URL(apiEndpoint + filename);
+		try (
+			final ReadableByteChannel rbc = Channels.newChannel(website.openStream());
+			final FileOutputStream fos = new FileOutputStream(baseDir.resolve(filename).toFile());
+			final FileChannel channel = fos.getChannel()
+		) {
+			channel.transferFrom(rbc, 0, Long.MAX_VALUE);
+		}
+	}
+
+	public ClientCertificateManager(
+		String trustStorePassword,
+		Path certificateClientFolderPath,
+		Path rootCaCertificateFilePath,
+		Path clientCertificateFilePath,
+		Path clientPrivateKeyFilePath,
+		String clientPrivateKeyPassword,
+		boolean isMtlsEnabled,
+		boolean useGeneratedCertificate,
+		String host,
+		int port,
+		boolean usingTrustedRootCaCertificate
+	) {
+		final Path certificateDirectory;
+		if (useGeneratedCertificate) {
+			certificateDirectory = getCertificatesFromServer(host, port, certificateClientFolderPath);
+		} else {
+			certificateDirectory = identifyServerDirectory(host, port, certificateClientFolderPath);
+		}
+
+		this.trustStorePassword = trustStorePassword;
+		this.certificateClientFolderPath = certificateDirectory;
+		this.rootCaCertificateFilePath = rootCaCertificateFilePath;
+		this.clientCertificateFilePath = clientCertificateFilePath;
+		this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
+		this.clientPrivateKeyPassword = clientPrivateKeyPassword;
+		this.isMtlsEnabled = isMtlsEnabled;
+		this.useGeneratedCertificate = useGeneratedCertificate;
+		this.usingTrustedRootCaCertificate = usingTrustedRootCaCertificate;
+	}
+
+	/**
+	 * This method is used to build the {@link SslContext} for the client, that is necessary for the client to connect
+	 * to the server. It takes into account the configuration of the client, and builds the {@link SslContext} accordingly.
+	 *
+	 * @return built {@link SslContext} for client
+	 */
+	public SslContext buildClientSslContext() {
+		try {
+			final Path usedCertificatePath = getUsedRootCaCertificatePath();
+			final TrustManager trustManagerTrustingProvidedRootCertificate = usedCertificatePath == null ?
+				null : getTrustManager(usedCertificatePath);
+			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
+				.applicationProtocolConfig(
+					new ApplicationProtocolConfig(
+						Protocol.ALPN,
+						SelectorFailureBehavior.NO_ADVERTISE,
+						SelectedListenerFailureBehavior.ACCEPT,
+						ApplicationProtocolNames.HTTP_2));
+			if (isMtlsEnabled) {
+				if (clientPrivateKeyFilePath == null) {
+					throw new EvitaInvalidUsageException("Client certificate path is not set while using mTLS. Check evita configuration file.");
+				}
+				sslContextBuilder.keyManager(new File(clientCertificateFilePath.toUri()), new File(clientPrivateKeyFilePath.toUri()), clientPrivateKeyPassword);
+			}
+			if (!usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
+				sslContextBuilder.trustManager(trustManagerTrustingProvidedRootCertificate);
+			} else if (usedCertificatePath != null && usedCertificatePath.toFile().exists()) {
+				sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
+			}
+			return sslContextBuilder.build();
+		} catch (Exception e) {
+			throw new EvitaInvalidUsageException("Failed to initialize EvitaClient", e);
+		}
+	}
+
+	/**
+	 * Add a provided certificate to the local truststore by usage of {@link TrustManagerDelegate}.
+	 *
+	 * @param toTrustCertificatePath refers to the path of the certificate to trust
+	 * @param certificateAlias       name, that will be used as a key in the truststore file
+	 * @return a trust manager that trusts the provided certificate
+	 */
+	public TrustManager getTrustManagerTrustingProvidedCertificate(@Nonnull Path toTrustCertificatePath, @Nonnull String certificateAlias) {
+		try {
+			final TrustManagerFactory javaDefaultTrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+			javaDefaultTrustManager.init((KeyStore) null);
+			final TrustManagerFactory serverSelfSignedTrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+			serverSelfSignedTrustManager.init(getKeyStore(toTrustCertificatePath, certificateAlias));
+			return new TrustManagerDelegate(
+				(X509TrustManager) serverSelfSignedTrustManager.getTrustManagers()[0],
+				(X509TrustManager) javaDefaultTrustManager.getTrustManagers()[0]
+			);
+		} catch (Exception e) {
+			throw new EvitaInvalidUsageException("Failed to initialize SSL context.", e);
+		}
+	}
+
+	/**
+	 * According to the client configuration, returns a path to the root CA certificate which may be located in either
+	 * user specified folder or in system TEMP directory.
+	 *
+	 * @return The path to the certificate that should be used.
+	 */
+	public Path getUsedRootCaCertificatePath() {
+		return !useGeneratedCertificate ?
+			rootCaCertificateFilePath :
+			certificateClientFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
+	}
+
+	/**
+	 * Returns trust manager initialized with provided certificate - either automatically downloaded from the server
+	 * or initialized from local certificate file. Method may also return NULL if the client is provided with none
+	 * of those, and we will rely on Java internal trust store.
+	 */
+	@Nullable
+	private TrustManager getTrustManager(@Nonnull Path usedCertificatePath) {
+		final TrustManager trustManagerTrustingProvidedRootCertificate;
+		try {
+			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
+			if (usedCertificatePath.toFile().exists()) {
+				final Certificate serverCert;
+				try (InputStream in = new FileInputStream(usedCertificatePath.toFile())) {
+					serverCert = cf.generateCertificate(in);
+				}
+				log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
+				trustManagerTrustingProvidedRootCertificate = getTrustManagerTrustingProvidedCertificate(usedCertificatePath, "evita-root-ca");
+			} else {
+				trustManagerTrustingProvidedRootCertificate = null;
+			}
+			if (isMtlsEnabled) {
+				final Certificate clientCert;
+				try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
+					clientCert = cf.generateCertificate(in);
+				}
+				log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
+			}
+		} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
+			throw new EvitaInternalError(e.getMessage(), e);
+		}
+		return trustManagerTrustingProvidedRootCertificate;
+	}
+
+	/**
+	 * Add a provided certificate to the local truststore.
+	 *
+	 * @param rootCaCertificatePath refers to the path of the certificate to trust
+	 * @param certificateAlias      name, that will be used as a key in the truststore file
+	 * @return keystore that contains the provided certificate
+	 */
+	private KeyStore getKeyStore(@Nonnull Path rootCaCertificatePath, @Nonnull String certificateAlias) throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
+		// Create or get a KeyStore instance with the specified type and store it in a file
+		final File trustStoreFile = new File(certificateClientFolderPath.resolve(TRUST_STORE_FILE_NAME).toUri());
+		final KeyStore trustStore = KeyStore.getInstance("JKS");
+		final char[] trustStorePasswordCharArray = this.trustStorePassword.toCharArray();
+		if (!certificateClientFolderPath.toFile().exists()) {
+			Assert.isTrue(certificateClientFolderPath.toFile().mkdirs(), () -> "Cannot create folder `" + certificateClientFolderPath + "`!");
+		}
+		if (!trustStoreFile.exists()) {
+			trustStore.load(null, null);
+			try (final FileOutputStream trustStoreOutputStream = new FileOutputStream(trustStoreFile)) {
+				trustStore.store(trustStoreOutputStream, trustStorePasswordCharArray);
+			}
+		} else {
+			try (final FileInputStream trustStoreInputStream = new FileInputStream(trustStoreFile)) {
+				trustStore.load(trustStoreInputStream, trustStorePasswordCharArray);
+			}
+		}
+		final File certificateFile = new File(rootCaCertificatePath.toUri());
+		final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
+		final Certificate certificate;
+		try (final FileInputStream certificateInputStream = new FileInputStream(certificateFile)) {
+			certificate = certificateFactory.generateCertificate(certificateInputStream);
+		}
+		// Import the certificate into the trust store
+		trustStore.setCertificateEntry(certificateAlias, certificate);
+		try (final FileOutputStream trustStoreOutputStream = new FileOutputStream(trustStoreFile)) {
+			trustStore.store(trustStoreOutputStream, trustStorePasswordCharArray);
+		}
+		return trustStore;
 	}
 
 	public static class Builder {
@@ -168,191 +433,5 @@ public class ClientCertificateManager {
 				usingTrustedRootCaCertificate
 			);
 		}
-	}
-
-	/**
-	 * This method is used to build the {@link SslContext} for the client, that is necessary for the client to connect
-	 * to the server. It takes into account the configuration of the client, and builds the {@link SslContext} accordingly.
-	 * @return built {@link SslContext} for client
-	 */
-	public SslContext buildClientSslContext() {
-		try {
-			final Path usedCertificatePath = getUsedRootCaCertificatePath();
-			final TrustManager trustManagerTrustingProvidedRootCertificate = getTrustManager(usedCertificatePath);
-			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
-				.applicationProtocolConfig(
-					new ApplicationProtocolConfig(
-						Protocol.ALPN,
-						SelectorFailureBehavior.NO_ADVERTISE,
-						SelectedListenerFailureBehavior.ACCEPT,
-						ApplicationProtocolNames.HTTP_2));
-			if (isMtlsEnabled) {
-				if (clientPrivateKeyFilePath == null) {
-					throw new EvitaInvalidUsageException("Client certificate path is not set while using mTLS. Check evita configuration file.");
-				}
-				sslContextBuilder.keyManager(new File(clientCertificateFilePath.toUri()), new File(clientPrivateKeyFilePath.toUri()), clientPrivateKeyPassword);
-			}
-			if (!usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
-				sslContextBuilder.trustManager(trustManagerTrustingProvidedRootCertificate);
-			} else if (getUsedRootCaCertificatePath().toFile().exists()) {
-				sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
-			}
-			return sslContextBuilder.build();
-		} catch (Exception e) {
-			throw new EvitaInvalidUsageException("Failed to initialize EvitaClient", e);
-		}
-	}
-
-	/**
-	 * Returns trust manager initialized with provided certificate - either automatically downloaded from the server
-	 * or initialized from local certificate file. Method may also return NULL if the client is provided with none
-	 * of those, and we will rely on Java internal trust store.
-	 */
-	@Nullable
-	private TrustManager getTrustManager(@Nonnull Path usedCertificatePath) {
-		final TrustManager trustManagerTrustingProvidedRootCertificate;
-		try {
-			if (useGeneratedCertificate && !usedCertificatePath.toFile().exists()) {
-				getCertificatesFromServer(host, port);
-			}
-
-			final CertificateFactory cf = CertificateFactory.getInstance("X.509");
-			if (usedCertificatePath.toFile().exists()) {
-				final Certificate serverCert;
-				try (InputStream in = new FileInputStream(usedCertificatePath.toFile())) {
-					serverCert = cf.generateCertificate(in);
-				}
-				log.info("Server's CA certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(serverCert));
-				trustManagerTrustingProvidedRootCertificate = getTrustManagerTrustingProvidedCertificate(usedCertificatePath, "evita-root-ca");
-			} else {
-				trustManagerTrustingProvidedRootCertificate = null;
-			}
-			if (isMtlsEnabled) {
-				final Certificate clientCert;
-				try (InputStream in = new FileInputStream(clientCertificateFilePath.toFile())) {
-					clientCert = cf.generateCertificate(in);
-				}
-				log.info("Client's certificate fingerprint: {}", CertificateUtils.getCertificateFingerprint(clientCert));
-			}
-		} catch (CertificateException | IOException | NoSuchAlgorithmException e) {
-			throw new EvitaInternalError(e.getMessage(), e);
-		}
-		return trustManagerTrustingProvidedRootCertificate;
-	}
-
-	/**
-	 * Fetches the certificate from the server and stores it in the client certificate folder.
-	 * @param host server host
-	 * @param port server port
-	 */
-	public void getCertificatesFromServer(@Nonnull String host, int port) {
-		final String apiEndpoint = "http://" + host + ":" + port + "/system/";
-		final File clientFolder = new File(certificateClientFolderPath.toUri());
-		if (!clientFolder.exists()) {
-			//noinspection ResultOfMethodCallIgnored
-			clientFolder.mkdir();
-		} else {
-			final File rootCaCert = new File(certificateClientFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName()).toUri());
-			final File cert = new File(certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName()).toUri());
-			final File key = new File(certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName()).toUri());
-			if (rootCaCert.exists() && cert.exists() && key.exists()) {
-				return;
-			}
-		}
-		try {
-			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedRootCaCertificateFileName());
-			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedClientCertificateFileName());
-			downloadFileFromServer(apiEndpoint, CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
-		} catch (IOException e) {
-			throw new EvitaInvalidUsageException("Failed to download certificates from server", e);
-		}
-	}
-
-	/**
-	 * Downloads a file from the server and stores it in the client certificate folder.
-	 * @param apiEndpoint The endpoint to fetch the file from.
-	 * @param filename The name of the file to fetch.
-	 * @throws IOException If the file could not be downloaded.
-	 */
-	private void downloadFileFromServer(@Nonnull String apiEndpoint, @Nonnull String filename) throws IOException {
-		final URL website = new URL(apiEndpoint + filename);
-		try (
-			final ReadableByteChannel rbc = Channels.newChannel(website.openStream());
-			final FileOutputStream fos = new FileOutputStream(certificateClientFolderPath.resolve(filename).toFile());
-			final FileChannel channel = fos.getChannel()
-		) {
-			channel.transferFrom(rbc, 0, Long.MAX_VALUE);
-		}
-	}
-
-	/**
-	 * Add a provided certificate to the local truststore by usage of {@link TrustManagerDelegate}.
-	 * @param toTrustCertificatePath refers to the path of the certificate to trust
-	 * @param certificateAlias name, that will be used as a key in the truststore file
-	 * @return a trust manager that trusts the provided certificate
-	 */
-	public TrustManager getTrustManagerTrustingProvidedCertificate(@Nonnull Path toTrustCertificatePath, @Nonnull String certificateAlias) {
-		try {
-			final TrustManagerFactory javaDefaultTrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-			javaDefaultTrustManager.init((KeyStore) null);
-			final TrustManagerFactory serverSelfSignedTrustManager = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-			serverSelfSignedTrustManager.init(getKeyStore(toTrustCertificatePath, certificateAlias));
-			return new TrustManagerDelegate(
-				(X509TrustManager) serverSelfSignedTrustManager.getTrustManagers()[0],
-				(X509TrustManager) javaDefaultTrustManager.getTrustManagers()[0]
-			);
-		} catch (Exception e) {
-			throw new EvitaInvalidUsageException("Failed to initialize SSL context.", e);
-		}
-	}
-
-	/**
-	 * Add a provided certificate to the local truststore.
-	 * @param rootCaCertificatePath refers to the path of the certificate to trust
-	 * @param certificateAlias name, that will be used as a key in the truststore file
-	 * @return keystore that contains the provided certificate
-	 */
-	private KeyStore getKeyStore(@Nonnull Path rootCaCertificatePath, @Nonnull String certificateAlias) throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
-		// Create or get a KeyStore instance with the specified type and store it in a file
-		final File trustStoreFile = new File(certificateClientFolderPath.resolve(TRUST_STORE_FILE_NAME).toUri());
-		final KeyStore trustStore = KeyStore.getInstance("JKS");
-		final char[] trustStorePasswordCharArray = this.trustStorePassword.toCharArray();
-		if (!certificateClientFolderPath.toFile().exists()) {
-			Assert.isTrue(certificateClientFolderPath.toFile().mkdirs(), () -> "Cannot create folder `" + certificateClientFolderPath + "`!");
-		}
-		if (!trustStoreFile.exists()) {
-			trustStore.load(null, null);
-			try (final FileOutputStream trustStoreOutputStream = new FileOutputStream(trustStoreFile)) {
-				trustStore.store(trustStoreOutputStream, trustStorePasswordCharArray);
-			}
-		} else {
-			try (final FileInputStream trustStoreInputStream = new FileInputStream(trustStoreFile)) {
-				trustStore.load(trustStoreInputStream, trustStorePasswordCharArray);
-			}
-		}
-		final File certificateFile = new File(rootCaCertificatePath.toUri());
-		final CertificateFactory certificateFactory = CertificateFactory.getInstance("X.509");
-		final Certificate certificate;
-		try (final FileInputStream certificateInputStream = new FileInputStream(certificateFile)) {
-			certificate = certificateFactory.generateCertificate(certificateInputStream);
-		}
-		// Import the certificate into the trust store
-		trustStore.setCertificateEntry(certificateAlias, certificate);
-		try (final FileOutputStream trustStoreOutputStream = new FileOutputStream(trustStoreFile)) {
-			trustStore.store(trustStoreOutputStream, trustStorePasswordCharArray);
-		}
-		return trustStore;
-	}
-
-
-	/**
-	 * According to the client configuration, returns a path to the root CA certificate which may be located in either
-	 * user specified folder or in system TEMP directory.
-	 * @return The path to the certificate that should be used.
-	 */
-	public Path getUsedRootCaCertificatePath() {
-		return !useGeneratedCertificate ?
-			rootCaCertificateFilePath :
-			certificateClientFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
 	}
 }

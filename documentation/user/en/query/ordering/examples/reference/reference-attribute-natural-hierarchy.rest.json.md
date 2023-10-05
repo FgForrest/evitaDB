@@ -19,7 +19,7 @@
             "referencedPrimaryKey": 66480,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": -1
               }
             }
           }
@@ -249,14 +249,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": -1
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107893,
+        "primaryKey": 107899,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -264,7 +264,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-3-1"
+            "code": "amazfit-bip-3-pro"
           }
         },
         "categories": [
@@ -272,14 +272,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107891
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107894,
+        "primaryKey": 107911,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -287,7 +287,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-3-2"
+            "code": "amazfit-bip-s"
           }
         },
         "categories": [
@@ -295,14 +295,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107899
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107895,
+        "primaryKey": 107923,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -310,7 +310,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-3-3"
+            "code": "amazfit-bip-s-lite"
           }
         },
         "categories": [
@@ -318,14 +318,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107911
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107900,
+        "primaryKey": 107933,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -333,7 +333,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-3-pro-1"
+            "code": "amazfit-bip-u"
           }
         },
         "categories": [
@@ -341,14 +341,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107923
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107901,
+        "primaryKey": 107938,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -356,7 +356,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-3-pro-2"
+            "code": "amazfit-bip-u-pro"
           }
         },
         "categories": [
@@ -364,14 +364,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107933
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107902,
+        "primaryKey": 107952,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -379,7 +379,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-3-pro-3"
+            "code": "amazfit-falcon"
           }
         },
         "categories": [
@@ -387,14 +387,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107938
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107913,
+        "primaryKey": 107961,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -402,7 +402,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-s-1"
+            "code": "amazfit-gtr"
           }
         },
         "categories": [
@@ -410,14 +410,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107952
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107915,
+        "primaryKey": 107973,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -425,7 +425,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-s-2"
+            "code": "amazfit-gtr-2"
           }
         },
         "categories": [
@@ -433,14 +433,14 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107961
               }
             }
           }
         ]
       },
       {
-        "primaryKey": 107917,
+        "primaryKey": 107981,
         "type": "Product",
         "version": 1,
         "allLocales": [
@@ -448,7 +448,7 @@
         ],
         "attributes": {
           "global": {
-            "code": "amazfit-bip-s-3"
+            "code": "amazfit-gtr-2-2022"
           }
         },
         "categories": [
@@ -456,7 +456,7 @@
             "referencedPrimaryKey": 66486,
             "attributes": {
               "global": {
-                "orderInCategory": -2147483648
+                "orderInCategory": 107973
               }
             }
           }

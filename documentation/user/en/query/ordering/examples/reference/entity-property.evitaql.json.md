@@ -12,7 +12,7 @@
         "referencedEntity": {
           "primaryKey": 105138,
           "attributes": {
-            "code": "operating-system-proprietal"
+            "name:en": "Proprietal"
           }
         }
       },
@@ -22,7 +22,7 @@
         "referencedEntity": {
           "primaryKey": 107867,
           "attributes": {
-            "code": "material-stainless-steel"
+            "name:en": "Stainless steel"
           }
         }
       },
@@ -32,7 +32,7 @@
         "referencedEntity": {
           "primaryKey": 107868,
           "attributes": {
-            "code": "operating-system-com-android"
+            "name:en": "Android"
           }
         }
       },
@@ -42,7 +42,7 @@
         "referencedEntity": {
           "primaryKey": 107869,
           "attributes": {
-            "code": "operating-system-com-ios"
+            "name:en": "iOS"
           }
         }
       },
@@ -52,7 +52,7 @@
         "referencedEntity": {
           "primaryKey": 107870,
           "attributes": {
-            "code": "connector-usb-c"
+            "name:en": "usb-c"
           }
         }
       },
@@ -62,7 +62,7 @@
         "referencedEntity": {
           "primaryKey": 107872,
           "attributes": {
-            "code": "health-functions-monitors-bloo"
+            "name:en": "Blood oxygenation monitor"
           }
         }
       },
@@ -72,7 +72,7 @@
         "referencedEntity": {
           "primaryKey": 107873,
           "attributes": {
-            "code": "health-functions-heart-rate-mo"
+            "name:en": "Heart rate monitor"
           }
         }
       },
@@ -82,7 +82,7 @@
         "referencedEntity": {
           "primaryKey": 107874,
           "attributes": {
-            "code": "health-functions-gps"
+            "name:en": "GPS"
           }
         }
       },
@@ -92,7 +92,7 @@
         "referencedEntity": {
           "primaryKey": 107875,
           "attributes": {
-            "code": "health-functions-accelerometer"
+            "name:en": "Accelerometer"
           }
         }
       },
@@ -102,7 +102,7 @@
         "referencedEntity": {
           "primaryKey": 107876,
           "attributes": {
-            "code": "health-functions-temperature-s"
+            "name:en": "Temperature sensor"
           }
         }
       },
@@ -112,7 +112,7 @@
         "referencedEntity": {
           "primaryKey": 107877,
           "attributes": {
-            "code": "health-functions-compass"
+            "name:en": "Compass"
           }
         }
       },
@@ -122,7 +122,7 @@
         "referencedEntity": {
           "primaryKey": 107878,
           "attributes": {
-            "code": "health-functions-barometer"
+            "name:en": "Barometer"
           }
         }
       },
@@ -132,7 +132,7 @@
         "referencedEntity": {
           "primaryKey": 107879,
           "attributes": {
-            "code": "health-functions-gyroscope"
+            "name:en": "Gyroscope"
           }
         }
       },
@@ -142,7 +142,7 @@
         "referencedEntity": {
           "primaryKey": 107880,
           "attributes": {
-            "code": "health-functions-cadence-senso"
+            "name:en": "Cadence sensor"
           }
         }
       },
@@ -152,7 +152,7 @@
         "referencedEntity": {
           "primaryKey": 107881,
           "attributes": {
-            "code": "health-functions-monitors-pers"
+            "name:en": "Monitors perspiration"
           }
         }
       },
@@ -162,7 +162,7 @@
         "referencedEntity": {
           "primaryKey": 107882,
           "attributes": {
-            "code": "health-functions-3d-compass"
+            "name:en": "3D compass"
           }
         }
       },
@@ -172,7 +172,7 @@
         "referencedEntity": {
           "primaryKey": 107884,
           "attributes": {
-            "code": "water-resistance-true"
+            "name:en": "True"
           }
         }
       },
@@ -182,7 +182,7 @@
         "referencedEntity": {
           "primaryKey": 107943,
           "attributes": {
-            "code": "shape-circle"
+            "name:en": "circle"
           }
         }
       },
@@ -192,7 +192,7 @@
         "referencedEntity": {
           "primaryKey": 107956,
           "attributes": {
-            "code": "nfc-true"
+            "name:en": "True"
           }
         }
       },
@@ -202,7 +202,7 @@
         "referencedEntity": {
           "primaryKey": 108070,
           "attributes": {
-            "code": "battery-life-8"
+            "name:en": "8"
           }
         }
       },
@@ -212,7 +212,7 @@
         "referencedEntity": {
           "primaryKey": 108303,
           "attributes": {
-            "code": "display-type-mip"
+            "name:en": "MIP"
           }
         }
       },
@@ -222,7 +222,7 @@
         "referencedEntity": {
           "primaryKey": 108332,
           "attributes": {
-            "code": "display-resolution-260-x-260"
+            "name:en": "260 x 260"
           }
         }
       },
@@ -232,7 +232,7 @@
         "referencedEntity": {
           "primaryKey": 108337,
           "attributes": {
-            "code": "battery-capacity-275"
+            "name:en": "275"
           }
         }
       },
@@ -242,7 +242,7 @@
         "referencedEntity": {
           "primaryKey": 108415,
           "attributes": {
-            "code": "height-45-1"
+            "name:en": "45.1"
           }
         }
       },
@@ -252,7 +252,7 @@
         "referencedEntity": {
           "primaryKey": 108416,
           "attributes": {
-            "code": "width-45-1"
+            "name:en": "45.1"
           }
         }
       },
@@ -262,7 +262,7 @@
         "referencedEntity": {
           "primaryKey": 108417,
           "attributes": {
-            "code": "thickness-12-8"
+            "name:en": "12.8"
           }
         }
       },
@@ -272,7 +272,7 @@
         "referencedEntity": {
           "primaryKey": 108418,
           "attributes": {
-            "code": "weight-50-5"
+            "name:en": "50.5"
           }
         }
       },
@@ -282,7 +282,7 @@
         "referencedEntity": {
           "primaryKey": 114012,
           "attributes": {
-            "code": "usb-c"
+            "name:en": "USB-C"
           }
         }
       }

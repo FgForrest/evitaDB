@@ -76,11 +76,15 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -431,7 +435,38 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	) {
 		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
 		evitaServer.run();
-		return evitaServer;
+
+		// verify the server is running
+		int initAttempt = 0;
+		do {
+			try {
+				final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+				if (cfg == null) {
+					// system provider was not initialized
+					return evitaServer;
+				}
+				final URL website = new URL(cfg.getBaseUrls()[0] + "server-name");
+				try (
+					final Reader reader = Channels.newReader(Channels.newChannel(website.openStream()), StandardCharsets.UTF_8);
+				) {
+					// try to read server name from the system endpoint
+					final char[] buffer = new char[50];
+					reader.read(buffer);
+					return evitaServer;
+				}
+			} catch (Exception ignored) {
+				try {
+					// if not ready wait for a while
+					Thread.sleep(200);
+				} catch (InterruptedException e) {
+					return evitaServer;
+				}
+			}
+			initAttempt++;
+			// try at most 5 times
+		} while (initAttempt < 5);
+
+		throw new IllegalStateException("Evita server has't started within a second!");
 	}
 
 	@Override

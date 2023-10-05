@@ -49,6 +49,7 @@ import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
+import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
@@ -90,7 +91,13 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexContract, Versioned, IndexDataStructure {
+public abstract class EntityIndex<T extends EntityIndex<T>> implements
+	Index<EntityIndexKey>,
+	PriceIndexContract,
+	Versioned,
+	IndexDataStructure,
+	VoidTransactionMemoryProducer<T>
+{
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
 	/**
@@ -184,7 +191,7 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 		this.indexKey = indexKey;
 		this.schemaAccessor = schemaAccessor;
 		this.entityIds = new TransactionalBitmap();
-		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>());
+		this.entityIdsByLanguage = new TransactionalMap<>(new HashMap<>(), TransactionalBitmap.class, TransactionalBitmap::new);
 		this.attributeIndex = new AttributeIndex(schemaAccessor.get().getName());
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
@@ -218,7 +225,7 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 		for (Entry<Locale, TransactionalBitmap> entry : entityIdsByLanguage.entrySet()) {
 			txEntityIdsByLanguage.put(entry.getKey(), new TransactionalBitmap(entry.getValue()));
 		}
-		this.entityIdsByLanguage = new TransactionalMap<>(txEntityIdsByLanguage);
+		this.entityIdsByLanguage = new TransactionalMap<>(txEntityIdsByLanguage, TransactionalBitmap.class, TransactionalBitmap::new);
 		this.attributeIndex = attributeIndex;
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndex = facetIndex;
@@ -520,7 +527,8 @@ public abstract class EntityIndex implements Index<EntityIndexKey>, PriceIndexCo
 		return Stream.of(
 				attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, it)),
 				attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, it)),
-				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it))
+				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it)),
+				attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, it))
 			)
 			.flatMap(it -> it)
 			.collect(Collectors.toSet());

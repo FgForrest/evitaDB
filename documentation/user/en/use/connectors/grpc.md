@@ -11,7 +11,7 @@ The main idea behind the design was to define a universal communication protocol
 Unlike [REST](rest.md) and [GraphQL](graphql.md), this API is not intended for direct use by end users / developers, but
 primarily as a building block for evitaDB drivers or similar tools created for the database consumers.
 
-# API structure
+## API structure
 
 evitaDB is manipulated using the contracts exposed in [evita_api](https://github.com/FgForrest/evitaDB/tree/dev/evita_api/src/main/java/io/evitadb/api), 
 specifically the <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> and 
@@ -30,6 +30,11 @@ based on the EvitaSessionContract interface.
 One way to simplify this process is to store the session ID in a shared memory scope (example class
 <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/interceptor/ClientSessionInterceptor.java</SourceClass>) 
 and set it to the metadata with every method call using a <SourceClass>evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/interceptor/ClientSessionInterceptor.java</SourceClass>.
+In addition to `sessionId`, additional identifiers can be set in the metadata for [monitoring](../../operate/monitor.md) purposes. 
+Specifically, these are the `clientId` and `requestId` parameters, whose settings are used to add information about the 
+client that uses the database in a given instance (for example, it can be the name of the application using evitaDB) and 
+possibly an additional identifier for each query or method executed. Setting and using both of these parameters is 
+completely optional.
 
 gRPC works on the principle of Remote Method Calling (RPC), i.e. the client uses methods defined in protobuf services in
 its code and their implementation is called on the server, where the request is processed and the response is sent back 
@@ -40,7 +45,7 @@ and <SourceClass>evita_external_api/evita_external_api_grpc/server/src/main/java
 with the included methods supporting the same functionality as the base [Java API](https://github.com/FgForrest/evitaDB/tree/dev/evita_api/src/main/java/io/evitadb/api), but in a less convenient way
 due to the limitations of the gRPC protocol.
 
-## Protocol buffers
+### Protocol buffers
 
 Protocol buffers are a way to define the structure of data through messages using supported data types and structures. 
 They are not a replacement for JSON or XML formats used for data serialization, but rather a language-neutral and 
@@ -95,7 +100,7 @@ the same, any changes or additions will not work.
 
 </Note>
 
-# Querying the database
+## Querying the database
 
 One of the design challenges was to find a way to represent database queries using protobuf capabilities. While it is 
 possible to define a message type that represents a query and pass the serialized query in a binary representation, we 
@@ -142,7 +147,7 @@ the target language, as this shifts the developer experience to a higher level.
 
 </Note>
 
-# Recommended usage
+## Recommended usage
 
 To make the most of the gRPC API, we highly recommend using one of our implemented drivers or building your own tool to 
 facilitate querying. This will significantly improve your experience with evitaDB. Direct use of the gRPC API by 
@@ -164,7 +169,7 @@ the seamless functioning of your driver. Your success is important to us, and we
 you to make your driver integration with our API a successful and rewarding experience. Don't hesitate to contact us.
 We're here to help!
 
-## Recommended tools
+### Recommended tools
 
 It's important to note that gRPC is designed to be used from any of the supported programming languages using 
 protobuf-based generated classes, optionally with a friendly IDE that provides benefits such as intellisense, so using
@@ -176,7 +181,7 @@ However, if you're new to gRPC, we recommend the [BloomRPC](https://github.com/b
 deprecated, because it's more intuitive and dedicated to this technology. Alternatively, there are many great
 alternatives for testing gRPC APIs, which can be found [here](https://github.com/grpc-ecosystem/awesome-grpc).
 
-## Recommended libraries
+### Recommended libraries
 
 You can find all the officially maintained libraries on the [gRPC](https://grpc.io) website, from which you can choose a library for
 your own programming language. Along with a library, you also need to download a suitable protocol [compiler](https://grpc.io/docs/protoc-installation/), 

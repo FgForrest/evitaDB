@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HistogramDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
 import io.evitadb.utils.Assert;
@@ -57,10 +57,10 @@ public class AttributeHistogramResolver {
 	@Nonnull private final EntitySchemaContract entitySchema;
 
 	@Nonnull
-	public List<RequireConstraint> resolve(@Nonnull SelectionSetWrapper extraResultsSelectionSet) {
-		final List<SelectedField> attributeHistogramFields = extraResultsSelectionSet.getFields(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name());
+	public List<RequireConstraint> resolve(@Nonnull SelectionSetAggregator extraResultsSelectionSet) {
+		final List<SelectedField> attributeHistogramFields = extraResultsSelectionSet.getImmediateFields(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name());
 		// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
-		final List<SelectedField> attributeHistogramsFields = extraResultsSelectionSet.getFields("attributeHistograms");
+		final List<SelectedField> attributeHistogramsFields = extraResultsSelectionSet.getImmediateFields("attributeHistograms");
 		if (attributeHistogramFields.isEmpty() && attributeHistogramsFields.isEmpty()) {
 			return List.of();
 		}
@@ -68,14 +68,14 @@ public class AttributeHistogramResolver {
 		final Map<String, Integer> requestedAttributeHistograms = createHashMap(10);
 
 		attributeHistogramFields.stream()
-			.flatMap(f -> SelectionSetWrapper.from(f.getSelectionSet()).getFields("*").stream())
+			.flatMap(f -> SelectionSetAggregator.getImmediateFields(f.getSelectionSet()).stream())
 			.forEach(f -> {
 				final AttributeSchemaContract attributeSchema = entitySchema
 					.getAttributeByName(f.getName(), PROPERTY_NAME_NAMING_CONVENTION)
 					.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Missing attribute `" + f.getName() + "`."));
 				final String originalAttributeName = attributeSchema.getName();
 
-				final List<SelectedField> bucketsFields = SelectionSetWrapper.from(f.getSelectionSet()).getFields(HistogramDescriptor.BUCKETS.name());
+				final List<SelectedField> bucketsFields = SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), f.getSelectionSet());
 				Assert.isTrue(
 					!bucketsFields.isEmpty(),
 					() -> new GraphQLInvalidResponseUsageException(
@@ -110,7 +110,7 @@ public class AttributeHistogramResolver {
 					})
 					.toList();
 
-				final List<SelectedField> bucketsFields = SelectionSetWrapper.from(f.getSelectionSet()).getFields(HistogramDescriptor.BUCKETS.name());
+				final List<SelectedField> bucketsFields = SelectionSetAggregator.getImmediateFields(HistogramDescriptor.BUCKETS.name(), f.getSelectionSet());
 				Assert.isTrue(
 					!bucketsFields.isEmpty(),
 					() -> new GraphQLInvalidResponseUsageException(

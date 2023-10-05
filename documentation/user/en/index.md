@@ -84,7 +84,7 @@ the first version to the general public.
    7. [Price](query/filtering/price.md)
    8. [References](query/filtering/references.md)
    9. [Hierarchy](query/filtering/hierarchy.md)
-   10. [Facet](query/filtering/special.md)
+   10. [Behavioral filter containers](query/filtering/behavioral.md)
 3. **Ordering**
    1. [Constant](query/ordering/constant.md)
    1. [Natural](query/ordering/natural.md)

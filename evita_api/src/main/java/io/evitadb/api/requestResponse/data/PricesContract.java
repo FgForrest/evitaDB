@@ -40,13 +40,19 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Currency;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
@@ -65,6 +71,10 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	@Nonnull
 	static Optional<PriceContract> computePriceForSale(@Nonnull Collection<PriceContract> entityPrices, @Nonnull PriceInnerRecordHandling innerRecordHandling, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String[] priceListPriority, @Nonnull Predicate<PriceContract> filterPredicate) {
+		if (entityPrices.isEmpty()) {
+			return empty();
+		}
+
 		final Map<Serializable, Integer> pLists = createHashMap(priceListPriority.length);
 		for (int i = 0; i < priceListPriority.length; i++) {
 			final Serializable pList = priceListPriority[i];
@@ -284,7 +294,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
 	 * The moment is either extracted from the query as well (if present) or current date and time is used.
 	 *
-	 * The method differs from {@link #getPriceForSale()} ()} in the sense of never returning {@link ContextMissingException}
+	 * The method differs from {@link #getPriceForSale()} in the sense of never returning {@link ContextMissingException}
 	 * and returning list of all possibly matching selling prices (not only single one). Returned list may be also
 	 * empty if there is no such price.
 	 *
@@ -296,21 +306,29 @@ public interface PricesContract extends Versioned, Serializable {
 	@Nonnull
 	default List<PriceContract> getAllPricesForSale(@Nullable Currency currency, @Nullable OffsetDateTime atTheMoment, @Nullable String... priceListPriority)
 		throws ContextMissingException {
-		final Set<Serializable> pLists;
+		final Map<Serializable, Integer> pLists;
 		if (ArrayUtils.isEmpty(priceListPriority)) {
-			pLists = Collections.emptySet();
+			pLists = Collections.emptyMap();
 		} else {
-			pLists = createHashSet(priceListPriority.length);
-			pLists.addAll(Arrays.asList(priceListPriority));
+			pLists = createHashMap(priceListPriority.length);
+			for (int i = 0; i < priceListPriority.length; i++) {
+				pLists.put(priceListPriority[i], i);
+			}
 		}
-		return getPrices()
+		final Stream<PriceContract> priceStream = getPrices()
 			.stream()
 			.filter(PriceContract::exists)
 			.filter(PriceContract::sellable)
 			.filter(it -> currency == null || currency.equals(it.currency()))
 			.filter(it -> ofNullable(atTheMoment).map(mmt -> it.validity() == null || it.validity().isValidFor(mmt)).orElse(true))
-			.filter(it -> pLists.isEmpty() || pLists.contains(it.priceList()))
-			.toList();
+			.filter(it -> pLists.isEmpty() || pLists.containsKey(it.priceList()));
+		if (pLists.isEmpty()) {
+			return priceStream.toList();
+		} else {
+			return priceStream
+				.sorted(Comparator.comparingInt(o -> pLists.get(o.priceList())))
+				.toList();
+		}
 	}
 
 	/**
@@ -318,7 +336,7 @@ public interface PricesContract extends Versioned, Serializable {
 	 * with price related constraints so that `currency` and `priceList` priority can be extracted from the query.
 	 * The moment is either extracted from the query as well (if present) or current date and time is used.
 	 *
-	 * The method differs from {@link #getPriceForSale()} ()} in the sense of never returning {@link ContextMissingException}
+	 * The method differs from {@link #getPriceForSale()} in the sense of never returning {@link ContextMissingException}
 	 * and returning list of all possibly matching selling prices (not only single one). Returned list may be also
 	 * empty if there is no such price.
 	 *
@@ -343,6 +361,12 @@ public interface PricesContract extends Versioned, Serializable {
 	 */
 	default boolean hasPriceInInterval(@Nonnull BigDecimal from, @Nonnull BigDecimal to, @Nonnull QueryPriceMode queryPriceMode, @Nonnull Currency currency, @Nullable OffsetDateTime atTheMoment, @Nonnull String... priceListPriority)
 		throws ContextMissingException {
+
+		final Collection<PriceContract> entityPrices = getPrices();
+		if (entityPrices.isEmpty()) {
+			return false;
+		}
+
 		switch (getPriceInnerRecordHandling()) {
 			case NONE, SUM -> {
 				return getPriceForSale(currency, atTheMoment, priceListPriority)
@@ -356,7 +380,7 @@ public interface PricesContract extends Versioned, Serializable {
 					final Serializable pList = priceListPriority[i];
 					pLists.put(pList, i);
 				}
-				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = getPrices()
+				final Map<Integer, List<PriceContract>> pricesByInnerRecordId = entityPrices
 					.stream()
 					.filter(PriceContract::exists)
 					.filter(PriceContract::sellable)

@@ -44,7 +44,7 @@ public interface HierarchyPlacementMutator {
 	 */
 	static void setParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex index,
+		@Nonnull EntityIndex<?> index,
 		int primaryKeyToIndex,
 		@Nullable Integer parentPrimaryKey
 	) {
@@ -60,7 +60,7 @@ public interface HierarchyPlacementMutator {
 	 */
 	static void removeParent(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex index,
+		@Nonnull EntityIndex<?> index,
 		int primaryKeyToIndex
 	) {
 		final EntitySchema schema = executor.getEntitySchema();

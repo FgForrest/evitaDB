@@ -1,6 +1,9 @@
 ---
 title: String filtering
 date: '17.1.2023'
+perex: |
+  There are several filtering constraints designed to work especially with string attributes. They are useful for 
+  looking for entities with attributes that contain a specific string.
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---

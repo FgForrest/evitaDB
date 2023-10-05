@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -116,10 +117,10 @@ public abstract class AttributeMutation implements LocalMutation<AttributeValue,
 			);
 			if (attributeSchema.isSortable()) {
 				Assert.isTrue(
-					Comparable.class.isAssignableFrom(attributeClass),
+					Comparable.class.isAssignableFrom(attributeClass) || attributeValue instanceof Predecessor,
 					() -> new InvalidMutationException(
-						"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` is filterable and needs to implement " +
-							"Comparable interface, but it doesn't: `" + attributeValue.getClass() + "`!"
+						"Attribute `" + attributeKey.attributeName() + "` in schema `" + entitySchemaBuilder.getName() + "` is sortable and needs to implement " +
+							"Comparable interface (or be Predecessor), but it doesn't: `" + attributeValue.getClass() + "`!"
 					)
 				);
 			}

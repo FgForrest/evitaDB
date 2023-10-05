@@ -38,4 +38,16 @@ public interface GrpcHeaders {
 	 * Constant string representing sessionId that is used to fetch session from context.
 	 */
 	String SESSION_ID_HEADER = "sessionId";
+	/**
+	 * Constant string representing client address (IP address) that is used to identify the client.
+	 */
+	String CLIENT_ADDRESS_HEADER = "clientAddress";
+	/**
+	 * Constant string representing clientId that is used to fetch session from context.
+	 */
+	String CLIENT_ID_HEADER = "clientId";
+	/**
+	 * Constant string representing requestId that is used to fetch session from context.
+	 */
+	String REQUEST_ID_HEADER = "requestId";
 }

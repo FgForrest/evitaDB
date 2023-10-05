@@ -76,7 +76,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			.collect(Collectors.groupingBy(AttributeFormula::getAttributeName));
 
 		// get all indexes that should be used for query execution
-		final TargetIndexes<EntityIndex> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final TargetIndexes<EntityIndex<?>> indexSetToUse = extraResultPlanner.getIndexSetToUse();
 		// find existing AttributeHistogramProducer for potential reuse
 		AttributeHistogramProducer attributeHistogramProducer = extraResultPlanner.findExistingProducer(AttributeHistogramProducer.class);
 		for (String attributeName : attributeNames) {

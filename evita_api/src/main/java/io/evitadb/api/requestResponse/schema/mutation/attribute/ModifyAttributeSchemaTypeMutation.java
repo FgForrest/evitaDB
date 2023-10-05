@@ -80,6 +80,9 @@ public class ModifyAttributeSchemaTypeMutation
 		@Nonnull Class<? extends Serializable> type,
 		int indexedDecimalPlaces
 	) {
+		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
+			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
+		}
 		this.name = name;
 		this.type = type;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;

@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
+import io.evitadb.core.query.LocaleProvider;
 import io.evitadb.core.query.PrefetchRequirementCollector;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -74,11 +75,13 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
+import static java.util.Optional.ofNullable;
 
 /**
  * This {@link ConstraintVisitor} translates tree of {@link OrderConstraint} to a composition of {@link Sorter}
@@ -87,7 +90,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class OrderByVisitor implements ConstraintVisitor {
+public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	private static final Map<Class<? extends OrderConstraint>, OrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
 	private static final EntityIndex[] EMPTY_INDEX_ARRAY = new EntityIndex[0];
 
@@ -108,7 +111,8 @@ public class OrderByVisitor implements ConstraintVisitor {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
-	@Getter @Delegate private final QueryContext queryContext;
+	@Getter @Delegate(excludes = LocaleProvider.class)
+	private final QueryContext queryContext;
 	/**
 	 * Collection contains all alternative {@link TargetIndexes} sets that might already contain precalculated information
 	 * related to {@link EntityIndex} that can be used to partially resolve input filter although the target index set
@@ -160,10 +164,11 @@ public class OrderByVisitor implements ConstraintVisitor {
 		scope.push(
 			new ProcessingScope(
 				this.queryContext.getGlobalEntityIndexIfExists()
-					.map(it -> new EntityIndex[] {it})
+					.map(it -> new EntityIndex[]{it})
 					.orElse(EMPTY_INDEX_ARRAY),
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
+				null,
 				attributeSchemaAccessor,
 				EntityAttributeExtractor.INSTANCE
 			)
@@ -205,6 +210,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 	public final <T> T executeInContext(
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable String entityType,
+		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeSchemaEntityAccessor,
 		@Nonnull Supplier<T> lambda
@@ -214,6 +220,7 @@ public class OrderByVisitor implements ConstraintVisitor {
 				new ProcessingScope(
 					entityIndex,
 					entityType,
+					locale,
 					attributeSchemaAccessor,
 					attributeSchemaEntityAccessor
 				)
@@ -243,6 +250,15 @@ public class OrderByVisitor implements ConstraintVisitor {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
 		return theScope.entityIndex();
+	}
+
+	/**
+	 * Returns locale valid for this processing scope or the entire query context.
+	 */
+	@Override
+	@Nonnull
+	public Locale getLocale() {
+		return ofNullable(getProcessingScope().locale()).orElseGet(queryContext::getLocale);
 	}
 
 	@Override
@@ -286,12 +302,14 @@ public class OrderByVisitor implements ConstraintVisitor {
 	 *
 	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
 	 * @param entityType              contains entity type the context refers to
+	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
 	 * @param attributeEntityAccessor function provides access to the attribute content via {@link EntityContract}
 	 */
 	public record ProcessingScope(
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable String entityType,
+		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull AttributeExtractor attributeEntityAccessor
 	) {

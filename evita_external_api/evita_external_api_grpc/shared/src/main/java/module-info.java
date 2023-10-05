@@ -4,7 +4,6 @@
 module evita.external.api.grpc.shared {
 
 	exports io.evitadb.externalApi.grpc.generated;
-	exports io.evitadb.externalApi.grpc.interceptor;
 	exports io.evitadb.externalApi.grpc.constants;
 	exports io.evitadb.externalApi.grpc.requestResponse;
 	exports io.evitadb.externalApi.grpc.requestResponse.data.mutation;

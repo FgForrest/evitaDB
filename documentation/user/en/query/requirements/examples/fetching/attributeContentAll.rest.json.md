@@ -11,9 +11,9 @@
       ],
       "attributes": {
         "global": {
-          "changed": "2023-06-25T21:36:22+02:00",
+          "changed": "2023-09-08T14:08:26+02:00",
           "code": "samsung",
-          "order": 0,
+          "order": -1,
           "status": "ACTIVE",
           "visibility": "VISIBLE"
         }

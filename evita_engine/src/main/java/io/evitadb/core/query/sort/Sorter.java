@@ -63,7 +63,13 @@ public interface Sorter {
 	 * Method sorts output of the {@link AbstractFormula} input and extracts slice of the result data between `startIndex` (inclusive)
 	 * and `endIndex` (exclusive).
 	 */
-	@Nonnull
-	int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex);
+	int sortAndSlice(
+		@Nonnull QueryContext queryContext,
+		@Nonnull Formula input,
+		int startIndex,
+		int endIndex,
+		@Nonnull int[] result,
+		int peak
+	);
 
 }

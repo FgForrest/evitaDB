@@ -31,6 +31,9 @@ import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -67,6 +70,9 @@ public class ModifyAssociatedDataSchemaTypeMutation
 		@Nonnull Class<? extends Serializable> type
 	) {
 		super(name);
+		if (!(EvitaDataTypes.isSupportedTypeOrItsArray(type) || ComplexDataObject.class.equals(type)) || Predecessor.class.equals(type)) {
+			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in associated data!");
+		}
 		this.type = type;
 	}
 

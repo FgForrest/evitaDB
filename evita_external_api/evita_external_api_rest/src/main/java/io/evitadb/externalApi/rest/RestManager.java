@@ -165,10 +165,13 @@ public class RestManager {
 	 * Update REST endpoints and OpenAPI schema of catalog.
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
-		Assert.isPremiseValid(
-			registeredCatalogEndpoints.containsKey(catalogName),
-			() -> new OpenApiInternalError("Cannot refresh catalog `" + catalogName + "`. Such catalog has not been registered yet.")
-		);
+		if (!registeredCatalogEndpoints.containsKey(catalogName)) {
+			// there may be case where initial registration failed and catalog is not registered at all
+			// for example, when catalog was corrupted and is replaced with new fresh one
+			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
+			registerCatalog(catalogName);
+			return;
+		}
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);

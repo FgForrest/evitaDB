@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema.builder;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -47,7 +49,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Collection;
+import java.util.Currency;
+import java.util.List;
+import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -63,8 +67,9 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	protected final S baseSchema;
 	protected final CatalogSchemaContract catalogSchema;
 	protected final EntitySchemaContract entitySchema;
-	protected boolean updatedSchemaDirty;
+	protected MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
 	protected S updatedSchema;
+	private int lastMutationReflectedInSchema = 0;
 
 	AbstractAttributeSchemaBuilder(
 		@Nullable CatalogSchemaContract catalogSchema,
@@ -95,17 +100,23 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 				"Passed default value doesn't match the type `" + expectedType + "`!"
 			);
 
-			this.updatedSchemaDirty = addMutations(
-				new ModifyAttributeSchemaDefaultValueMutation(
-					baseSchema.getName(),
-					EvitaDataTypes.toTargetType(defaultValue, wrappedForm, currentSchema.getIndexedDecimalPlaces())
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					new ModifyAttributeSchemaDefaultValueMutation(
+						baseSchema.getName(),
+						EvitaDataTypes.toTargetType(defaultValue, wrappedForm, currentSchema.getIndexedDecimalPlaces())
+					)
 				)
 			);
 		} else {
-			this.updatedSchemaDirty = addMutations(
-				new ModifyAttributeSchemaDefaultValueMutation(
-					baseSchema.getName(),
-					null
+			this.updatedSchemaDirty = updateMutationImpact(
+				this.updatedSchemaDirty,
+				addMutations(
+					new ModifyAttributeSchemaDefaultValueMutation(
+						baseSchema.getName(),
+						null
+					)
 				)
 			);
 		}
@@ -114,47 +125,14 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 
 	@Override
 	@Nonnull
-	public T withDescription(@Nullable String description) {
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaDescriptionMutation(
-				baseSchema.getName(),
-				description
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T deprecated(@Nonnull String deprecationNotice) {
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaDeprecationNoticeMutation(
-				baseSchema.getName(),
-				deprecationNotice
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
-	public T notDeprecatedAnymore() {
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaDeprecationNoticeMutation(
-				baseSchema.getName(),
-				null
-			)
-		);
-		return (T) this;
-	}
-
-	@Override
-	@Nonnull
 	public T filterable() {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaFilterableMutation(
-				baseSchema.getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaFilterableMutation(
+					baseSchema.getName(),
+					true
+				)
 			)
 		);
 		return (T) this;
@@ -163,10 +141,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T filterable(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaFilterableMutation(
-				baseSchema.getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaFilterableMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return (T) this;
@@ -175,10 +156,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T unique() {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaUniqueMutation(
-				baseSchema.getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					true
+				)
 			)
 		);
 		return (T) this;
@@ -187,10 +171,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T unique(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaFilterableMutation(
-				baseSchema.getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaFilterableMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return (T) this;
@@ -199,10 +186,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T sortable() {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaSortableMutation(
-				baseSchema.getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSortableMutation(
+					baseSchema.getName(),
+					true
+				)
 			)
 		);
 		return (T) this;
@@ -211,10 +201,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T sortable(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaSortableMutation(
-				baseSchema.getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSortableMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return (T) this;
@@ -223,10 +216,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T localized() {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaLocalizedMutation(
-				baseSchema.getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaLocalizedMutation(
+					baseSchema.getName(),
+					true
+				)
 			)
 		);
 		return (T) this;
@@ -235,10 +231,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T localized(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaLocalizedMutation(
-				baseSchema.getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaLocalizedMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return (T) this;
@@ -247,10 +246,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Override
 	@Nonnull
 	public T nullable() {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaNullableMutation(
-				baseSchema.getName(),
-				true
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaNullableMutation(
+					baseSchema.getName(),
+					true
+				)
 			)
 		);
 		return (T) this;
@@ -259,10 +261,13 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Nonnull
 	@Override
 	public T nullable(@Nonnull BooleanSupplier decider) {
-		this.updatedSchemaDirty = addMutations(
-			new SetAttributeSchemaNullableMutation(
-				baseSchema.getName(),
-				decider.getAsBoolean()
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaNullableMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean()
+				)
 			)
 		);
 		return (T) this;
@@ -272,15 +277,63 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	@Nonnull
 	public T indexDecimalPlaces(int indexedDecimalPlaces) {
 		//noinspection rawtypes
-		this.updatedSchemaDirty = addMutations(
-			new ModifyAttributeSchemaTypeMutation(
-				baseSchema.getName(),
-				toAttributeMutation().stream()
-					.filter(it -> it instanceof ModifyAttributeSchemaTypeMutation)
-					.map(it -> ((ModifyAttributeSchemaTypeMutation) it).getType())
-					.findFirst()
-					.orElseGet(() -> (Class) baseSchema.getType()),
-				indexedDecimalPlaces
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new ModifyAttributeSchemaTypeMutation(
+					baseSchema.getName(),
+					toAttributeMutation().stream()
+						.filter(it -> it instanceof ModifyAttributeSchemaTypeMutation)
+						.map(it -> ((ModifyAttributeSchemaTypeMutation) it).getType())
+						.findFirst()
+						.orElseGet(() -> (Class) baseSchema.getType()),
+					indexedDecimalPlaces
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T withDescription(@Nullable String description) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new ModifyAttributeSchemaDescriptionMutation(
+					baseSchema.getName(),
+					description
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T deprecated(@Nonnull String deprecationNotice) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new ModifyAttributeSchemaDeprecationNoticeMutation(
+					baseSchema.getName(),
+					deprecationNotice
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T notDeprecatedAnymore() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new ModifyAttributeSchemaDeprecationNoticeMutation(
+					baseSchema.getName(),
+					null
+				)
 			)
 		);
 		return (T) this;
@@ -291,9 +344,21 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	 */
 	@Nonnull
 	public S toInstance() {
-		if (this.updatedSchema == null || this.updatedSchemaDirty) {
-			S currentSchema = this.baseSchema;
-			for (AttributeSchemaMutation mutation : toAttributeMutation()) {
+		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {
+			// if the dirty flat is set to modified previous we need to start from the base schema again
+			// and reapply all mutations
+			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
+				this.lastMutationReflectedInSchema = 0;
+			}
+			// if the last mutation reflected in the schema is zero we need to start from the base schema
+			// else we can continue modification last known updated schema by adding additional mutations
+			S currentSchema = this.lastMutationReflectedInSchema == 0 ?
+				this.baseSchema : this.updatedSchema;
+
+			final List<AttributeSchemaMutation> attributeMutations = toAttributeMutation();
+			// apply the mutations not reflected in the schema
+			for (int i = lastMutationReflectedInSchema; i < attributeMutations.size(); i++) {
+				final AttributeSchemaMutation mutation = attributeMutations.get(i);
 				currentSchema = mutation.mutate(null, currentSchema);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Attribute unexpectedly removed from inside!");
@@ -301,7 +366,8 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			}
 			validate(currentSchema);
 			this.updatedSchema = currentSchema;
-			this.updatedSchemaDirty = false;
+			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
+			this.lastMutationReflectedInSchema = attributeMutations.size();
 		}
 		return this.updatedSchema;
 	}
@@ -309,7 +375,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	/**
 	 * Method allows adding specific mutation on the fly.
 	 */
-	protected abstract boolean addMutations(@Nonnull AttributeSchemaMutation mutation);
+	protected abstract MutationImpact addMutations(@Nonnull AttributeSchemaMutation mutation);
 
 	/**
 	 * Returns collection of {@link AttributeSchemaMutation} instances describing what changes occurred in the builder
@@ -318,7 +384,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 	 * conditions based on "optimistic locking" mechanism in very granular way.
 	 */
 	@Nonnull
-	protected abstract Collection<AttributeSchemaMutation> toAttributeMutation();
+	protected abstract List<AttributeSchemaMutation> toAttributeMutation();
 
 	/**
 	 * Method validates the consistency of an attribute schema.
@@ -328,16 +394,26 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		final Class<?> plainType = ReflectionLookup.getSimpleType(currentSchema.getType());
 		Assert.isTrue(
 			!currentSchema.isSortable() ||
-				plainType.isPrimitive() || Comparable.class.isAssignableFrom(plainType),
-			"Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for indexing!"
-		);
-		Assert.isTrue(
-			!(currentSchema.isFilterable() && currentSchema.isUnique()),
-			"Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!"
+				plainType.isPrimitive() ||
+				Comparable.class.isAssignableFrom(plainType) ||
+				Predecessor.class.isAssignableFrom(plainType),
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable (or must be Predecessor) in order to be usable for sort index!")
 		);
 		Assert.isTrue(
 			!(currentSchema.isSortable() && currentSchema.getType().isArray()),
-			"Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!"
+			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` is sortable but also an array. Arrays cannot be handled by sorting algorithm!")
+		);
+		Assert.isTrue(
+			!(currentSchema.isFilterable() || currentSchema.isUnique()) ||
+				plainType.isPrimitive() ||
+				Comparable.class.isAssignableFrom(plainType) ||
+				Currency.class.isAssignableFrom(plainType) ||
+				Locale.class.isAssignableFrom(plainType),
+			() -> new InvalidSchemaMutationException("Data type `" + currentSchema.getType() + "` in attribute schema `" + currentSchema.getName() + "` must implement Comparable in order to be usable for filter / unique index!")
+		);
+		Assert.isTrue(
+			!(currentSchema.isFilterable() && currentSchema.isUnique()),
+			() -> new InvalidSchemaMutationException("Attribute `" + currentSchema.getName() + "` cannot be both unique and filterable. Unique attributes are implicitly filterable!")
 		);
 	}
 

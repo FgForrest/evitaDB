@@ -72,7 +72,7 @@ filterConstraint
     | 'priceValidIn'                        args = valueArgs                                                # priceValidInConstraint
     | 'priceBetween'                        args = betweenValuesArgs                                        # priceBetweenConstraint
     | 'facetHaving'                         args = classifierWithFilterConstraintArgs                       # facetHavingConstraint
-    | 'referenceHaving'                     args = classifierWithFilterConstraintArgs                       # referenceHavingConstraint
+    | 'referenceHaving'                     (args = classifierArgs | classifierWithFilterConstraintArgs)    # referenceHavingConstraint
     | 'hierarchyWithin'                     args = hierarchyWithinConstraintArgs                            # hierarchyWithinConstraint
     | 'hierarchyWithinSelf'                 args = hierarchyWithinSelfConstraintArgs                        # hierarchyWithinSelfConstraint
     | 'hierarchyWithinRoot'                 args = hierarchyWithinRootConstraintArgs                        # hierarchyWithinRootConstraint
@@ -96,6 +96,7 @@ orderConstraint
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint
+    | 'entityGroupProperty'                 args = orderConstraintListArgs                                  # entityGroupPropertyConstraint
     ;
 
 requireConstraint

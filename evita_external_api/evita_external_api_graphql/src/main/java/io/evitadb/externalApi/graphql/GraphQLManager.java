@@ -173,10 +173,13 @@ public class GraphQLManager {
 	 */
 	public void refreshCatalog(@Nonnull String catalogName) {
 		final RegisteredCatalog registeredCatalog = registeredCatalogs.get(catalogName);
-		Assert.isPremiseValid(
-			registeredCatalog != null,
-			() -> new GraphQLInternalError("Cannot refresh catalog `" + catalogName + "`. Such catalog has not been registered yet.")
-		);
+		if (registeredCatalog == null) {
+			// there may be case where initial registration failed and catalog is not registered at all
+			// for example, when catalog was corrupted and is replaced with new fresh one
+			log.info("Could not refresh existing catalog `{}`. Registering new one instead...", catalogName);
+			registerCatalog(catalogName);
+			return;
+		}
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
 
@@ -232,7 +235,7 @@ public class GraphQLManager {
 				new CorsFilter(
 					new GraphQLExceptionHandler(
 						objectMapper,
-						new GraphQLWebHandler(objectMapper, evita.getConfiguration(), registeredGraphQLApi.graphQLReference())
+						new GraphQLWebHandler(objectMapper, evita, registeredGraphQLApi.graphQLReference())
 					),
 					graphQLConfig.getAllowedOrigins()
 				)

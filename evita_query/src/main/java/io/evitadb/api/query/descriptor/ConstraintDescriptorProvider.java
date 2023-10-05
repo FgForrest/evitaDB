@@ -25,6 +25,7 @@ package io.evitadb.api.query.descriptor;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintCreator.FixedImplicitClassifier;
+import io.evitadb.api.query.descriptor.ConstraintCreator.ImplicitClassifier;
 import io.evitadb.api.query.descriptor.ConstraintCreator.SilentImplicitClassifier;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
@@ -108,10 +109,11 @@ public class ConstraintDescriptorProvider {
 			.filter(candidate -> {
 				final ConstraintCreator creator = candidate.creator();
 
-				if (creator.hasImplicitClassifier()) {
-					if (creator.implicitClassifier() instanceof SilentImplicitClassifier) {
+				final Optional<ImplicitClassifier> implicitClassifier = creator.implicitClassifier();
+				if (implicitClassifier.isPresent()) {
+					if (implicitClassifier.get() instanceof SilentImplicitClassifier) {
 						return classifier == null;
-					} else if (creator.implicitClassifier() instanceof final FixedImplicitClassifier fixedImplicitClassifier) {
+					} else if (implicitClassifier.get() instanceof final FixedImplicitClassifier fixedImplicitClassifier) {
 						return fixedImplicitClassifier.classifier().equals(classifier);
 					} else {
 						throw new EvitaInternalError("Unsupported implicit classifier class.");
@@ -142,12 +144,10 @@ public class ConstraintDescriptorProvider {
 	                                                 @Nullable String suffix) {
 		return getConstraints(constraintClass)
 			.stream()
-			.filter(it -> {
-				if (it.creator().suffix() == null) {
-					return suffix == null;
-				}
-				return it.creator().suffix().equals(suffix);
-			})
+			.filter(it -> it.creator()
+				.suffix()
+				.map(it2 -> it2.equals(suffix))
+				.orElse(suffix == null))
 			.findFirst()
 			.orElseThrow(() ->
 				new EvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));

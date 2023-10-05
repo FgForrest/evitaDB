@@ -59,7 +59,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Data
-public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupIndexChanges, Map<Integer, Bitmap>>, IndexDataStructure {
+public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupIndexChanges, FacetGroupIndex>, IndexDataStructure {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
 	 * Contains primary key of the group. Might contain NULL if the group index encloses facets wouth group assignment.
@@ -72,12 +72,12 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 
 	public FacetGroupIndex() {
 		this.groupId = null;
-		this.facetIdIndexes = new TransactionalMap<>(new HashMap<>());
+		this.facetIdIndexes = new TransactionalMap<>(new HashMap<>(), FacetIdIndex.class, Function.identity());
 	}
 
 	public FacetGroupIndex(@Nullable Integer groupId) {
 		this.groupId = groupId;
-		this.facetIdIndexes = new TransactionalMap<>(new HashMap<>());
+		this.facetIdIndexes = new TransactionalMap<>(new HashMap<>(), FacetIdIndex.class, Function.identity());
 	}
 
 	public FacetGroupIndex(@Nonnull Collection<FacetIdIndex> facetIdIndexes) {
@@ -94,13 +94,14 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 						FacetIdIndex::getFacetId,
 						Function.identity()
 					)
-				)
+				),
+			FacetIdIndex.class, Function.identity()
 		);
 	}
 
 	FacetGroupIndex(@Nullable Integer groupId, @Nonnull Map<Integer, FacetIdIndex> facetIdIndexes) {
 		this.groupId = groupId;
-		this.facetIdIndexes = new TransactionalMap<>(facetIdIndexes);
+		this.facetIdIndexes = new TransactionalMap<>(facetIdIndexes, FacetIdIndex.class, Function.identity());
 	}
 
 	/**
@@ -223,13 +224,11 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	}
 
 	@Nonnull
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Override
-	public Map<Integer, Bitmap> createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		// this is a HACK - facet id indexes produce IntegerBitmap instead of type than generics would suggest
-		final Map<Integer, Bitmap> stateCopy = ((Map) transactionalLayer.getStateCopyWithCommittedChanges(facetIdIndexes, transaction));
+	public FacetGroupIndex createCopyWithMergedTransactionalMemory(@Nullable FacetGroupIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		final Map<Integer, FacetIdIndex> stateCopy = transactionalLayer.getStateCopyWithCommittedChanges(facetIdIndexes, transaction);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
-		return stateCopy;
+		return new FacetGroupIndex(groupId, stateCopy);
 	}
 
 	@Override
@@ -243,7 +242,7 @@ public class FacetGroupIndex implements TransactionalLayerProducer<FacetGroupInd
 	 * This class collects changes in {@link #facetIdIndexes} transactional map and its sub structure.
 	 */
 	public static class FacetGroupIndexChanges {
-		private final TransactionalContainerChanges<Void, Bitmap, FacetIdIndex> items = new TransactionalContainerChanges<>();
+		private final TransactionalContainerChanges<Void, FacetIdIndex, FacetIdIndex> items = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull FacetIdIndex baseIndex) {
 			items.addCreatedItem(baseIndex);

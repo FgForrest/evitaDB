@@ -26,7 +26,6 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher;
 import graphql.execution.DataFetcherResult;
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
-import graphql.schema.DataFetchingFieldSelectionSet;
 import graphql.schema.SelectedField;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
@@ -52,7 +51,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.ResponseDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.*;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidResponseUsageException;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +66,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
@@ -224,10 +224,10 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			}
 		}
 
-		final DataFetchingFieldSelectionSet selectionSet = environment.getSelectionSet();
+		final SelectionSetAggregator selectionSet = SelectionSetAggregator.from(environment.getSelectionSet());
 
 		// build requires for returning records
-		final List<SelectedField> recordFields = selectionSet.getFields(ResponseDescriptor.RECORD_PAGE.name(), ResponseDescriptor.RECORD_STRIP.name());
+		final List<SelectedField> recordFields = selectionSet.getImmediateFields(Set.of(ResponseDescriptor.RECORD_PAGE.name(), ResponseDescriptor.RECORD_STRIP.name()));
 		Assert.isTrue(
 			recordFields.size() <= 1,
 			() -> new GraphQLInvalidResponseUsageException(
@@ -242,9 +242,9 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			requireConstraints.add(pagingRequireResolver.resolve(recordField));
 
 			// build content requires
-			final List<SelectedField> recordData = recordField.getSelectionSet().getFields(DataChunkDescriptor.DATA.name());
+			final List<SelectedField> recordData = SelectionSetAggregator.getImmediateFields(DataChunkDescriptor.DATA.name(), recordField.getSelectionSet());
 			if (!recordData.isEmpty()) {
-				final SelectionSetWrapper selectionSetWrapper = SelectionSetWrapper.from(
+				final SelectionSetAggregator selectionSetAggregator = SelectionSetAggregator.from(
 					recordData
 						.stream()
 						.map(SelectedField::getSelectionSet)
@@ -252,7 +252,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 				);
 
 				final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
-					selectionSetWrapper,
+					selectionSetAggregator,
 					desiredLocale,
 					entitySchema
 				);
@@ -261,8 +261,8 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		}
 
 		// build extra result requires
-		final List<SelectedField> extraResults = selectionSet.getFields(ResponseDescriptor.EXTRA_RESULTS.name());
-		final SelectionSetWrapper extraResultsSelectionSet = SelectionSetWrapper.from(
+		final List<SelectedField> extraResults = selectionSet.getImmediateFields(ResponseDescriptor.EXTRA_RESULTS.name());
+		final SelectionSetAggregator extraResultsSelectionSet = SelectionSetAggregator.from(
 			extraResults.stream()
 				.map(SelectedField::getSelectionSet)
 				.toList()
@@ -300,13 +300,13 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 			.map(PriceInPriceLists::getPriceLists)
 			.orElse(null);
 
-		return EntityQueryContext.builder()
-			.desiredLocale(desiredLocale)
-			.desiredPriceInCurrency(desiredPriceInCurrency)
-			.desiredPriceValidIn(desiredPriceValidIn)
-			.desiredpriceValidInNow(desiredpriceValidInNow)
-			.desiredPriceInPriceLists(desiredPriceInPriceLists)
-			.build();
+		return new EntityQueryContext(
+			desiredLocale,
+			desiredPriceInCurrency,
+			desiredPriceInPriceLists,
+			desiredPriceValidIn,
+			desiredpriceValidInNow
+		);
 	}
 
 	/**

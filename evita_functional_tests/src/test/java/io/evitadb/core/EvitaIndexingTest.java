@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.EntityIndex;
@@ -1102,6 +1103,157 @@ class EvitaIndexingTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldMarkPredecessorAsSortable() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withEntitySchema(
+						"whatever",
+						whichIs -> whichIs.withAttribute("whatever", Predecessor.class, AttributeSchemaEditor::sortable)
+					)
+					.updateVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(
+					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isSortable()
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToMarkPredecessorAsFilterable() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAttribute("whatever", Predecessor.class, AttributeSchemaEditor::filterable)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToSetUpPredecessorAsAssociatedData() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAssociatedData("whatever", Predecessor.class)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldMarkCurrencyAsFilterable() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withEntitySchema(
+						"whatever",
+						whichIs -> whichIs.withAttribute("whatever", Currency.class, AttributeSchemaEditor::filterable)
+					)
+					.updateVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(
+					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToMarkCurrencyAsSortable() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAttribute("whatever", Currency.class, AttributeSchemaEditor::sortable)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldMarkLocaleAsFilterable() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withEntitySchema(
+						"whatever",
+						whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::filterable)
+					)
+					.updateVia(session);
+			}
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(
+					session.getEntitySchemaOrThrow("whatever").getAttribute("whatever").orElseThrow().isFilterable()
+				);
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToMarkLocaleAsSortable() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withEntitySchema(
+							"whatever",
+							whichIs -> whichIs.withAttribute("whatever", Locale.class, AttributeSchemaEditor::sortable)
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
 	void shouldFailToSetNonNullableAssociatedDataToNull() {
 		try {
 			evita.updateCatalog(
@@ -1619,10 +1771,10 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
-				verifyIndexContents.accept(new Comparable<?>[] {null, null});
+				verifyIndexContents.accept(new Comparable<?>[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll())
 					.orElseThrow()
@@ -1631,7 +1783,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					.setAttribute(ATTRIBUTE_CODE, "ABC")
 					.upsertVia(session);
 
-				verifyIndexContents.accept(new Comparable<?>[] {"ABC", "123"});
+				verifyIndexContents.accept(new Comparable<?>[]{"ABC", "123"});
 			}
 		);
 	}
@@ -1663,8 +1815,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 				assertNotNull(sortIndex);
 
-				assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}));
-				assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(new Comparable<?>[] {"Whatever", "578"}).getArray());
+				assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}));
+				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -1738,7 +1890,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex englishSortIndex = updatedGlobalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
 				assertNotNull(englishSortIndex);
 
-				assertArrayEquals(new int[] {1}, englishSortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", null}).getArray());
+				assertArrayEquals(new int[]{1}, englishSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", null}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -1753,12 +1905,12 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex englishSortIndexAgain = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.ENGLISH));
 				assertNotNull(englishSortIndexAgain);
 
-				assertArrayEquals(new int[] {1}, englishSortIndexAgain.getRecordsEqualTo(new Comparable<?>[] {"ABC", null}).getArray());
+				assertArrayEquals(new int[]{1}, englishSortIndexAgain.getRecordsEqualTo(new Comparable<?>[]{"ABC", null}).getArray());
 
 				final SortIndex canadianSortIndex = updatedGlobalIndexAgain.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(canadianSortIndex);
 
-				assertArrayEquals(new int[] {1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}).getArray());
+				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
 			}
 		);
 	}
@@ -1790,8 +1942,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final SortIndex sortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(sortIndex);
 
-				assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}));
-				assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(new Comparable<?>[] {"Whatever", "578"}).getArray());
+				assertThrows(EvitaInvalidUsageException.class, () -> sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}));
+				assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"Whatever", "578"}).getArray());
 			}
 		);
 	}
@@ -1826,7 +1978,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 				final SortIndex canadianSortIndex = globalIndex.getSortIndex(new AttributeKey(attributeCodeEan, Locale.CANADA));
 				assertNotNull(canadianSortIndex);
-				assertArrayEquals(new int[] {1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}).getArray());
+				assertArrayEquals(new int[]{1}, canadianSortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -1892,7 +2044,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
 				};
 
 				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
@@ -1929,7 +2081,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(new Comparable<?>[] {"ABC", "123"}).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(new Comparable<?>[]{"ABC", "123"}).getArray());
 				};
 
 				assertNull(getHierarchyIndex(productCollection, Entities.CATEGORY, 10));
@@ -2004,11 +2156,11 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[] {null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[] {null, null});
+				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll())
 					.orElseThrow()
@@ -2027,8 +2179,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[] {"ABC", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[] {"ABC", "123"});
+				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), new Comparable<?>[]{"ABC", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), new Comparable<?>[]{"ABC", "123"});
 			}
 		);
 	}
@@ -2127,7 +2279,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -2141,8 +2293,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[] {null, null});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[] {null, null});
+				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{null, null});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{null, null});
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
 					.orElseThrow()
@@ -2157,8 +2309,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					)
 					.upsertVia(session);
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[] {"The product", "123"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[] {"The CA product", "456"});
+				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"The product", "123"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"The CA product", "456"});
 			}
 		);
 	}
@@ -2179,7 +2331,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final SortIndex sortIndex = entityIndex.getSortIndex(new AttributeKey(attributeCodeEan, locale));
 					assertNotNull(sortIndex);
 
-					assertArrayEquals(new int[] {1}, sortIndex.getRecordsEqualTo(expected).getArray());
+					assertArrayEquals(new int[]{1}, sortIndex.getRecordsEqualTo(expected).getArray());
 				};
 
 				session.getEntity(Entities.PRODUCT, 1, attributeContentAll(), referenceContentAll(), dataInLocalesAll())
@@ -2204,8 +2356,8 @@ class EvitaIndexingTest implements EvitaTestSupport {
 				final EntityCollectionContract productCollection = catalog.getCollectionForEntity(Entities.PRODUCT)
 					.orElseThrow();
 
-				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[] {"Whatever", "567"});
-				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[] {"Else", "624"});
+				verifyIndexContents.accept(getHierarchyIndex(productCollection, Entities.CATEGORY, 10), Locale.ENGLISH, new Comparable<?>[]{"Whatever", "567"});
+				verifyIndexContents.accept(getReferencedEntityIndex(productCollection, Entities.BRAND, 20), Locale.CANADA, new Comparable<?>[]{"Else", "624"});
 			}
 		);
 	}

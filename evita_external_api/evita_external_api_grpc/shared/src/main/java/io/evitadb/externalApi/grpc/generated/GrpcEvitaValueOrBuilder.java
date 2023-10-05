@@ -338,6 +338,33 @@ public interface GrpcEvitaValueOrBuilder extends
 
   /**
    * <pre>
+   * Predecessor value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+   * @return Whether the predecessorValue field is set.
+   */
+  boolean hasPredecessorValue();
+  /**
+   * <pre>
+   * Predecessor value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+   * @return The predecessorValue.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcPredecessor getPredecessorValue();
+  /**
+   * <pre>
+   * Predecessor value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPredecessor predecessorValue = 14;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcPredecessorOrBuilder getPredecessorValueOrBuilder();
+
+  /**
+   * <pre>
    * Array of string values.
    * </pre>
    *

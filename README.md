@@ -12,6 +12,8 @@ examples and guides.</p>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="Platform"><img src="https://img.shields.io/badge/Built%20with-Java-red"/></a>
   &nbsp;
+  <a href="https://discord.gg/VsNBWxgmSw" title="Discord"><img src="https://img.shields.io/discord/999338870996992223?color=5865f2"/></a>
+  &nbsp;
   <a href="https://github.com/FgForrest/evitaDB" title="GitHub Workflow Status"><img src="https://img.shields.io/github/actions/workflow/status/FgForrest/evitaDB/ci-dev.yml"/></a>
   &nbsp;
   <a href="https://github.com/FgForrest/evitaDB/blob/master/LICENSE" title="License"><img src="https://img.shields.io/badge/license-BSL_1.1-blue.svg"/></a>
@@ -172,9 +174,6 @@ you might encounter, and we'll try to fix them as soon as possible.
 - **evita_store**: binary serialization using Kryo library, persistent key/value datastore implementation
 - **evita_test_support**: utility classes that make writing integration tests with evitaDB easier
 - **jacoco**: Maven POM that allows to aggregate test coverage for entire project
-- **workaround**:
-  - **roaringBitmap**: workaround shaded build allowing to link RoaringBitmap libraries as a single "automatic Java module",
-    direct linking of original libraries leads to problems with Java module system
 
 # Quality requirements for the code
 

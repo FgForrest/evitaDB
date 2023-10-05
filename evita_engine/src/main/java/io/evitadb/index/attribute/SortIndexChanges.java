@@ -24,7 +24,6 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.index.array.TransactionalObjArray;
-import io.evitadb.index.attribute.SortIndex.SortedRecordsSupplier;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;

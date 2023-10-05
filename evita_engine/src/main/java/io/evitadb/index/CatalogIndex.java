@@ -54,6 +54,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -94,14 +95,14 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 		this.version = 1;
 		this.dirty = new TransactionalBoolean();
 		this.catalog = catalog;
-		this.uniqueIndex = new TransactionalMap<>(new HashMap<>());
+		this.uniqueIndex = new TransactionalMap<>(new HashMap<>(), GlobalUniqueIndex.class, Function.identity());
 	}
 
 	public CatalogIndex(@Nonnull Catalog catalog, int version, @Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex) {
 		this.version = version;
 		this.dirty = new TransactionalBoolean();
 		this.catalog = catalog;
-		this.uniqueIndex = new TransactionalMap<>(uniqueIndex);
+		this.uniqueIndex = new TransactionalMap<>(uniqueIndex, GlobalUniqueIndex.class, Function.identity());
 	}
 
 	/**
@@ -265,7 +266,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 * Method creates and verifies validity of attribute key from passed arguments.
 	 */
 	@Nonnull
-	private AttributeKey createAttributeKey(
+	private static AttributeKey createAttributeKey(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,

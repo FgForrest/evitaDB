@@ -82,7 +82,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable attributeValue,
 		boolean updateGlobalIndex,
@@ -170,7 +170,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull AttributeKey attributeKey,
 		boolean updateGlobalIndex,
 		boolean updateCompounds
@@ -252,7 +252,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Number delta
 	) {
@@ -328,7 +328,7 @@ public interface AttributeIndexMutator {
 	 * added, or the entity is set up in a brand new reduced index.
 	 */
 	static void insertInitialSuiteOfSortableAttributeCompounds(
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nullable Locale locale,
 		int entityPrimaryKey,
 		@Nonnull EntitySchema entitySchema,
@@ -382,7 +382,7 @@ public interface AttributeIndexMutator {
 	 * discarded, or the entity removed from the index.
 	 */
 	static void removeEntireSuiteOfSortableAttributeCompounds(
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nullable Locale locale,
 		int entityPrimaryKey,
 		@Nonnull EntitySchema entitySchema,
@@ -442,7 +442,7 @@ public interface AttributeIndexMutator {
 		@Nonnull Function<String, AttributeSchema> attributeSchemaProvider,
 		@Nonnull Function<String, Stream<SortableAttributeCompoundSchema>> compoundsSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nullable Object valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull String updatedAttributeName
@@ -487,7 +487,7 @@ public interface AttributeIndexMutator {
 	 * `valueToUpdate` parameter as a new value for the attribute compound.
 	 */
 	private static void updateCompound(
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nonnull Set<Locale> availableAttributeLocales,
 		@Nullable Locale locale,
@@ -519,7 +519,7 @@ public interface AttributeIndexMutator {
 	 */
 	private static void insertNewCompound(
 		int entityPrimaryKey,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable String updatedAttributeName,
 		@Nullable Object valueToUpdate,
@@ -551,7 +551,7 @@ public interface AttributeIndexMutator {
 	 */
 	private static void removeOldCompound(
 		int entityPrimaryKey,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable Locale locale,
 		@Nonnull Function<AttributeElement, AttributeValue> attributeElementValueProvider

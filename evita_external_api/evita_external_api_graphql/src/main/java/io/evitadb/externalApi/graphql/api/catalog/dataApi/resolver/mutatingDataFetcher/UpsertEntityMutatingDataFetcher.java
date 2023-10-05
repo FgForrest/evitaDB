@@ -44,7 +44,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.Or
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.RequireConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.mutation.GraphQLEntityUpsertMutationConverter;
-import io.evitadb.externalApi.graphql.api.resolver.SelectionSetWrapper;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -114,7 +114,7 @@ public class UpsertEntityMutatingDataFetcher implements DataFetcher<DataFetcherR
 	@Nonnull
 	private EntityContentRequire[] buildEnrichingRequires(@Nonnull DataFetchingEnvironment environment) {
 		final Optional<EntityFetch> entityFetch = entityFetchRequireResolver.resolveEntityFetch(
-			SelectionSetWrapper.from(environment.getSelectionSet()),
+			SelectionSetAggregator.from(environment.getSelectionSet()),
 			null,
 			entitySchema
 		);

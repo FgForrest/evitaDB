@@ -46,6 +46,7 @@ import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -58,6 +59,9 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange, R> {
 
+    private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
+    private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
+
     @Nonnull
     protected final CTX restApiHandlingContext;
     @Nonnull
@@ -68,6 +72,26 @@ public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> ex
         this.dataDeserializer = new DataDeserializer(
             this.restApiHandlingContext.getOpenApi(),
             this.restApiHandlingContext.getEnumMapping()
+        );
+    }
+
+    @Override
+    public void handleRequest(HttpServerExchange serverExchange) {
+        handleRequestWithClientContext(serverExchange);
+    }
+
+    /**
+     * Process every request with client context, so we can classify it in evitaDB.
+     */
+    private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
+        final String clientId = serverExchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
+        final String requestId = serverExchange.getRequestHeaders().getFirst(REQUEST_ID_HEADER);
+
+        restApiHandlingContext.getClientContext().executeWithClientAndRequestId(
+            serverExchange.getSourceAddress(),
+            clientId,
+            requestId,
+            () -> super.handleRequest(serverExchange)
         );
     }
 

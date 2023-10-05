@@ -154,25 +154,33 @@ public class EntityDecorator implements SealedEntity {
 	private static void sortAndFilterSubList(
 		int entityPrimaryKey,
 		@Nonnull ReferenceDecorator[] references,
-		@Nonnull Comparator<ReferenceContract> referenceComparator,
+		@Nullable ReferenceComparator referenceComparator,
 		@Nullable BiPredicate<Integer, ReferenceDecorator> referenceFilter,
 		int start,
 		int end
 	) {
+		if (referenceComparator != null) {
+			int nonSortedReferenceCount = 0;
+			do {
+				if (referenceFilter == null) {
+					Arrays.sort(references, start, end, referenceComparator);
+				} else {
+					final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
+						.filter(it -> referenceFilter.test(entityPrimaryKey, it))
+						.toArray(ReferenceDecorator[]::new);
 
-		if (referenceFilter == null) {
-			Arrays.sort(references, start, end, referenceComparator);
-		} else {
-			final ReferenceDecorator[] filteredReferences = Arrays.stream(references, start, end)
-				.filter(it -> referenceFilter.test(entityPrimaryKey, it))
-				.toArray(ReferenceDecorator[]::new);
-
-			for (int i = start; i < end; i++) {
-				final int filteredIndex = i - start;
-				references[i] = filteredReferences.length > filteredIndex ? filteredReferences[filteredIndex] : null;
-			}
-			Arrays.sort(references, start, start + filteredReferences.length, referenceComparator);
+					for (int i = start; i < end; i++) {
+						final int filteredIndex = i - start;
+						references[i] = filteredReferences.length > filteredIndex ? filteredReferences[filteredIndex] : null;
+					}
+					Arrays.sort(references, start, end, referenceComparator);
+				}
+				nonSortedReferenceCount = referenceComparator.getNonSortedReferenceCount();
+				start = start + (end - nonSortedReferenceCount);
+				referenceComparator = referenceComparator.getNextComparator();
+			} while (referenceComparator != null && nonSortedReferenceCount > 0);
 		}
+
 	}
 
 	/**
@@ -324,7 +332,7 @@ public class EntityDecorator implements SealedEntity {
 		ReferenceSchemaContract referenceSchema = null;
 		Function<Integer, SealedEntity> entityFetcher = null;
 		Function<Integer, SealedEntity> entityGroupFetcher = null;
-		Comparator<ReferenceContract> fetchedReferenceComparator = null;
+		ReferenceComparator fetchedReferenceComparator = null;
 
 		final int entityPrimaryKey = Objects.requireNonNull(getPrimaryKey());
 		final ReferenceDecorator[] fetchedAndFilteredReferences = new ReferenceDecorator[filteredReferences.length];
@@ -525,15 +533,6 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public boolean parentAvailable() {
 		return delegate.parentAvailable() && hierarchyPredicate.wasFetched();
-	}
-
-	/**
-	 * Returns parent entity id without checking the predicate.
-	 * Part of the PRIVATE API.
-	 */
-	@Nonnull
-	public OptionalInt getParentWithoutCheckingPredicate() {
-		return delegate.getParent();
 	}
 
 	@Nonnull

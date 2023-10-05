@@ -343,7 +343,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md")
+			getRootDirectory().resolve("documentation/user/en/operate/monitor.md")
 		).stream();
 	}
 
@@ -352,13 +352,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * file. The MarkDown snippets are generated according to an attribute list requested by EvitaQL query and taken
 	 * from the last variable found.
 	 */
-	@DisplayName("Create Java snippets from EvitaQL examples")
+	@DisplayName("Create snippets in other languages from EvitaQL examples")
 	@TestFactory
 	@Tag(DOCUMENTATION_TEST)
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
+			getRootDirectory().resolve("documentation/user/en/query/filtering/references.md"),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();
 	}

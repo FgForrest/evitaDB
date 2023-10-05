@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -43,12 +44,14 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -2363,6 +2366,87 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities having a reference of particular name")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByHavingAReferenceOfParticularName(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(
+								Entities.BRAND
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !sealedEntity.getReferences(Entities.BRAND).isEmpty(),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should fail to process query targeting non existing attribute on reference")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToProcessQueryTargetingNonExistingAttributeOnReference(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								referenceHaving(
+									Entities.BRAND,
+									attributeEquals(ATTRIBUTE_CODE, "apple")
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should fail to order by localized attribute when locale is not known")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToOrderByLocalizedAttributeWhenLocaleIsNotKnown(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								attributeNatural(ATTRIBUTE_NAME)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by referenced entity of particular id")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3198,6 +3282,76 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 				assertArrayEquals(
 					randomSortedProductIds,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order of the attribute and append unknown")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderAndAppendUnknown(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+
+				final String[] randomCodesStartingWithE = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.filter(it -> it.startsWith("E"))
+					.toArray(String[]::new);
+				Assert.isTrue(randomCodesStartingWithE.length >= 5, "Not enough products starting with E found");
+
+				final Integer[] randomProductIdsStartingWithE = Arrays.stream(randomCodesStartingWithE)
+					.map(
+						it -> Arrays.stream(randomData)
+							.filter(att -> it.equals(att.attributeValue()))
+							.map(AttributeTuple::primaryKey)
+							.findFirst()
+							.orElseThrow()
+					)
+					.toArray(Integer[]::new);
+
+				final String[] exactCodeOrder = Arrays.copyOfRange(randomCodesStartingWithE, 0, (int)(randomCodesStartingWithE.length * 0.5));
+				final Integer[] exactOrder = Arrays.copyOfRange(randomProductIdsStartingWithE, 0, (int)(randomProductIdsStartingWithE.length * 0.5));
+				final Integer[] theRest = Arrays.copyOfRange(randomProductIdsStartingWithE, (int)(randomProductIdsStartingWithE.length * 0.5), randomProductIdsStartingWithE.length);
+				ArrayUtils.reverse(exactOrder);
+				ArrayUtils.reverse(exactCodeOrder);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeStartsWith(ATTRIBUTE_CODE, "E")
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, exactCodeOrder)
+						),
+						require(
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
+							),
+							page(1, randomCodesStartingWithE.length)
+						)
+					)
+				);
+				assertEquals(randomCodesStartingWithE.length, products.getRecordData().size());
+				assertEquals(randomCodesStartingWithE.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					ArrayUtils.mergeArrays(
+						exactOrder, theRest
+					),
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)

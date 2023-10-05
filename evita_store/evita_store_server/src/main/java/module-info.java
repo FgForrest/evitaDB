@@ -45,7 +45,7 @@ module evita.store.server {
 	requires static jsr305;
 	requires org.slf4j;
 	requires com.esotericsoftware.kryo;
-	requires roaringbitmaps.workaround.build;
+	requires roaringbitmap;
 
 	requires evita.api;
 	requires evita.engine;

@@ -45,6 +45,7 @@ import java.io.Serial;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static java.util.Optional.ofNullable;
@@ -79,17 +80,17 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	public PriceSuperIndex() {
 		this.internalPriceIdSequence = new AtomicInteger(0);
-		this.priceIndexes = new TransactionalMap<>(new HashMap<>());
+		this.priceIndexes = new TransactionalMap<>(new HashMap<>(), PriceListAndCurrencyPriceSuperIndex.class, Function.identity());
 	}
 
 	public PriceSuperIndex(int internalPriceIdSequenceSeed, @Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes) {
 		this.internalPriceIdSequence = new AtomicInteger(internalPriceIdSequenceSeed);
-		this.priceIndexes = new TransactionalMap<>(priceIndexes);
+		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceSuperIndex.class, Function.identity());
 	}
 
 	private PriceSuperIndex(AtomicInteger internalPriceIdSequenceSeed, @Nonnull Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes) {
 		this.internalPriceIdSequence = internalPriceIdSequenceSeed;
-		this.priceIndexes = new TransactionalMap<>(priceIndexes);
+		this.priceIndexes = new TransactionalMap<>(priceIndexes, PriceListAndCurrencyPriceSuperIndex.class, Function.identity());
 	}
 
 	/**

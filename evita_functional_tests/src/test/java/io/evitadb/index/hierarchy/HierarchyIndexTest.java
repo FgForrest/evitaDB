@@ -494,7 +494,7 @@ class HierarchyIndexTest implements TimeBoundedTestSupport {
 		final TestHierarchyNode testHierarchyNode = new TestHierarchyNode();
 
 		runFor(
-			input,
+			new GenerationalTestInput(1, 1),
 			1_000,
 			new TestState(
 				new StringBuilder(),

@@ -74,13 +74,13 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && entityType.equals(modifyEntitySchemaMutation.getEntityType())) {
 			final List<EntitySchemaMutation> mutations = Arrays.asList(schemaMutations);
-			final boolean updated = addMutations(
+			final MutationImpact updated = addMutations(
 				currentCatalogSchema,
 				currentCatalogSchema.getEntitySchemaOrThrowException(entityType),
 				mutations,
 				modifyEntitySchemaMutation.getSchemaMutations()
 			);
-			if (updated) {
+			if (updated != MutationImpact.NO_IMPACT) {
 				final ModifyEntitySchemaMutation combinedMutation = new ModifyEntitySchemaMutation(
 					entityType, mutations.toArray(EntitySchemaMutation[]::new)
 				);

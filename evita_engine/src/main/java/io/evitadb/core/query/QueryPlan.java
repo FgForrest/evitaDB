@@ -40,6 +40,7 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVi
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.sort.ConditionalSorter;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.utils.SortUtils;
 import io.evitadb.dataType.DataChunk;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -258,14 +259,15 @@ public class QueryPlan {
 		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
 		final int firstRecordOffset = evitaRequest.getFirstRecordOffset(totalRecordCount);
 		sorter = ConditionalSorter.getFirstApplicableSorter(sorter, queryContext);
-		return Arrays.stream(
-				sorter.sortAndSlice(
-					queryContext, filteringFormula,
-					Math.max(0, firstRecordOffset),
-					firstRecordOffset + evitaRequest.getLimit()
-				)
-			)
-			.toArray();
+		final int[] result = new int[Math.min(totalRecordCount, evitaRequest.getLimit())];
+		final int peak = sorter.sortAndSlice(
+			queryContext, filteringFormula,
+			Math.max(0, firstRecordOffset),
+			firstRecordOffset + evitaRequest.getLimit(),
+			result,
+			0
+		);
+		return SortUtils.asResult(result, peak);
 	}
 
 }

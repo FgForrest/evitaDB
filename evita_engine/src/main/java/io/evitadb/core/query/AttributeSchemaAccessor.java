@@ -143,12 +143,19 @@ public class AttributeSchemaAccessor {
 		@Nonnull String attributeName,
 		@Nonnull AttributeTrait... requiredTrait
 	) {
-		if (entitySchema != null) {
-			return getAttributeSchema(this.entitySchema, attributeName, requiredTrait);
-		} else {
+		if (entitySchema == null && referenceSchemaAccessor == null) {
 			return verifyAndReturn(
 				attributeName, catalogSchema.getAttribute(attributeName).orElse(null),
 				catalogSchema, null, null, requiredTrait
+			);
+		} else {
+			final ReferenceSchemaContract referenceSchema = referenceSchemaAccessor == null ? null : referenceSchemaAccessor.apply(this.entitySchema);
+			final AttributeSchemaProvider<?> attributeSchemaProvider = referenceSchema == null ? entitySchema : referenceSchema;
+			return verifyAndReturn(
+				attributeName, attributeSchemaProvider.getAttribute(attributeName).orElse(null),
+				catalogSchema, this.entitySchema,
+				referenceSchema,
+				requiredTrait
 			);
 		}
 	}

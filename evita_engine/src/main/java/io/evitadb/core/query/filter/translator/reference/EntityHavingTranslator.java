@@ -79,21 +79,28 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 		@Nonnull FilterBy filterBy,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
-		final QueryContext nestedQueryContext = referencedEntityCollection.createQueryContext(
-			filterByVisitor.getQueryContext(),
-			filterByVisitor.getEvitaRequest().deriveCopyWith(
-				referencedEntityType,
-				filterBy,
-				ofNullable(entityNestedQueryComparator)
-					.map(EntityNestedQueryComparator::getOrderBy)
-					.map(it -> new OrderBy(it.getChildren()))
-					.orElse(null)
-			),
-			filterByVisitor.getEvitaSession()
-		);
-		final QueryPlan queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
-		if (entityNestedQueryComparator != null) {
-			entityNestedQueryComparator.initSorter(nestedQueryContext, queryPlan.getSorter());
+		final QueryPlan queryPlan;
+		try (
+			final QueryContext nestedQueryContext = referencedEntityCollection.createQueryContext(
+				filterByVisitor.getQueryContext(),
+				filterByVisitor.getEvitaRequest().deriveCopyWith(
+					referencedEntityType,
+					filterBy,
+					ofNullable(entityNestedQueryComparator)
+						.map(EntityNestedQueryComparator::getOrderBy)
+						.map(it -> new OrderBy(it.getChildren()))
+						.orElse(null),
+					ofNullable(entityNestedQueryComparator)
+						.map(EntityNestedQueryComparator::getLocale)
+						.orElse(null)
+				),
+				filterByVisitor.getEvitaSession()
+			)
+		) {
+			queryPlan = QueryPlanner.planNestedQuery(nestedQueryContext);
+			if (entityNestedQueryComparator != null) {
+				entityNestedQueryComparator.setSorter(nestedQueryContext, queryPlan.getSorter());
+			}
 		}
 
 		return queryPlan.getFilter();

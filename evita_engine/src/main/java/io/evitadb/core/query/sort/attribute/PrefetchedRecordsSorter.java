@@ -94,9 +94,8 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		return queryContext.getPrefetchedEntities() != null;
 	}
 
-	@Nonnull
 	@Override
-	public int[] sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex) {
+	public int sortAndSlice(@Nonnull QueryContext queryContext, @Nonnull Formula input, int startIndex, int endIndex, @Nonnull int[] result, int peak) {
 		final Bitmap selectedRecordIds = input.compute();
 		final OfInt it = selectedRecordIds.iterator();
 		final List<EntityContract> entities = new ArrayList<>(selectedRecordIds.size());
@@ -105,6 +104,7 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 			entities.add(queryContext.translateToEntity(id));
 		}
 
+		entityComparator.prepareFor(endIndex - startIndex);
 		entities.sort(entityComparator);
 
 		int notFoundRecordsCnt = 0;
@@ -116,20 +116,29 @@ public class PrefetchedRecordsSorter extends AbstractRecordsSorter implements Co
 		}
 
 		final AtomicInteger index = new AtomicInteger();
-		final int[] result = new int[selectedRecordIds.size()];
 		entities.subList(0, selectedRecordIds.size() - notFoundRecordsCnt)
 			.stream()
 			.skip(startIndex)
 			.limit((long) endIndex - startIndex)
 			.mapToInt(queryContext::translateEntity)
-			.forEach(pk -> result[index.getAndIncrement()] = pk);
+			.forEach(pk -> result[peak + index.getAndIncrement()] = pk);
 
-		return returnResultAppendingUnknown(
-			queryContext,
-			new SortResult(result, index.get()),
-			notFoundRecords, unknownRecordIdsSorter,
-			startIndex, endIndex
-		);
+		// pass them to another sorter
+		final int recomputedStartIndex = Math.max(0, startIndex - index.get());
+		final int recomputedEndIndex = Math.max(0, endIndex - index.get());
+
+		final int[] buffer = queryContext.borrowBuffer();
+		try {
+			return returnResultAppendingUnknown(
+				queryContext,
+				notFoundRecords,
+				unknownRecordIdsSorter,
+				recomputedStartIndex, recomputedEndIndex,
+				result, peak + index.get(),
+				buffer
+			);
+		} finally {
+			queryContext.returnBuffer(buffer);
+		}
 	}
-
 }

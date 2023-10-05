@@ -41,6 +41,7 @@ import io.evitadb.driver.cdc.ClientRxPublisher;
 import io.evitadb.driver.certificate.ClientCertificateManager;
 import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.service.ChannelSupplier;
 import io.evitadb.driver.service.PooledChannelSupplier;
@@ -149,9 +150,6 @@ public class EvitaClient implements EvitaContract {
 
 	private final ManagedChannel cdcChannel;
 
-	// todo jno: reimplement to publishers
-//	private final List<ClientSubscription> activeSubscriptions = new ArrayList<>(8);
-
 	/**
 	 * Method that is called within the {@link EvitaClientSession} to apply the wanted blocking logic on a channel retrieved
 	 * from a channel pool.
@@ -254,17 +252,20 @@ public class EvitaClient implements EvitaContract {
 		final ClientCertificateManager clientCertificateManager = new ClientCertificateManager.Builder()
 			.useGeneratedCertificate(configuration.useGeneratedCertificate(), configuration.host(), configuration.systemApiPort())
 			.usingTrustedRootCaCertificate(configuration.trustCertificate())
+			.trustStorePassword(configuration.trustStorePassword())
 			.mtls(configuration.mtlsEnabled())
 			.certificateClientFolderPath(configuration.certificateFolderPath())
+			.rootCaCertificateFilePath(configuration.rootCaCertificatePath())
 			.clientCertificateFilePath(configuration.certificateFileName())
 			.clientPrivateKeyFilePath(configuration.certificateKeyFileName())
+			.clientPrivateKeyPassword(configuration.certificateKeyPassword())
 			.build();
 
 		final NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
 			.sslContext(clientCertificateManager.buildClientSslContext())
 			.executor(Executors.newCachedThreadPool())
 			.defaultLoadBalancingPolicy("round_robin")
-			.intercept(new ClientSessionInterceptor());
+			.intercept(new ClientSessionInterceptor(this));
 
 		ofNullable(grpcConfigurator)
 			.ifPresent(it -> it.accept(nettyChannelBuilder));
@@ -488,7 +489,10 @@ public class EvitaClient implements EvitaContract {
 	public void terminateSession(@Nonnull EvitaSessionContract session) {
 		assertActive();
 		if (session instanceof EvitaClientSession evitaClientSession) {
-			evitaClientSession.close();
+			executeWithClientId(
+				configuration.clientId(),
+				evitaClientSession::close
+			);
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Passed session is expected to be `EvitaClientSession`, but it is not (" + session.getClass().getSimpleName() + ")!"
@@ -511,15 +515,20 @@ public class EvitaClient implements EvitaContract {
 	public CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName) {
 		assertActive();
 
-		if (!getCatalogNames().contains(catalogName)) {
-			update(new CreateCatalogSchemaMutation(catalogName));
-		}
-		return queryCatalog(
-			catalogName,
-			session -> {
-				return ((EvitaClientSession) session).getCatalogSchema(this);
+		return executeWithClientId(
+			configuration.clientId(),
+			() -> {
+				if (!getCatalogNames().contains(catalogName)) {
+					update(new CreateCatalogSchemaMutation(catalogName));
+				}
+				return queryCatalog(
+					catalogName,
+					session -> {
+						return ((EvitaClientSession) session).getCatalogSchema(this);
+					}
+				).openForWrite();
 			}
-		).openForWrite();
+		);
 	}
 
 	@Override
@@ -585,43 +594,59 @@ public class EvitaClient implements EvitaContract {
 	public <T> T queryCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
-			return queryLogic.apply(session);
+			return session.executeWithClientId(
+				configuration.clientId(),
+				() -> queryLogic.apply(session)
+			);
 		}
 	}
 
-	@Override
-	public void queryCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> queryLogic, @Nullable SessionFlags... flags) {
-		assertActive();
-		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
-			queryLogic.accept(session);
+		@Override
+		public void queryCatalog (@Nonnull String
+		catalogName, @Nonnull Consumer < EvitaSessionContract > queryLogic, @Nullable SessionFlags...flags){
+			assertActive();
+			try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
+				session.executeWithClientId(
+					configuration.clientId(),
+					() -> queryLogic.accept(session)
+				);
+			}
 		}
-	}
 
-	@Override
-	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
-		assertActive();
-		final SessionTraits traits = new SessionTraits(
-			catalogName,
-			flags == null ?
-				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
-		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
-			return session.execute(updater);
+		@Override
+		public <T > T
+		updateCatalog(@Nonnull String catalogName, @Nonnull Function < EvitaSessionContract, T > updater, @Nullable SessionFlags...
+		flags){
+			assertActive();
+			final SessionTraits traits = new SessionTraits(
+				catalogName,
+				flags == null ?
+					new SessionFlags[]{SessionFlags.READ_WRITE} :
+					ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+			);
+			try (final EvitaSessionContract session = this.createSession(traits)) {
+				return session.executeWithClientId(
+					configuration.clientId(),
+					() -> session.execute(updater)
+				);
+			}
 		}
-	}
 
-	@Override
-	public void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
-		updateCatalog(
-			catalogName,
-			evitaSession -> {
-				updater.accept(evitaSession);
-				return null;
-			},
-			flags
-		);
-	}
+		@Override
+		public void updateCatalog (@Nonnull String
+		catalogName, @Nonnull Consumer < EvitaSessionContract > updater, @Nullable SessionFlags...flags){
+			updateCatalog(
+				catalogName,
+				session -> {
+					session.executeWithClientId(
+						configuration.clientId(),
+						() -> updater.accept(session)
+					);
+					return null;
+				},
+				flags
+			);
+		}
 
 	@Override
 	public void close() {
@@ -636,13 +661,69 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
-	/**
-	 * Verifies this instance is still active.
-	 */
-	protected void assertActive() {
-		if (!active.get()) {
-			throw new InstanceTerminatedException("client instance");
+		/**
+		 * Verifies this instance is still active.
+		 */
+		protected void assertActive () {
+			if (!active.get()) {
+				throw new InstanceTerminatedException("client instance");
+			}
 		}
-	}
 
-}
+		/**
+		 * Method that is called within the {@link EvitaClientSession} to apply the wanted logic on a channel retrieved
+		 * from a channel pool.
+		 *
+		 * @param evitaServiceBlockingStub function that holds a logic passed by the caller
+		 * @param <T>                      return type of the function
+		 * @return result of the applied function
+		 */
+		private <T > T
+		executeWithEvitaService(@Nonnull Function < EvitaServiceBlockingStub, T > evitaServiceBlockingStub) {
+			return executeWithClientAndRequestId(
+				configuration.clientId(),
+				UUIDUtil.randomUUID().toString(),
+				() -> {
+					final ManagedChannel managedChannel = this.channelPool.getChannel();
+					try {
+						return evitaServiceBlockingStub.apply(EvitaServiceGrpc.newBlockingStub(managedChannel));
+					} catch (StatusRuntimeException statusRuntimeException) {
+						final Code statusCode = statusRuntimeException.getStatus().getCode();
+						final String description = ofNullable(statusRuntimeException.getStatus().getDescription())
+							.orElse("No description.");
+						if (statusCode == Code.INVALID_ARGUMENT) {
+							final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+							if (expectedFormat.matches()) {
+								throw EvitaInvalidUsageException.createExceptionWithErrorCode(
+									expectedFormat.group(2), expectedFormat.group(1)
+								);
+							} else {
+								throw new EvitaInvalidUsageException(description);
+							}
+						} else {
+							final Matcher expectedFormat = ERROR_MESSAGE_PATTERN.matcher(description);
+							if (expectedFormat.matches()) {
+								throw EvitaInternalError.createExceptionWithErrorCode(
+									expectedFormat.group(2), expectedFormat.group(1)
+								);
+							} else {
+								throw new EvitaInternalError(description);
+							}
+						}
+					} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+						throw evitaError;
+					} catch (Throwable e) {
+						log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+						throw new EvitaInternalError(
+							"Unexpected internal Evita error occurred: " + e.getMessage(),
+							"Unexpected internal Evita error occurred.",
+							e
+						);
+					} finally {
+						this.channelPool.releaseChannel(managedChannel);
+					}
+				}
+			);
+		}
+
+	}

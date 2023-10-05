@@ -41,6 +41,7 @@ module evita.api {
 	requires static jsr305;
 	requires org.slf4j;
 
+	requires zero.allocation.hashing;
 	requires evita.common;
 	requires evita.query;
 	requires static proxycian.bytebuddy;

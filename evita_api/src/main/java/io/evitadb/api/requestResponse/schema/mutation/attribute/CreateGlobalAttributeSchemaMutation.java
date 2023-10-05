@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMut
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import lombok.EqualsAndHashCode;
@@ -97,6 +98,9 @@ public class CreateGlobalAttributeSchemaMutation
 		int indexedDecimalPlaces
 	) {
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
+		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
+			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
+		}
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;

@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.price.FilteredPriceRecordAccessor;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.FilteredPriceRecords;
 import io.evitadb.core.query.algebra.price.filteredPriceRecords.ResolvedFilteredPriceRecords;
@@ -122,6 +123,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 
 	public SelectionFormula(@Nonnull FilterByVisitor filterByVisitor, @Nonnull Formula delegate, @Nonnull EntityToBitmapFilter alternative) {
 		super(delegate);
+		Assert.notNull(!(delegate instanceof SkipFormula), "The delegate formula cannot be a skip formula!");
 		this.filterByVisitor = filterByVisitor;
 		this.alternative = alternative;
 	}
