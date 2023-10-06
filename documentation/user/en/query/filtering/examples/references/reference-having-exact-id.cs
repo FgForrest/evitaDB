@@ -12,7 +12,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         	Require(
         		EntityFetch(
         			AttributeContent("code"),
-        			ReferenceContentWithAttributes("brand")
+        			ReferenceContent("brand")
         		)
         	)
         )
