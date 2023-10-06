@@ -35,9 +35,10 @@ import javax.annotation.Nonnull;
 import java.util.concurrent.Flow.Publisher;
 
 /**
- * TODO lho docs
+ * Subscription data fetcher for listening to changes from evitaDB. Currently, it mainly acts as a bridge between GraphQL's reactive
+ * streams and evitaDB's flow API.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class OnChangeDataFetcher<C extends ChangeCapture> implements DataFetcher<org.reactivestreams.Publisher<C>> {

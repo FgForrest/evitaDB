@@ -60,11 +60,11 @@ public interface ChangeSystemCaptureDescriptor extends ChangeCaptureDescriptor {
 		.description("""
             Body of the operation, i.e. what happened.
 			""")
-		.type(nonNullListRef(TopLevelCatalogSchemaMutationAggregateDescriptor.THIS))
+		// type is expected to be list of top level catalog schema mutations, but the representation vary across APIs
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
 		.name("ChangeSystemCapture")
-		.staticFields(List.of(INDEX, CATALOG, OPERATION, BODY))
+		.staticFields(List.of(INDEX, CATALOG, OPERATION))
 		.build();
 }

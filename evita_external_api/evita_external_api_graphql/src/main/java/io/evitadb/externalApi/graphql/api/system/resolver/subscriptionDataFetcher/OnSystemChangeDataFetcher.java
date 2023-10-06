@@ -28,15 +28,17 @@ import io.evitadb.api.requestResponse.cdc.CaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
+import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
 import io.evitadb.externalApi.graphql.api.resolver.subscriptionDataFetcher.OnChangeDataFetcher;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.Flow.Publisher;
 
 /**
- * TODO lho docs
+ * Subscription data fetcher for listening to {@link ChangeSystemCapture}.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class OnSystemChangeDataFetcher extends OnChangeDataFetcher<ChangeSystemCapture> {
 
@@ -47,9 +49,7 @@ public class OnSystemChangeDataFetcher extends OnChangeDataFetcher<ChangeSystemC
 	@Nonnull
 	@Override
 	protected Publisher<ChangeSystemCapture> createPublisher(@Nonnull DataFetchingEnvironment environment) {
-		// todo lho header/body
-//		environment.getSelectionSet()
-//			.contains()
-		return evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(CaptureContent.BODY));
+		final boolean needsBody = SelectionSetAggregator.containsImmediate(ChangeSystemCaptureDescriptor.BODY.name(), environment.getSelectionSet());
+		return evita.registerSystemChangeCapture(new ChangeSystemCaptureRequest(needsBody ? CaptureContent.BODY : CaptureContent.HEADER));
 	}
 }
