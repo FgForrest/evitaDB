@@ -37,6 +37,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
@@ -46,10 +47,10 @@ import java.io.Serializable;
  */
 public class UpsertAttributeMutationConverter extends AttributeMutationConverter<UpsertAttributeMutation> {
 
-	@Nonnull
+	@Nullable
 	private final AttributeSchemaProvider<?> attributeSchemaProvider;
 
-	public UpsertAttributeMutationConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
+	public UpsertAttributeMutationConverter(@Nullable AttributeSchemaProvider<?> attributeSchemaProvider,
 	                                        @Nonnull MutationObjectParser objectParser,
 	                                        @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
@@ -70,6 +71,10 @@ public class UpsertAttributeMutationConverter extends AttributeMutationConverter
 		final Class<? extends Serializable> valueType = input.getOptionalProperty(
 			UpsertAttributeMutationDescriptor.VALUE_TYPE.name(),
 			new ValueTypeMapper(getExceptionFactory(), UpsertAttributeMutationDescriptor.VALUE_TYPE)
+		);
+		Assert.isPremiseValid(
+			attributeSchemaProvider != null,
+			() -> getExceptionFactory().createInternalError("Attribute schema provider is required for conversion from input.")
 		);
 		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName()).orElse(null);
 		if (attributeSchema == null && valueType == null) {

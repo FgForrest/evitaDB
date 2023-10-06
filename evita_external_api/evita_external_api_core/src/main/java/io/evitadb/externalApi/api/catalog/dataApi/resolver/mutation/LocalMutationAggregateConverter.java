@@ -49,6 +49,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.LocalMutationAggregateDescriptor.*;
@@ -70,7 +71,7 @@ public class LocalMutationAggregateConverter extends MutationAggregateConverter<
 	private final Map<String, LocalMutationConverter<LocalMutation<?, ?>>> converters = createHashMap(20);
 
 	public LocalMutationAggregateConverter(@Nonnull ObjectMapper objectMapper,
-	                                       @Nonnull EntitySchemaContract entitySchema,
+	                                       @Nullable EntitySchemaContract entitySchema,
 	                                       @Nonnull MutationObjectParser objectParser,
 	                                       @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);

@@ -43,6 +43,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.Modif
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateCatalogSchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAssociatedDataSchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.AllAttributeSchemasDataFetcher;
@@ -54,6 +55,7 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogEntitySchemasDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.CatalogSchemaDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateCatalogSchemaMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnSchemaChangeSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
 import javax.annotation.Nonnull;
@@ -98,6 +100,7 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		// build catalog field
 		buildingContext.registerQueryField(buildCatalogSchemaField());
 		buildingContext.registerMutationField(buildUpdateCatalogSchemaField());
+		buildingContext.registerSubscriptionField(buildOnCatalogSchemaChangeField());
 	}
 
 	/*
@@ -286,6 +289,24 @@ public class CatalogSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Cata
 		return new BuiltFieldDescriptor(
 			catalogSchemaField,
 			new UpdateCatalogSchemaMutatingDataFetcher()
+		);
+	}
+
+	/**
+	 * Subscriptions
+	 */
+
+	@Nonnull
+	private BuiltFieldDescriptor buildOnCatalogSchemaChangeField() {
+		final GraphQLFieldDefinition onCatalogSchemaChangeField = CatalogSchemaApiRootDescriptor.ON_CATALOG_SCHEMA_CHANGE
+			.to(staticEndpointBuilderTransformer)
+			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_TRANSACTION_ID.to(argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onCatalogSchemaChangeField,
+			new OnSchemaChangeSubscribingDataFetcher(buildingContext.getEvita())
 		);
 	}
 }

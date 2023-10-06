@@ -59,9 +59,11 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttri
 import io.evitadb.externalApi.graphql.api.builder.BuiltFieldDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.OnSchemaChangeHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.UpdateEntitySchemaQueryHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.*;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.mutatingDataFetcher.UpdateEntitySchemaMutatingDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.OnSchemaChangeSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.api.model.EndpointDescriptorToGraphQLFieldTransformer;
 import io.evitadb.externalApi.graphql.api.resolver.dataFetcher.ReadDataFetcher;
 
@@ -168,6 +170,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			buildingContext.registerType(buildEntitySchemaObject(entitySchema));
 			buildingContext.registerQueryField(buildEntitySchemaField(entitySchema));
 			buildingContext.registerMutationField(buildUpdateEntitySchemaField(entitySchema));
+			buildingContext.registerSubscriptionField(buildOnEntitySchemaChangeField(entitySchema));
 		});
 	}
 
@@ -740,6 +743,24 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		return new BuiltFieldDescriptor(
 			catalogSchemaField,
 			new UpdateEntitySchemaMutatingDataFetcher(entitySchema)
+		);
+	}
+
+	/**
+	 * Subscriptions
+	 */
+
+	@Nonnull
+	private BuiltFieldDescriptor buildOnEntitySchemaChangeField(@Nonnull EntitySchemaContract entitySchema) {
+		final GraphQLFieldDefinition onEntitySchemaChangeField = CatalogSchemaApiRootDescriptor.ON_ENTITY_SCHEMA_CHANGE
+			.to(new EndpointDescriptorToGraphQLFieldTransformer(propertyDataTypeBuilderTransformer, entitySchema))
+			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(argumentBuilderTransformer))
+			.argument(OnSchemaChangeHeaderDescriptor.SINCE_TRANSACTION_ID.to(argumentBuilderTransformer))
+			.build();
+
+		return new BuiltFieldDescriptor(
+			onEntitySchemaChangeField,
+			new OnSchemaChangeSubscribingDataFetcher(buildingContext.getEvita(), entitySchema)
 		);
 	}
 }

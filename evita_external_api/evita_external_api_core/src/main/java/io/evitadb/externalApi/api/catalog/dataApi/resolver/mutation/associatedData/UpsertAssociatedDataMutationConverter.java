@@ -42,6 +42,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.PropertyObjectMapper
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 
@@ -54,11 +55,11 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 
 	@Nonnull
 	private final JsonToComplexDataObjectConverter jsonToComplexDataObjectConverter;
-	@Nonnull
+	@Nullable
 	private final EntitySchemaContract entitySchema;
 
 	public UpsertAssociatedDataMutationConverter(@Nonnull ObjectMapper objectMapper,
-	                                             @Nonnull EntitySchemaContract entitySchema,
+	                                             @Nullable EntitySchemaContract entitySchema,
 	                                             @Nonnull MutationObjectParser objectParser,
 	                                             @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
@@ -82,6 +83,10 @@ public class UpsertAssociatedDataMutationConverter extends AssociatedDataMutatio
 			new ValueTypeMapper(getExceptionFactory(), UpsertAssociatedDataMutationDescriptor.VALUE_TYPE)
 		);
 
+		Assert.isPremiseValid(
+			entitySchema != null,
+			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
+		);
 		final Optional<AssociatedDataSchemaContract> associatedDataSchema = entitySchema.getAssociatedData(associatedDataKey.associatedDataName());
 		if (associatedDataSchema.isEmpty() && valueType == null) {
 			throw getExceptionFactory().createInvalidArgumentException("Missing value type of new associated data `" + associatedDataKey.associatedDataName() + "`.");

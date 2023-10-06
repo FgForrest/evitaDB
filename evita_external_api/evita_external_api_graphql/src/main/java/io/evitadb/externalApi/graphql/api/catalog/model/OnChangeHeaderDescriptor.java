@@ -21,47 +21,35 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.model.cdc;
+package io.evitadb.externalApi.graphql.api.catalog.model;
 
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
+import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
- * TODO lho docs
+ * Subscription header arguments of registering subscription for listening {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract}
+ * and {@link io.evitadb.api.requestResponse.schema.CatalogSchemaContract} changes.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ChangeCaptureDescriptor {
+public interface OnChangeHeaderDescriptor {
 
-	// todo jno: feel free to reimplement this... this is the way how we could track if the subscriber received all events
-	PropertyDescriptor INDEX = PropertyDescriptor.builder()
-		.name("index")
-		.description("""
-			An index of the event in the ordered CDC log.
-			""")
-		.type(nonNull(Long.class))
-		.build();
-	PropertyDescriptor CATALOG = PropertyDescriptor.builder()
-		.name("catalog")
-		.description("""
-			Name of the catalog where the operation was performed.
-			""")
-		.type(nonNull(String.class))
-		.build();
 	PropertyDescriptor OPERATION = PropertyDescriptor.builder()
 		.name("operation")
 		.description("""
-			Operation that was performed.
+			The intercepted type of operation
 			""")
-		.type(nonNull(Operation.class))
+		.type(nullable(Operation[].class))
 		.build();
-	PropertyDescriptor BODY = PropertyDescriptor.builder()
-		.name("body")
+	PropertyDescriptor SINCE_TRANSACTION_ID = PropertyDescriptor.builder()
+		.name("sinceTransactionId")
 		.description("""
-	        Body of the operation. Carries information about what exactly happened.
+			Specifies the initial capture point for the CDC stream, it must always provide a last
+			known transaction id from the client point of view.
 			""")
-		// type is expected to be list of mutations, but the representation varies across APIs
+		.type(nonNull(Long.class))
 		.build();
 }

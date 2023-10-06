@@ -45,6 +45,11 @@ import javax.annotation.Nullable;
 public record ChangeCatalogCapture(
 	long index,
 	@Nonnull CaptureArea area,
+	// todo jno these data (catalog, entityType) are redundant, they are already known by client because the client needs to register publisher based on them.
+	//  These would only make sense if we would allow to register publisher for all catalogs/entity types, which doesn't allow. Even if the system publisher
+	//  had such support, it would use ChangeSystemCapture. Wouldn't it make sense that replicas subscribe to individual catalogs? You already talked about
+	//  that some replicas could only replicate some catalogs, so it would make sense that they would only subscribe to those catalogs. That way
+	//  the catalog property here could be removed and the entityType would make sense in these scenarios.
 	@Nonnull String catalog,
 	@Nullable String entityType,
 	@Nullable Integer version,

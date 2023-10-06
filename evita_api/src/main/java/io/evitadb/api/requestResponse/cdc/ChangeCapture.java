@@ -23,6 +23,11 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.api.requestResponse.mutation.Mutation;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 /**
  * CDC event that is sent to the subscriber if it matches to the request he made.
  *
@@ -35,4 +40,23 @@ public sealed interface ChangeCapture permits ChangeSystemCapture, ChangeCatalog
 	 */
 	// todo jno: feel free to reimplement this... this is the way how we could track if the subscriber received all events
 	long index();
+
+	/**
+	 * Name of the catalog where the operation was performed.
+	 */
+	@Nonnull
+	String catalog();
+
+	/**
+	 * The operation that was performed.
+	 */
+	@Nonnull
+	Operation operation();
+
+	/**
+	 * Optional body of the operation when it is requested initial request. Carries information about what exactly
+	 * happened.
+	 */
+	@Nullable
+	Mutation body();
 }

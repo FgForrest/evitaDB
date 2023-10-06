@@ -24,9 +24,11 @@
 package io.evitadb.externalApi.api.catalog.dataApi.model;
 
 import io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.model.EndpointDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 
+import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
@@ -135,5 +137,14 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
             Deletes existing entities from `%s` collection that conforms with passed query and returns deletion info.
             """)
         // type is expected to be a collection-specific list of `Entity` objects
+        .build();
+
+    EndpointDescriptor ON_DATA_CHANGE = EndpointDescriptor.builder()
+        .operation("on*change")
+        .urlPathItem("")
+        .description("""
+            Subscribes client to a stream of data changes which are sent over as individual capture events.
+            """)
+        .type(nonNullRef(ChangeCatalogCaptureDescriptor.THIS))
         .build();
 }

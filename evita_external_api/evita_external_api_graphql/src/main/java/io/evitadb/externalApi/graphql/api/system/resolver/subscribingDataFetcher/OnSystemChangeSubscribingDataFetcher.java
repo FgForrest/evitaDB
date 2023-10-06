@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.system.resolver.subscriptionDataFetcher;
+package io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher;
 
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.cdc.CaptureContent;
@@ -30,7 +30,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeSystemCaptureRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
 import io.evitadb.externalApi.graphql.api.resolver.SelectionSetAggregator;
-import io.evitadb.externalApi.graphql.api.resolver.subscriptionDataFetcher.OnChangeDataFetcher;
+import io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher.ChangeSubscribingDataFetcher;
 
 import javax.annotation.Nonnull;
 import java.util.concurrent.Flow.Publisher;
@@ -40,9 +40,9 @@ import java.util.concurrent.Flow.Publisher;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class OnSystemChangeDataFetcher extends OnChangeDataFetcher<ChangeSystemCapture> {
+public class OnSystemChangeSubscribingDataFetcher extends ChangeSubscribingDataFetcher<ChangeSystemCapture> {
 
-	public OnSystemChangeDataFetcher(@Nonnull Evita evita) {
+	public OnSystemChangeSubscribingDataFetcher(@Nonnull Evita evita) {
 		super(evita);
 	}
 

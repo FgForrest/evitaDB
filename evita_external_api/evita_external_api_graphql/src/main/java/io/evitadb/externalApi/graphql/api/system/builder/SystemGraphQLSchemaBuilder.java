@@ -59,8 +59,8 @@ import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.De
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.RenameCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.ReplaceCatalogMutatingDataFetcher;
 import io.evitadb.externalApi.graphql.api.system.resolver.mutatingDataFetcher.SwitchCatalogToAliveStateMutatingDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.resolver.subscriptionDataFetcher.ChangeSystemCaptureBodyDataFetcher;
-import io.evitadb.externalApi.graphql.api.system.resolver.subscriptionDataFetcher.OnSystemChangeDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.ChangeSystemCaptureBodyDataFetcher;
+import io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher.OnSystemChangeSubscribingDataFetcher;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.utils.NamingConvention;
 
@@ -334,7 +334,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 
 		return new BuiltFieldDescriptor(
 			onSystemChangeField,
-			new OnSystemChangeDataFetcher(evita)
+			new OnSystemChangeSubscribingDataFetcher(evita)
 		);
 	}
 }

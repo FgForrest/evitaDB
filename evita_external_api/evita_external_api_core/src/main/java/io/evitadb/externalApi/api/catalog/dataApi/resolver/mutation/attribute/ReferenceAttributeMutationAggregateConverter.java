@@ -32,6 +32,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 
 import static io.evitadb.externalApi.api.catalog.dataApi.model.mutation.attribute.ReferenceAttributeMutationAggregateDescriptor.APPLY_DELTA_ATTRIBUTE_MUTATION;
@@ -52,7 +53,7 @@ public class ReferenceAttributeMutationAggregateConverter extends MutationAggreg
 	@Getter(AccessLevel.PROTECTED)
 	private final Map<String, AttributeMutationConverter<AttributeMutation>> converters = createHashMap(5);
 
-	public ReferenceAttributeMutationAggregateConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
+	public ReferenceAttributeMutationAggregateConverter(@Nullable AttributeSchemaProvider<?> attributeSchemaProvider,
 	                                                    @Nonnull MutationObjectParser objectParser,
 	                                                    @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);

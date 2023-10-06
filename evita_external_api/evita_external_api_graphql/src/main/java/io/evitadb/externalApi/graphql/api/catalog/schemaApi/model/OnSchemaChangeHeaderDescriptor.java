@@ -21,25 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.api.system.model.cdc;
+package io.evitadb.externalApi.graphql.api.catalog.schemaApi.model;
 
-import io.evitadb.externalApi.api.model.ObjectDescriptor;
-import io.evitadb.externalApi.api.model.cdc.ChangeCaptureDescriptor;
-
-import java.util.List;
+import io.evitadb.externalApi.graphql.api.catalog.model.OnChangeHeaderDescriptor;
 
 /**
- * TODO lho docs
+ * Subscription header arguments of registering subscription for listening to {@link io.evitadb.api.requestResponse.schema.EntitySchemaContract}
+ * and {@link io.evitadb.api.requestResponse.schema.CatalogSchemaContract} changes.
  *
- * @author Lukáš Hornych, 2023
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ChangeSystemCaptureDescriptor extends ChangeCaptureDescriptor {
-
-	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("ChangeSystemCapture")
-		.description("""
-            Record represents a system-wide CDC event that is sent to the subscriber if it matches to the request he made.
-			""")
-		.staticFields(List.of(INDEX, CATALOG, OPERATION))
-		.build();
+public interface OnSchemaChangeHeaderDescriptor extends OnChangeHeaderDescriptor {
 }

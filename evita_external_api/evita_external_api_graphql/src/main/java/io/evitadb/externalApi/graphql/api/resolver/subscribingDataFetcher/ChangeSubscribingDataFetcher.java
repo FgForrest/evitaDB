@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.resolver.subscriptionDataFetcher;
+package io.evitadb.externalApi.graphql.api.resolver.subscribingDataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
@@ -41,7 +41,7 @@ import java.util.concurrent.Flow.Publisher;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-public abstract class OnChangeDataFetcher<C extends ChangeCapture> implements DataFetcher<org.reactivestreams.Publisher<C>> {
+public abstract class ChangeSubscribingDataFetcher<C extends ChangeCapture> implements DataFetcher<org.reactivestreams.Publisher<C>> {
 
 	protected final Evita evita;
 

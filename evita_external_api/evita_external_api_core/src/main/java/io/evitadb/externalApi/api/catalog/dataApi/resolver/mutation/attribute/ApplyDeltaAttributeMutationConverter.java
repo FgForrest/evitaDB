@@ -38,8 +38,10 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationObjectParser;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.MutationResolvingExceptionFactory;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 
@@ -50,10 +52,10 @@ import java.math.BigDecimal;
  */
 public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConverter<ApplyDeltaAttributeMutation<?>> {
 
-	@Nonnull
+	@Nullable
 	private final AttributeSchemaProvider<?> attributeSchemaProvider;
 
-	public ApplyDeltaAttributeMutationConverter(@Nonnull AttributeSchemaProvider<?> attributeSchemaProvider,
+	public ApplyDeltaAttributeMutationConverter(@Nullable AttributeSchemaProvider<?> attributeSchemaProvider,
 	                                            @Nonnull MutationObjectParser objectParser,
 	                                            @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
@@ -72,6 +74,10 @@ public class ApplyDeltaAttributeMutationConverter extends AttributeMutationConve
 	protected ApplyDeltaAttributeMutation<?> convertFromInput(@Nonnull Input input) {
 		final AttributeKey attributeKey = resolveAttributeKey(input);
 
+		Assert.isPremiseValid(
+			attributeSchemaProvider != null,
+			() -> getExceptionFactory().createInternalError("Attribute schema provider is required for conversion from input.")
+		);
 		final AttributeSchemaContract attributeSchema = attributeSchemaProvider.getAttribute(attributeKey.attributeName())
 			.orElseThrow(() -> getExceptionFactory().createInvalidArgumentException("Missing value type of new attribute `" + attributeKey.attributeName() + "`."));
 		final Class<? extends Serializable> valueType = attributeSchema.getType();

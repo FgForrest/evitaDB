@@ -25,13 +25,18 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.builder;
 
 import graphql.schema.GraphQLEnumType;
 import graphql.schema.GraphQLObjectType;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
 import io.evitadb.externalApi.graphql.api.builder.PartialGraphQLSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.builder.CatalogGraphQLSchemaBuildingContext;
+import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureBodyDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetcher.NameVariantDataFetcher;
+import io.evitadb.externalApi.graphql.api.dataType.GraphQLScalars;
 import io.evitadb.utils.NamingConvention;
 
 import javax.annotation.Nonnull;
+
+import static graphql.schema.GraphQLNonNull.nonNull;
 
 /**
  * Implementation of {@link PartialGraphQLSchemaBuilder} for building common types and fields used in both {@link CatalogSchemaSchemaBuilder}
@@ -51,6 +56,8 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 		buildingContext.registerType(scalarEnum);
 		buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
 		buildingContext.registerType(buildNameVariantsObject());
+
+		buildingContext.registerType(buildChangeCatalogCaptureObject());
 	}
 
 	@Nonnull
@@ -83,6 +90,20 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 		return NameVariantsDescriptor.THIS
 			.to(objectBuilderTransformer)
+			.build();
+	}
+
+	@Nonnull
+	private GraphQLObjectType buildChangeCatalogCaptureObject() {
+		buildingContext.registerDataFetcher(
+			ChangeCatalogCaptureDescriptor.THIS,
+			ChangeCatalogCaptureDescriptor.BODY,
+			new ChangeCatalogSchemaCaptureBodyDataFetcher()
+		);
+
+		return ChangeCatalogCaptureDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.field(ChangeCatalogCaptureDescriptor.BODY.to(fieldBuilderTransformer).type(nonNull(GraphQLScalars.OBJECT)))
 			.build();
 	}
 }

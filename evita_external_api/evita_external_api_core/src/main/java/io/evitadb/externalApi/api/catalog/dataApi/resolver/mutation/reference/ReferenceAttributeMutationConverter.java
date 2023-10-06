@@ -37,6 +37,7 @@ import io.evitadb.externalApi.api.catalog.resolver.mutation.Output;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -48,10 +49,10 @@ import java.util.Optional;
  */
 public class ReferenceAttributeMutationConverter extends ReferenceMutationConverter<ReferenceAttributeMutation> {
 
-	@Nonnull
+	@Nullable
 	private final EntitySchemaContract entitySchema;
 
-	public ReferenceAttributeMutationConverter(@Nonnull EntitySchemaContract entitySchema,
+	public ReferenceAttributeMutationConverter(@Nullable EntitySchemaContract entitySchema,
 	                                           @Nonnull MutationObjectParser objectParser,
 	                                           @Nonnull MutationResolvingExceptionFactory exceptionFactory) {
 		super(objectParser, exceptionFactory);
@@ -83,6 +84,10 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 			() -> getExceptionFactory().createInvalidArgumentException("`ReferenceAttributesUpdateMutation` supports only one attribute mutation inside.")
 		);
 
+		Assert.isPremiseValid(
+			entitySchema != null,
+			() -> getExceptionFactory().createInternalError("Entity schema is required for conversion from input.")
+		);
 		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
 			entitySchema.getReferenceOrThrowException(referenceKey.referenceName()),
 			getObjectParser(),
@@ -100,7 +105,9 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 	@Override
 	protected void convertToOutput(@Nonnull ReferenceAttributeMutation mutation, @Nonnull Output output) {
 		final ReferenceAttributeMutationAggregateConverter attributeMutationAggregateResolver = new ReferenceAttributeMutationAggregateConverter(
-			entitySchema.getReferenceOrThrowException(mutation.getReferenceKey().referenceName()),
+			Optional.ofNullable(entitySchema)
+				.map(it -> it.getReferenceOrThrowException(mutation.getReferenceKey().referenceName()))
+				.orElse(null),
 			getObjectParser(),
 			getExceptionFactory()
 		);

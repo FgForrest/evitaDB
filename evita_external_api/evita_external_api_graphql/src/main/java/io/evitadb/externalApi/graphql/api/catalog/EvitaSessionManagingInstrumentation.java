@@ -65,7 +65,7 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
         final OperationDefinition.Operation operation = executionContext.getOperationDefinition().getOperation();
 
         final EvitaSessionContract evitaSession;
-        if (operation == OperationDefinition.Operation.QUERY) {
+        if (operation == OperationDefinition.Operation.QUERY || operation == OperationDefinition.Operation.SUBSCRIPTION) {
             evitaSession = evita.createReadOnlySession(catalogName);
         } else if (operation == OperationDefinition.Operation.MUTATION) {
             evitaSession = evita.createReadWriteSession(catalogName);

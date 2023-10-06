@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.api.system.resolver.subscriptionDataFetcher;
+package io.evitadb.externalApi.graphql.api.system.resolver.subscribingDataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;

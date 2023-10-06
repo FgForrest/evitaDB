@@ -43,6 +43,7 @@ public record ChangeCatalogCaptureRequest(
 	@Nullable CaptureArea area,
 	@Nullable CaptureSite site,
 	@Nonnull CaptureContent content,
+	// todo jno: what should client enter here when it wants to subscribe only to future events? Especially in GQL/REST where transaction IDs are not present?
 	long sinceTransactionId
 ) implements ChangeCaptureRequest {
 }
