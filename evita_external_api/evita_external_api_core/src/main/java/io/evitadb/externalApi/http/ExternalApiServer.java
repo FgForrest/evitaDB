@@ -181,7 +181,8 @@ public class ExternalApiServer implements AutoCloseable {
 
 			rootCaFingerPrint.ifPresent(it -> {
 				ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
-				ConsoleWriter.write(it + "\n", ConsoleColor.BRIGHT_YELLOW);
+				ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
+				ConsoleWriter.write("\n", ConsoleColor.WHITE);
 			});
 
 		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
@@ -487,11 +488,15 @@ public class ExternalApiServer implements AutoCloseable {
 			ConsoleWriter.write(
 				StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
 			);
-			ConsoleWriter.write(
-				String.join(", ", configuration.getBaseUrls()) + "\n",
-				ConsoleColor.DARK_BLUE,
-				ConsoleDecoration.UNDERLINE
-			);
+			final String[] baseUrls = configuration.getBaseUrls();
+			for (int i = 0; i < baseUrls.length; i++) {
+				final String url = baseUrls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(url, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			}
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
 			if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput consoleOutput) {
 				consoleOutput.writeToConsole();

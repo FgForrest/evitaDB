@@ -79,6 +79,7 @@ public class HierarchyOfSelfTranslator
 			.map(
 				it -> extraResultPlanner.createSorter(
 					it,
+					null,
 					globalIndex,
 					queriedEntityType,
 					() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it

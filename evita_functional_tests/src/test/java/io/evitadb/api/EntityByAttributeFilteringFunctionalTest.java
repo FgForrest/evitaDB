@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -43,6 +44,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -2392,6 +2394,55 @@ public class EntityByAttributeFilteringFunctionalTest {
 					result.getRecordData()
 				);
 				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should fail to process query targeting non existing attribute on reference")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToProcessQueryTargetingNonExistingAttributeOnReference(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								referenceHaving(
+									Entities.BRAND,
+									attributeEquals(ATTRIBUTE_CODE, "apple")
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should fail to order by localized attribute when locale is not known")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToOrderByLocalizedAttributeWhenLocaleIsNotKnown(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								attributeNatural(ATTRIBUTE_NAME)
+							)
+						),
+						EntityReference.class
+					)
+				);
 			}
 		);
 	}

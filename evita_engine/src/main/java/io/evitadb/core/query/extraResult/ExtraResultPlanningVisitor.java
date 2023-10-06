@@ -359,6 +359,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Sorter createSorter(
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
+		@Nullable Locale locale,
 		@Nonnull EntityIndex<?> entityIndex,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
@@ -379,6 +380,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 			return orderByVisitor.executeInContext(
 				new EntityIndex[] {entityIndex},
 				entityType,
+				locale,
 				new AttributeSchemaAccessor(queryContext),
 				EntityAttributeExtractor.INSTANCE,
 				() -> {

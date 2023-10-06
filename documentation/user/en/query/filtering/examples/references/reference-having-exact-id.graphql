@@ -1,0 +1,25 @@
+{
+  queryProduct(
+    filterBy: {
+      referenceBrandHaving: [
+        {
+          entityPrimaryKeyInSet: [
+            66465
+          ]
+        }
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        brand {
+          referencedPrimaryKey
+        }
+      }
+    }
+  }
+}

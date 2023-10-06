@@ -76,11 +76,15 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.io.Reader;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.net.URL;
+import java.nio.channels.Channels;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
@@ -431,7 +435,48 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 	) {
 		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
 		evitaServer.run();
-		return evitaServer;
+
+		final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+		if (cfg == null) {
+			// system provider was not initialized
+			return evitaServer;
+		}
+
+		// verify the server is running
+		Exception lastException = null;
+		int initAttempt = 0;
+		do {
+			for (String baseUrl : cfg.getBaseUrls()) {
+				final String testUrl = baseUrl + "server-name";
+				try {
+					final URL website = new URL(testUrl);
+					try (
+						final Reader reader = Channels.newReader(Channels.newChannel(website.openStream()), StandardCharsets.UTF_8);
+					) {
+						// try to read server name from the system endpoint
+						final char[] buffer = new char[50];
+						final int read = reader.read(buffer);
+						log.info("Server name available on url `{}`: {}", cfg.getBaseUrls()[0], new String(buffer, 0, read));
+						return evitaServer;
+					}
+				} catch (Exception ex) {
+					lastException = ex;
+				}
+			}
+			initAttempt++;
+			try {
+				// if not ready wait for a while
+				Thread.sleep(200);
+			} catch (InterruptedException e) {
+				return evitaServer;
+			}
+			// try at most 5 times
+		} while (initAttempt < 300);
+
+		throw new IllegalStateException(
+			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 1 minute!",
+			lastException
+		);
 	}
 
 	@Override

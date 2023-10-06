@@ -28,6 +28,7 @@ import graphql.schema.Coercing;
 import graphql.schema.CoercingParseLiteralException;
 import graphql.schema.CoercingParseValueException;
 import graphql.schema.CoercingSerializeException;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.dto.FormattableBigDecimal;
 
 import javax.annotation.Nonnull;
@@ -44,8 +45,8 @@ public class BigDecimalCoercing implements Coercing<BigDecimal, String> {
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
-        if (dataFetcherResult instanceof BigDecimal) {
-            return dataFetcherResult.toString();
+        if (dataFetcherResult instanceof BigDecimal bigDecimal) {
+            return EvitaDataTypes.formatValue(bigDecimal);
         }
         if (dataFetcherResult instanceof final FormattableBigDecimal formattableBigDecimal) {
             return formattableBigDecimal.toFormattedString();

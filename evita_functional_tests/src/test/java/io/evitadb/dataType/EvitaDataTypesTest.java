@@ -24,6 +24,8 @@
 package io.evitadb.dataType;
 
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
+import io.evitadb.externalApi.grpc.generated.GrpcBigDecimal;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -481,4 +483,59 @@ class EvitaDataTypesTest {
 		assertThrows(InconvertibleDataTypeException.class, () -> EvitaDataTypes.toTargetType("", UUID.class));
 	}
 
+	@Test
+	void shouldConvertStringBigDecimalValuesProperly() {
+		final String integerBigDecimalValueString = "1";
+		final BigDecimal integerBigDecimalValue = BigDecimal.valueOf(1);
+		assertEquals(
+			integerBigDecimalValue,
+			EvitaDataTypes.toTargetType(integerBigDecimalValueString, BigDecimal.class)
+		);
+
+		final String positivelySignedBigDecimalValueString = "+3.14";
+		final BigDecimal positivelySignedBigDecimalValue = BigDecimal.valueOf(3.14);
+		assertEquals(
+			positivelySignedBigDecimalValue,
+			EvitaDataTypes.toTargetType(positivelySignedBigDecimalValueString, BigDecimal.class)
+		);
+
+		final String negativelySignedBigDecimalValueString = "-2.5";
+		final BigDecimal negativelySignedBigDecimalValue = BigDecimal.valueOf(-2.5);
+		assertEquals(
+			negativelySignedBigDecimalValue,
+			EvitaDataTypes.toTargetType(negativelySignedBigDecimalValueString, BigDecimal.class)
+		);
+
+		final String zeroLengthIntegerBigDecimalValueString = ".5";
+		final BigDecimal zeroLengthIntegerBigDecimalValue = BigDecimal.valueOf(0.5);
+		assertEquals(
+			zeroLengthIntegerBigDecimalValue,
+			EvitaDataTypes.toTargetType(zeroLengthIntegerBigDecimalValueString, BigDecimal.class)
+		);
+
+		final String exponentialBaseBigDecimalValueString = "2.5E8";
+		final BigDecimal exponentialBaseBigDecimalValue = BigDecimal.valueOf(2.5e8);
+		assertEquals(
+			exponentialBaseBigDecimalValue,
+			EvitaDataTypes.toTargetType(exponentialBaseBigDecimalValueString, BigDecimal.class)
+		);
+
+		final String zeroExponentBaseBigDecimalValueString = "2.5e0";
+		final BigDecimal zeroExponentBaseBigDecimalValue = BigDecimal.valueOf(2.5);
+		assertEquals(
+			zeroExponentBaseBigDecimalValue,
+			EvitaDataTypes.toTargetType(zeroExponentBaseBigDecimalValueString, BigDecimal.class)
+		);
+	}
+
+	@Test
+	void shouldFormatBigDecimalValuesProperly() {
+		assertEquals("1", formatValue(new BigDecimal("1")));
+		assertEquals("3.14", formatValue(new BigDecimal("+3.14")));
+		assertEquals("-2.5", formatValue(new BigDecimal("-2.5")));
+		assertEquals("0.5", formatValue(new BigDecimal(".5")));
+		assertEquals("2.5e8", formatValue(new BigDecimal("2.5E8")));
+		assertEquals("-2.5e-8", formatValue(new BigDecimal("-2.5E-8")));
+		assertEquals("2.5", formatValue(new BigDecimal("2.5e0")));
+	}
 }
