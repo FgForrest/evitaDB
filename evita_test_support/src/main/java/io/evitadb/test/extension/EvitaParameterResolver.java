@@ -471,10 +471,10 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				return evitaServer;
 			}
 			// try at most 5 times
-		} while (initAttempt < 50);
+		} while (initAttempt < 300);
 
 		throw new IllegalStateException(
-			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 seconds!",
+			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 1 minute!",
 			lastException
 		);
 	}
