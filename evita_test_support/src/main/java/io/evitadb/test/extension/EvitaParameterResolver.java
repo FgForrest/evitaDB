@@ -470,7 +470,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			// try at most 5 times
 		} while (initAttempt < 50);
 
-		throw new IllegalStateException("Evita server hasn't started on url `" + testUrl + "` within 1 minute!", lastException);
+		throw new IllegalStateException("Evita server hasn't started on url `" + testUrl + "` within 10 seconds!", lastException);
 	}
 
 	@Override
