@@ -24,25 +24,30 @@
 package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.exception.EntityClassInvalidException;
+import io.evitadb.api.proxy.impl.AbstractEntityProxyState;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.lang.reflect.Parameter;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -62,17 +67,54 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	public static final GetParentEntityMethodClassifier INSTANCE = new GetParentEntityMethodClassifier();
 
 	/**
+	 * Tries to identify parent from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType     class the constructor belongs to
+	 * @param parameter        constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingFunction<SealedEntity, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull AbstractEntityProxyState proxyState
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+		final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, ParentEntity.class);
+		if (parentEntity != null) {
+			if (int.class.equals(parameterType) || Integer.class.equals(parameterType)) {
+				return sealedEntity -> sealedEntity.getParentEntity().map(EntityClassifier::getPrimaryKey).orElse(null);
+			} else if (EntityReference.class.equals(parameterType) || EntityReferenceContract.class.equals(parameterType)) {
+				return sealedEntity -> sealedEntity.getParentEntity().map(it -> new EntityReference(it.getType(), it.getPrimaryKey())).orElse(null);
+			} else if (EntityClassifier.class.equals(parameterType) || EntityClassifierWithParent.class.equals(parameterType)) {
+				return sealedEntity -> sealedEntity.getParentEntity().orElse(null);
+			} else {
+				return sealedEntity -> sealedEntity.getParentEntity()
+					.map(it -> proxyState.createEntityProxy(parameterType, (SealedEntity) it))
+					.orElse(null);
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Implementation that returns an integer value of parent entity id.
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentIdResult(
 		@Nonnull Function<SealedEntity, Optional<EntityClassifierWithParent>> parentEntityExtractor,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull UnaryOperator<Object> resultWrapper,
+		@Nonnull Class<? extends Serializable> returnType
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.apply(
 				parentEntityExtractor.apply(theState.getSealedEntity())
 					.map(EntityClassifier::getPrimaryKey)
+					.map(it -> EvitaDataTypes.toTargetType(it, returnType))
 					.orElse(null)
 			);
 	}
@@ -133,13 +175,13 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 			"getParentEntity",
 			(method, proxyState) -> {
 				// Method must be abstract and have no parameters
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (method.getParameterCount() > 0) {
 					return null;
 				}
 
 				// first we need to identify whether the method returns a parent entity
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstance(method, ParentEntity.class);
+				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ParentEntity.class);
 				if (parentEntity == null) {
 					return null;
 				}
@@ -174,7 +216,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 
 				// now we need to identify the return type and return appropriate implementation
 				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(valueType))) {
-					return singleParentIdResult(parentEntityExtractor, resultWrapper);
+					return singleParentIdResult(parentEntityExtractor, resultWrapper, EvitaDataTypes.toWrappedForm(valueType));
 				} else if (valueType.equals(EntityReference.class)) {
 					return singleParentReferenceResult(parentEntityExtractor, resultWrapper);
 				} else if (valueType.equals(EntityClassifier.class) || valueType.equals(EntityClassifierWithParent.class)) {

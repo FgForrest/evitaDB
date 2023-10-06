@@ -28,23 +28,21 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.entity.EntityContractAdvice;
+import io.evitadb.api.proxy.impl.entity.GetAssociatedDataMethodClassifier;
+import io.evitadb.api.proxy.impl.entity.GetAttributeMethodClassifier;
+import io.evitadb.api.proxy.impl.entity.GetEntityTypeMethodClassifier;
+import io.evitadb.api.proxy.impl.entity.GetParentEntityMethodClassifier;
+import io.evitadb.api.proxy.impl.entity.GetPriceMethodClassifier;
+import io.evitadb.api.proxy.impl.entity.GetPrimaryKeyMethodClassifier;
 import io.evitadb.api.proxy.impl.reference.EntityReferenceContractAdvice;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.annotation.EntityRef;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.ExceptionRethrowingIntBiFunction;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator;
@@ -59,7 +57,6 @@ import java.io.Serializable;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Parameter;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -126,39 +123,42 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
 	) {
 		try {
+			final SealedEntityProxyState proxyState = new SealedEntityProxyState(sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup);
 			if (expectedType.isRecord()) {
 				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup
+					expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
 				);
 				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity)
-				);
-			} else if (expectedType.isInterface()) {
-				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
-				return ByteBuddyProxyGenerator.instantiate(
-					recipeLocator.apply(cacheKey),
-					new SealedEntityProxyState(sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup)
-				);
-			} else if (isAbstract(expectedType)) {
-				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup
-				);
-				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
-				return ByteBuddyProxyGenerator.instantiate(
-					recipeLocator.apply(cacheKey),
-					new SealedEntityProxyState(sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup),
-					bestMatchingConstructor.constructor().getParameterTypes(),
 					bestMatchingConstructor.constructorArguments(sealedEntity)
 				);
 			} else {
-				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup
-				);
-				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity)
-				);
+				if (expectedType.isInterface()) {
+					final String entityName = sealedEntity.getSchema().getName();
+					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
+					return ByteBuddyProxyGenerator.instantiate(
+						recipeLocator.apply(cacheKey),
+						proxyState
+					);
+				} else if (isAbstract(expectedType)) {
+					final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
+						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+					);
+					final String entityName = sealedEntity.getSchema().getName();
+					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
+					return ByteBuddyProxyGenerator.instantiate(
+						recipeLocator.apply(cacheKey),
+						proxyState,
+						bestMatchingConstructor.constructor().getParameterTypes(),
+						bestMatchingConstructor.constructorArguments(sealedEntity)
+					);
+				} else {
+					final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
+						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+					);
+					return bestMatchingConstructor.constructor().newInstance(
+						bestMatchingConstructor.constructorArguments(sealedEntity)
+					);
+				}
 			}
 		} catch (Exception e) {
 			throw new EntityClassInvalidException(expectedType, e);
@@ -178,39 +178,42 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
 	) {
 		try {
+			final SealedEntityReferenceProxyState proxyState = new SealedEntityReferenceProxyState(sealedEntity, reference, expectedType, recipes, collectedRecipes, reflectionLookup);
 			if (expectedType.isRecord()) {
 				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup
+					expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
 				);
 				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity)
-				);
-			} else if (expectedType.isInterface()) {
-				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
-				return ByteBuddyProxyGenerator.instantiate(
-					recipeLocator.apply(cacheKey),
-					new SealedEntityReferenceProxyState(sealedEntity, reference, expectedType, recipes, collectedRecipes, reflectionLookup)
-				);
-			} else if (isAbstract(expectedType)) {
-				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup
-				);
-				final String entityName = sealedEntity.getSchema().getName();
-				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
-				return ByteBuddyProxyGenerator.instantiate(
-					recipeLocator.apply(cacheKey),
-					new SealedEntityReferenceProxyState(sealedEntity, reference, expectedType, recipes, collectedRecipes, reflectionLookup),
-					bestMatchingConstructor.constructor().getParameterTypes(),
 					bestMatchingConstructor.constructorArguments(sealedEntity)
 				);
 			} else {
-				final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup
-				);
-				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity)
-				);
+				if (expectedType.isInterface()) {
+					final String entityName = sealedEntity.getSchema().getName();
+					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
+					return ByteBuddyProxyGenerator.instantiate(
+						recipeLocator.apply(cacheKey),
+						proxyState
+					);
+				} else if (isAbstract(expectedType)) {
+					final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
+						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+					);
+					final String entityName = sealedEntity.getSchema().getName();
+					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
+					return ByteBuddyProxyGenerator.instantiate(
+						recipeLocator.apply(cacheKey),
+						proxyState,
+						bestMatchingConstructor.constructor().getParameterTypes(),
+						bestMatchingConstructor.constructorArguments(sealedEntity)
+					);
+				} else {
+					final BestMatchingConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
+						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+					);
+					return bestMatchingConstructor.constructor().newInstance(
+						bestMatchingConstructor.constructorArguments(sealedEntity)
+					);
+				}
 			}
 		} catch (Exception e) {
 			throw new EntityClassInvalidException(expectedType, e);
@@ -220,13 +223,12 @@ public class ProxycianFactory implements ProxyFactory {
 	/**
 	 * Method tries to identify the best matching constructor for passed {@link EntitySchemaContract} and {@link Class}
 	 * type. It tries to find a constructor with most of the arguments matching the schema fields.
-	 *
-	 * TODO JNO - write some test!
 	 */
 	private static <T> BestMatchingConstructorWithExtractionLambda<T> findBestMatchingConstructor(
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntitySchemaContract schema,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull AbstractEntityProxyState proxyState
 	) {
 		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName(), null);
 		if (CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
@@ -245,73 +247,49 @@ public class ProxycianFactory implements ProxyFactory {
 				for (int i = 0; i < parameters.length; i++) {
 					final String parameterName = parameters[i].getName();
 					@SuppressWarnings("rawtypes") final Class parameterType = parameters[i].getType();
-					if (PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName) && (Integer.class.isAssignableFrom(parameterType) || int.class.isAssignableFrom(parameterType))) {
-						argumentExtractors[i] = EntityContract::getPrimaryKey;
+					final ExceptionRethrowingFunction<SealedEntity, Object> pkFct = GetPrimaryKeyMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup);
+					if (pkFct != null) {
+						argumentExtractors[i] = pkFct;
 						score++;
-					} else if (EntityRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName) && String.class.isAssignableFrom(parameterType)) {
-						argumentExtractors[i] = EntityClassifier::getType;
-						score++;
-					} else if (EvitaDataTypes.isSupportedTypeOrItsArray(parameterType) || parameterType.isEnum()) {
-						final Optional<AttributeSchemaContract> attribute = schema.getAttributeByName(parameterName, NamingConvention.CAMEL_CASE);
-						final Optional<AssociatedDataSchemaContract> associatedData = schema.getAssociatedDataByName(parameterName, NamingConvention.CAMEL_CASE);
-						if (attribute.isPresent()) {
-							final String attributeName = attribute.get().getName();
-							if (parameterType.isEnum()) {
-								//noinspection unchecked
-								argumentExtractors[i] = entity -> Enum.valueOf(
-									parameterType,
-									(String) entity.getAttribute(
-										attributeName,
-										String.class
-									)
-								);
-							} else {
-								//noinspection unchecked
-								argumentExtractors[i] = entity -> entity.getAttribute(
-									attributeName,
-									parameterType
-								);
-							}
-							score++;
-						} else if (associatedData.isPresent()) {
-							final String associatedDataName = associatedData.get().getName();
-							if (parameterType.isEnum()) {
-								//noinspection unchecked
-								argumentExtractors[i] = entity -> Enum.valueOf(
-									parameterType,
-									(String) entity.getAssociatedData(
-										associatedDataName,
-										String.class,
-										reflectionLookup
-									)
-								);
-							} else {
-								//noinspection unchecked
-								argumentExtractors[i] = entity -> entity.getAssociatedData(
-									associatedDataName,
-									parameterType,
-									reflectionLookup
-								);
-							}
-							score++;
-						} else {
-							argumentExtractors[i] = entity -> null;
-						}
-					} else {
-						final Optional<AssociatedDataSchemaContract> associatedData = schema.getAssociatedDataByName(parameterName, NamingConvention.CAMEL_CASE);
-						if (associatedData.isPresent()) {
-							final String associatedDataName = associatedData.get().getName();
-							//noinspection unchecked
-							argumentExtractors[i] = entity -> entity.getAssociatedData(
-								associatedDataName,
-								parameterType,
-								reflectionLookup
-							);
-							score++;
-						} else {
-							argumentExtractors[i] = entity -> null;
-						}
+						continue;
 					}
+					final ExceptionRethrowingFunction<SealedEntity, Object> entityTypeFct = GetEntityTypeMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup);
+					if (entityTypeFct != null) {
+						argumentExtractors[i] = entityTypeFct;
+						score++;
+						continue;
+					}
+
+					final ExceptionRethrowingFunction<SealedEntity, Object> attributeFct = GetAttributeMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, schema);
+					if (attributeFct != null) {
+						argumentExtractors[i] = attributeFct;
+						score++;
+						continue;
+					}
+
+					final ExceptionRethrowingFunction<SealedEntity, Object> priceFct = GetPriceMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, schema);
+					if (priceFct != null) {
+						argumentExtractors[i] = priceFct;
+						score++;
+						continue;
+					}
+
+					final ExceptionRethrowingFunction<SealedEntity, Object> parentFct = GetParentEntityMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, proxyState);
+					if (parentFct != null) {
+						argumentExtractors[i] = parentFct;
+						score++;
+						continue;
+					}
+
+					final ExceptionRethrowingFunction<SealedEntity, Object> associatedDataFct = GetAssociatedDataMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, schema);
+					if (associatedDataFct != null) {
+						argumentExtractors[i] = associatedDataFct;
+						score++;
+						continue;
+					}
+
+					argumentExtractors[i] = entity -> null;
+
 					if (score > bestConstructorScore) {
 						bestConstructorScore = score;
 						//noinspection unchecked
@@ -436,14 +414,15 @@ public class ProxycianFactory implements ProxyFactory {
 	 * Cache key for particular type/entity/reference combination.
 	 *
 	 * @param type          the proxy class
-	 * @param entityName	the name of the entity {@link EntitySchemaContract#getName()}
+	 * @param entityName    the name of the entity {@link EntitySchemaContract#getName()}
 	 * @param referenceName the name of the entity reference schema {@link ReferenceSchemaContract#getName()}
 	 */
 	public record ProxyEntityCacheKey(
 		@Nonnull Class<?> type,
 		@Nonnull String entityName,
 		@Nullable String referenceName
-	) implements Serializable {}
+	) implements Serializable {
+	}
 
 
 }

@@ -567,19 +567,33 @@ public class ReflectionLookup {
 		return ofNullable(getAnnotationInstance(method, annotationType))
 			.orElseGet(() -> {
 				final String propertyName = getPropertyNameFromMethodName(method.getName());
-				final Field propertyField = findPropertyField(method.getDeclaringClass(), propertyName);
-				if (propertyField == null) {
-					return null;
-				} else {
-					final Map<Field, List<T>> annotatedFields = getFields(method.getDeclaringClass(), annotationType);
-					final List<T> annotations = annotatedFields.get(propertyField);
-					if (annotations == null || annotations.isEmpty()) {
-						return null;
-					} else {
-						return annotations.get(0);
-					}
-				}
+				return getAnnotationInstanceForProperty(method.getDeclaringClass(), propertyName, annotationType);
 			});
+	}
+
+	/**
+	 * Returns annotation of certain type on field of certain name in declaring class.
+	 * Annotations on annotation are also taken into account.
+	 * First matching annotation is returned.
+	 */
+	@Nullable
+	public <T extends Annotation> T getAnnotationInstanceForProperty(
+		@Nonnull Class<?> declaringClass,
+		@Nonnull String propertyName,
+		@Nonnull Class<T> annotationType
+	) {
+		final Field propertyField = findPropertyField(declaringClass, propertyName);
+		if (propertyField == null) {
+			return null;
+		} else {
+			final Map<Field, List<T>> annotatedFields = getFields(declaringClass, annotationType);
+			final List<T> annotations = annotatedFields.get(propertyField);
+			if (annotations == null || annotations.isEmpty()) {
+				return null;
+			} else {
+				return annotations.get(0);
+			}
+		}
 	}
 
 	/**

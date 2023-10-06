@@ -79,51 +79,15 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@DisplayName("Evita entity proxying functionality")
+@DisplayName("Evita entity interface proxying functionality")
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
-public class EntityProxyingFunctionalTest extends AbstractHundredProductsFunctionalTest implements EvitaTestSupport {
+public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
 	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts";
 	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
-
-	private static void assertCategoryEntityReferences(
-		@Nonnull Stream<EntityReference> categoryReferences,
-		@Nonnull int[] expectedCategoryIds
-	) {
-		assertNotNull(categoryReferences);
-		final EntityReference[] references = categoryReferences
-			.sorted()
-			.toArray(EntityReference[]::new);
-
-		assertEquals(expectedCategoryIds.length, references.length);
-		assertArrayEquals(
-			Arrays.stream(expectedCategoryIds)
-				.mapToObj(it -> new EntityReference(Entities.CATEGORY, it))
-				.toArray(EntityReference[]::new),
-			references
-		);
-	}
-
-	private static void assertCategoryIds(
-		@Nonnull Stream<Integer> categoryIds,
-		@Nonnull int[] expectedCategoryIds
-	) {
-		assertNotNull(categoryIds);
-		final Integer[] references = categoryIds
-			.sorted()
-			.toArray(Integer[]::new);
-
-		assertEquals(expectedCategoryIds.length, references.length);
-		assertArrayEquals(
-			Arrays.stream(expectedCategoryIds)
-				.boxed()
-				.toArray(Integer[]::new),
-			references
-		);
-	}
 
 	private static void assertCategories(
 		@Nonnull Stream<CategoryInterface> categoryReferences,

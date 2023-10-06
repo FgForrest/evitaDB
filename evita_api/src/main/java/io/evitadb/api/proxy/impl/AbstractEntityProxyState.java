@@ -52,7 +52,7 @@ import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_REFERENC
  */
 @EqualsAndHashCode(of = {"sealedEntity", "proxyClass"})
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
+public class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	@Serial private static final long serialVersionUID = -6935480192166155348L;
 	/**
 	 * The sealed entity that is being proxied.

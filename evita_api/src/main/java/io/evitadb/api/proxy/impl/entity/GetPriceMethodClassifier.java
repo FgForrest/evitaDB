@@ -35,9 +35,10 @@ import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.CollectorUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -47,6 +48,7 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,6 +75,95 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final GetPriceMethodClassifier INSTANCE = new GetPriceMethodClassifier();
+
+	/**
+	 * Tries to identify price from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType     class the constructor belongs to
+	 * @param parameter        constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingFunction<SealedEntity, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EntitySchemaContract schema
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+
+		// TODO JNO tady všude myslet na kolekce a arraye
+		if (!PriceContract.class.equals(parameterType)) {
+			return null;
+		}
+
+		final boolean sellingPrice;
+		final PriceForSale priceForSaleInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, PriceForSale.class);
+		if (priceForSaleInstance != null) {
+			sellingPrice = true;
+		} else {
+			final PriceForSaleRef priceForSaleRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, PriceForSaleRef.class);
+			sellingPrice = priceForSaleRefInstance != null;
+		}
+		final Price priceInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Price.class);
+		final String priceList = priceInstance == null ? null : priceInstance.priceList();
+
+		if (sellingPrice) {
+			if (PriceContract.class.equals(parameterType)) {
+				return entity -> entity.getPriceForSale().orElse(null);
+			} else if (parameterType.isArray()) {
+				return entity -> entity.getAllPricesForSale().toArray(PriceContract[]::new);
+			} else if (Set.class.equals(parameterType)) {
+				return entity -> entity.getAllPricesForSale().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+			} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+				return PricesContract::getAllPricesForSale;
+			} else {
+				throw new EntityClassInvalidException(
+					expectedType,
+					"Unsupported data type `" + parameterType + "` for price for sale in entity `" + schema.getName() +
+						"` related to constructor parameter `" + parameterName + "`!"
+				);
+			}
+		} else if (priceInstance != null) {
+			if (priceList == null) {
+				if (PriceContract.class.equals(parameterType)) {
+					return entity -> entity.getPrices().stream().findFirst().orElse(null);
+				} else if (parameterType.isArray()) {
+					return entity -> entity.getPrices().toArray(PriceContract[]::new);
+				} else if (Set.class.equals(parameterType)) {
+					return entity -> entity.getPrices().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+					return PricesContract::getPrices;
+				} else {
+					throw new EntityClassInvalidException(
+						expectedType,
+						"Unsupported data type `" + parameterType + "` for price in entity `" + schema.getName() +
+							"` related to constructor parameter `" + parameterName + "`!"
+					);
+				}
+			} else {
+				if (PriceContract.class.equals(parameterType)) {
+					return entity -> entity.getPrices(priceList).stream().findFirst().orElse(null);
+				} else if (parameterType.isArray()) {
+					return entity -> entity.getPrices(priceList).toArray(PriceContract[]::new);
+				} else if (Set.class.equals(parameterType)) {
+					return entity -> entity.getPrices(priceList).stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+					return entity -> entity.getPrices(priceList);
+				} else {
+					throw new EntityClassInvalidException(
+						expectedType,
+						"Unsupported data type `" + parameterType + "` for price in entity `" + schema.getName() +
+							"` related to constructor parameter `" + parameterName + "`!"
+					);
+				}
+			}
+		}
+
+		return null;
+	}
 
 	/**
 	 * Method collects and returns an index allowing to get a lambda that takes array of method call argument and
@@ -549,16 +640,12 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		super(
 			"getPrices",
 			(method, proxyState) -> {
-				// only override if the method is not implemented by the proxied class
-				if (!ClassUtils.isAbstractOrDefault(method)) {
-					return null;
-				}
 				// now we need to identify whether the method should be implemeted by this classifier
 				// it must be annotated appropriately
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final PriceForSale priceForSale = reflectionLookup.getAnnotationInstance(method, PriceForSale.class);
-				final PriceForSaleRef priceForSaleRef = reflectionLookup.getAnnotationInstance(method, PriceForSaleRef.class);
-				final Price price = reflectionLookup.getAnnotationInstance(method, Price.class);
+				final PriceForSale priceForSale = reflectionLookup.getAnnotationInstanceForProperty(method, PriceForSale.class);
+				final PriceForSaleRef priceForSaleRef = reflectionLookup.getAnnotationInstanceForProperty(method, PriceForSaleRef.class);
+				final Price price = reflectionLookup.getAnnotationInstanceForProperty(method, Price.class);
 
 				if (priceForSale == null && priceForSaleRef == null && price == null) {
 					return null;

@@ -61,7 +61,7 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
 				// to match the method by its name
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstance(method, ReferencedEntityGroup.class);
+				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstanceForProperty(method, ReferencedEntityGroup.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
 				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);

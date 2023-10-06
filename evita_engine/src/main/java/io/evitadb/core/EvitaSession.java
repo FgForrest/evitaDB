@@ -221,17 +221,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Returns an entity type from the given entity or throws an unified exception.
 	 */
 	@Nonnull
-	private static <T extends Serializable> String getEntityTypeFromEntity(@Nonnull T partiallyLoadedEntity) {
+	private static <T extends Serializable> String getEntityTypeFromEntity(@Nonnull T partiallyLoadedEntity, @Nonnull ReflectionLookup reflectionLookup) {
 		final String entityType;
 		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
 			entityType = entityClassifier.getType();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			entityType = sealedEntityProxy.getSealedEntity().getType();
 		} else {
-			throw new EvitaInvalidUsageException(
-				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
-				"Unsupported entity type!"
-			);
+			final String lazyEvaluatedEntityType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, partiallyLoadedEntity.getClass());
+			if (lazyEvaluatedEntityType == null) {
+				throw new EvitaInvalidUsageException(
+					"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
+					"Unsupported entity type!"
+				);
+			} else {
+				entityType = lazyEvaluatedEntityType;
+			}
 		}
 		return entityType;
 	}
@@ -495,7 +500,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> T enrichEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
-		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity);
+		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
@@ -535,7 +540,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <T extends Serializable> T enrichOrLimitEntity(@Nonnull T partiallyLoadedEntity, EntityContentRequire... require) {
 		assertActive();
-		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity);
+		final String entityType = getEntityTypeFromEntity(partiallyLoadedEntity, reflectionLookup);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntity(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 		final EvitaRequest evitaRequest = new EvitaRequest(

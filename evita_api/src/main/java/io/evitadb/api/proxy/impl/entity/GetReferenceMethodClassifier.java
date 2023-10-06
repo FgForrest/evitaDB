@@ -85,8 +85,8 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema
 	) {
-		final Reference referenceInstance = reflectionLookup.getAnnotationInstance(method, Reference.class);
-		final ReferenceRef referenceRefInstance = reflectionLookup.getAnnotationInstance(method, ReferenceRef.class);
+		final Reference referenceInstance = reflectionLookup.getAnnotationInstanceForProperty(method, Reference.class);
+		final ReferenceRef referenceRefInstance = reflectionLookup.getAnnotationInstanceForProperty(method, ReferenceRef.class);
 		if (referenceInstance != null) {
 			return entitySchema.getReferenceOrThrowException(referenceInstance.name());
 		} else if (referenceRefInstance != null) {
@@ -611,7 +611,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			"getReference",
 			(method, proxyState) -> {
 				// we are interested only in abstract methods without parameters
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (method.getParameterCount() > 0) {
 					return null;
 				}
 				// now we need to identify reference schema that is being requested

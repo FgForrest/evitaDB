@@ -24,6 +24,7 @@
 package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
@@ -33,6 +34,8 @@ import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
@@ -47,6 +50,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -59,9 +63,12 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -94,6 +101,88 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Tries to identify attribute name from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType     class the constructor belongs to
+	 * @param parameter        constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingFunction<SealedEntity, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EntitySchemaContract schema
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+
+		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Attribute.class);
+		final Optional<String> attributeNameFromParameter;
+		if (attributeInstance != null) {
+			attributeNameFromParameter = of(attributeInstance.name());
+		} else {
+			final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AttributeRef.class);
+			if (attributeRefInstance != null) {
+				attributeNameFromParameter = of(attributeRefInstance.value());
+			} else {
+				attributeNameFromParameter = empty();
+			}
+		}
+
+		if (attributeNameFromParameter.isPresent() || EvitaDataTypes.isSupportedTypeOrItsArray(parameterType) || parameterType.isEnum()) {
+			final String attributeName = attributeNameFromParameter.orElse(parameterName);
+			final Optional<AttributeSchemaContract> attributeSchema = schema.getAttributeByName(attributeName, NamingConvention.CAMEL_CASE);
+			if (attributeSchema.isPresent()) {
+				final AttributeSchemaContract attributeSchemaContract = attributeSchema.get();
+				if (attributeSchemaContract.getType().isArray()) {
+					if (parameterType.isArray()) {
+						return entity -> getAttributeAsSingleValue(
+							entity, attributeName, parameterType,
+							attributeSchemaContract.getIndexedDecimalPlaces()
+						);
+					} else if (Set.class.equals(parameterType)) {
+						return entity -> getAttributeAsSet(
+							entity, attributeName, parameterType,
+							attributeSchemaContract.getIndexedDecimalPlaces()
+						);
+					} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+						return entity -> getAttributeAsList(
+							entity, attributeName, parameterType,
+							attributeSchemaContract.getIndexedDecimalPlaces()
+						);
+					} else {
+						throw new EntityClassInvalidException(
+							expectedType,
+							"Unsupported data type `" + parameterType + "` for attribute `" + attributeName + "` in entity `" + schema.getName() +
+								"` related to constructor parameter `" + parameterName + "`!"
+						);
+					}
+				} else {
+					if (parameterType.isEnum()) {
+						return entity -> getAttributeAsAnEnum(
+							entity, attributeName, parameterType
+						);
+					} else {
+						return entity -> getAttributeAsSingleValue(
+							entity, attributeName, parameterType, attributeSchemaContract.getIndexedDecimalPlaces()
+						);
+					}
+				}
+			} else if (attributeNameFromParameter.isPresent()) {
+				throw new EntityClassInvalidException(
+					expectedType,
+					"Cannot find attribute `" + attributeName + "` in entity `" + schema.getName() +
+						"` related to constructor parameter `" + parameterName + "`!"
+				);
+			}
+		}
+
+		return null;
+	}
+
+	/**
 	 * Retrieves appropriate attribute schema from the annotations on the method. If no Evita annotation is found
 	 * it tries to match the attribute name by the name of the method.
 	 */
@@ -103,8 +192,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema
 	) {
-		final Attribute attributeInstance = reflectionLookup.getAnnotationInstance(method, Attribute.class);
-		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstance(method, AttributeRef.class);
+		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(method, Attribute.class);
+		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(method, AttributeRef.class);
 		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> entitySchema.getAttribute(attributeName)
 			.orElseThrow(() -> new AttributeNotFoundException(attributeName, entitySchema));
 		if (attributeInstance != null) {
@@ -338,8 +427,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(method, proxyState) -> {
 				// We only want to handle non-abstract methods with no parameters or a single Locale parameter
 				if (
-					!ClassUtils.isAbstractOrDefault(method) ||
-						method.getParameterCount() > 1 ||
+					method.getParameterCount() > 1 ||
 						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
 				) {
 					return null;
@@ -451,6 +539,104 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				}
 			}
 		);
+	}
+
+	@SuppressWarnings("rawtypes")
+	@Nullable
+	private static Serializable getAttributeAsSingleValue(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			//noinspection unchecked
+			return EvitaDataTypes.toTargetType(
+				entity.getAttribute(
+					attributeName,
+					parameterType
+				),
+				parameterType,
+				indexedDecimalPlaces
+			);
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Set<?> getAttributeAsSet(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final Serializable[] value = (Serializable[]) entity.getAttribute(
+				attributeName,
+				parameterType
+			);
+			return Arrays.stream(value)
+				.map(
+					theValue -> EvitaDataTypes.toTargetType(
+						theValue,
+						parameterType,
+						indexedDecimalPlaces
+					)
+				)
+				.collect(Collectors.toSet());
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static List<?> getAttributeAsList(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final Serializable[] value = (Serializable[]) entity.getAttribute(
+				attributeName,
+				parameterType
+			);
+			return Arrays.stream(value)
+				.map(
+					theValue -> EvitaDataTypes.toTargetType(
+						theValue,
+						parameterType,
+						indexedDecimalPlaces
+					)
+				)
+				.toList();
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Enum<?> getAttributeAsAnEnum(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			//noinspection unchecked
+			return Enum.valueOf(
+				parameterType,
+				(String) entity.getAttribute(
+					attributeName,
+					String.class
+				)
+			);
+		} else {
+			return null;
+		}
 	}
 
 }

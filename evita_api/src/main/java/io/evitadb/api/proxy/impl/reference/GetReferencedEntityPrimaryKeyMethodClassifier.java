@@ -61,7 +61,7 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
 				// to match the method by its name
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstance(method, ReferencedEntity.class);
+				final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ReferencedEntity.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
 				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);

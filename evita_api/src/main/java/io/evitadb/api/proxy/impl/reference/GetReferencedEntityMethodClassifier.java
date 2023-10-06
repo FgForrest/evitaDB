@@ -186,8 +186,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 				@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 
 				// we need to determine whether the method returns referenced entity or its group
-				final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstance(method, ReferencedEntity.class);
-				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstance(method, ReferencedEntityGroup.class);
+				final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ReferencedEntity.class);
+				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstanceForProperty(method, ReferencedEntityGroup.class);
 				final Entity entityInstance = reflectionLookup.getClassAnnotation(valueType, Entity.class);
 				final EntityRef entityRefInstance = reflectionLookup.getClassAnnotation(valueType, EntityRef.class);
 

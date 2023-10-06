@@ -87,8 +87,8 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
-		final Attribute attributeInstance = reflectionLookup.getAnnotationInstance(method, Attribute.class);
-		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstance(method, AttributeRef.class);
+		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(method, Attribute.class);
+		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(method, AttributeRef.class);
 		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> referenceSchema.getAttribute(attributeName).orElseThrow(
 			() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
 		);
