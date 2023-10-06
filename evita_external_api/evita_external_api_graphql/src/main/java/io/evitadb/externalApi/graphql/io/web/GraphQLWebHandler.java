@@ -41,6 +41,8 @@ import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidUsageException;
+import io.evitadb.externalApi.graphql.io.ClientContextExtension;
+import io.evitadb.externalApi.graphql.io.GraphQLClientContext;
 import io.evitadb.externalApi.graphql.io.GraphQLMimeTypes;
 import io.evitadb.externalApi.graphql.io.GraphQLRequest;
 import io.evitadb.externalApi.graphql.io.GraphQLResponse;
@@ -75,7 +77,6 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
 @Slf4j
-@RequiredArgsConstructor
 public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchange, GraphQLResponse<?>> {
 
     /**
@@ -98,9 +99,9 @@ public class GraphQLWebHandler extends EndpointHandler<GraphQLWebEndpointExchang
     @Nonnull
     private final AtomicReference<GraphQL> graphQL;
 
-    public GraphQLHandler(@Nonnull ObjectMapper objectMapper,
-                          @Nonnull Evita evita,
-                          @Nonnull AtomicReference<GraphQL> graphQL) {
+    public GraphQLWebHandler(@Nonnull ObjectMapper objectMapper,
+                             @Nonnull Evita evita,
+                             @Nonnull AtomicReference<GraphQL> graphQL) {
         this.objectMapper = objectMapper;
         this.clientContext = new GraphQLClientContext(evita);
         this.evitaConfiguration = evita.getConfiguration();

@@ -440,12 +440,13 @@ enum GrpcCaptureArea {
 }
 
 enum GrpcClassifierType {
-  CATALOG = 0;
-  ENTITY = 1;
-  ATTRIBUTE = 2;
-  ASSOCIATED_DATA = 3;
-  REFERENCE = 4;
-  REFERENCE_ATTRIBUTE = 5;
+  SERVER_NAME = 0;
+  CATALOG = 1;
+  ENTITY = 2;
+  ATTRIBUTE = 3;
+  ASSOCIATED_DATA = 4;
+  REFERENCE = 5;
+  REFERENCE_ATTRIBUTE = 6;
 }
 
 enum GrpcCaptureContent {

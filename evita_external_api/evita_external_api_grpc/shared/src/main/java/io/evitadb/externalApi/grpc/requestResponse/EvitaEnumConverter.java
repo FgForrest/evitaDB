@@ -462,6 +462,7 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcClassifierType toGrpcClassifierType(@Nonnull ClassifierType classifierType) {
 		return switch (classifierType) {
+			case SERVER_NAME -> GrpcClassifierType.SERVER_NAME;
 			case CATALOG -> GrpcClassifierType.CATALOG;
 			case ENTITY -> GrpcClassifierType.ENTITY;
 			case ATTRIBUTE -> GrpcClassifierType.ATTRIBUTE;
