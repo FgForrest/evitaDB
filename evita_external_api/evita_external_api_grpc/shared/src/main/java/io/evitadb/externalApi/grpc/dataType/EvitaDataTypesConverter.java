@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc.dataType;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.Timestamp;
@@ -41,8 +40,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -728,10 +725,7 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static BigDecimal toBigDecimal(@Nonnull GrpcBigDecimal grpcBigDecimal) {
-		return new BigDecimal(
-			grpcBigDecimal.getValueString(),
-			new MathContext(grpcBigDecimal.getPrecision())).setScale(grpcBigDecimal.getScale(), RoundingMode.UNNECESSARY
-		);
+		return EvitaDataTypes.toTargetType(grpcBigDecimal.getValueString(), BigDecimal.class);
 	}
 
 	@Nonnull
@@ -1006,10 +1000,7 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBigDecimal toGrpcBigDecimal(@Nonnull BigDecimal bigDecimal) {
 		return GrpcBigDecimal.newBuilder()
-			.setValue(ByteString.copyFrom(bigDecimal.unscaledValue().toByteArray()))
-			.setPrecision(bigDecimal.precision())
-			.setScale(bigDecimal.scale())
-			.setValueString(bigDecimal.toString())
+			.setValueString(EvitaDataTypes.formatValue(bigDecimal))
 			.build();
 	}
 
