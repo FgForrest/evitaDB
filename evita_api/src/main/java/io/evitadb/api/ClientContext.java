@@ -27,12 +27,10 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static java.util.Optional.ofNullable;
 
@@ -86,9 +84,7 @@ public interface ClientContext {
 			context.push(new Context(clientId, requestId));
 			lambda.run();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			context.pop();
 		}
 	}
 
@@ -112,9 +108,7 @@ public interface ClientContext {
 			context.push(new Context(clientId, null));
 			lambda.run();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			context.pop();
 		}
 	}
 
@@ -139,9 +133,7 @@ public interface ClientContext {
 			context.push(new Context(context.peek().clientId(), requestId));
 			lambda.run();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			context.pop();
 		}
 	}
 
@@ -171,9 +163,7 @@ public interface ClientContext {
 			context.push(new Context(clientId, requestId));
 			return lambda.get();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			context.pop();
 		}
 	}
 
@@ -198,9 +188,7 @@ public interface ClientContext {
 			context.push(new Context(clientId, null));
 			return lambda.get();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			context.pop();
 		}
 	}
 
@@ -225,9 +213,7 @@ public interface ClientContext {
 			context.push(new Context(context.peek().clientId(), requestId));
 			return lambda.get();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			context.pop();
 		}
 	}
 
@@ -280,34 +266,4 @@ public interface ClientContext {
 	) {
 	}
 
-	class ClientIdBuilder {
-
-		private static final String SERVER_CLIENT_ID_FORMAT = "%s|%s|%s";
-		private static final Pattern CLIENT_ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
-
-		public static String from(@Nullable String clientId) {
-			return clientId;
-		}
-
-		public static String from(@Nonnull String protocol, @Nonnull SocketAddress clientAddress, @Nonnull String clientId) {
-			return String.format(
-				SERVER_CLIENT_ID_FORMAT,
-				protocol,
-				clientAddress,
-				CLIENT_ID_FORBIDDEN_CHARACTERS.matcher(clientId).replaceAll("-")
-			);
-		}
-
-		public String build() {
-			return null;
-		}
-	}
-
-	class RequestIdBuilder {
-		private static final Pattern REQEST_ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
-
-		public static String from(@Nullable String clientId) {
-			return clientId;
-		}
-	}
 }
