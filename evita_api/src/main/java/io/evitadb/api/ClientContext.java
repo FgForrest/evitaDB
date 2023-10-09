@@ -86,7 +86,9 @@ public interface ClientContext {
 			context.push(new Context(clientId, requestId));
 			lambda.run();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 
@@ -110,7 +112,9 @@ public interface ClientContext {
 			context.push(new Context(clientId, null));
 			lambda.run();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 
@@ -135,7 +139,9 @@ public interface ClientContext {
 			context.push(new Context(context.peek().clientId(), requestId));
 			lambda.run();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 
@@ -165,7 +171,9 @@ public interface ClientContext {
 			context.push(new Context(clientId, requestId));
 			return lambda.get();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 
@@ -190,7 +198,9 @@ public interface ClientContext {
 			context.push(new Context(clientId, null));
 			return lambda.get();
 		} finally {
-			context.pop();
+			if (!context.isEmpty()) {
+				context.pop();
+			}
 		}
 	}
 
