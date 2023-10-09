@@ -130,8 +130,8 @@ public interface ClientContext {
 		@Nonnull Runnable lambda
 	) {
 		final Deque<Context> context = CLIENT_CONTEXT.get();
+		Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
 		try {
-			Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
 			context.push(new Context(context.peek().clientId(), requestId));
 			lambda.run();
 		} finally {
