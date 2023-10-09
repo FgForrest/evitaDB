@@ -59,7 +59,7 @@ public interface ClientContext {
 	 * TOBEDONE - the implementation should be switched to <a href="https://www.baeldung.com/java-20-scoped-values">scoped values</a>
 	 * TOBEDONE - once the evitaDB is switched to Java 20
 	 */
-	ThreadLocal<Deque<Context>> CLIENT_CONTEXT = new InheritableThreadLocal<>();
+	ThreadLocal<Deque<Context>> CLIENT_CONTEXT = new ThreadLocal<>();
 
 	/**
 	 * Method executes the `lambda` function within the scope of client defined context.
