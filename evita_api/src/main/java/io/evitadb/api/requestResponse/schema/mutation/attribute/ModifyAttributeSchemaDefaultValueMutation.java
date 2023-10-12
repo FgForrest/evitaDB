@@ -26,11 +26,13 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
@@ -98,7 +100,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema) {
+	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -113,9 +115,27 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				globalAttributeSchema.isSortable(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
+				globalAttributeSchema.isRepresentative(),
 				(Class) globalAttributeSchema.getType(),
 				EvitaDataTypes.toTargetType(defaultValue, globalAttributeSchema.getType()),
 				globalAttributeSchema.getIndexedDecimalPlaces()
+			);
+		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+			//noinspection unchecked,rawtypes
+			return (S) EntityAttributeSchema._internalBuild(
+				name,
+				entityAttributeSchema.getNameVariants(),
+				entityAttributeSchema.getDescription(),
+				entityAttributeSchema.getDeprecationNotice(),
+				entityAttributeSchema.isUnique(),
+				entityAttributeSchema.isFilterable(),
+				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.isLocalized(),
+				entityAttributeSchema.isNullable(),
+				entityAttributeSchema.isRepresentative(),
+				(Class) entityAttributeSchema.getType(),
+				EvitaDataTypes.toTargetType(defaultValue, entityAttributeSchema.getType()),
+				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
 		} else {
 			//noinspection unchecked,rawtypes
@@ -146,7 +166,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			));
 
 		try {
-			final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema);
+			final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 			return replaceAttributeIfDifferent(
 				catalogSchema, existingAttributeSchema, updatedAttributeSchema
 			);
@@ -163,12 +183,13 @@ public class ModifyAttributeSchemaDefaultValueMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
 				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 		try {
-			@SuppressWarnings({"unchecked", "rawtypes"}) final AttributeSchema updatedAttributeSchema = AttributeSchema._internalBuild(
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			final EntityAttributeSchema updatedAttributeSchema = EntityAttributeSchema._internalBuild(
 				name,
 				existingAttributeSchema.getNameVariants(),
 				existingAttributeSchema.getDescription(),
@@ -178,6 +199,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				existingAttributeSchema.isSortable(),
 				existingAttributeSchema.isLocalized(),
 				existingAttributeSchema.isNullable(),
+				existingAttributeSchema.isRepresentative(),
 				(Class) existingAttributeSchema.getType(),
 				EvitaDataTypes.toTargetType(defaultValue, existingAttributeSchema.getType()),
 				existingAttributeSchema.getIndexedDecimalPlaces()
@@ -205,7 +227,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 			));
 
 		try {
-			@SuppressWarnings({"unchecked", "rawtypes"}) final AttributeSchema updatedAttributeSchema = AttributeSchema._internalBuild(
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			final AttributeSchema updatedAttributeSchema = AttributeSchema._internalBuild(
 				name,
 				existingAttributeSchema.getNameVariants(),
 				existingAttributeSchema.getDescription(),

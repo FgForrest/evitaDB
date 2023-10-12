@@ -46,6 +46,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	@Serial private static final long serialVersionUID = -4016156218004708457L;
 
 	@Getter private final boolean uniqueGlobally;
+	@Getter private final boolean representative;
 
 	public <T extends Serializable> GlobalAttributeSchema(
 		@Nonnull String name,
@@ -58,16 +59,19 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean sortable,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
 	) {
+
 		super(
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, sortable, localized, nullable,
 			type, defaultValue, indexedDecimalPlaces
 		);
 		this.uniqueGlobally = uniqueGlobally;
+		this.representative = representative;
 	}
 
 	/**
@@ -84,7 +88,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			false, false, false, false, localized, false,
+			false, false, false, false, localized, false, false,
 			type, null,
 			0
 		);
@@ -104,13 +108,14 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean sortable,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue
 	) {
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable,
+			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
 			type, defaultValue,
 			0
 		);
@@ -132,6 +137,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean sortable,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -139,7 +145,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
 			description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable,
+			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -162,6 +168,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		boolean sortable,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<T> type,
 		@Nullable T defaultValue,
 		int indexedDecimalPlaces
@@ -169,7 +176,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		return new GlobalAttributeSchema(
 			name, nameVariants,
 			description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable,
+			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
 			type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -189,6 +196,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			", filterable=" + isFilterable() +
 			", sortable=" + isSortable() +
 			", localized=" + isLocalized() +
+			", nullable=" + isNullable() +
+			", representative=" + isRepresentative() +
 			", type=" + getType() +
 			", indexedDecimalPlaces=" + getIndexedDecimalPlaces() +
 			'}';

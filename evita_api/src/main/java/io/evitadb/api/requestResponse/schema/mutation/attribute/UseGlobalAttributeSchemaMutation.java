@@ -62,7 +62,7 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 
 	@Nullable
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema) {
+	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		//noinspection unchecked
 		return (S) catalogSchema.getAttribute(name).orElseThrow(
@@ -74,7 +74,7 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, (GlobalAttributeSchemaContract) null);
+		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		Assert.notNull(
 			newAttributeSchema,
 			() -> new InvalidSchemaMutationException(

@@ -26,6 +26,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -34,14 +35,17 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcAssociatedDataSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcAttributeElement;
 import io.evitadb.externalApi.grpc.generated.GrpcAttributeSchema;
+import io.evitadb.externalApi.grpc.generated.GrpcAttributeSchemaType;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcEntitySchema;
 import io.evitadb.externalApi.grpc.generated.GrpcReferenceSchema;
@@ -133,7 +137,7 @@ public class EntitySchemaConverter {
 				.stream()
 				.collect(Collectors.toMap(
 					Entry::getKey,
-					it -> toAttributeSchema(it.getValue())
+					it -> toAttributeSchema(it.getValue(), EntityAttributeSchemaContract.class)
 				)),
 			entitySchema.getAssociatedDataMap()
 				.entrySet()
@@ -173,9 +177,9 @@ public class EntitySchemaConverter {
 	 * @return map where keys are representing attribute names and values are {@link GrpcAttributeSchema}
 	 */
 	@Nonnull
-	private static Map<String, GrpcAttributeSchema> toGrpcAttributeSchemas(@Nonnull Map<String, AttributeSchemaContract> originalAttributeSchemas) {
+	private static Map<String, GrpcAttributeSchema> toGrpcAttributeSchemas(@Nonnull Map<String, ? extends AttributeSchemaContract> originalAttributeSchemas) {
 		final Map<String, GrpcAttributeSchema> attributeSchemas = CollectionUtils.createHashMap(originalAttributeSchemas.size());
-		for (Map.Entry<String, AttributeSchemaContract> entry : originalAttributeSchemas.entrySet()) {
+		for (Map.Entry<String, ? extends AttributeSchemaContract> entry : originalAttributeSchemas.entrySet()) {
 			attributeSchemas.put(entry.getKey(), toGrpcAttributeSchema(entry.getValue()));
 		}
 		return attributeSchemas;
@@ -190,9 +194,10 @@ public class EntitySchemaConverter {
 	@Nonnull
 	private static GrpcAttributeSchema toGrpcAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema) {
 		final boolean isGlobal = attributeSchema instanceof GlobalAttributeSchemaContract;
+		final boolean isEntity = attributeSchema instanceof EntityAttributeSchemaContract;
 		final GrpcAttributeSchema.Builder builder = GrpcAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
-			.setGlobal(isGlobal)
+			.setSchemaType(EvitaEnumConverter.toGrpcAttributeSchemaType(attributeSchema.getClass()))
 			.setUnique(attributeSchema.isUnique())
 			.setFilterable(attributeSchema.isFilterable())
 			.setSortable(attributeSchema.isSortable())
@@ -208,8 +213,14 @@ public class EntitySchemaConverter {
 		ofNullable(attributeSchema.getDeprecationNotice())
 			.ifPresent(it -> builder.setDeprecationNotice(StringValue.newBuilder().setValue(it).build()));
 
+		if (isEntity) {
+			final EntityAttributeSchemaContract globalAttributeSchema = (EntityAttributeSchemaContract) attributeSchema;
+			builder.setRepresentative(globalAttributeSchema.isRepresentative());
+		}
+
 		if (isGlobal) {
 			final GlobalAttributeSchemaContract globalAttributeSchema = (GlobalAttributeSchemaContract) attributeSchema;
+			builder.setRepresentative(globalAttributeSchema.isRepresentative());
 			builder.setUniqueGlobally(globalAttributeSchema.isUniqueGlobally());
 		}
 
@@ -345,38 +356,70 @@ public class EntitySchemaConverter {
 	 * Creates {@link AttributeSchema} from the {@link GrpcAttributeSchema}.
 	 */
 	@Nonnull
-	private static AttributeSchemaContract toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema) {
-		if (attributeSchema.getGlobal()) {
-			return GlobalAttributeSchema._internalBuild(
-				attributeSchema.getName(),
-				NamingConvention.generate(attributeSchema.getName()),
-				attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
-				attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-				attributeSchema.getUnique(),
-				attributeSchema.getUniqueGlobally(),
-				attributeSchema.getFilterable(),
-				attributeSchema.getSortable(),
-				attributeSchema.getLocalized(),
-				attributeSchema.getNullable(),
-				EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
-				attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-				attributeSchema.getIndexedDecimalPlaces()
-			);
+	private static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
+		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL) {
+			if (expectedType.isAssignableFrom(GlobalAttributeSchema.class)) {
+				//noinspection unchecked
+				return (T) GlobalAttributeSchema._internalBuild(
+					attributeSchema.getName(),
+					NamingConvention.generate(attributeSchema.getName()),
+					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
+					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
+					attributeSchema.getUnique(),
+					attributeSchema.getUniqueGlobally(),
+					attributeSchema.getFilterable(),
+					attributeSchema.getSortable(),
+					attributeSchema.getLocalized(),
+					attributeSchema.getNullable(),
+					attributeSchema.getRepresentative(),
+					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
+					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
+					attributeSchema.getIndexedDecimalPlaces()
+				);
+			} else {
+				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
+			}
+		} else if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.ENTITY) {
+			if (expectedType.isAssignableFrom(EntityAttributeSchemaContract.class)) {
+				//noinspection unchecked
+				return (T) EntityAttributeSchema._internalBuild(
+					attributeSchema.getName(),
+					NamingConvention.generate(attributeSchema.getName()),
+					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
+					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
+					attributeSchema.getUnique(),
+					attributeSchema.getFilterable(),
+					attributeSchema.getSortable(),
+					attributeSchema.getLocalized(),
+					attributeSchema.getNullable(),
+					attributeSchema.getRepresentative(),
+					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
+					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
+					attributeSchema.getIndexedDecimalPlaces()
+				);
+			} else {
+				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
+			}
 		} else {
-			return AttributeSchema._internalBuild(
-				attributeSchema.getName(),
-				NamingConvention.generate(attributeSchema.getName()),
-				attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
-				attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-				attributeSchema.getUnique(),
-				attributeSchema.getFilterable(),
-				attributeSchema.getSortable(),
-				attributeSchema.getLocalized(),
-				attributeSchema.getNullable(),
-				EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
-				attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
-				attributeSchema.getIndexedDecimalPlaces()
-			);
+			if (expectedType.isAssignableFrom(AttributeSchema.class)) {
+				//noinspection unchecked
+				return (T) AttributeSchema._internalBuild(
+					attributeSchema.getName(),
+					NamingConvention.generate(attributeSchema.getName()),
+					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
+					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
+					attributeSchema.getUnique(),
+					attributeSchema.getFilterable(),
+					attributeSchema.getSortable(),
+					attributeSchema.getLocalized(),
+					attributeSchema.getNullable(),
+					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
+					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
+					attributeSchema.getIndexedDecimalPlaces()
+				);
+			} else {
+				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
+			}
 		}
 	}
 
@@ -425,7 +468,7 @@ public class EntitySchemaConverter {
 				.stream()
 				.collect(Collectors.toMap(
 					Entry::getKey,
-					it -> toAttributeSchema(it.getValue())
+					it -> toAttributeSchema(it.getValue(), AttributeSchemaContract.class)
 				)),
 			referenceSchema.getSortableAttributeCompoundsMap()
 				.entrySet()

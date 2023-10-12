@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.dataFetche
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.externalApi.graphql.exception.GraphQLQueryResolvingInternalError;
@@ -47,7 +48,8 @@ public class SortableAttributeCompoundSchemaDataFetcher implements DataFetcher<S
 	@Nonnull
 	@Override
 	public SortableAttributeCompoundSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final SortableAttributeCompoundSchemaProvider provider = environment.getSource();
+		/* TODO LHO - I'm not sure this is correct! */
+		final SortableAttributeCompoundSchemaProvider<EntityAttributeSchemaContract> provider = environment.getSource();
 		return provider
 			.getSortableAttributeCompound(name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find sortable attribute compound schema for name `" + name + "`."));

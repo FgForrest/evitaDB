@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -42,6 +41,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -185,9 +185,9 @@ public class AttributeSchemaAccessor {
 		if (globalAttributeSchema.isPresent()) {
 			attributeSchema = globalAttributeSchema.get();
 		} else {
-			attributeSchema = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) referenceSchema)
-				.orElse(entitySchema)
-				.getAttribute(attributeName).orElse(null);
+			attributeSchema = Objects.requireNonNullElse(referenceSchema, entitySchema)
+				.getAttribute(attributeName)
+				.orElse(null);
 		}
 		return verifyAndReturn(
 			attributeName, attributeSchema, catalogSchema, entitySchema, referenceSchema, requiredTrait
@@ -234,9 +234,10 @@ public class AttributeSchemaAccessor {
 		final ReferenceSchemaContract referenceSchema = ofNullable(referenceSchemaAccessor)
 			.map(it -> it.apply(entitySchema))
 			.orElse(null);
-		final SortableAttributeCompoundSchemaContract compoundSchema = ofNullable((SortableAttributeCompoundSchemaProvider) referenceSchema)
-			.orElse(entitySchema)
-			.getSortableAttributeCompound(attributeName).orElse(null);
+		final SortableAttributeCompoundSchemaContract compoundSchema;
+		compoundSchema = Objects.requireNonNullElse(referenceSchema, entitySchema)
+			.getSortableAttributeCompound(attributeName)
+			.orElse(null);
 
 		if (compoundSchema != null) {
 			return compoundSchema;
@@ -247,9 +248,9 @@ public class AttributeSchemaAccessor {
 		if (globalAttributeSchema.isPresent()) {
 			resultSchema = globalAttributeSchema.get();
 		} else {
-			resultSchema = ofNullable((AttributeSchemaProvider<AttributeSchemaContract>) referenceSchema)
-				.orElse(entitySchema)
-				.getAttribute(attributeName).orElse(null);
+			resultSchema = Objects.requireNonNullElse(referenceSchema, entitySchema)
+				.getAttribute(attributeName)
+				.orElse(null);
 		}
 		return verifyAndReturn(
 			attributeName, resultSchema, catalogSchema, entitySchema, referenceSchema,

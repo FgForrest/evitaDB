@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
-import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityAttributes;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
@@ -91,9 +91,8 @@ public class EntityFactory {
 				.map(ReferencesStoragePart::getReferencesAsCollection)
 				.orElse(Collections.emptyList()),
 			// always initialize Attributes container
-			new Attributes(
+			new EntityAttributes(
 				entitySchema,
-				null,
 				// fill all contents of the attributes loaded from storage (may be empty)
 				attributeValues,
 				entitySchema.getAttributes()
@@ -185,9 +184,8 @@ public class EntityFactory {
 				// use original attributes from the entity contents
 				null :
 				// otherwise combine
-				new Attributes(
+				new EntityAttributes(
 					entitySchema,
-					null,
 					attributeValues.values(),
 					entitySchema.getAttributes()
 				),

@@ -27,6 +27,7 @@ import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityQueryContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInvalidArgumentException;
 import lombok.RequiredArgsConstructor;
@@ -56,7 +57,8 @@ public class AttributeValueDataFetcher<T extends Serializable> implements DataFe
     @Nullable
     @Override
     public T get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        final AttributesContract attributes = environment.getSource();
+        /* TODO LHO - I'm not sure this is correct! */
+        final AttributesContract<EntityAttributeSchemaContract> attributes = environment.getSource();
         final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
 
         if (locale == null && attributeSchema.isLocalized()) {

@@ -263,8 +263,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 
 	/**
 	 * Builds specific constraint container with only allowed children in particular build context and creator.
-	 * Returns null if container does make sense in current build context and should be replaced with some placeholder value.
-	 * Implementations should also cache the built container.
+	 * Returns `null` if container does make sense in current build context and should be replaced with some placeholder
+	 * value. Implementations should also cache the built container.
 	 *
 	 * <b>Note:</b> this method should not be used directly, instead use {@link #obtainContainer(ConstraintBuildContext, ChildParameterDescriptor)}.
 	 */
@@ -928,7 +928,7 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * Find attribute schemas for specific data locator.
 	 */
 	@Nonnull
-	protected Collection<AttributeSchemaContract> findAttributeSchemas(@Nonnull DataLocator dataLocator) {
+	protected Collection<? extends AttributeSchemaContract> findAttributeSchemas(@Nonnull DataLocator dataLocator) {
 		if (dataLocator instanceof ExternalEntityDataLocator) {
 			return Collections.emptyList();
 		}

@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -531,7 +532,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 			.stream()
 			.flatMap(attributeContent -> {
 				if (attributeContent.isAllRequested()) {
-					final Stream<AttributeSchemaContract> attributes = entitySchema.getAttributes().values().stream();
+					final Stream<EntityAttributeSchemaContract> attributes = entitySchema.getAttributes().values().stream();
 					return (localizedQuery ? attributes.filter(AttributeSchemaContract::isLocalized) : attributes)
 						.map(AttributeSchemaContract::getName)
 						.filter(attrName -> entityStreamAccessor.get().anyMatch(entity -> entity.getAttributeValue(attrName).isPresent()));

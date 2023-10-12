@@ -125,6 +125,7 @@ public class EntitySchemaObjectBuilder {
 		buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(objectBuilderTransformer).build());

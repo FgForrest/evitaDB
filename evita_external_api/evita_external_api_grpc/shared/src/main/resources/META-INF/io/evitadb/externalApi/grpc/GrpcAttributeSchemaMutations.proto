@@ -36,16 +36,22 @@ message GrpcCreateAttributeSchemaMutation {
   // 	When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
   //	non-null checks upon upserting of the entity.
   bool nullable = 8;
+  // If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+  // primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+  // affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+  // helpful to developers in quickly finding their way around the data. There should be very few representative
+  // attributes in the entity type, and the unique ones are usually the best to choose.
+  bool representative = 9;
   // Type of the attribute. Must be one of supported data types or its array.
-  GrpcEvitaDataType type = 9;
+  GrpcEvitaDataType type = 10;
   // 	Determines how many fractional places are important when entities are compared during filtering or sorting. It is
   //	significant to know that all values of this attribute will be converted to `Integer`, so the attribute
   //	number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
   //	of ten using `indexedDecimalPlaces` as exponent.
-  int32 indexedDecimalPlaces = 10;
+  int32 indexedDecimalPlaces = 11;
   // Default value is used when the entity is created without this attribute specified. Default values allow to pass
   // non-null checks even if no attributes of such name are specified.
-  GrpcEvitaValue defaultValue = 11;
+  GrpcEvitaValue defaultValue = 12;
 }
 
 // Mutation is responsible for setting up a new `GlobalAttributeSchema` in the `CatalogSchema`.
@@ -79,16 +85,22 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   // When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
   // non-null checks upon upserting of the entity.
   bool nullable = 9;
+  // If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+  // primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+  // affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+  // helpful to developers in quickly finding their way around the data. There should be very few representative
+  // attributes in the entity type, and the unique ones are usually the best to choose.
+  bool representative = 10;
   // Type of the attribute. Must be one of supported data types or its array.
-  GrpcEvitaDataType type = 10;
+  GrpcEvitaDataType type = 11;
   // Determines how many fractional places are important when entities are compared during filtering or sorting. It is
   // significant to know that all values of this attribute will be converted to `Integer`, so the attribute
   // number must not ever exceed maximum limits of `Integer` type when scaling the number by the power
   // of ten using `indexedDecimalPlaces` as exponent.
-  int32 indexedDecimalPlaces = 11;
+  int32 indexedDecimalPlaces = 12;
   // Default value is used when the entity is created without this attribute specified. Default values allow to pass
   // non-null checks even if no attributes of such name are specified.
-  GrpcEvitaValue defaultValue = 12;
+  GrpcEvitaValue defaultValue = 13;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
@@ -189,6 +201,16 @@ message GrpcSetAttributeSchemaNullableMutation {
   bool nullable = 2;
 }
 
+// Mutation is responsible for setting value to a `AttributeSchema.representative` in `EntitySchema`.
+// Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+message GrpcSetAttributeSchemaRepresentativeMutation {
+  // Name of the attribute the mutation is targeting.
+  string name = 1;
+  // When attribute is representative, its values may be missing in the entities. Otherwise, the system will enforce
+  // non-null checks upon upserting of the entity.
+  bool representative = 2;
+}
+
 // Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
 // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
 message GrpcSetAttributeSchemaSortableMutation {
@@ -240,11 +262,13 @@ message GrpcAttributeSchemaMutation {
     GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 11;
     // Mutation is responsible for setting value `AttributeSchema.nullable` in `EntitySchema`.
     GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 12;
+    // Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+    GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;
     // Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
-    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;
+    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;
     // Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
-    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;
+    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;
     // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
-    GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;
+    GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;
   }
 }

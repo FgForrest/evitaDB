@@ -171,7 +171,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 	 * non-null checks upon upserting of the entity.
 	 *
-	 * @param decider returns true when attribute should be localized
+	 * @param decider returns true when attribute should be nullable
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull

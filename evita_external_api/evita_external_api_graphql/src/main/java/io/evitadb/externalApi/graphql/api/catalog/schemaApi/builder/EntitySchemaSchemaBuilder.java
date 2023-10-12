@@ -134,12 +134,13 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
-		// attribute schema mutations
+		// sortable attribute compound schema mutations
 		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());

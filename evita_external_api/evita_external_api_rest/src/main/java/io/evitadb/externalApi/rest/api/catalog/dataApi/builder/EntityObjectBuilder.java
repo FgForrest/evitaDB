@@ -68,6 +68,7 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 
 /**
  * Builds OpenAPI entity object (schema) based on information provided in building context
+ * TODO LHO - this needs revision for `representative` which is valid only for global / entity attribute schemas
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -180,7 +181,7 @@ public class EntityObjectBuilder {
 	 * requested. Localized attributes are not distinguished from non-localized ones.
 	 */
 	@Nonnull
-	private OpenApiObject buildLocalizedAttributesObject(@Nonnull Collection<AttributeSchemaContract> attributeSchemas,
+	private OpenApiObject buildLocalizedAttributesObject(@Nonnull Collection<? extends AttributeSchemaContract> attributeSchemas,
 	                                                     @Nonnull NamedSchemaContract... objectNameSchemas) {
 		final OpenApiObject.Builder attributesObject = AttributesDescriptor.THIS
 			.to(objectBuilderTransformer)
@@ -197,7 +198,7 @@ public class EntityObjectBuilder {
 	 */
 	@Nonnull
 	private OpenApiObject buildNonLocalizedAttributesObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                        @Nonnull Collection<AttributeSchemaContract> attributeSchemas,
+	                                                        @Nonnull Collection<? extends AttributeSchemaContract> attributeSchemas,
 	                                                        @Nonnull NamedSchemaContract... objectNameSchemas) {
 		final OpenApiObject.Builder attributesObject = SectionedAttributesDescriptor.THIS
 			.to(objectBuilderTransformer)

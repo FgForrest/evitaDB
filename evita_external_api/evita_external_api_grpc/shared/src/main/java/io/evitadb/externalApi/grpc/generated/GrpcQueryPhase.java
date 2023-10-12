@@ -451,7 +451,7 @@ public enum GrpcQueryPhase
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(16);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(17);
   }
 
   private static final GrpcQueryPhase[] VALUES = values();

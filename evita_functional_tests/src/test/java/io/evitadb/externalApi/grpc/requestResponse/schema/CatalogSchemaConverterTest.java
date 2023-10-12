@@ -78,6 +78,7 @@ class CatalogSchemaConverterTest {
 					true,
 					true,
 					true,
+					false,
 					String.class,
 					null,
 					0

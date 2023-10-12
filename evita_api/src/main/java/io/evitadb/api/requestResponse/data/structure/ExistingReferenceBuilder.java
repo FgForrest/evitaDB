@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -68,7 +69,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Getter private final ReferenceContract baseReference;
 	@Getter private final EntitySchemaContract entitySchema;
 	@Delegate(types = AttributesContract.class)
-	private final ExistingAttributesBuilder attributesBuilder;
+	private final ExistingReferenceAttributesBuilder attributesBuilder;
 	private ReferenceMutation<ReferenceKey> referenceGroupMutation;
 
 	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
@@ -77,9 +78,16 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	) {
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
-		this.attributesBuilder = new ExistingAttributesBuilder(
+		this.attributesBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
-			baseReference.getReferenceSchema().orElse(null),
+			baseReference.getReferenceSchema().orElseGet(
+				() -> Reference.createImplicitSchema(
+					baseReference.getReferenceName(),
+					baseReference.getReferencedEntityType(),
+					baseReference.getReferenceCardinality(),
+					baseReference.getGroup().orElse(null)
+				)
+			),
 			baseReference.getAttributeValues(),
 			baseReference.getReferenceSchema()
 				.map(AttributeSchemaProvider::getAttributes)
@@ -197,7 +205,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -210,7 +220,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -230,7 +242,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName, locale);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
@@ -243,7 +257,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName, locale);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
@@ -286,7 +302,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Override
 	public ReferenceContract build() {
 		final Optional<GroupEntityReference> newGroup = getGroup();
-		final Attributes newAttributes = attributesBuilder.build();
+		final Attributes<AttributeSchemaContract> newAttributes = attributesBuilder.build();
 		final boolean groupDiffers = baseReference.getGroup()
 			.map(it -> it.differsFrom(newGroup.orElse(null)))
 			.orElseGet(newGroup::isPresent);

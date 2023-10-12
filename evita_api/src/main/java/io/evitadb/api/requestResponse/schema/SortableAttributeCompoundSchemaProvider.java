@@ -36,7 +36,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SortableAttributeCompoundSchemaProvider extends AttributeSchemaProvider<AttributeSchemaContract> {
+public interface SortableAttributeCompoundSchemaProvider<T extends AttributeSchemaContract> extends AttributeSchemaProvider<T> {
 
 	/**
 	 * Returns definition of all sortable attribute compounds defined in this provider.
