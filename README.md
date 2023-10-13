@@ -68,6 +68,14 @@ examples and guides.</p>
     </picture>
   </a>
   &nbsp;
+  <a href="https://evitadb.io/rss.xml" title="RSS news feed">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/sf-regular/100/FFFFFF/rss.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/sf-regular/100/000000/rss.png" width="50px">
+      <img alt="RSS news feed" src="https://img.icons8.com/sf-regular/100/888888/rss.png" width="50px">
+    </picture>
+  </a>
+  &nbsp;
   <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px">
