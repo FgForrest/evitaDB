@@ -96,8 +96,7 @@ public class ClassifierUtils {
 		)
 	);
 
-	private static final Pattern CATALOG_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,255}$");
-	private static final Pattern SUPPORTED_FORMAT_PATTERN = Pattern.compile("(^[\\p{Alpha}][\\p{Alnum}_.:+\\-@/\\\\|`~]*$)");
+	private static final Pattern SUPPORTED_FORMAT_PATTERN = Pattern.compile("(^[\\p{Alpha}][\\p{Alnum}_.\\-~]{0,254}$)");
 
 	/**
 	 * Validates format of passed classifier. Classifier is considered valid if is not empty, doesn't have leading or
@@ -121,23 +120,13 @@ public class ClassifierUtils {
 			() -> new InvalidClassifierFormatException(classifierType, classifier, "it is reserved keyword or can be converted into reserved keyword")
 		);
 
-		if (classifierType == ClassifierType.CATALOG) {
-			Assert.isTrue(
-				CATALOG_NAME_PATTERN.matcher(classifier).matches(),
-				() -> new InvalidClassifierFormatException(
-					classifierType, classifier,
-					"invalid name - only alphanumeric and these ASCII characters are allowed (with maximal length of 255 characters): _-"
-				)
-			);
-		} else {
-			Assert.isTrue(
-				SUPPORTED_FORMAT_PATTERN.matcher(classifier).matches(),
-				() -> new InvalidClassifierFormatException(
-					classifierType, classifier,
-					"invalid name - only alphanumeric and these ASCII characters are allowed: _.:+-@/\\|`~"
-				)
-			);
-		}
+		Assert.isTrue(
+			SUPPORTED_FORMAT_PATTERN.matcher(classifier).matches(),
+			() -> new InvalidClassifierFormatException(
+				classifierType, classifier,
+				"invalid name - only alphanumeric and these ASCII characters are allowed: _.-~"
+			)
+		);
 	}
 
 	/**

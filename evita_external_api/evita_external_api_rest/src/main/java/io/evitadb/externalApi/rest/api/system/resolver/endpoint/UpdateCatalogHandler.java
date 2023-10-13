@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-
 /**
  * Updates and returns single evitaDB catalog by its name.
  *
@@ -67,7 +65,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		final UpdateCatalogRequestDto requestBody = parseRequestBody(exchange, UpdateCatalogRequestDto.class);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName, URL_NAME_NAMING_CONVENTION);
+		final Optional<CatalogContract> catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName);
 		if (catalog.isEmpty()) {
 			return new NotFoundEndpointResponse<>();
 		}
@@ -76,10 +74,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		switchCatalogToAliveState(catalog.get(), requestBody);
 
 		final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-		final CatalogContract updatedCatalog = restApiHandlingContext.getCatalog(
-				nameOfUpdateCatalog,
-				newCatalogName.isPresent() ? null : URL_NAME_NAMING_CONVENTION
-			)
+		final CatalogContract updatedCatalog = restApiHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
 				.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
 		return new SuccessEndpointResponse<>(updatedCatalog);
 	}

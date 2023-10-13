@@ -75,7 +75,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 		final Map<String, Object> expectedBody = createEntitySchemaDto(evita, productSchema);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/schema")
+			.urlPathSuffix("/PRODUCT/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)

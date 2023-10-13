@@ -82,7 +82,7 @@ public class RestTester extends JsonExternalApiTester<Request> {
 			requestSpecification.params(request.getRequestParams());
 		}
 
-		final String fullUrl = baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName()) + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
+		final String fullUrl = baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "");
 		final Response response = switch (request.httpMethod) {
 			case Request.METHOD_GET -> requestSpecification.when().get(fullUrl);
 			case Request.METHOD_PUT -> requestSpecification.when().put(fullUrl);

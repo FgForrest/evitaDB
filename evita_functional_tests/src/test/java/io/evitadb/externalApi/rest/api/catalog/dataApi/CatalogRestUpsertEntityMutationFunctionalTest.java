@@ -111,7 +111,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	void shouldInsertSingleEmptyEntityWithPK(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/empty-without-pk/110")
+			.urlPathSuffix("/emptyWithoutPk/110")
 			.requestBody("""
                     {
                         "entityExistence": "MUST_NOT_EXIST",
@@ -129,7 +129,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	void shouldUpdateProductWithNoMutations(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/10")
+			.urlPathSuffix("/PRODUCT/10")
 			.requestBody("""
                     {
                         "entityExistence": "MUST_EXIST",
@@ -147,7 +147,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	void shouldReturnErrorWhenMissingArgumentsForProductUpsert(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_POST)
-			.urlPathSuffix("/product")
+			.urlPathSuffix("/PRODUCT")
 			.requestBody("{}")
 			.executeAndThen()
 			.statusCode(400)
@@ -160,7 +160,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 	void shouldReturnErrorWhenMissingMutationsForProductUpdate(RestTester tester) {
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/100")
+			.urlPathSuffix("/PRODUCT/100")
 			.requestBody("""
                     {
                         "entityExistence": "MUST_EXIST"
@@ -200,7 +200,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -239,7 +239,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.body("",equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -292,7 +292,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -330,7 +330,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.body("", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -402,7 +402,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/category/" + entityInTree.getPrimaryKey())
+			.urlPathSuffix("/CATEGORY/" + entityInTree.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -437,7 +437,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/category/" + entityInTree.getPrimaryKey())
+			.urlPathSuffix("/CATEGORY/" + entityInTree.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -494,7 +494,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -527,7 +527,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 		//todo result will be without priceForSale
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -559,7 +559,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -587,7 +587,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.body("", equalTo(expectedBodyWithoutNewPrice));
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -665,7 +665,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
                 {
                     "entityExistence": "MUST_EXIST",
@@ -689,7 +689,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.body("", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -740,7 +740,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
 				{
 				   "entityExistence": "MUST_EXIST",
@@ -778,7 +778,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			.body("store", equalTo(expectedBody));
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -803,7 +803,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
 	            {
 	                "entityExistence": "MUST_EXIST",
@@ -830,7 +830,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 			);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -873,7 +873,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
 	            {
 	               "entityExistence": "MUST_EXIST",
@@ -897,7 +897,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_PUT)
-			.urlPathSuffix("/product/" + entity.getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entity.getPrimaryKey())
 			.requestBody("""
 	            {
 					"entityExistence": "MUST_EXIST",
@@ -946,7 +946,7 @@ class CatalogRestUpsertEntityMutationFunctionalTest extends CatalogRestDataEndpo
 
 	private void assertHierarchicalPlacement(@Nonnull RestTester tester, int primaryKey, @Nonnull Map<String, Object> expectedBodyAfterRemoving) {
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/list")
+			.urlPathSuffix("/CATEGORY/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
