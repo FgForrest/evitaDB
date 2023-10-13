@@ -92,10 +92,11 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull EntitySchemaContract schema
 	) {
 		final String parameterName = parameter.getName();
-		final Class<?> parameterType = parameter.getType();
+		final Class<?>[] resolvedTypes = getResolvedTypes(parameter, expectedType);
+		final Class<?> parameterType = resolvedTypes[0];
+		final Class<?> specificType = resolvedTypes.length == 2 ? resolvedTypes[1] : parameterType.getComponentType();
 
-		// TODO JNO tady všude myslet na kolekce a arraye
-		if (!PriceContract.class.equals(parameterType)) {
+		if (!(PriceContract.class.equals(parameterType) || PriceContract.class.equals(specificType))) {
 			return null;
 		}
 
@@ -112,13 +113,13 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 
 		if (sellingPrice) {
 			if (PriceContract.class.equals(parameterType)) {
-				return entity -> entity.getPriceForSale().orElse(null);
+				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getPriceForSale().orElse(null) : null;
 			} else if (parameterType.isArray()) {
-				return entity -> entity.getAllPricesForSale().toArray(PriceContract[]::new);
+				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getAllPricesForSale().toArray(PriceContract[]::new) : null;
 			} else if (Set.class.equals(parameterType)) {
-				return entity -> entity.getAllPricesForSale().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getAllPricesForSale().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) : Collections.emptySet();
 			} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
-				return PricesContract::getAllPricesForSale;
+				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getAllPricesForSale() : Collections.emptyList();
 			} else {
 				throw new EntityClassInvalidException(
 					expectedType,

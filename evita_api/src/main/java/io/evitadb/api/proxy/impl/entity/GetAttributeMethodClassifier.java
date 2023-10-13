@@ -32,9 +32,12 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
@@ -67,8 +70,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
-import static java.util.Optional.empty;
-import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -86,7 +87,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	 * Provides default value (according to a schema or implicit rules) instead of null.
 	 */
 	@Nonnull
-	public static UnaryOperator<Serializable> createDefaultValueProvider(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Class<? extends Serializable> returnType) {
+	public static UnaryOperator<Serializable> createDefaultValueProvider(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Class<?> returnType) {
 		final UnaryOperator<Serializable> defaultValueProvider;
 		if (boolean.class.equals(returnType)) {
 			defaultValueProvider = attributeSchema.getDefaultValue() == null ?
@@ -116,41 +117,85 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull EntitySchemaContract schema
 	) {
 		final String parameterName = parameter.getName();
-		final Class<?> parameterType = parameter.getType();
+		final Class<?>[] resolvedTypes = getResolvedTypes(parameter, expectedType);
+		final Class<?> parameterType = resolvedTypes[0];
 
-		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Attribute.class);
-		final Optional<String> attributeNameFromParameter;
-		if (attributeInstance != null) {
-			attributeNameFromParameter = of(attributeInstance.name());
-		} else {
-			final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AttributeRef.class);
-			if (attributeRefInstance != null) {
-				attributeNameFromParameter = of(attributeRefInstance.value());
+		final Class<?> itemType = resolvedTypes.length > 1 ? resolvedTypes[1] : resolvedTypes[0];
+		final AttributeSchemaContract attributeSchema = getAttributeSchema(
+			expectedType, parameter,
+			itemType,
+			reflectionLookup, schema
+		);
+
+		if (attributeSchema != null) {
+			final String attributeName = attributeSchema.getName();
+			@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, itemType);
+			if (attributeSchema.isLocalized()) {
+				if (attributeSchema.getType().isArray()) {
+					if (parameterType.isArray()) {
+						return entity -> getLocalizedAttributeAsSingleValue(
+							entity, attributeName, parameterType,
+							attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
+						);
+					} else if (Set.class.equals(parameterType)) {
+						Assert.isTrue(resolvedTypes.length == 2, "Parameter `" + parameterName + "` in constructor class `" + expectedType + "` is expected to have a generic type!");
+						final Class<?> specificType = resolvedTypes[1];
+						return entity -> getLocalizedAttributeAsSet(
+							entity, attributeName, specificType,
+							attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
+						);
+					} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+						Assert.isTrue(resolvedTypes.length == 2, "Parameter `" + parameterName + "` in constructor class `" + expectedType + "` is expected to have a generic type!");
+						final Class<?> specificType = resolvedTypes[1];
+						return entity -> getLocalizedAttributeAsList(
+							entity, attributeName, specificType,
+							attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
+						);
+					} else {
+						throw new EntityClassInvalidException(
+							expectedType,
+							"Unsupported data type `" + parameterType + "` for attribute `" + attributeName + "` in entity `" + schema.getName() +
+								"` related to constructor parameter `" + parameterName + "`!"
+						);
+					}
+				} else {
+					if (parameterType.isEnum()) {
+						return entity -> getLocalizedAttributeAsAnEnum(
+							entity, attributeName, parameterType, defaultValueProvider
+						);
+					} else {
+						return entity -> getLocalizedAttributeAsSingleValue(
+							entity, attributeName, parameterType, attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
+						);
+					}
+				}
 			} else {
-				attributeNameFromParameter = empty();
-			}
-		}
-
-		if (attributeNameFromParameter.isPresent() || EvitaDataTypes.isSupportedTypeOrItsArray(parameterType) || parameterType.isEnum()) {
-			final String attributeName = attributeNameFromParameter.orElse(parameterName);
-			final Optional<AttributeSchemaContract> attributeSchema = schema.getAttributeByName(attributeName, NamingConvention.CAMEL_CASE);
-			if (attributeSchema.isPresent()) {
-				final AttributeSchemaContract attributeSchemaContract = attributeSchema.get();
-				if (attributeSchemaContract.getType().isArray()) {
+				if (attributeSchema.getType().isArray()) {
 					if (parameterType.isArray()) {
 						return entity -> getAttributeAsSingleValue(
 							entity, attributeName, parameterType,
-							attributeSchemaContract.getIndexedDecimalPlaces()
+							attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
 						);
 					} else if (Set.class.equals(parameterType)) {
+						Assert.isTrue(resolvedTypes.length == 2, "Parameter `" + parameterName + "` in constructor class `" + expectedType + "` is expected to have a generic type!");
+						final Class<?> specificType = resolvedTypes[1];
 						return entity -> getAttributeAsSet(
-							entity, attributeName, parameterType,
-							attributeSchemaContract.getIndexedDecimalPlaces()
+							entity, attributeName, specificType,
+							attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
 						);
 					} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+						Assert.isTrue(resolvedTypes.length == 2, "Parameter `" + parameterName + "` in constructor class `" + expectedType + "` is expected to have a generic type!");
+						final Class<?> specificType = resolvedTypes[1];
 						return entity -> getAttributeAsList(
-							entity, attributeName, parameterType,
-							attributeSchemaContract.getIndexedDecimalPlaces()
+							entity, attributeName, specificType,
+							attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
 						);
 					} else {
 						throw new EntityClassInvalidException(
@@ -162,20 +207,15 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				} else {
 					if (parameterType.isEnum()) {
 						return entity -> getAttributeAsAnEnum(
-							entity, attributeName, parameterType
+							entity, attributeName, parameterType, defaultValueProvider
 						);
 					} else {
 						return entity -> getAttributeAsSingleValue(
-							entity, attributeName, parameterType, attributeSchemaContract.getIndexedDecimalPlaces()
+							entity, attributeName, parameterType, attributeSchema.getIndexedDecimalPlaces(),
+							defaultValueProvider
 						);
 					}
 				}
-			} else if (attributeNameFromParameter.isPresent()) {
-				throw new EntityClassInvalidException(
-					expectedType,
-					"Cannot find attribute `" + attributeName + "` in entity `" + schema.getName() +
-						"` related to constructor parameter `" + parameterName + "`!"
-				);
 			}
 		}
 
@@ -202,6 +242,37 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			return schemaLocator.apply(attributeRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
+			return attributeName
+				.flatMap(attrName -> entitySchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
+				.orElse(null);
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Retrieves appropriate attribute schema from the annotations on the method. If no Evita annotation is found
+	 * it tries to match the attribute name by the name of the method.
+	 */
+	@Nullable
+	private static AttributeSchemaContract getAttributeSchema(
+		@Nonnull Class<?> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull Class<?> itemType,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
+		final String parameterName = parameter.getName();
+		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Attribute.class);
+		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AttributeRef.class);
+		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> entitySchema.getAttribute(attributeName)
+			.orElseThrow(() -> new AttributeNotFoundException(attributeName, entitySchema));
+		if (attributeInstance != null) {
+			return schemaLocator.apply(attributeInstance.name());
+		} else if (attributeRefInstance != null) {
+			return schemaLocator.apply(attributeRefInstance.value());
+		} else if (EvitaDataTypes.isSupportedTypeOrItsArray(itemType) || itemType.isEnum()) {
+			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(parameterName);
 			return attributeName
 				.flatMap(attrName -> entitySchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))
 				.orElse(null);
@@ -421,6 +492,308 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			);
 	}
 
+	@SuppressWarnings("rawtypes")
+	@Nullable
+	private static Serializable getAttributeAsSingleValue(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			//noinspection unchecked
+			return EvitaDataTypes.toTargetType(
+				defaultValueProvider.apply(
+					entity.getAttribute(
+						attributeName,
+						parameterType
+					)
+				),
+				parameterType,
+				indexedDecimalPlaces
+			);
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings("rawtypes")
+	@Nullable
+	private static Serializable getLocalizedAttributeAsSingleValue(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+			if (locale == null && locales != null && locales.isEmpty()) {
+				if (parameterType.isArray()) {
+					return entity.getAttributeLocales()
+						.stream()
+						.map(it -> {
+							//noinspection DataFlowIssue,unchecked
+							return EvitaDataTypes.toTargetType(
+								defaultValueProvider.apply(
+									entity.getAttribute(
+										attributeName,
+										locale,
+										parameterType.getComponentType()
+									)
+								),
+								parameterType.getComponentType(),
+								indexedDecimalPlaces
+							);
+						})
+						.toArray(count -> (Serializable[]) Array.newInstance(parameterType.getComponentType(), count));
+				} else {
+					throw new EvitaInvalidUsageException(
+						"Cannot initialize attribute `" + attributeName + "` in a constructor as a single value since " +
+							"it could localized to multiple locales and no locale was requested when fetching the entity!"
+					);
+				}
+			} else if (locale != null) {
+				//noinspection unchecked
+				return EvitaDataTypes.toTargetType(
+					defaultValueProvider.apply(
+						entity.getAttribute(
+							attributeName,
+							locale,
+							parameterType
+						)
+					),
+					parameterType,
+					indexedDecimalPlaces
+				);
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Set<?> getAttributeAsSet(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+			final Serializable[] value;
+			if (locale == null && locales != null && locales.isEmpty()) {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
+						"it could localized to multiple locales and it's expected to be an array data type. " +
+						"When no locale was requested when fetching the entity, it would require concatenating " +
+						"multiple arrays and losing the information about the associated locale!"
+				);
+			} else if (locale != null) {
+				value = (Serializable[]) defaultValueProvider.apply(
+					entity.getAttribute(
+						attributeName,
+						locale,
+						parameterType
+					)
+				);
+			} else {
+				return Collections.emptySet();
+			}
+
+			return Arrays.stream(value)
+				.map(
+					theValue -> EvitaDataTypes.toTargetType(
+						theValue,
+						parameterType,
+						indexedDecimalPlaces
+					)
+				)
+				.collect(Collectors.toSet());
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Set<?> getLocalizedAttributeAsSet(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final Serializable[] value = (Serializable[]) defaultValueProvider.apply(
+				entity.getAttribute(
+					attributeName,
+					parameterType
+				)
+			);
+			return Arrays.stream(value)
+				.map(
+					theValue -> EvitaDataTypes.toTargetType(
+						theValue,
+						parameterType,
+						indexedDecimalPlaces
+					)
+				)
+				.collect(Collectors.toSet());
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static List<?> getAttributeAsList(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final Serializable[] value = (Serializable[]) defaultValueProvider.apply(
+				entity.getAttribute(
+					attributeName,
+					parameterType
+				)
+			);
+			return Arrays.stream(value)
+				.map(
+					theValue -> EvitaDataTypes.toTargetType(
+						theValue,
+						parameterType,
+						indexedDecimalPlaces
+					)
+				)
+				.toList();
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static List<?> getLocalizedAttributeAsList(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+			final Serializable[] value;
+			if (locale == null && locales != null && locales.isEmpty()) {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
+						"it could localized to multiple locales and it's expected to be an array data type. " +
+						"When no locale was requested when fetching the entity, it would require concatenating " +
+						"multiple arrays and losing the information about the associated locale!"
+				);
+			} else if (locale != null) {
+				value = (Serializable[]) defaultValueProvider.apply(
+					entity.getAttribute(
+						attributeName,
+						locale,
+						parameterType
+					)
+				);
+			} else {
+				return Collections.emptyList();
+			}
+
+			return Arrays.stream(value)
+				.map(
+					theValue -> EvitaDataTypes.toTargetType(
+						theValue,
+						parameterType,
+						indexedDecimalPlaces
+					)
+				)
+				.toList();
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Enum<?> getAttributeAsAnEnum(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			//noinspection unchecked
+			return Enum.valueOf(
+				parameterType,
+				(String) defaultValueProvider.apply(
+					entity.getAttribute(
+						attributeName,
+						String.class
+					)
+				)
+			);
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Enum<?> getLocalizedAttributeAsAnEnum(
+		@Nonnull SealedEntity entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		if (entity.attributeAvailable(attributeName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+			if (locale == null && locales != null && locales.isEmpty()) {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize attribute `" + attributeName + "` in a constructor as a single enum value since " +
+						"it could localized to multiple locales and no locale was requested when fetching the entity!"
+				);
+			} else if (locale != null) {
+				//noinspection unchecked
+				return Enum.valueOf(
+					parameterType,
+					(String) defaultValueProvider.apply(
+						entity.getAttribute(
+							attributeName,
+							locale,
+							String.class
+						)
+					)
+				);
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
 	public GetAttributeMethodClassifier() {
 		super(
 			"getAttribute",
@@ -539,104 +912,6 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				}
 			}
 		);
-	}
-
-	@SuppressWarnings("rawtypes")
-	@Nullable
-	private static Serializable getAttributeAsSingleValue(
-		@Nonnull SealedEntity entity,
-		@Nonnull String attributeName,
-		@Nonnull Class parameterType,
-		int indexedDecimalPlaces
-	) {
-		if (entity.attributeAvailable(attributeName)) {
-			//noinspection unchecked
-			return EvitaDataTypes.toTargetType(
-				entity.getAttribute(
-					attributeName,
-					parameterType
-				),
-				parameterType,
-				indexedDecimalPlaces
-			);
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static Set<?> getAttributeAsSet(
-		@Nonnull SealedEntity entity,
-		@Nonnull String attributeName,
-		@Nonnull Class parameterType,
-		int indexedDecimalPlaces
-	) {
-		if (entity.attributeAvailable(attributeName)) {
-			final Serializable[] value = (Serializable[]) entity.getAttribute(
-				attributeName,
-				parameterType
-			);
-			return Arrays.stream(value)
-				.map(
-					theValue -> EvitaDataTypes.toTargetType(
-						theValue,
-						parameterType,
-						indexedDecimalPlaces
-					)
-				)
-				.collect(Collectors.toSet());
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static List<?> getAttributeAsList(
-		@Nonnull SealedEntity entity,
-		@Nonnull String attributeName,
-		@Nonnull Class parameterType,
-		int indexedDecimalPlaces
-	) {
-		if (entity.attributeAvailable(attributeName)) {
-			final Serializable[] value = (Serializable[]) entity.getAttribute(
-				attributeName,
-				parameterType
-			);
-			return Arrays.stream(value)
-				.map(
-					theValue -> EvitaDataTypes.toTargetType(
-						theValue,
-						parameterType,
-						indexedDecimalPlaces
-					)
-				)
-				.toList();
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static Enum<?> getAttributeAsAnEnum(
-		@Nonnull SealedEntity entity,
-		@Nonnull String attributeName,
-		@Nonnull Class parameterType
-	) {
-		if (entity.attributeAvailable(attributeName)) {
-			//noinspection unchecked
-			return Enum.valueOf(
-				parameterType,
-				(String) entity.getAttribute(
-					attributeName,
-					String.class
-				)
-			);
-		} else {
-			return null;
-		}
 	}
 
 }

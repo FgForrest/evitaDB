@@ -64,7 +64,7 @@ public abstract class AbstractProductPojo implements Serializable {
 	@Serial private static final long serialVersionUID = -4105423434415501748L;
 	@PrimaryKeyRef private final int id;
 	@Attribute(name = DataGenerator.ATTRIBUTE_CODE) private final String code;
-	@Attribute(name = DataGenerator.ATTRIBUTE_NAME) private final String name;
+	@Attribute(name = DataGenerator.ATTRIBUTE_NAME) private final String[] names;
 	@AttributeRef(DataGenerator.ATTRIBUTE_EAN) private final String eanAsDifferentProperty;
 	@Attribute(name = DataGenerator.ATTRIBUTE_QUANTITY) private final BigDecimal quantity;
 	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_ENUM) private final TestEnum testEnum;
@@ -106,7 +106,7 @@ public abstract class AbstractProductPojo implements Serializable {
 	public AbstractProductPojo(int id) {
 		this.id = id;
 		code = null;
-		name = null;
+		names = null;
 		eanAsDifferentProperty = null;
 		quantity = null;
 		testEnum = null;

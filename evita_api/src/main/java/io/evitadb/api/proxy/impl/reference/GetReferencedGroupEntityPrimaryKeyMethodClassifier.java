@@ -25,12 +25,18 @@ package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.lang.reflect.Parameter;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
@@ -48,6 +54,36 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final GetReferencedGroupEntityPrimaryKeyMethodClassifier INSTANCE = new GetReferencedGroupEntityPrimaryKeyMethodClassifier();
+
+	/**
+	 * Tries to identify referenced entity group primary key request from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType class the constructor belongs to
+	 * @param parameter constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+
+		final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, ReferencedEntityGroup.class);
+		if (Number.class.isAssignableFrom(toWrappedForm(parameterType)) && referencedEntityGroup != null || (
+			ReferencedEntityGroup.POSSIBLE_ARGUMENT_NAMES.contains(parameterName))) {
+			//noinspection unchecked,rawtypes
+			return (sealedEntity, reference) -> toTargetType(
+				reference.getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
+				(Class)parameterType
+			);
+		} else {
+			return null;
+		}
+	}
 
 	public GetReferencedGroupEntityPrimaryKeyMethodClassifier() {
 		super(

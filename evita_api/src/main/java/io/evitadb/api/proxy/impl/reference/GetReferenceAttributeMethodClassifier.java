@@ -28,11 +28,16 @@ import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
@@ -47,6 +52,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,11 +76,97 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class GetAttributeMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
+public class GetReferenceAttributeMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */
-	public static final GetAttributeMethodClassifier INSTANCE = new GetAttributeMethodClassifier();
+	public static final GetReferenceAttributeMethodClassifier INSTANCE = new GetReferenceAttributeMethodClassifier();
+
+	/**
+	 * Tries to identify reference attribute request from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType     class the constructor belongs to
+	 * @param parameter        constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @param entitySchema     entity schema
+	 * @param referenceSchema  reference schema
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		// now we need to identify attribute schema that is being requested
+		final AttributeSchemaContract attributeSchema = getAttributeSchema(
+			expectedType, parameter, reflectionLookup, entitySchema, referenceSchema
+		);
+		// if not found, this method is not classified by this implementation
+		if (attributeSchema == null) {
+			return null;
+		} else {
+			// finally provide implementation that will retrieve the attribute from the entity
+			final String cleanAttributeName = attributeSchema.getName();
+			final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
+
+			// now we need to identify the return type
+			@SuppressWarnings("rawtypes") final Class parameterType = parameter.getType();
+			final Class<?>[] resolvedTypes = getResolvedTypes(parameter, expectedType);
+			@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, parameterType);
+
+			@SuppressWarnings("rawtypes") final Class collectionType;
+			@SuppressWarnings("rawtypes") final Class itemType;
+			if (Collection.class.equals(resolvedTypes[0]) || List.class.isAssignableFrom(resolvedTypes[0]) || Set.class.isAssignableFrom(resolvedTypes[0])) {
+				collectionType = resolvedTypes[0];
+				itemType = Array.newInstance(resolvedTypes.length > 1 ? resolvedTypes[1] : Object.class, 0).getClass();
+			} else if (resolvedTypes[0].isArray()) {
+				collectionType = null;
+				itemType = resolvedTypes[0];
+			} else {
+				collectionType = null;
+				itemType = resolvedTypes[0];
+			}
+
+			if (attributeSchema.isLocalized()) {
+				if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
+					//noinspection unchecked
+					return setOfLocalizedResults(
+						cleanAttributeName, itemType, indexedDecimalPlaces, defaultValueProvider
+					);
+				} else if (collectionType != null) {
+					//noinspection unchecked
+					return listOfLocalizedResults(
+						cleanAttributeName, itemType, indexedDecimalPlaces, defaultValueProvider
+					);
+				} else {
+					//noinspection unchecked
+					return singleLocalizedResult(
+						cleanAttributeName, itemType, indexedDecimalPlaces, defaultValueProvider
+					);
+				}
+			} else {
+				if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
+					//noinspection unchecked
+					return setOfResults(
+						cleanAttributeName, itemType, indexedDecimalPlaces, defaultValueProvider
+					);
+				} else if (collectionType != null) {
+					//noinspection unchecked
+					return listOfResults(
+						cleanAttributeName, itemType, indexedDecimalPlaces, defaultValueProvider
+					);
+				} else {
+					//noinspection unchecked
+					return singleResult(
+						cleanAttributeName, itemType, indexedDecimalPlaces, defaultValueProvider
+					);
+				}
+			}
+		}
+	}
 
 	/**
 	 * Retrieves appropriate attribute schema from the annotations on the method. If no Evita annotation is found
@@ -107,11 +199,39 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Retrieves appropriate attribute schema from the annotations on the method. If no Evita annotation is found
+	 * it tries to match the attribute name by the name of the method.
+	 */
+	@Nullable
+	private static AttributeSchemaContract getAttributeSchema(
+		@Nonnull Class<?> expectedClass,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nullable ReferenceSchemaContract referenceSchema
+	) {
+		final String parameterName = parameter.getName();
+		final Attribute attributeInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedClass, parameterName, Attribute.class);
+		final AttributeRef attributeRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedClass, parameterName, AttributeRef.class);
+		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> referenceSchema.getAttribute(attributeName).orElseThrow(
+			() -> new AttributeNotFoundException(attributeName, referenceSchema, entitySchema)
+		);
+		if (attributeInstance != null) {
+			return schemaLocator.apply(attributeInstance.name());
+		} else if (attributeRefInstance != null) {
+			return schemaLocator.apply(attributeRefInstance.value());
+		} else {
+			return referenceSchema.getAttributeByName(parameterName, NamingConvention.CAMEL_CASE)
+				.orElse(null);
+		}
+	}
+
+	/**
 	 * Creates an implementation of the method returning an attribute as a requested type.
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> singleResult(
-		@Nonnull String cleanAttributeName,
+		@Nonnull String attributeName,
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
@@ -121,13 +241,29 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		Assert.isTrue(
 			method.getParameterCount() == 0,
-			"Non-localized attribute `" + cleanAttributeName + "` must not have a locale parameter!"
+			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			toTargetType(
-				defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
+				defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 				itemType, indexedDecimalPlaces
 			)
+		);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an attribute as a requested type.
+	 */
+	@Nonnull
+	private static ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> singleResult(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		return (sealedEntity, reference) -> toTargetType(
+			defaultValueProvider.apply(reference.getAttribute(attributeName)),
+			itemType, indexedDecimalPlaces
 		);
 	}
 
@@ -136,7 +272,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setOfResults(
-		@Nonnull String cleanAttributeName,
+		@Nonnull String attributeName,
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
@@ -146,12 +282,12 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		Assert.isTrue(
 			method.getParameterCount() == 0,
-			"Non-localized attribute `" + cleanAttributeName + "` must not have a locale parameter!"
+			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -166,11 +302,37 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Creates an implementation of the method returning an attribute of an array type wrapped into a set.
+	 */
+	@Nonnull
+	private static ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> setOfResults(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		return (sealedEntity, reference) ->
+			ofNullable(
+				toTargetType(
+					defaultValueProvider.apply(reference.getAttribute(attributeName)),
+					itemType, indexedDecimalPlaces
+				)
+			)
+				.map(Object[].class::cast)
+				.map(it -> {
+					final Set<Object> result = CollectionUtils.createHashSet(it.length);
+					result.addAll(Arrays.asList(it));
+					return result;
+				})
+				.orElse(Collections.emptySet());
+	}
+
+	/**
 	 * Creates an implementation of the method returning an attribute of an array type wrapped into a list.
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> listOfResults(
-		@Nonnull String cleanAttributeName,
+		@Nonnull String attributeName,
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
@@ -180,12 +342,12 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		Assert.isTrue(
 			method.getParameterCount() == 0,
-			"Non-localized attribute `" + cleanAttributeName + "` must not have a locale parameter!"
+			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -195,11 +357,32 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Creates an implementation of the method returning an attribute of an array type wrapped into a list.
+	 */
+	@Nonnull
+	private static ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> listOfResults(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		return (sealedEntity, reference) ->
+			ofNullable(
+				toTargetType(
+					defaultValueProvider.apply(reference.getAttribute(attributeName)),
+					itemType, indexedDecimalPlaces
+				)
+			).map(Object[].class::cast)
+				.map(it -> Collections.unmodifiableList(Arrays.asList(it)))
+				.orElse(Collections.emptyList());
+	}
+
+	/**
 	 * Creates an implementation of the method returning an attribute as a requested type.
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> singleLocalizedResult(
-		@Nonnull String cleanAttributeName,
+		@Nonnull String attributeName,
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
@@ -211,18 +394,86 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				toTargetType(
 					defaultValueProvider.apply(
-						localizedAttributeExtractor.apply(theState.getReference(), cleanAttributeName, (Locale) args[0])
+						localizedAttributeExtractor.apply(theState.getReference(), attributeName, (Locale) args[0])
 					),
 					itemType, indexedDecimalPlaces
 				)
 			);
+	}
+
+	/**
+	 * Creates an implementation of the method returning an attribute as a requested type.
+	 */
+	@Nonnull
+	private static ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> singleLocalizedResult(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		return (sealedEntity, reference) -> {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+			if (locale == null && locales != null && locales.isEmpty()) {
+				if (itemType.isArray()) {
+					return sealedEntity.getAttributeLocales()
+						.stream()
+						.map(it -> {
+							// noinspection rawtypes,DataFlowIssue,unchecked
+							return toTargetType(
+								defaultValueProvider.apply(
+									reference.getAttribute(
+										attributeName,
+										locale,
+										(Class) itemType.getComponentType()
+									)
+								),
+								(Class) itemType.getComponentType(),
+								indexedDecimalPlaces
+							);
+						})
+						.toArray(count -> (Serializable[]) Array.newInstance(itemType.getComponentType(), count));
+				} else {
+					throw new EvitaInvalidUsageException(
+						"Cannot initialize reference `" + reference.getReferenceName() + "` attribute `" + attributeName + "` " +
+							"in a constructor as a single value since " +
+							"it could localized to multiple locales and no locale was requested when fetching the entity!"
+					);
+				}
+			} else if (locale != null) {
+				@SuppressWarnings({"unchecked", "rawtypes"})
+				final Class requestedType = ofNullable(itemType.getComponentType())
+					.orElse((Class)itemType);
+				// noinspection DataFlowIssue,unchecked
+				return toTargetType(
+					reference.getAttribute(
+						attributeName,
+						locale,
+						requestedType
+					),
+					requestedType,
+					indexedDecimalPlaces
+				);
+			} else {
+				// noinspection rawtypes,DataFlowIssue,unchecked
+				return defaultValueProvider.apply(
+					toTargetType(
+						defaultValueProvider.apply(reference.getAttribute(attributeName)),
+						(Class) itemType.getComponentType(),
+						indexedDecimalPlaces
+					)
+				);
+			}
+		};
 	}
 
 	/**
@@ -277,11 +528,32 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Creates an implementation of the method returning an attribute of an array type wrapped into a set.
+	 */
+	@Nonnull
+	private static ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> setOfLocalizedResults(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		return (sealedEntity, reference) -> {
+			final Object[] resultValue = getLocalizedAttributeAsObjectArray(
+				attributeName, itemType, indexedDecimalPlaces, defaultValueProvider, sealedEntity, reference
+			);
+
+			final Set<Object> result = CollectionUtils.createHashSet(resultValue.length);
+			result.addAll(Arrays.asList(resultValue));
+			return result;
+		};
+	}
+
+	/**
 	 * Creates an implementation of the method returning an attribute of an array type wrapped into a list.
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> listOfLocalizedResults(
-		@Nonnull String cleanAttributeName,
+		@Nonnull String attributeName,
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
@@ -294,7 +566,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
-						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
+						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 						itemType, indexedDecimalPlaces
 					)
 				)
@@ -306,7 +578,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getReference(), cleanAttributeName, (Locale) args[0]
+								theState.getReference(), attributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces
@@ -317,7 +589,93 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			);
 	}
 
-	public GetAttributeMethodClassifier() {
+	/**
+	 * Creates an implementation of the method returning an attribute of an array type wrapped into a set.
+	 */
+	@Nonnull
+	private static ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> listOfLocalizedResults(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		return (sealedEntity, reference) -> Collections.unmodifiableList(
+			Arrays.asList(
+				getLocalizedAttributeAsObjectArray(
+					attributeName, itemType, indexedDecimalPlaces, defaultValueProvider, sealedEntity, reference
+				)
+			)
+		);
+	}
+
+	/**
+	 * Resolves the used locale(s) and retrieves reference attribute as array of objects.
+	 */
+	@Nullable
+	private static Object[] getLocalizedAttributeAsObjectArray(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> itemType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull SealedEntity sealedEntity,
+		@Nonnull ReferenceContract reference
+	) {
+		final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
+		final Set<Locale> locales = localePredicate.getLocales();
+		final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+		final Object[] resultValue;
+		if (locale == null && locales != null && locales.isEmpty()) {
+			if (itemType.isArray()) {
+				resultValue = sealedEntity.getAttributeLocales()
+					.stream()
+					.map(it -> {
+						// noinspection rawtypes,DataFlowIssue,unchecked
+						return defaultValueProvider.apply(
+							toTargetType(
+								reference.getAttribute(
+									attributeName,
+									locale,
+									(Class) itemType.getComponentType()
+								),
+								(Class) itemType.getComponentType(),
+								indexedDecimalPlaces
+							)
+						);
+					})
+					.toArray(count -> (Serializable[]) Array.newInstance(itemType.getComponentType(), count));
+			} else {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize reference `" + reference.getReferenceName() + "` attribute `" + attributeName + "` " +
+						"in a constructor as a single value since " +
+						"it could localized to multiple locales and no locale was requested when fetching the entity!"
+				);
+			}
+		} else if (locale != null) {
+			// noinspection rawtypes,DataFlowIssue,unchecked
+			resultValue = (Object[]) toTargetType(
+				defaultValueProvider.apply(
+					reference.getAttribute(
+						attributeName,
+						locale,
+						(Class) itemType.getComponentType()
+					)
+				),
+				(Class) itemType.getComponentType(),
+				indexedDecimalPlaces
+			);
+		} else {
+			// noinspection rawtypes,DataFlowIssue,unchecked
+			resultValue = (Object[]) toTargetType(
+				defaultValueProvider.apply(reference.getAttribute(attributeName)),
+				(Class) itemType.getComponentType(),
+				indexedDecimalPlaces
+			);
+		}
+		return resultValue;
+	}
+
+	public GetReferenceAttributeMethodClassifier() {
 		super(
 			"getAttribute",
 			(method, proxyState) -> {

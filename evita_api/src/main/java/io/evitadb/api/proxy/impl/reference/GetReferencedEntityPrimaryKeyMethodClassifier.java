@@ -25,12 +25,18 @@ package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.lang.reflect.Parameter;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
@@ -48,6 +54,33 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final GetReferencedEntityPrimaryKeyMethodClassifier INSTANCE = new GetReferencedEntityPrimaryKeyMethodClassifier();
+
+	/**
+	 * Tries to identify referenced entity primary key request from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType class the constructor belongs to
+	 * @param parameter constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+
+		final ReferencedEntity referencedEntity = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, ReferencedEntity.class);
+		if (Number.class.isAssignableFrom(toWrappedForm(parameterType)) && referencedEntity != null || (
+			PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName))) {
+			//noinspection unchecked,rawtypes
+			return (reference, sealedEntity) -> toTargetType(reference.getPrimaryKey(), (Class)parameterType);
+		} else {
+			return null;
+		}
+	}
 
 	public GetReferencedEntityPrimaryKeyMethodClassifier() {
 		super(

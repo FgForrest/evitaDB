@@ -299,7 +299,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), product.getName());
+		if (locale == null) {
+			assertEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
+		} else {
+			assertEquals(new String[] {originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale, String.class)}, product.getNames());
+		}
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.getAlias());
 		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.getTestEnum());
@@ -406,13 +410,35 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
 	) {
+		final int expectedAssociatedDataCount = originalProducts.get(0).getSchema().getAssociatedData().size();
+		final int expectedReferenceCount = originalProducts.get(0).getSchema().getReferences().size();
 		final SealedEntity theProduct = originalProducts
 			.stream()
-			.filter(it -> it.getPrimaryKey() == 1)
+			.filter(it ->
+				it.getAssociatedDataValues()
+					.stream()
+					.filter(aValue -> !aValue.key().localized() || aValue.key().locale().equals(Locale.ENGLISH))
+					.map(aValue -> aValue.key().associatedDataName())
+					.distinct()
+					.count() == expectedAssociatedDataCount &&
+				it.getReferences()
+					.stream()
+					.map(ReferenceContract::getReferenceName)
+					.distinct()
+					.count() == expectedReferenceCount
+			)
 			.findFirst()
 			.orElseThrow();
 
-		final AbstractProductPojo proxiedEntity = evitaSession.getEntity(AbstractProductPojo.class, 1, entityFetchAllContent()).orElse(null);
+		final AbstractProductPojo proxiedEntity = evitaSession.getEntity(
+			AbstractProductPojo.class, theProduct.getPrimaryKey(),
+			hierarchyContent(),
+			attributeContentAll(),
+			associatedDataContentAll(),
+			priceContentAll(),
+			referenceContentAllWithAttributes(),
+			dataInLocales(Locale.ENGLISH)
+		).orElse(null);
 
 		verifyAllFieldsAreSet(proxiedEntity, AbstractProductPojo.class);
 

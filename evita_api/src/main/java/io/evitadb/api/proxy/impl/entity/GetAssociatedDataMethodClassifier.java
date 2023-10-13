@@ -32,9 +32,12 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
@@ -65,8 +68,6 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
-import static java.util.Optional.empty;
-import static java.util.Optional.of;
 
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
@@ -96,8 +97,8 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	/**
 	 * Tries to identify associated data name from the class field related to the constructor parameter.
 	 *
-	 * @param expectedType class the constructor belongs to
-	 * @param parameter constructor parameter
+	 * @param expectedType     class the constructor belongs to
+	 * @param parameter        constructor parameter
 	 * @param reflectionLookup reflection lookup
 	 * @return attribute name derived from the annotation if found
 	 */
@@ -111,50 +112,54 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		final String parameterName = parameter.getName();
 		final Class<?> parameterType = parameter.getType();
 
-		final Optional<String> associatedDataNameFromParameter;
-		final AssociatedData associatedDataInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AssociatedData.class);
-		if (associatedDataInstance != null) {
-			associatedDataNameFromParameter = of(associatedDataInstance.name());
-		} else {
-			final AssociatedDataRef associatedDataRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AssociatedDataRef.class);
-			if (associatedDataRefInstance != null) {
-				associatedDataNameFromParameter = of(associatedDataRefInstance.value());
-			} else {
-				associatedDataNameFromParameter = empty();
-			}
-		}
-
-		final String associatedDataName = associatedDataNameFromParameter.orElse(parameterName);
-		final Optional<AssociatedDataSchemaContract> associatedDataSchema = schema.getAssociatedDataByName(associatedDataName, NamingConvention.CAMEL_CASE);
-		if (associatedDataSchema.isPresent()) {
-			final AssociatedDataSchemaContract associatedDataSchemaContract = associatedDataSchema.get();
-			if (associatedDataSchemaContract.getType().isArray()) {
-				if (parameterType.isArray()) {
-					return entity -> getAssociatedDataAsSingleValue(entity, associatedDataName, parameterType, reflectionLookup);
-				} else if (Set.class.equals(parameterType)) {
-					return entity -> getAssociatedDataAsSet(entity, associatedDataName, parameterType, reflectionLookup);
-				} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
-					return entity -> getAssociatedDataAsList(entity, associatedDataName, parameterType, reflectionLookup);
+		final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataSchema(expectedType, parameter, reflectionLookup, schema);
+		if (associatedDataSchema != null) {
+			final String associatedDataName = associatedDataSchema.getName();
+			if (associatedDataSchema.isLocalized()) {
+				if (associatedDataSchema.getType().isArray()) {
+					if (parameterType.isArray()) {
+						return entity -> getLocalizedAssociatedDataAsSingleValue(entity, associatedDataName, parameterType, reflectionLookup);
+					} else if (Set.class.equals(parameterType)) {
+						return entity -> getLocalizedAssociatedDataAsSet(entity, associatedDataName, parameterType, reflectionLookup);
+					} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+						return entity -> getLocalizedAssociatedDataAsList(entity, associatedDataName, parameterType, reflectionLookup);
+					} else {
+						throw new EntityClassInvalidException(
+							expectedType,
+							"Unsupported data type `" + parameterType + "` for associated data `" + associatedDataName + "` in entity `" + schema.getName() +
+								"` related to constructor parameter `" + parameterName + "`!"
+						);
+					}
 				} else {
-					throw new EntityClassInvalidException(
-						expectedType,
-						"Unsupported data type `" + parameterType + "` for associated data `" + associatedDataName + "` in entity `" + schema.getName() +
-							"` related to constructor parameter `" + parameterName + "`!"
-					);
+					if (parameterType.isEnum()) {
+						return entity -> getLocalizedAssociateDataAsEnum(entity, associatedDataName, parameterType, reflectionLookup);
+					} else {
+						return entity -> getLocalizedAssociatedDataAsSingleValue(entity, associatedDataName, parameterType, reflectionLookup);
+					}
 				}
 			} else {
-				if (parameterType.isEnum()) {
-					return entity -> getAssociateDataAsEnum(entity, associatedDataName, parameterType, reflectionLookup);
+				if (associatedDataSchema.getType().isArray()) {
+					if (parameterType.isArray()) {
+						return entity -> getAssociatedDataAsSingleValue(entity, associatedDataName, parameterType, reflectionLookup);
+					} else if (Set.class.equals(parameterType)) {
+						return entity -> getAssociatedDataAsSet(entity, associatedDataName, parameterType, reflectionLookup);
+					} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
+						return entity -> getAssociatedDataAsList(entity, associatedDataName, parameterType, reflectionLookup);
+					} else {
+						throw new EntityClassInvalidException(
+							expectedType,
+							"Unsupported data type `" + parameterType + "` for associated data `" + associatedDataName + "` in entity `" + schema.getName() +
+								"` related to constructor parameter `" + parameterName + "`!"
+						);
+					}
 				} else {
-					return entity -> getAssociatedDataAsSingleValue(entity, associatedDataName, parameterType, reflectionLookup);
+					if (parameterType.isEnum()) {
+						return entity -> getAssociateDataAsEnum(entity, associatedDataName, parameterType, reflectionLookup);
+					} else {
+						return entity -> getAssociatedDataAsSingleValue(entity, associatedDataName, parameterType, reflectionLookup);
+					}
 				}
 			}
-		} else if (associatedDataNameFromParameter.isPresent()) {
-			throw new EntityClassInvalidException(
-				expectedType,
-				"Cannot find associated data `" + associatedDataName + "` in entity `" + schema.getName() +
-					"` related to constructor parameter `" + parameterName + "`!"
-			);
 		}
 
 		return null;
@@ -187,6 +192,36 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				.orElse(null);
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Retrieves appropriate associated data schema from the annotations on the method. If no Evita annotation is found
+	 * it tries to match the associated data name by the name of the method.
+	 */
+	@Nullable
+	private static AssociatedDataSchemaContract getAssociatedDataSchema(
+		@Nonnull Class<?> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull EntitySchemaContract entitySchema
+	) {
+		final String parameterName = parameter.getName();
+		final AssociatedData associatedDataInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AssociatedData.class);
+		final AssociatedDataRef associatedDataRefInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, AssociatedDataRef.class);
+		if (associatedDataInstance != null) {
+			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
+		} else if (associatedDataRefInstance != null) {
+			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
+		} else {
+			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(parameterName)
+				.flatMap(
+					associatedDataName -> entitySchema.getAssociatedDataByName(
+						associatedDataName,
+						NamingConvention.CAMEL_CASE
+					)
+				)
+				.orElse(null);
 		}
 	}
 
@@ -324,12 +359,12 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.orElse(null)
-			);
+			associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
+				.map(AssociatedDataValue::value)
+				.map(defaultValueProvider)
+				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+				.orElse(null)
+		);
 	}
 
 	/**
@@ -353,18 +388,18 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.map(Object[].class::cast)
-					.map(it -> {
-						final Set<Object> result = CollectionUtils.createHashSet(it.length);
-						result.addAll(Arrays.asList(it));
-						return result;
-					})
-					.orElse(Collections.emptySet())
-			);
+			associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
+				.map(AssociatedDataValue::value)
+				.map(defaultValueProvider)
+				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+				.map(Object[].class::cast)
+				.map(it -> {
+					final Set<Object> result = CollectionUtils.createHashSet(it.length);
+					result.addAll(Arrays.asList(it));
+					return result;
+				})
+				.orElse(Collections.emptySet())
+		);
 	}
 
 	/**
@@ -388,14 +423,257 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.map(Object[].class::cast)
-					.map(List::of)
-					.orElse(Collections.emptyList())
+			associatedDataExtractor.apply(theState.getSealedEntity(), cleanAssociatedDataName)
+				.map(AssociatedDataValue::value)
+				.map(defaultValueProvider)
+				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+				.map(Object[].class::cast)
+				.map(List::of)
+				.orElse(Collections.emptyList())
+		);
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Enum<?> getAssociateDataAsEnum(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			return Enum.valueOf(
+				parameterType,
+				(String) entity.getAssociatedData(
+					associatedDataName,
+					String.class,
+					reflectionLookup
+				)
 			);
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes"})
+	@Nullable
+	private static Enum<?> getLocalizedAssociateDataAsEnum(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.attributeAvailable(associatedDataName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+			if (locale == null && locales != null && locales.isEmpty()) {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a single enum value since " +
+						"it could localized to multiple locales and no locale was requested when fetching the entity!"
+				);
+			} else if (locale != null) {
+				//noinspection unchecked
+				return Enum.valueOf(
+					parameterType,
+					(String) entity.getAssociatedData(
+						associatedDataName,
+						locale,
+						String.class,
+						reflectionLookup
+					)
+				);
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes"})
+	@Nullable
+	private static Serializable getAssociatedDataAsSingleValue(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			return entity.getAssociatedData(
+				associatedDataName,
+				parameterType,
+				reflectionLookup
+			);
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes"})
+	@Nullable
+	private static Serializable getLocalizedAssociatedDataAsSingleValue(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.attributeAvailable(associatedDataName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+			if (locale == null && locales != null && locales.isEmpty()) {
+				if (parameterType.isArray()) {
+					return entity.getAttributeLocales()
+						.stream()
+						.map(it -> {
+							//noinspection DataFlowIssue,unchecked
+							return entity.getAssociatedData(
+								associatedDataName,
+								locale,
+								parameterType.getComponentType(),
+								reflectionLookup
+							);
+						})
+						.toArray(count -> (Serializable[]) Array.newInstance(parameterType.getComponentType(), count));
+				} else {
+					throw new EvitaInvalidUsageException(
+						"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a single value since " +
+							"it could localized to multiple locales and no locale was requested when fetching the entity!"
+					);
+				}
+			} else if (locale != null) {
+				//noinspection unchecked
+				return entity.getAssociatedData(
+					associatedDataName,
+					locale,
+					parameterType,
+					reflectionLookup
+				);
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Set<?> getAssociatedDataAsSet(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
+				associatedDataName,
+				parameterType,
+				reflectionLookup
+			);
+			return Arrays.stream(associatedData).collect(Collectors.toSet());
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static Set<?> getLocalizedAssociatedDataAsSet(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+			final Serializable[] associatedData;
+			if (locale == null && locales != null && locales.isEmpty()) {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a set since " +
+						"it could localized to multiple locales and it's expected to be an array data type. " +
+						"When no locale was requested when fetching the entity, it would require concatenating " +
+						"multiple arrays and losing the information about the associated locale!"
+				);
+			} else if (locale != null) {
+				associatedData = (Serializable[]) entity.getAssociatedData(
+					associatedDataName,
+					locale,
+					parameterType,
+					reflectionLookup
+				);
+			} else {
+				return Collections.emptySet();
+			}
+
+			return Arrays.stream(associatedData)
+				.collect(Collectors.toSet());
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static List<?> getAssociatedDataAsList(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
+				associatedDataName,
+				parameterType,
+				reflectionLookup
+			);
+			return Arrays.stream(associatedData).toList();
+		} else {
+			return null;
+		}
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
+	private static List<?> getLocalizedAssociatedDataAsList(
+		@Nonnull SealedEntity entity,
+		@Nonnull String associatedDataName,
+		@Nonnull Class parameterType,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+			final Set<Locale> locales = localePredicate.getLocales();
+			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+			final Serializable[] associatedData;
+			if (locale == null && locales != null && locales.isEmpty()) {
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a set since " +
+						"it could localized to multiple locales and it's expected to be an array data type. " +
+						"When no locale was requested when fetching the entity, it would require concatenating " +
+						"multiple arrays and losing the information about the associated locale!"
+				);
+			} else if (locale != null) {
+				associatedData = (Serializable[]) entity.getAssociatedData(
+					associatedDataName,
+					locale,
+					parameterType,
+					reflectionLookup
+				);
+			} else {
+				return Collections.emptyList();
+			}
+
+			return Arrays.stream(associatedData)
+				.toList();
+		} else {
+			return null;
+		}
 	}
 
 	public GetAssociatedDataMethodClassifier() {
@@ -515,87 +793,6 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				}
 			}
 		);
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static Enum<?> getAssociateDataAsEnum(
-		@Nonnull SealedEntity entity,
-		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
-		@Nonnull ReflectionLookup reflectionLookup
-	) {
-		if (entity.associatedDataAvailable(associatedDataName)) {
-			return Enum.valueOf(
-				parameterType,
-				(String) entity.getAssociatedData(
-					associatedDataName,
-					String.class,
-					reflectionLookup
-				)
-			);
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static Serializable getAssociatedDataAsSingleValue(
-		@Nonnull SealedEntity entity,
-		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
-		@Nonnull ReflectionLookup reflectionLookup
-	) {
-		if (entity.associatedDataAvailable(associatedDataName)) {
-			return entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static Set<?> getAssociatedDataAsSet(
-		@Nonnull SealedEntity entity,
-		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
-		@Nonnull ReflectionLookup reflectionLookup
-	) {
-		if (entity.associatedDataAvailable(associatedDataName)) {
-			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
-			return Arrays.stream(associatedData).collect(Collectors.toSet());
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static List<?> getAssociatedDataAsList(
-		@Nonnull SealedEntity entity,
-		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
-		@Nonnull ReflectionLookup reflectionLookup
-	) {
-		if (entity.associatedDataAvailable(associatedDataName)) {
-			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
-			return Arrays.stream(associatedData).toList();
-		} else {
-			return null;
-		}
 	}
 
 }

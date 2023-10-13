@@ -31,7 +31,6 @@ import io.evitadb.test.generator.DataGenerator;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
-import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -47,8 +46,8 @@ public abstract class AbstractProductCategoryPojo implements Serializable {
 	@ReferencedEntity private final int primaryKey;
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY) private final Long orderInCategory;
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL) private final String label;
-	@ReferencedEntity @Nonnull private final AbstractCategoryPojo category;
-	@ReferencedEntity @Nonnull private final EntityReference categoryReference;
-	@ReferencedEntity @Nonnull private final Integer categoryReferencePrimaryKey;
+	@ReferencedEntity private final AbstractCategoryPojo category;
+	@ReferencedEntity private final EntityReference categoryReference;
+	@ReferencedEntity private final Integer categoryReferencePrimaryKey;
 
 }
