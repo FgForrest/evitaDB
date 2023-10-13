@@ -70,9 +70,9 @@ examples and guides.</p>
   &nbsp;
   <a href="https://evitadb.io/rss.xml" title="RSS news feed">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/sf-regular/100/FFFFFF/rss.png" width="50px">
-      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/sf-regular/100/000000/rss.png" width="50px">
-      <img alt="RSS news feed" src="https://img.icons8.com/sf-regular/100/888888/rss.png" width="50px">
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/sf-ultralight/100/FFFFFF/rss.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/sf-ultralight/100/000000/rss.png" width="50px">
+      <img alt="RSS news feed" src="https://img.icons8.com/sf-ultralight/100/888888/rss.png" width="50px">
     </picture>
   </a>
   &nbsp;
