@@ -43,6 +43,8 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceS
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
@@ -332,10 +334,13 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	) {
 		final Optional<AssociatedDataSchemaContract> existingAssociatedData = getAssociatedData(dataName);
 		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
+		final Class<? extends Serializable> toBeAssignedType = EvitaDataTypes.isSupportedTypeOrItsArray(ofType) ?
+			EvitaDataTypes.toWrappedForm(ofType) :
+			ComplexDataObject.class;
 		final AssociatedDataSchemaBuilder associatedDataSchemaBuilder = existingAssociatedData
 			.map(it -> {
 				isTrue(
-					ofType.equals(it.getType()),
+					toBeAssignedType.equals(it.getType()),
 					() -> new InvalidSchemaMutationException(
 						"Associated data " + dataName + " has already assigned type " + it.getType() +
 							", cannot change this type to: " + ofType + "!"
