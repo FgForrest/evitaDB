@@ -21,41 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl;
+package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityClassInvalidException;
-import io.evitadb.api.exception.UnsatisfiedDependencyException;
-import io.evitadb.api.proxy.ProxyFactory;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
 
 /**
- * This {@link ProxyFactory} implementation throws an {@link UnsatisfiedDependencyException} when
- * {@link EvitaSessionContract} is asked for creating a object of type that is neither {@link EntityClassifier}
- * nor {@link SealedEntity}.
- *
- * The implementation is used when Proxycian is not present on the classpath.
+ * Interface is used to create proxy instances of sealed entity references when client code calls query method on
+ * {@link EvitaSessionContract} interface providing their custom class/contract as requested type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class UnsatisfiedDependencyFactory implements ProxyFactory {
-	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
+public interface ProxyReferenceFactory {
 
+	/**
+	 * Creates proxy instance of sealed entity that implements `expectedType` contract. Entity proxy respects
+	 * request context used in the query that fetched {@link SealedEntity}.
+	 *
+	 * @param expectedType contract that the proxy should implement
+	 * @param entity       owner entity
+	 * @param reference    reference instance to create proxy for
+	 * @param <T>          type of contract that the proxy should implement
+	 * @return proxy instance of sealed entity
+	 * @throws EntityClassInvalidException if the proxy contract is not valid
+	 */
 	@Nonnull
-	@Override
-	public <T> T createEntityProxy(
+	<T> T createEntityReferenceProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity
-	) throws EntityClassInvalidException {
-		throw new UnsatisfiedDependencyException(
-			"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
-				"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
-			"Required dependency is not available in evitaDB engine, contact developers of the application."
-		);
-	}
+		@Nonnull EntityContract entity,
+		@Nonnull ReferenceContract reference
+	) throws EntityClassInvalidException;
 
 }

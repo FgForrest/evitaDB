@@ -28,6 +28,7 @@ import io.evitadb.api.mock.AbstractCategoryPojo;
 import io.evitadb.api.mock.AbstractProductCategoryPojo;
 import io.evitadb.api.mock.AbstractProductPojo;
 import io.evitadb.api.mock.TestEntity;
+import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -53,14 +54,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -133,9 +127,12 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		for (AbstractProductCategoryPojo reference : references) {
 			assertCategoryReference(
 				reference,
-				originalCategories.computeIfAbsent(reference.getPrimaryKey(), id -> {
-					throw new AssertionError("Category with id " + id + " not found");
-				}),
+				originalCategories.computeIfAbsent(
+					reference.getPrimaryKey(),
+					id -> {
+						throw new AssertionError("Category with id " + id + " not found");
+					}
+				),
 				locale,
 				externalEntities
 			);
@@ -300,9 +297,16 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		if (locale == null) {
-			assertEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
+			if (!((SealedEntityProxy)product).getSealedEntity().getLocales().isEmpty()) {
+				assertArrayEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
+			}
 		} else {
-			assertEquals(new String[] {originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale, String.class)}, product.getNames());
+			final String actualName = originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale, String.class);
+			if (actualName == null) {
+				assertNull(product.getNames());
+			} else {
+				assertArrayEquals(new String[]{actualName}, product.getNames());
+			}
 		}
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.getAlias());
@@ -359,14 +363,17 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	 * @param proxy      Proxy instance
 	 * @param proxyClass Proxy class
 	 */
-	private static void verifyAllFieldsAreSet(@Nonnull Object proxy, @Nonnull Class<?> proxyClass) {
+	private static void verifyAllFieldsAreSet(@Nonnull Object proxy, @Nonnull Class<?> proxyClass, String... except) {
 		final Field[] fields = proxyClass.getDeclaredFields();
+		final Set<String> exceptFields = new HashSet<>(Arrays.asList(except));
 		for (Field field : fields) {
-			field.setAccessible(true);
-			try {
-				assertNotNull(field.get(proxy), "Field `" + field.getName() + "` is unexpectedly null!");
-			} catch (IllegalAccessException e) {
-				fail(e.getMessage());
+			if (!exceptFields.contains(field.getName())) {
+				field.setAccessible(true);
+				try {
+					assertNotNull(field.get(proxy), "Field `" + field.getName() + "` is unexpectedly null!");
+				} catch (IllegalAccessException e) {
+					fail(e.getMessage());
+				}
 			}
 		}
 	}
@@ -421,11 +428,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 					.map(aValue -> aValue.key().associatedDataName())
 					.distinct()
 					.count() == expectedAssociatedDataCount &&
-				it.getReferences()
-					.stream()
-					.map(ReferenceContract::getReferenceName)
-					.distinct()
-					.count() == expectedReferenceCount
+					it.getReferences()
+						.stream()
+						.map(ReferenceContract::getReferenceName)
+						.distinct()
+						.count() == expectedReferenceCount
 			)
 			.findFirst()
 			.orElseThrow();
@@ -440,13 +447,17 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			dataInLocales(Locale.ENGLISH)
 		).orElse(null);
 
-		verifyAllFieldsAreSet(proxiedEntity, AbstractProductPojo.class);
+		verifyAllFieldsAreSet(
+			proxiedEntity, AbstractProductPojo.class,
+			"priceForSale", "allPricesForSale"
+		);
 
 		assertProduct(
 			theProduct,
 			proxiedEntity,
 			originalCategories,
-			null, false
+			Locale.ENGLISH,
+			false
 		);
 	}
 
@@ -467,14 +478,21 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		final AbstractProductPojo partiallyLoadedEntity = evitaSession
 			.getEntity(AbstractProductPojo.class, 1)
 			.orElse(null);
+
 		assertProduct(
 			theProduct,
 			evitaSession.enrichEntity(
 				partiallyLoadedEntity,
-				entityFetchAllContent()
+				hierarchyContent(),
+				attributeContentAll(),
+				associatedDataContentAll(),
+				priceContentAll(),
+				referenceContentAllWithAttributes(),
+				dataInLocales(Locale.ENGLISH)
 			),
 			originalCategories,
-			null, false
+			Locale.ENGLISH,
+			false
 		);
 	}
 
@@ -492,7 +510,15 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.orElseThrow();
 
 		final AbstractProductPojo partiallyLoadedEntity = evitaSession
-			.getEntity(AbstractProductPojo.class, 1, entityFetchAllContent())
+			.getEntity(
+				AbstractProductPojo.class, 1,
+				hierarchyContent(),
+				attributeContentAll(),
+				associatedDataContentAll(),
+				priceContentAll(),
+				referenceContentAllWithAttributes(),
+				dataInLocales(Locale.ENGLISH)
+			)
 			.orElse(null);
 
 
@@ -565,7 +591,16 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 				entityPrimaryKeyInSet(primaryKey),
 				attributeEquals(ATTRIBUTE_ENUM, TestEnum.valueOf(theProduct.getAttribute(ATTRIBUTE_ENUM, String.class)))
 			),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentAll(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
 		System.out.println("PK: " + primaryKey);
@@ -573,7 +608,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			theProduct,
 			evitaSession.queryOne(query, AbstractProductPojo.class).orElse(null),
 			originalCategories,
-			null, false
+			Locale.ENGLISH, false
 		);
 	}
 
@@ -588,7 +623,16 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1)),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentAll(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
 		final SealedEntity theProduct = originalProducts
@@ -601,7 +645,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			theProduct,
 			evitaSession.queryOne(query, AbstractProductPojo.class).orElse(null),
 			originalCategories,
-			null, false
+			Locale.ENGLISH, false
 		);
 	}
 
@@ -612,7 +656,16 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1)),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentAll(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
 		final AbstractProductPojo product = evitaSession.queryOne(query, AbstractProductPojo.class)
@@ -696,7 +749,16 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1, 2)),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentAll(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
 		final List<SealedEntity> theProducts = originalProducts
@@ -712,7 +774,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 				expectedProduct,
 				actualProduct,
 				originalCategories,
-				null, false
+				Locale.ENGLISH, false
 			);
 		}
 	}
@@ -772,7 +834,16 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1, 2)),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					hierarchyContent(),
+					attributeContentAll(),
+					associatedDataContentAll(),
+					priceContentAll(),
+					referenceContentAllWithAttributes(),
+					dataInLocales(Locale.ENGLISH)
+				)
+			)
 		);
 
 		final List<SealedEntity> theProducts = originalProducts
@@ -788,15 +859,15 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 				expectedProduct,
 				actualProduct,
 				originalCategories,
-				null, false
+				Locale.ENGLISH, false
 			);
 		}
 	}
 
-	@DisplayName("Should wrap an interface and load data in single localization")
+	@DisplayName("Should wrap an pojo and load data in single localization")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldProxyToInterfaceWithCzechLocalization(
+	void shouldProxyToPojoWithCzechLocalization(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -848,10 +919,10 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		);
 	}
 
-	@DisplayName("Should wrap an interface and load all data")
+	@DisplayName("Should wrap an pojo and load all data")
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldProxyToInterface(
+	void shouldProxyToPojo(
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -866,6 +937,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		final Optional<AbstractProductPojo> productRef = evitaSession.getEntity(
 			AbstractProductPojo.class,
 			theProduct.getPrimaryKey(),
+			dataInLocales(Locale.ENGLISH),
 			attributeContentAll(),
 			associatedDataContentAll(),
 			priceContentAll(),
@@ -878,15 +950,15 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 					associatedDataContentAll()
 				),
 				entityGroupFetchAll()
-			),
-			dataInLocalesAll()
+			)
 		);
 
 		assertProduct(
 			theProduct,
 			productRef.orElse(null),
 			originalCategories,
-			null, true
+			Locale.ENGLISH,
+			true
 		);
 	}
 

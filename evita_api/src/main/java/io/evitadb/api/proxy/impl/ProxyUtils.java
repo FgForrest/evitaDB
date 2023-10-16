@@ -105,7 +105,7 @@ public class ProxyUtils {
 		final List<Class<?>> collectedTypes = new LinkedList<>();
 		collectedTypes.add(parameter.getType());
 
-		List<GenericBundle> nestedMethodReturnTypes = getNestedParamterTypes(ownerClass, parameter);
+		List<GenericBundle> nestedMethodReturnTypes = getNestedParameterTypes(ownerClass, parameter);
 		while (!nestedMethodReturnTypes.isEmpty()) {
 			collectedTypes.add(nestedMethodReturnTypes.get(0).getResolvedType());
 			final GenericBundle[] genericTypes = nestedMethodReturnTypes.get(0).getGenericTypes();
@@ -138,20 +138,20 @@ public class ProxyUtils {
 	 * @return list of generic types
 	 */
 	@Nonnull
-	public static List<GenericBundle> getNestedParamterTypes(@Nonnull Class<?> mainClass, @Nonnull Parameter parameter) {
+	public static List<GenericBundle> getNestedParameterTypes(@Nonnull Class<?> mainClass, @Nonnull Parameter parameter) {
 		Type genericReturnType = parameter.getParameterizedType();
 		Class<?> returnType = parameter.getType();
 		if (genericReturnType == returnType) {
-			return Collections.singletonList(new GenericBundle(returnType));
+			return Collections.emptyList();
 		} else {
-			if (!(genericReturnType instanceof Class) && mainClass != null) {
+			if (!(genericReturnType instanceof Class)) {
 				List<GenericBundle> resolvedTypes = getGenericType(mainClass, genericReturnType);
 				if (!resolvedTypes.isEmpty()) {
 					return resolvedTypes;
 				}
 			}
 
-			return Collections.singletonList(new GenericBundle(returnType));
+			return Collections.emptyList();
 		}
 	}
 

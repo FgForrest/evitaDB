@@ -25,6 +25,7 @@ package io.evitadb.api.proxy.impl;
 
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.ProxyReferenceFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.entity.EntityContractAdvice;
@@ -40,8 +41,8 @@ import io.evitadb.api.proxy.impl.reference.GetReferenceAttributeMethodClassifier
 import io.evitadb.api.proxy.impl.reference.GetReferencedEntityMethodClassifier;
 import io.evitadb.api.proxy.impl.reference.GetReferencedEntityPrimaryKeyMethodClassifier;
 import io.evitadb.api.proxy.impl.reference.GetReferencedGroupEntityPrimaryKeyMethodClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
@@ -120,51 +121,54 @@ public class ProxycianFactory implements ProxyFactory {
 	private final ReflectionLookup reflectionLookup;
 
 	/**
-	 * Creates a new proxy instance for passed {@link SealedEntity} instance.
+	 * Creates a new proxy instance for passed {@link EntityContract} instance.
 	 */
 	static <T> T createProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull SealedEntity sealedEntity,
-		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
+		@Nonnull EntityContract entity,
+		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		try {
-			final SealedEntityProxyState proxyState = new SealedEntityProxyState(sealedEntity, expectedType, recipes, collectedRecipes, reflectionLookup);
+			final Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator = theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_RECIPE);
 			if (expectedType.isRecord()) {
 				final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+					expectedType, entity.getSchema(), reflectionLookup,
+					new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),
+					new DirectProxyReferenceFactory(recipes, collectedRecipes, reflectionLookup)
 				);
 				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity)
+					bestMatchingConstructor.constructorArguments(entity)
 				);
 			} else {
+				final String entityName = entity.getSchema().getName();
+				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
 				if (expectedType.isInterface()) {
-					final String entityName = sealedEntity.getSchema().getName();
-					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
-						proxyState
+						new SealedEntityProxyState(entity, expectedType, recipes, collectedRecipes, reflectionLookup)
 					);
 				} else if (isAbstract(expectedType)) {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+						expectedType, entity.getSchema(), reflectionLookup,
+						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),
+						new DirectProxyReferenceFactory(recipes, collectedRecipes, reflectionLookup)
 					);
-					final String entityName = sealedEntity.getSchema().getName();
-					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
-						proxyState,
+						new SealedEntityProxyState(entity, expectedType, recipes, collectedRecipes, reflectionLookup),
 						bestMatchingConstructor.constructor().getParameterTypes(),
-						bestMatchingConstructor.constructorArguments(sealedEntity)
+						bestMatchingConstructor.constructorArguments(entity)
 					);
 				} else {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+						expectedType, entity.getSchema(), reflectionLookup,
+						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),
+						new DirectProxyReferenceFactory(recipes, collectedRecipes, reflectionLookup)
 					);
 					return bestMatchingConstructor.constructor().newInstance(
-						bestMatchingConstructor.constructorArguments(sealedEntity)
+						bestMatchingConstructor.constructorArguments(entity)
 					);
 				}
 			}
@@ -174,52 +178,55 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 	/**
-	 * Creates a new proxy instance for passed {@link SealedEntity} and {@link ReferenceContract} instance.
+	 * Creates a new proxy instance for passed {@link EntityContract} and {@link ReferenceContract} instance.
 	 */
 	static <T> T createProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull SealedEntity sealedEntity,
+		@Nonnull EntityContract entity,
 		@Nonnull ReferenceContract reference,
-		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
+		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		try {
-			final SealedEntityReferenceProxyState proxyState = new SealedEntityReferenceProxyState(sealedEntity, reference, expectedType, recipes, collectedRecipes, reflectionLookup);
+			final Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator =
+				theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE);
 			if (expectedType.isRecord()) {
 				final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+					expectedType, entity.getSchema(), reference.getReferenceSchemaOrThrow(), reflectionLookup,
+					new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 				);
 				return bestMatchingConstructor.constructor().newInstance(
-					bestMatchingConstructor.constructorArguments(sealedEntity, reference)
+					bestMatchingConstructor.constructorArguments(entity, reference)
 				);
 			} else {
 				if (expectedType.isInterface()) {
-					final String entityName = sealedEntity.getSchema().getName();
+					final String entityName = entity.getSchema().getName();
 					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
-						proxyState
+						new SealedEntityReferenceProxyState(entity, reference, expectedType, recipes, collectedRecipes, reflectionLookup)
 					);
 				} else if (isAbstract(expectedType)) {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+						expectedType, entity.getSchema(), reference.getReferenceSchemaOrThrow(), reflectionLookup,
+						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
-					final String entityName = sealedEntity.getSchema().getName();
+					final String entityName = entity.getSchema().getName();
 					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
-						proxyState,
+						new SealedEntityReferenceProxyState(entity, reference, expectedType, recipes, collectedRecipes, reflectionLookup),
 						bestMatchingConstructor.constructor().getParameterTypes(),
-						bestMatchingConstructor.constructorArguments(sealedEntity, reference)
+						bestMatchingConstructor.constructorArguments(entity, reference)
 					);
 				} else {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, sealedEntity.getSchema(), reflectionLookup, proxyState
+						expectedType, entity.getSchema(), reference.getReferenceSchemaOrThrow(), reflectionLookup,
+						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
 					return bestMatchingConstructor.constructor().newInstance(
-						bestMatchingConstructor.constructorArguments(sealedEntity, reference)
+						bestMatchingConstructor.constructorArguments(entity, reference)
 					);
 				}
 			}
@@ -236,7 +243,8 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull SealedEntityProxyState proxyState
+		@Nonnull ProxyFactory proxyFactory,
+		@Nonnull ProxyReferenceFactory proxyReferenceFactory
 	) {
 		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName(), null);
 		if (ENTITY_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
@@ -249,52 +257,73 @@ public class ProxycianFactory implements ProxyFactory {
 				int score = 0;
 				final Parameter[] parameters = declaredConstructor.getParameters();
 				//noinspection unchecked
-				final ExceptionRethrowingFunction<SealedEntity, Object>[] argumentExtractors =
+				final ExceptionRethrowingFunction<EntityContract, Object>[] argumentExtractors =
 					new ExceptionRethrowingFunction[parameters.length];
 
 				for (int i = 0; i < parameters.length; i++) {
-					final ExceptionRethrowingFunction<SealedEntity, Object> pkFct = GetPrimaryKeyMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup);
+					final ExceptionRethrowingFunction<EntityContract, Object> pkFct =
+						GetPrimaryKeyMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i], reflectionLookup
+						);
 					if (pkFct != null) {
 						argumentExtractors[i] = pkFct;
 						score++;
 						continue;
 					}
-					final ExceptionRethrowingFunction<SealedEntity, Object> entityTypeFct = GetEntityTypeMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup);
+					final ExceptionRethrowingFunction<EntityContract, Object> entityTypeFct =
+						GetEntityTypeMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i], reflectionLookup
+						);
 					if (entityTypeFct != null) {
 						argumentExtractors[i] = entityTypeFct;
 						score++;
 						continue;
 					}
 
-					final ExceptionRethrowingFunction<SealedEntity, Object> attributeFct = GetAttributeMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, schema);
+					final ExceptionRethrowingFunction<EntityContract, Object> attributeFct =
+						GetAttributeMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i], reflectionLookup, schema
+						);
 					if (attributeFct != null) {
 						argumentExtractors[i] = attributeFct;
 						score++;
 						continue;
 					}
 
-					final ExceptionRethrowingFunction<SealedEntity, Object> priceFct = GetPriceMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, schema);
+					final ExceptionRethrowingFunction<EntityContract, Object> priceFct =
+						GetPriceMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i], reflectionLookup, schema
+						);
 					if (priceFct != null) {
 						argumentExtractors[i] = priceFct;
 						score++;
 						continue;
 					}
 
-					final ExceptionRethrowingFunction<SealedEntity, Object> parentFct = GetParentEntityMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, proxyState);
+					final ExceptionRethrowingFunction<EntityContract, Object> parentFct =
+						GetParentEntityMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i], reflectionLookup, proxyFactory
+						);
 					if (parentFct != null) {
 						argumentExtractors[i] = parentFct;
 						score++;
 						continue;
 					}
 
-					final ExceptionRethrowingFunction<SealedEntity, Object> referenceFct = GetReferenceMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, proxyState);
+					final ExceptionRethrowingFunction<EntityContract, Object> referenceFct =
+						GetReferenceMethodClassifier.getExtractorIfPossible(
+							schema, expectedType, parameters[i], reflectionLookup, proxyFactory, proxyReferenceFactory
+						);
 					if (referenceFct != null) {
 						argumentExtractors[i] = referenceFct;
 						score++;
 						continue;
 					}
 
-					final ExceptionRethrowingFunction<SealedEntity, Object> associatedDataFct = GetAssociatedDataMethodClassifier.getExtractorIfPossible(expectedType, parameters[i], reflectionLookup, schema);
+					final ExceptionRethrowingFunction<EntityContract, Object> associatedDataFct =
+						GetAssociatedDataMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i], reflectionLookup, schema
+						);
 					if (associatedDataFct != null) {
 						argumentExtractors[i] = associatedDataFct;
 						score++;
@@ -302,17 +331,18 @@ public class ProxycianFactory implements ProxyFactory {
 					}
 
 					argumentExtractors[i] = entity -> null;
+				}
 
-					if (score > bestConstructorScore) {
-						bestConstructorScore = score;
-						//noinspection unchecked
-						bestConstructor = new BestMatchingEntityConstructorWithExtractionLambda<>(
-							(Constructor<T>) declaredConstructor,
-							(argumentIndex, sealedEntity) -> argumentExtractors[argumentIndex].apply(sealedEntity)
-						);
-					}
+				if (score > bestConstructorScore) {
+					bestConstructorScore = score;
+					//noinspection unchecked
+					bestConstructor = new BestMatchingEntityConstructorWithExtractionLambda<>(
+						(Constructor<T>) declaredConstructor,
+						(argumentIndex, entity) -> argumentExtractors[argumentIndex].apply(entity)
+					);
 				}
 			}
+
 			if (bestConstructor == null) {
 				throw new EntityClassInvalidException(
 					expectedType,
@@ -332,26 +362,26 @@ public class ProxycianFactory implements ProxyFactory {
 	private static <T> BestMatchingReferenceConstructorWithExtractionLambda<T> findBestMatchingConstructor(
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntitySchemaContract schema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull SealedEntityReferenceProxyState proxyState
+		@Nonnull ProxyFactory proxyFactory
 	) {
 		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName(), null);
 		if (REFERENCE_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
 		} else {
-			final ReferenceSchemaContract referenceSchema = proxyState.getReferenceSchema();
 			int bestConstructorScore = Integer.MIN_VALUE;
 			BestMatchingReferenceConstructorWithExtractionLambda<T> bestConstructor = null;
 			for (Constructor<?> declaredConstructor : expectedType.getDeclaredConstructors()) {
 				int score = 0;
 				final Parameter[] parameters = declaredConstructor.getParameters();
 				//noinspection unchecked
-				final ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object>[] argumentExtractors =
+				final ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object>[] argumentExtractors =
 					new ExceptionRethrowingBiFunction[parameters.length];
 
 				for (int i = 0; i < parameters.length; i++) {
-					final ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> refEntityPkFct =
+					final ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> refEntityPkFct =
 						GetReferencedEntityPrimaryKeyMethodClassifier.getExtractorIfPossible(
 							expectedType, parameters[i], reflectionLookup
 						);
@@ -360,7 +390,7 @@ public class ProxycianFactory implements ProxyFactory {
 						score++;
 						continue;
 					}
-					final ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> refEntityGroupPkFct =
+					final ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> refEntityGroupPkFct =
 						GetReferencedGroupEntityPrimaryKeyMethodClassifier.getExtractorIfPossible(
 							expectedType, parameters[i], reflectionLookup
 						);
@@ -370,7 +400,7 @@ public class ProxycianFactory implements ProxyFactory {
 						continue;
 					}
 
-					final ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> attributeFct =
+					final ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> attributeFct =
 						GetReferenceAttributeMethodClassifier.getExtractorIfPossible(
 							expectedType, parameters[i], reflectionLookup, schema, referenceSchema
 						);
@@ -380,9 +410,9 @@ public class ProxycianFactory implements ProxyFactory {
 						continue;
 					}
 
-					final ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> referenceFct =
+					final ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> referenceFct =
 						GetReferencedEntityMethodClassifier.getExtractorIfPossible(
-							expectedType, parameters[i], reflectionLookup, referenceSchema, proxyState
+							expectedType, parameters[i], reflectionLookup, referenceSchema, proxyFactory
 						);
 					if (referenceFct != null) {
 						argumentExtractors[i] = referenceFct;
@@ -398,8 +428,8 @@ public class ProxycianFactory implements ProxyFactory {
 					//noinspection unchecked
 					bestConstructor = new BestMatchingReferenceConstructorWithExtractionLambda<>(
 						(Constructor<T>) declaredConstructor,
-						(argumentIndex, sealedEntity, reference) -> argumentExtractors[argumentIndex]
-							.apply(sealedEntity, reference)
+						(argumentIndex, EntityContract, reference) -> argumentExtractors[argumentIndex]
+							.apply(EntityContract, reference)
 					);
 				}
 			}
@@ -479,12 +509,9 @@ public class ProxycianFactory implements ProxyFactory {
 	@Override
 	public <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity
+		@Nonnull EntityContract entity
 	) {
-		return createProxy(
-			expectedType, recipes, collectedRecipes, sealedEntity, reflectionLookup,
-			theType -> collectedRecipes.computeIfAbsent(theType, DEFAULT_ENTITY_RECIPE)
-		);
+		return createProxy(expectedType, recipes, collectedRecipes, entity, reflectionLookup);
 	}
 
 	/**
@@ -496,18 +523,18 @@ public class ProxycianFactory implements ProxyFactory {
 	 */
 	private record BestMatchingEntityConstructorWithExtractionLambda<T>(
 		@Nonnull Constructor<T> constructor,
-		@Nonnull ExceptionRethrowingIntBiFunction<SealedEntity, Object> extractionLambda
+		@Nonnull ExceptionRethrowingIntBiFunction<EntityContract, Object> extractionLambda
 	) {
 
 		/**
 		 * Extracts constructor arguments from sealed entity for particular constructor method.
 		 */
 		@Nonnull
-		public Object[] constructorArguments(@Nonnull SealedEntity sealedEntity) throws Exception {
+		public Object[] constructorArguments(@Nonnull EntityContract entity) throws Exception {
 			final Class<?>[] parameterTypes = constructor.getParameterTypes();
 			final Object[] parameterArguments = new Object[parameterTypes.length];
 			for (int i = 0; i < parameterTypes.length; i++) {
-				parameterArguments[i] = extractionLambda.apply(i, sealedEntity);
+				parameterArguments[i] = extractionLambda.apply(i, entity);
 			}
 			return parameterArguments;
 		}
@@ -522,18 +549,18 @@ public class ProxycianFactory implements ProxyFactory {
 	 */
 	private record BestMatchingReferenceConstructorWithExtractionLambda<T>(
 		@Nonnull Constructor<T> constructor,
-		@Nonnull ExceptionRethrowingIntTriFunction<SealedEntity, ReferenceContract, Object> extractionLambda
+		@Nonnull ExceptionRethrowingIntTriFunction<EntityContract, ReferenceContract, Object> extractionLambda
 	) {
 
 		/**
 		 * Extracts constructor arguments from sealed entity for particular constructor method.
 		 */
 		@Nonnull
-		public Object[] constructorArguments(@Nonnull SealedEntity sealedEntity, @Nonnull ReferenceContract reference) throws Exception {
+		public Object[] constructorArguments(@Nonnull EntityContract EntityContract, @Nonnull ReferenceContract reference) throws Exception {
 			final Class<?>[] parameterTypes = constructor.getParameterTypes();
 			final Object[] parameterArguments = new Object[parameterTypes.length];
 			for (int i = 0; i < parameterTypes.length; i++) {
-				parameterArguments[i] = extractionLambda.apply(i, sealedEntity, reference);
+				parameterArguments[i] = extractionLambda.apply(i, EntityContract, reference);
 			}
 			return parameterArguments;
 		}
@@ -554,4 +581,36 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 
+	/**
+	 * Direct implementation of the {@link ProxyFactory} interface that uses the provided maps of recipes and avoids
+	 * going through {@link AbstractEntityProxyState}.
+	 */
+	private record DirectProxyFactory(
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull ReflectionLookup reflectionLookup
+	) implements ProxyFactory {
+
+		@Nonnull
+		@Override
+		public <T> T createEntityProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract EntityContract) throws EntityClassInvalidException {
+			return createProxy(expectedType, recipes, collectedRecipes, EntityContract, reflectionLookup);
+		}
+	}
+
+	/**
+	 * Direct implementation of the {@link ProxyReferenceFactory} interface that uses the provided maps of recipes and avoids
+	 * going through {@link AbstractEntityProxyState}.
+	 */
+	private record DirectProxyReferenceFactory(
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull ReflectionLookup reflectionLookup
+	) implements ProxyReferenceFactory {
+		@Nonnull
+		@Override
+		public <T> T createEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
+			return createProxy(expectedType, recipes, collectedRecipes, entity, reference, reflectionLookup);
+		}
+	}
 }

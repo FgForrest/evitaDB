@@ -27,6 +27,7 @@ import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
@@ -93,7 +94,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 	 * @return attribute name derived from the annotation if found
 	 */
 	@Nullable
-	public static <T> ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> getExtractorIfPossible(
+	public static <T> ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> getExtractorIfPossible(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -422,6 +423,9 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
 			final Set<Locale> locales = localePredicate.getLocales();
 			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+			@SuppressWarnings({"unchecked", "rawtypes"})
+			final Class requestedType = ofNullable(itemType.getComponentType())
+				.orElse((Class)itemType);
 
 			if (locale == null && locales != null && locales.isEmpty()) {
 				if (itemType.isArray()) {
@@ -437,7 +441,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 										(Class) itemType.getComponentType()
 									)
 								),
-								(Class) itemType.getComponentType(),
+								requestedType,
 								indexedDecimalPlaces
 							);
 						})
@@ -450,9 +454,6 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					);
 				}
 			} else if (locale != null) {
-				@SuppressWarnings({"unchecked", "rawtypes"})
-				final Class requestedType = ofNullable(itemType.getComponentType())
-					.orElse((Class)itemType);
 				// noinspection DataFlowIssue,unchecked
 				return toTargetType(
 					reference.getAttribute(
@@ -464,11 +465,11 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					indexedDecimalPlaces
 				);
 			} else {
-				// noinspection rawtypes,DataFlowIssue,unchecked
+				// noinspection DataFlowIssue,unchecked
 				return defaultValueProvider.apply(
 					toTargetType(
 						defaultValueProvider.apply(reference.getAttribute(attributeName)),
-						(Class) itemType.getComponentType(),
+						requestedType,
 						indexedDecimalPlaces
 					)
 				);

@@ -29,7 +29,7 @@ import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.AttributesContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
@@ -110,7 +110,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	 * @return attribute name derived from the annotation if found
 	 */
 	@Nullable
-	public static <T> ExceptionRethrowingFunction<SealedEntity, Object> getExtractorIfPossible(
+	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -129,15 +129,17 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 
 		if (attributeSchema != null) {
 			final String attributeName = attributeSchema.getName();
-			@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, itemType);
+			final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, itemType);
 			if (attributeSchema.isLocalized()) {
 				if (attributeSchema.getType().isArray()) {
 					if (parameterType.isArray()) {
-						return entity -> getLocalizedAttributeAsSingleValue(
-							entity, attributeName, parameterType,
-							attributeSchema.getIndexedDecimalPlaces(),
-							defaultValueProvider
-						);
+						if (attributeSchema.getType().isArray()) {
+							return entity -> getLocalizedAttributeAsSingleValue(
+								entity, attributeName, parameterType,
+								attributeSchema.getIndexedDecimalPlaces(),
+								defaultValueProvider
+							);
+						}
 					} else if (Set.class.equals(parameterType)) {
 						Assert.isTrue(resolvedTypes.length == 2, "Parameter `" + parameterName + "` in constructor class `" + expectedType + "` is expected to have a generic type!");
 						final Class<?> specificType = resolvedTypes[1];
@@ -290,7 +292,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
-		@Nonnull BiFunction<SealedEntity, String, Serializable> attributeExtractor,
+		@Nonnull BiFunction<EntityContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -300,7 +302,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			toTargetType(
-				defaultValueProvider.apply(attributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName)),
+				defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
 				itemType, indexedDecimalPlaces
 			)
 		);
@@ -315,7 +317,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
-		@Nonnull BiFunction<SealedEntity, String, Serializable> attributeExtractor,
+		@Nonnull BiFunction<EntityContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -326,7 +328,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -349,7 +351,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
-		@Nonnull BiFunction<SealedEntity, String, Serializable> attributeExtractor,
+		@Nonnull BiFunction<EntityContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -360,7 +362,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 			ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -378,22 +380,31 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
-		@Nonnull BiFunction<SealedEntity, String, Serializable> attributeExtractor,
-		@Nonnull TriFunction<SealedEntity, String, Locale, Serializable> localizedAttributeExtractor,
+		@Nonnull TriFunction<EntityContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName)),
-					itemType, indexedDecimalPlaces
-				)
-			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
+				final EntityContract sealedEntity = theState.getEntity();
+				final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
+				final Set<Locale> locales = localePredicate.getLocales();
+				final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+				if (locale != null) {
+					return resultWrapper.apply(
+						toTargetType(
+							defaultValueProvider.apply(localizedAttributeExtractor.apply(sealedEntity, cleanAttributeName, locale)),
+							itemType, indexedDecimalPlaces
+						)
+					);
+				} else {
+					return null;
+				}
+			} :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				toTargetType(
 					defaultValueProvider.apply(
-						localizedAttributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName, (Locale) args[0])
+						localizedAttributeExtractor.apply(theState.getEntity(), cleanAttributeName, (Locale) args[0])
 					),
 					itemType, indexedDecimalPlaces
 				)
@@ -409,33 +420,56 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
-		@Nonnull BiFunction<SealedEntity, String, Serializable> attributeExtractor,
-		@Nonnull TriFunction<SealedEntity, String, Locale, Serializable> localizedAttributeExtractor,
+		@Nonnull TriFunction<EntityContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				ofNullable(
-					toTargetType(
-						defaultValueProvider.apply(attributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName)),
-						itemType, indexedDecimalPlaces
-					)
-				)
-					.map(Object[].class::cast)
-					.map(it -> {
-						final Set<Object> result = CollectionUtils.createHashSet(it.length);
-						result.addAll(Arrays.asList(it));
-						return result;
-					})
-					.orElse(Collections.emptySet())
-			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
+				final EntityContract sealedEntity = theState.getEntity();
+				final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
+				final Set<Locale> locales = localePredicate.getLocales();
+				final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+				if (locale != null) {
+					return resultWrapper.apply(
+						ofNullable(
+							toTargetType(
+								defaultValueProvider.apply(localizedAttributeExtractor.apply(sealedEntity, cleanAttributeName, locale)),
+								itemType, indexedDecimalPlaces
+							)
+						)
+							.map(Object[].class::cast)
+							.map(it -> {
+								final Set<Object> result = CollectionUtils.createHashSet(it.length);
+								result.addAll(Arrays.asList(it));
+								return result;
+							})
+							.orElse(Collections.emptySet())
+					);
+				} else if (locales.isEmpty()) {
+					return sealedEntity.getLocales()
+						.stream()
+						.map(
+							theLocale -> resultWrapper.apply(
+								ofNullable(
+									toTargetType(
+										defaultValueProvider.apply(localizedAttributeExtractor.apply(sealedEntity, cleanAttributeName, theLocale)),
+										itemType, indexedDecimalPlaces
+									)
+								)
+							)
+						)
+						.toList();
+				} else {
+					return Collections.emptySet();
+				}
+			} :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getSealedEntity(), cleanAttributeName, (Locale) args[0]
+								theState.getEntity(), cleanAttributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces
@@ -460,28 +494,51 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Method method,
 		@Nonnull Class<? extends Serializable> itemType,
 		int indexedDecimalPlaces,
-		@Nonnull BiFunction<SealedEntity, String, Serializable> attributeExtractor,
-		@Nonnull TriFunction<SealedEntity, String, Locale, Serializable> localizedAttributeExtractor,
+		@Nonnull TriFunction<EntityContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				ofNullable(
-					toTargetType(
-						defaultValueProvider.apply(attributeExtractor.apply(theState.getSealedEntity(), cleanAttributeName)),
-						itemType, indexedDecimalPlaces
-					)
-				)
-					.map(it -> List.of((Object[]) it))
-					.orElse(Collections.emptyList())
-			) :
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
+				final EntityContract sealedEntity = theState.getEntity();
+				final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
+				final Set<Locale> locales = localePredicate.getLocales();
+				final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+				if (locale != null) {
+					return resultWrapper.apply(
+						ofNullable(
+							toTargetType(
+								defaultValueProvider.apply(localizedAttributeExtractor.apply(sealedEntity, cleanAttributeName, locale)),
+								itemType, indexedDecimalPlaces
+							)
+						)
+							.map(it -> List.of((Object[]) it))
+							.orElse(Collections.emptyList())
+					);
+				} else if (locales.isEmpty()) {
+					return sealedEntity.getLocales()
+						.stream()
+						.map(
+							theLocale -> resultWrapper.apply(
+								ofNullable(
+									toTargetType(
+										defaultValueProvider.apply(localizedAttributeExtractor.apply(sealedEntity, cleanAttributeName, theLocale)),
+										itemType, indexedDecimalPlaces
+									)
+								)
+							)
+						)
+						.toList();
+				} else {
+					return Collections.emptyList();
+				}
+			} :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
 				ofNullable(
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getSealedEntity(), cleanAttributeName, (Locale) args[0]
+								theState.getEntity(), cleanAttributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces
@@ -495,7 +552,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	@SuppressWarnings("rawtypes")
 	@Nullable
 	private static Serializable getAttributeAsSingleValue(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		int indexedDecimalPlaces,
@@ -521,57 +578,53 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	@SuppressWarnings("rawtypes")
 	@Nullable
 	private static Serializable getLocalizedAttributeAsSingleValue(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		if (entity.attributeAvailable(attributeName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-			if (locale == null && locales != null && locales.isEmpty()) {
-				if (parameterType.isArray()) {
-					return entity.getAttributeLocales()
-						.stream()
-						.map(it -> {
-							//noinspection DataFlowIssue,unchecked
-							return EvitaDataTypes.toTargetType(
-								defaultValueProvider.apply(
-									entity.getAttribute(
-										attributeName,
-										locale,
-										parameterType.getComponentType()
-									)
-								),
-								parameterType.getComponentType(),
-								indexedDecimalPlaces
-							);
-						})
-						.toArray(count -> (Serializable[]) Array.newInstance(parameterType.getComponentType(), count));
-				} else {
-					throw new EvitaInvalidUsageException(
-						"Cannot initialize attribute `" + attributeName + "` in a constructor as a single value since " +
-							"it could localized to multiple locales and no locale was requested when fetching the entity!"
-					);
-				}
-			} else if (locale != null) {
-				//noinspection unchecked
-				return EvitaDataTypes.toTargetType(
-					defaultValueProvider.apply(
-						entity.getAttribute(
-							attributeName,
-							locale,
-							parameterType
-						)
-					),
-					parameterType,
-					indexedDecimalPlaces
-				);
+		final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+		final Set<Locale> locales = localePredicate.getLocales();
+		final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+		if (locale == null && locales != null && locales.isEmpty() && entity.attributeAvailable(attributeName)) {
+			if (parameterType.isArray()) {
+				return entity.getAttributeLocales()
+					.stream()
+					.map(it -> {
+						//noinspection DataFlowIssue,unchecked
+						return EvitaDataTypes.toTargetType(
+							defaultValueProvider.apply(
+								entity.getAttribute(
+									attributeName,
+									locale,
+									parameterType.getComponentType()
+								)
+							),
+							parameterType.getComponentType(),
+							indexedDecimalPlaces
+						);
+					})
+					.toArray(count -> (Serializable[]) Array.newInstance(parameterType.getComponentType(), count));
 			} else {
-				return null;
+				throw new EvitaInvalidUsageException(
+					"Cannot initialize attribute `" + attributeName + "` in a constructor as a single value since " +
+						"it could localized to multiple locales and no locale was requested when fetching the entity!"
+				);
 			}
+		} else if (locale != null && entity.attributeAvailable(attributeName, locale)) {
+			//noinspection unchecked
+			return toTargetType(
+				defaultValueProvider.apply(
+					entity.getAttribute(
+						attributeName,
+						locale,
+						parameterType
+					)
+				),
+				parameterType,
+				indexedDecimalPlaces
+			);
 		} else {
 			return null;
 		}
@@ -580,55 +633,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Set<?> getAttributeAsSet(
-		@Nonnull SealedEntity entity,
-		@Nonnull String attributeName,
-		@Nonnull Class parameterType,
-		int indexedDecimalPlaces,
-		@Nonnull UnaryOperator<Serializable> defaultValueProvider
-	) {
-		if (entity.attributeAvailable(attributeName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-
-			final Serializable[] value;
-			if (locale == null && locales != null && locales.isEmpty()) {
-				throw new EvitaInvalidUsageException(
-					"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
-						"it could localized to multiple locales and it's expected to be an array data type. " +
-						"When no locale was requested when fetching the entity, it would require concatenating " +
-						"multiple arrays and losing the information about the associated locale!"
-				);
-			} else if (locale != null) {
-				value = (Serializable[]) defaultValueProvider.apply(
-					entity.getAttribute(
-						attributeName,
-						locale,
-						parameterType
-					)
-				);
-			} else {
-				return Collections.emptySet();
-			}
-
-			return Arrays.stream(value)
-				.map(
-					theValue -> EvitaDataTypes.toTargetType(
-						theValue,
-						parameterType,
-						indexedDecimalPlaces
-					)
-				)
-				.collect(Collectors.toSet());
-		} else {
-			return null;
-		}
-	}
-
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nullable
-	private static Set<?> getLocalizedAttributeAsSet(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		int indexedDecimalPlaces,
@@ -657,8 +662,52 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
+	private static Set<?> getLocalizedAttributeAsSet(
+		@Nonnull EntityContract entity,
+		@Nonnull String attributeName,
+		@Nonnull Class parameterType,
+		int indexedDecimalPlaces,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider
+	) {
+		final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+		final Set<Locale> locales = localePredicate.getLocales();
+		final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+
+		final Serializable[] value;
+		if (locale == null && locales != null && locales.isEmpty() && entity.attributeAvailable(attributeName)) {
+			throw new EvitaInvalidUsageException(
+				"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
+					"it could localized to multiple locales and it's expected to be an array data type. " +
+					"When no locale was requested when fetching the entity, it would require concatenating " +
+					"multiple arrays and losing the information about the associated locale!"
+			);
+		} else if (locale != null && entity.attributeAvailable(attributeName, locale)) {
+			value = (Serializable[]) defaultValueProvider.apply(
+				entity.getAttribute(
+					attributeName,
+					locale,
+					parameterType
+				)
+			);
+		} else {
+			return Collections.emptySet();
+		}
+
+		return Arrays.stream(value)
+			.map(
+				theValue -> EvitaDataTypes.toTargetType(
+					theValue,
+					parameterType,
+					indexedDecimalPlaces
+				)
+			)
+			.collect(Collectors.toSet());
+	}
+
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nullable
 	private static List<?> getAttributeAsList(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		int indexedDecimalPlaces,
@@ -688,55 +737,51 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static List<?> getLocalizedAttributeAsList(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		int indexedDecimalPlaces,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		if (entity.attributeAvailable(attributeName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+		final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+		final Set<Locale> locales = localePredicate.getLocales();
+		final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
 
-			final Serializable[] value;
-			if (locale == null && locales != null && locales.isEmpty()) {
-				throw new EvitaInvalidUsageException(
-					"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
-						"it could localized to multiple locales and it's expected to be an array data type. " +
-						"When no locale was requested when fetching the entity, it would require concatenating " +
-						"multiple arrays and losing the information about the associated locale!"
-				);
-			} else if (locale != null) {
-				value = (Serializable[]) defaultValueProvider.apply(
-					entity.getAttribute(
-						attributeName,
-						locale,
-						parameterType
-					)
-				);
-			} else {
-				return Collections.emptyList();
-			}
-
-			return Arrays.stream(value)
-				.map(
-					theValue -> EvitaDataTypes.toTargetType(
-						theValue,
-						parameterType,
-						indexedDecimalPlaces
-					)
+		final Serializable[] value;
+		if (locale == null && locales != null && locales.isEmpty() && entity.attributeAvailable(attributeName)) {
+			throw new EvitaInvalidUsageException(
+				"Cannot initialize attribute `" + attributeName + "` in a constructor as a set since " +
+					"it could localized to multiple locales and it's expected to be an array data type. " +
+					"When no locale was requested when fetching the entity, it would require concatenating " +
+					"multiple arrays and losing the information about the associated locale!"
+			);
+		} else if (locale != null && entity.attributeAvailable(attributeName, locale)) {
+			value = (Serializable[]) defaultValueProvider.apply(
+				entity.getAttribute(
+					attributeName,
+					locale,
+					parameterType
 				)
-				.toList();
+			);
 		} else {
-			return null;
+			return Collections.emptyList();
 		}
+
+		return Arrays.stream(value)
+			.map(
+				theValue -> EvitaDataTypes.toTargetType(
+					theValue,
+					parameterType,
+					indexedDecimalPlaces
+				)
+			)
+			.toList();
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Enum<?> getAttributeAsAnEnum(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
@@ -760,35 +805,31 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Enum<?> getLocalizedAttributeAsAnEnum(
-		@Nonnull SealedEntity entity,
+		@Nonnull EntityContract entity,
 		@Nonnull String attributeName,
 		@Nonnull Class parameterType,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider
 	) {
-		if (entity.attributeAvailable(attributeName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-			if (locale == null && locales != null && locales.isEmpty()) {
-				throw new EvitaInvalidUsageException(
-					"Cannot initialize attribute `" + attributeName + "` in a constructor as a single enum value since " +
-						"it could localized to multiple locales and no locale was requested when fetching the entity!"
-				);
-			} else if (locale != null) {
-				//noinspection unchecked
-				return Enum.valueOf(
-					parameterType,
-					(String) defaultValueProvider.apply(
-						entity.getAttribute(
-							attributeName,
-							locale,
-							String.class
-						)
+		final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
+		final Set<Locale> locales = localePredicate.getLocales();
+		final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
+		if (locale == null && locales != null && locales.isEmpty() && entity.attributeAvailable(attributeName)) {
+			throw new EvitaInvalidUsageException(
+				"Cannot initialize attribute `" + attributeName + "` in a constructor as a single enum value since " +
+					"it could localized to multiple locales and no locale was requested when fetching the entity!"
+			);
+		} else if (locale != null && entity.attributeAvailable(attributeName, locale)) {
+			//noinspection unchecked
+			return Enum.valueOf(
+				parameterType,
+				(String) defaultValueProvider.apply(
+					entity.getAttribute(
+						attributeName,
+						locale,
+						String.class
 					)
-				);
-			} else {
-				return null;
-			}
+				)
+			);
 		} else {
 			return null;
 		}
@@ -852,14 +893,9 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 						}
 					}
 
-					final BiFunction<SealedEntity, String, Serializable> attributeExtractor =
-						resultWrapper instanceof OptionalProducingOperator ?
-							(entity, attributeName) -> entity.attributeAvailable(attributeName) ? entity.getAttribute(attributeName) : null :
-							AttributesContract::getAttribute;
-
 					if (attributeSchema.isLocalized()) {
 
-						final TriFunction<SealedEntity, String, Locale, Serializable> localizedAttributeExtractor =
+						final TriFunction<EntityContract, String, Locale, Serializable> localizedAttributeExtractor =
 							resultWrapper instanceof OptionalProducingOperator ?
 								(entity, attributeName, locale) -> entity.attributeAvailable(attributeName, locale) ? entity.getAttribute(attributeName, locale) : null :
 								AttributesContract::getAttribute;
@@ -868,19 +904,19 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 							//noinspection unchecked
 							return setOfLocalizedResults(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								attributeExtractor, localizedAttributeExtractor, defaultValueProvider, resultWrapper
+								localizedAttributeExtractor, defaultValueProvider, resultWrapper
 							);
 						} else if (collectionType != null) {
 							//noinspection unchecked
 							return listOfLocalizedResults(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								attributeExtractor, localizedAttributeExtractor, defaultValueProvider, resultWrapper
+								localizedAttributeExtractor, defaultValueProvider, resultWrapper
 							);
 						} else {
 							//noinspection unchecked
 							return singleLocalizedResult(
 								cleanAttributeName, method, itemType, indexedDecimalPlaces,
-								attributeExtractor, localizedAttributeExtractor, defaultValueProvider, resultWrapper
+								localizedAttributeExtractor, defaultValueProvider, resultWrapper
 							);
 						}
 					} else {
@@ -888,6 +924,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 							method.getParameterCount() == 0,
 							"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
 						);
+
+						final BiFunction<EntityContract, String, Serializable> attributeExtractor =
+							resultWrapper instanceof OptionalProducingOperator ?
+								(entity, attributeName) -> entity.attributeAvailable(attributeName) ? entity.getAttribute(attributeName) : null :
+								AttributesContract::getAttribute;
 
 						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
 							//noinspection unchecked

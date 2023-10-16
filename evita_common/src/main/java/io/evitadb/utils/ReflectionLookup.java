@@ -566,8 +566,10 @@ public class ReflectionLookup {
 	public <T extends Annotation> T getAnnotationInstanceForProperty(@Nonnull Method method, @Nonnull Class<T> annotationType) {
 		return ofNullable(getAnnotationInstance(method, annotationType))
 			.orElseGet(() -> {
-				final String propertyName = getPropertyNameFromMethodName(method.getName());
-				return getAnnotationInstanceForProperty(method.getDeclaringClass(), propertyName, annotationType);
+				final Optional<String> propertyName = getPropertyNameFromMethodNameIfPossible(method.getName());
+				return propertyName
+					.map(it -> getAnnotationInstanceForProperty(method.getDeclaringClass(), it, annotationType))
+					.orElse(null);
 			});
 	}
 

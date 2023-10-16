@@ -28,9 +28,9 @@ import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
@@ -85,7 +85,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	 * @return attribute name derived from the annotation if found
 	 */
 	@Nullable
-	public static <T> ExceptionRethrowingFunction<SealedEntity, Object> getExtractorIfPossible(
+	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -130,13 +130,13 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		} else if (priceInstance != null) {
 			if (priceList == null) {
 				if (PriceContract.class.equals(parameterType)) {
-					return entity -> entity.getPrices().stream().findFirst().orElse(null);
+					return entity -> entity.pricesAvailable() ? entity.getPrices().stream().findFirst().orElse(null) : null;
 				} else if (parameterType.isArray()) {
-					return entity -> entity.getPrices().toArray(PriceContract[]::new);
+					return entity -> entity.pricesAvailable() ? entity.getPrices().toArray(PriceContract[]::new) : null;
 				} else if (Set.class.equals(parameterType)) {
-					return entity -> entity.getPrices().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+					return entity -> entity.pricesAvailable() ? entity.getPrices().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) : Collections.emptySet();
 				} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
-					return PricesContract::getPrices;
+					return entity -> entity.pricesAvailable() ? entity.getPrices() : Collections.emptyList();
 				} else {
 					throw new EntityClassInvalidException(
 						expectedType,
@@ -146,13 +146,13 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 			} else {
 				if (PriceContract.class.equals(parameterType)) {
-					return entity -> entity.getPrices(priceList).stream().findFirst().orElse(null);
+					return entity -> entity.pricesAvailable() ? entity.getPrices(priceList).stream().findFirst().orElse(null) : null;
 				} else if (parameterType.isArray()) {
-					return entity -> entity.getPrices(priceList).toArray(PriceContract[]::new);
+					return entity -> entity.pricesAvailable() ? entity.getPrices(priceList).toArray(PriceContract[]::new) : null;
 				} else if (Set.class.equals(parameterType)) {
-					return entity -> entity.getPrices(priceList).stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet());
+					return entity -> entity.pricesAvailable() ? entity.getPrices(priceList).stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) : Collections.emptySet();
 				} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
-					return entity -> entity.getPrices(priceList);
+					return entity -> entity.pricesAvailable() ? entity.getPrices(priceList) : Collections.emptyList();
 				} else {
 					throw new EntityClassInvalidException(
 						expectedType,
@@ -307,12 +307,12 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singlePriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
-		@Nonnull Function<SealedEntity, PriceContract> priceForSaleSupplier,
+		@Nonnull Function<EntityContract, PriceContract> priceForSaleSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				priceForSaleSupplier.apply(theState.getSealedEntity())
+				priceForSaleSupplier.apply(theState.getEntity())
 			);
 		} else {
 			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
@@ -327,7 +327,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					.map(it -> (OffsetDateTime) it.apply(args))
 					.orElse(null);
 				return resultWrapper.apply(
-					theState.getSealedEntity()
+					theState.getEntity()
 						.getPriceForSale(currency, moment, priceLists)
 						.orElse(null)
 				);
@@ -343,18 +343,18 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfPriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceForSaleSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceForSaleSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
-				resultWrapper.apply(theState.getSealedEntity().getAllPricesForSale());
+				resultWrapper.apply(theState.getEntity().getAllPricesForSale());
 		} else {
 			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> pricePredicate = getPriceContractPredicate(argumentFetchers, args);
 
-				final Collection<PriceContract> allPricesForSale = priceForSaleSupplier.apply(theState.getSealedEntity());
+				final Collection<PriceContract> allPricesForSale = priceForSaleSupplier.apply(theState.getEntity());
 				return resultWrapper.apply(
 					pricePredicate == null ?
 						allPricesForSale :
@@ -372,13 +372,13 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfPriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceForSaleSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceForSaleSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.apply(
-					theState.getSealedEntity()
+					theState.getEntity()
 						.getAllPricesForSale()
 						.stream()
 						.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
@@ -388,7 +388,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> pricePredicate = getPriceContractPredicate(argumentFetchers, args);
 
-				final Collection<PriceContract> allPricesForSale = priceForSaleSupplier.apply(theState.getSealedEntity());
+				final Collection<PriceContract> allPricesForSale = priceForSaleSupplier.apply(theState.getEntity());
 				return resultWrapper.apply(
 					pricePredicate == null ?
 						allPricesForSale.stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) :
@@ -406,13 +406,13 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfPriceForSaleResult(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceForSaleSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceForSaleSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.apply(
-					theState.getSealedEntity()
+					theState.getEntity()
 						.getAllPricesForSale()
 						.toArray(PriceContract[]::new)
 				);
@@ -421,7 +421,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> pricePredicate = getPriceContractPredicate(argumentFetchers, args);
 
-				final Collection<PriceContract> allPricesForSale = priceForSaleSupplier.apply(theState.getSealedEntity());
+				final Collection<PriceContract> allPricesForSale = priceForSaleSupplier.apply(theState.getEntity());
 				return resultWrapper.apply(
 					pricePredicate == null ?
 						allPricesForSale.toArray(PriceContract[]::new) :
@@ -440,12 +440,12 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final List<PriceContract> prices = priceSupplier.apply(theState.getSealedEntity())
+				final List<PriceContract> prices = priceSupplier.apply(theState.getEntity())
 					.stream()
 					.filter(it -> priceList.equals(it.priceList()))
 					.limit(2)
@@ -456,7 +456,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					return resultWrapper.apply(prices.get(0));
 				} else {
 					throw new UnexpectedResultCountException(
-						(int) theState.getSealedEntity()
+						(int) theState.getEntity()
 							.getPrices()
 							.stream()
 							.filter(it -> priceList.equals(it.priceList()))
@@ -474,7 +474,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
 					.orElse(argumentPredicate);
-				final Collection<PriceContract> allPrices = priceSupplier.apply(theState.getSealedEntity());
+				final Collection<PriceContract> allPrices = priceSupplier.apply(theState.getEntity());
 
 				final List<PriceContract> matchingPrices = pricePredicate == null ?
 					(allPrices instanceof List<PriceContract> allPricesAsList ? allPricesAsList : allPrices.stream().toList()) :
@@ -504,17 +504,17 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-					priceSupplier.apply(theState.getSealedEntity())
+					priceSupplier.apply(theState.getEntity())
 				);
 			} else {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-					priceSupplier.apply(theState.getSealedEntity())
+					priceSupplier.apply(theState.getEntity())
 						.stream()
 						.filter(it -> priceList.equals(it.priceList()))
 						.toList()
@@ -531,7 +531,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					})
 					.orElse(argumentPredicate);
 
-				final Collection<PriceContract> allPrices = priceSupplier.apply(theState.getSealedEntity());
+				final Collection<PriceContract> allPrices = priceSupplier.apply(theState.getEntity());
 				return resultWrapper.apply(
 					pricePredicate == null ?
 						(allPrices instanceof List<PriceContract> allPricesAsList ? allPricesAsList : allPrices.stream().toList()) :
@@ -550,20 +550,20 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 					resultWrapper.apply(
-						priceSupplier.apply(theState.getSealedEntity())
+						priceSupplier.apply(theState.getEntity())
 							.stream()
 							.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
 					);
 			} else {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-					priceSupplier.apply(theState.getSealedEntity())
+					priceSupplier.apply(theState.getEntity())
 						.stream()
 						.filter(it -> priceList.equals(it.priceList()))
 						.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
@@ -579,7 +579,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						return argumentPredicate == null ? basePredicate : basePredicate.and(argumentPredicate);
 					})
 					.orElse(argumentPredicate);
-				final Collection<PriceContract> allPrices = theState.getSealedEntity().getPrices();
+				final Collection<PriceContract> allPrices = theState.getEntity().getPrices();
 
 				return resultWrapper.apply(
 					pricePredicate == null ?
@@ -599,18 +599,18 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Method method,
 		@Nullable String priceList,
-		@Nonnull Function<SealedEntity, Collection<PriceContract>> priceSupplier,
+		@Nonnull Function<EntityContract, Collection<PriceContract>> priceSupplier,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (method.getParameterCount() == 0) {
 			if (priceList == null) {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-					priceSupplier.apply(theState.getSealedEntity())
+					priceSupplier.apply(theState.getEntity())
 						.toArray(PriceContract[]::new)
 				);
 			} else {
 				return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-					priceSupplier.apply(theState.getSealedEntity())
+					priceSupplier.apply(theState.getEntity())
 						.stream()
 						.filter(it -> priceList.equals(it.priceList()))
 						.toArray(PriceContract[]::new)
@@ -627,7 +627,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					})
 					.orElse(argumentPredicate);
 
-				final Collection<PriceContract> allPrices = priceSupplier.apply(theState.getSealedEntity());
+				final Collection<PriceContract> allPrices = priceSupplier.apply(theState.getEntity());
 				return resultWrapper.apply(
 					pricePredicate == null ?
 						allPrices.toArray(PriceContract[]::new) :
@@ -695,7 +695,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							resultWrapper
 						);
 					} else {
-						final Function<SealedEntity, Collection<PriceContract>> priceForSaleSupplier =
+						final Function<EntityContract, Collection<PriceContract>> priceForSaleSupplier =
 							resultWrapper instanceof OptionalProducingOperator ?
 								sealedEntity -> sealedEntity.pricesAvailable() && sealedEntity.isPriceForSaleContextAvailable() ?
 									sealedEntity.getAllPricesForSale() : Collections.emptyList() :
@@ -714,7 +714,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 					final String priceList = price.priceList().isBlank() ?
 						null : price.priceList();
 
-					final Function<SealedEntity, Collection<PriceContract>> priceSupplier =
+					final Function<EntityContract, Collection<PriceContract>> priceSupplier =
 						resultWrapper instanceof OptionalProducingOperator ?
 							sealedEntity -> sealedEntity.pricesAvailable() ?
 								sealedEntity.getPrices() : Collections.emptyList() :

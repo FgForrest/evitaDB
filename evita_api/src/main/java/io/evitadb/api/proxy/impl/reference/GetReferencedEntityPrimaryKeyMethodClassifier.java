@@ -25,8 +25,8 @@ package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
@@ -64,7 +64,7 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 	 * @return attribute name derived from the annotation if found
 	 */
 	@Nullable
-	public static <T> ExceptionRethrowingBiFunction<SealedEntity, ReferenceContract, Object> getExtractorIfPossible(
+	public static <T> ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> getExtractorIfPossible(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup
@@ -76,7 +76,7 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 		if (Number.class.isAssignableFrom(toWrappedForm(parameterType)) && referencedEntity != null || (
 			PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName))) {
 			//noinspection unchecked,rawtypes
-			return (reference, sealedEntity) -> toTargetType(reference.getPrimaryKey(), (Class)parameterType);
+			return (sealedEntity, reference) -> toTargetType(reference.getReferencedPrimaryKey(), (Class)parameterType);
 		} else {
 			return null;
 		}

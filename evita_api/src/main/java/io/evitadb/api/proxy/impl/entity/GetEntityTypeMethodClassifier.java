@@ -25,7 +25,7 @@ package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -57,7 +57,7 @@ public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Ob
 	 * @param reflectionLookup reflection lookup
 	 * @return attribute name derived from the annotation if found
 	 */
-	public static <T> ExceptionRethrowingFunction<SealedEntity, Object> getExtractorIfPossible(
+	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup
@@ -67,8 +67,15 @@ public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Ob
 		final Entity entity = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Entity.class);
 		final EntityRef entityRef = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, EntityRef.class);
 		if (entity != null || entityRef != null ||
-			(EntityRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName) && String.class.isAssignableFrom(parameterType))) {
-			return EntityClassifier::getType;
+			(EntityRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName))) {
+			if (String.class.isAssignableFrom(parameterType)) {
+				return EntityClassifier::getType;
+			} else if (parameterType.isEnum()) {
+				//noinspection unchecked,rawtypes
+				return (sealedEntity) -> Enum.valueOf((Class)parameterType, sealedEntity.getType());
+			} else {
+				return null;
+			}
 		} else {
 			return null;
 		}
