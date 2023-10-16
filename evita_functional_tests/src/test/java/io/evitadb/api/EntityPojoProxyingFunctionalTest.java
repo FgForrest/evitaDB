@@ -27,6 +27,7 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.AbstractCategoryPojo;
 import io.evitadb.api.mock.AbstractProductCategoryPojo;
 import io.evitadb.api.mock.AbstractProductPojo;
+import io.evitadb.api.mock.ProductPojo;
 import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
@@ -49,12 +50,14 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -73,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
+public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
 
 	private static void assertCategories(
 		@Nonnull Stream<AbstractCategoryPojo> categoryReferences,
@@ -317,7 +320,10 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		// methods with different name are intercepted based on @Attribute annotation
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_EAN), product.getEanAsDifferentProperty());
 
-		final Optional<Object> optionallyAvailable = ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
+		assertEquals(
+			ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY)),
+			ofNullable(product.getAvailable())
+		);
 
 		assertArrayEquals(
 			originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class),
@@ -378,22 +384,43 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		}
 	}
 
+	protected static Stream<Arguments> testedPojoClasses() {
+		return Stream.of(
+			Arguments.of(AbstractProductPojo.class),
+			Arguments.of(ProductPojo.class)
+		);
+	}
+
+	protected static Stream<Arguments> returnRandomSeedAndTestPojoClasses() {
+		final Random random = new Random();
+		final Class<?>[] pojoClasses = new Class[] {
+			AbstractProductPojo.class,
+			ProductPojo.class
+		};
+		return LongStream.generate(random::nextLong).limit(50)
+			.mapToObj(it -> {
+				final int index = Math.abs((int) (it % 2));
+				return Arguments.of(pojoClasses[index], it);
+			});
+	}
+
 	@DisplayName("Should return entity schema directly or via model class")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
+	void shouldReturnEntitySchema(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
 		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchema(AbstractProductPojo.class));
+		assertNotNull(evitaSession.getEntitySchema(theClass));
 		assertEquals(
 			evitaSession.getEntitySchema(Entities.PRODUCT),
-			evitaSession.getEntitySchema(AbstractProductPojo.class)
+			evitaSession.getEntitySchema(theClass)
 		);
 
 		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(AbstractProductPojo.class));
+		assertNotNull(evitaSession.getEntitySchemaOrThrow(theClass));
 		assertEquals(
 			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrow(AbstractProductPojo.class)
+			evitaSession.getEntitySchemaOrThrow(theClass)
 		);
 	}
 
@@ -410,9 +437,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should get custom entity model instance")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void getCustomEntity(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -438,7 +467,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.orElseThrow();
 
 		final AbstractProductPojo proxiedEntity = evitaSession.getEntity(
-			AbstractProductPojo.class, theProduct.getPrimaryKey(),
+			theClass, theProduct.getPrimaryKey(),
 			hierarchyContent(),
 			attributeContentAll(),
 			associatedDataContentAll(),
@@ -448,7 +477,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		).orElse(null);
 
 		verifyAllFieldsAreSet(
-			proxiedEntity, AbstractProductPojo.class,
+			proxiedEntity, theClass,
 			"priceForSale", "allPricesForSale"
 		);
 
@@ -462,9 +491,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should enrich custom entity model instance")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void enrichCustomEntity(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -476,7 +507,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.orElseThrow();
 
 		final AbstractProductPojo partiallyLoadedEntity = evitaSession
-			.getEntity(AbstractProductPojo.class, 1)
+			.getEntity(theClass, 1)
 			.orElse(null);
 
 		assertProduct(
@@ -497,9 +528,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should limit custom entity model instance")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void limitCustomEntity(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts
 	) {
@@ -511,7 +544,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 
 		final AbstractProductPojo partiallyLoadedEntity = evitaSession
 			.getEntity(
-				AbstractProductPojo.class, 1,
+				theClass, 1,
 				hierarchyContent(),
 				attributeContentAll(),
 				associatedDataContentAll(),
@@ -534,9 +567,10 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should return entity reference")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void queryOneEntityReference(EvitaSessionContract evitaSession) {
+	void queryOneEntityReference(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
@@ -569,8 +603,9 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	@DisplayName("Should return custom entity model instance")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@ParameterizedTest
-	@MethodSource("returnRandomSeed")
+	@MethodSource("returnRandomSeedAndTestPojoClasses")
 	void queryOneRandomizedEntity(
+		Class<? extends AbstractProductPojo> theClass,
 		long seed,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -606,16 +641,18 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 		System.out.println("PK: " + primaryKey);
 		assertProduct(
 			theProduct,
-			evitaSession.queryOne(query, AbstractProductPojo.class).orElse(null),
+			evitaSession.queryOne(query, theClass).orElse(null),
 			originalCategories,
 			Locale.ENGLISH, false
 		);
 	}
 
 	@DisplayName("Should return custom entity model instance")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryOneCustomEntity(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -643,16 +680,17 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 
 		assertProduct(
 			theProduct,
-			evitaSession.queryOne(query, AbstractProductPojo.class).orElse(null),
+			evitaSession.queryOne(query, theClass).orElse(null),
 			originalCategories,
 			Locale.ENGLISH, false
 		);
 	}
 
 	@DisplayName("Should return same proxy instances for repeated calls")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldReturnSameInstancesForRepeatedCalls(EvitaSessionContract evitaSession) {
+	void shouldReturnSameInstancesForRepeatedCalls(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1)),
@@ -668,7 +706,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			)
 		);
 
-		final AbstractProductPojo product = evitaSession.queryOne(query, AbstractProductPojo.class)
+		final AbstractProductPojo product = evitaSession.queryOne(query, theClass)
 			.orElseThrow();
 
 		for (int i = 0; i < 2; i++) {
@@ -695,9 +733,10 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should return list of entity references")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void queryListOfEntityReference(EvitaSessionContract evitaSession) {
+	void queryListOfEntityReference(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
@@ -721,9 +760,10 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should return list of sealed entities")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void queryListOfSealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+	void queryListOfSealedEntities(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1, 2)),
@@ -739,9 +779,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should return list of custom entity model instances")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryListOfCustomEntities(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -766,7 +808,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
 			.toList();
 
-		final List<AbstractProductPojo> products = evitaSession.queryList(query, AbstractProductPojo.class);
+		final List<? extends AbstractProductPojo> products = evitaSession.queryList(query, theClass);
 		for (int i = 0; i < theProducts.size(); i++) {
 			final SealedEntity expectedProduct = theProducts.get(i);
 			final AbstractProductPojo actualProduct = products.get(i);
@@ -806,9 +848,10 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should query sealed entities")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void querySealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+	void querySealedEntities(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1, 2)),
@@ -824,9 +867,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should query custom entity model instances")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryCustomEntities(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -851,7 +896,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
 			.toList();
 
-		final List<AbstractProductPojo> products = evitaSession.query(query, AbstractProductPojo.class).getRecordData();
+		final List<? extends AbstractProductPojo> products = evitaSession.query(query, theClass).getRecordData();
 		for (int i = 0; i < theProducts.size(); i++) {
 			final SealedEntity expectedProduct = theProducts.get(i);
 			final AbstractProductPojo actualProduct = products.get(i);
@@ -865,9 +910,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should wrap an pojo and load data in single localization")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldProxyToPojoWithCzechLocalization(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -879,7 +926,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.findFirst()
 			.orElseThrow();
 
-		final Optional<AbstractProductPojo> productRef = evitaSession.queryOne(
+		final Optional<? extends AbstractProductPojo> productRef = evitaSession.queryOne(
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
@@ -907,7 +954,7 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 					)
 				)
 			),
-			AbstractProductPojo.class
+			theClass
 		);
 
 		assertProduct(
@@ -920,9 +967,11 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 	}
 
 	@DisplayName("Should wrap an pojo and load all data")
-	@Test
+	@ParameterizedTest
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldProxyToPojo(
+		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -934,8 +983,8 @@ public class EntityAbstractPojoProxyingFunctionalTest extends AbstractEntityProx
 			.findFirst()
 			.orElseThrow();
 
-		final Optional<AbstractProductPojo> productRef = evitaSession.getEntity(
-			AbstractProductPojo.class,
+		final Optional<? extends AbstractProductPojo> productRef = evitaSession.getEntity(
+			theClass,
 			theProduct.getPrimaryKey(),
 			dataInLocales(Locale.ENGLISH),
 			attributeContentAll(),

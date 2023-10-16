@@ -69,6 +69,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static io.evitadb.utils.ClassUtils.isAbstract;
+import static io.evitadb.utils.ClassUtils.isFinal;
 
 /**
  * Implementation of the {@link ProxyFactory} interface based on Proxycian (ByteBuddy) library.
@@ -149,7 +150,7 @@ public class ProxycianFactory implements ProxyFactory {
 						recipeLocator.apply(cacheKey),
 						new SealedEntityProxyState(entity, expectedType, recipes, collectedRecipes, reflectionLookup)
 					);
-				} else if (isAbstract(expectedType)) {
+				} else if (!isFinal(expectedType)) {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
 						expectedType, entity.getSchema(), reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),

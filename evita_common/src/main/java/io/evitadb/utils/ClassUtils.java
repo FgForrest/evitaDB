@@ -52,6 +52,13 @@ public class ClassUtils {
 	}
 
 	/**
+	 * Whether class is a final / sealed class.
+	 */
+	public static boolean isFinal(@Nonnull Class<?> clazz) {
+		return Modifier.isFinal(clazz.getModifiers()) || clazz.isSealed();
+	}
+
+	/**
 	 * Whether method lacks its implementation.
 	 */
 	public static boolean isAbstract(@Nonnull Method method) {
