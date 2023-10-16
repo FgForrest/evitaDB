@@ -63,6 +63,7 @@ import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -109,17 +110,17 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			sellingPrice = priceForSaleRefInstance != null;
 		}
 		final Price priceInstance = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Price.class);
-		final String priceList = priceInstance == null ? null : priceInstance.priceList();
+		final String priceList = priceInstance == null ? null : of(priceInstance.priceList()).filter(it -> !it.isBlank()).orElse(null);
 
 		if (sellingPrice) {
 			if (PriceContract.class.equals(parameterType)) {
 				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getPriceForSale().orElse(null) : null;
 			} else if (parameterType.isArray()) {
-				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getAllPricesForSale().toArray(PriceContract[]::new) : null;
+				return entity -> entity.pricesAvailable() ? entity.getAllPricesForSale().toArray(PriceContract[]::new) : null;
 			} else if (Set.class.equals(parameterType)) {
-				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getAllPricesForSale().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) : Collections.emptySet();
+				return entity -> entity.pricesAvailable() ? entity.getAllPricesForSale().stream().collect(CollectorUtils.toUnmodifiableLinkedHashSet()) : Collections.emptySet();
 			} else if (List.class.equals(parameterType) || Collection.class.equals(parameterType)) {
-				return entity -> entity.isPriceForSaleContextAvailable() ? entity.getAllPricesForSale() : Collections.emptyList();
+				return entity -> entity.pricesAvailable() ? entity.getAllPricesForSale() : Collections.emptyList();
 			} else {
 				throw new EntityClassInvalidException(
 					expectedType,

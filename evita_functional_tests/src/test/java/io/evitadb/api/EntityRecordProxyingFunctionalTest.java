@@ -27,9 +27,7 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.AbstractCategoryPojo;
 import io.evitadb.api.mock.AbstractProductCategoryPojo;
 import io.evitadb.api.mock.AbstractProductPojo;
-import io.evitadb.api.mock.FinalProductPojo;
 import io.evitadb.api.mock.ProductPojo;
-import io.evitadb.api.mock.SealedProductPojo;
 import io.evitadb.api.mock.TestEntity;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
@@ -78,7 +76,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
-public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
+public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
 
 	private static void assertCategories(
 		@Nonnull Stream<AbstractCategoryPojo> categoryReferences,
@@ -264,9 +262,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
 		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, locale, externalEntities);
 
-		if (!(product instanceof SealedProductPojo)) {
-			assertThrows(ContextMissingException.class, product::getPriceForSale);
-		}
+		assertThrows(ContextMissingException.class, product::getPriceForSale);
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
 		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
@@ -388,19 +384,10 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		}
 	}
 
-	protected static Stream<Arguments> testedOpenPojoClasses() {
-		return Stream.of(
-			Arguments.of(AbstractProductPojo.class),
-			Arguments.of(ProductPojo.class)
-		);
-	}
-
 	protected static Stream<Arguments> testedPojoClasses() {
 		return Stream.of(
 			Arguments.of(AbstractProductPojo.class),
-			Arguments.of(ProductPojo.class),
-			Arguments.of(FinalProductPojo.class),
-			Arguments.of(SealedProductPojo.class)
+			Arguments.of(ProductPojo.class)
 		);
 	}
 
@@ -408,13 +395,11 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		final Random random = new Random();
 		final Class<?>[] pojoClasses = new Class[] {
 			AbstractProductPojo.class,
-			ProductPojo.class,
-			FinalProductPojo.class,
-			SealedProductPojo.class
+			ProductPojo.class
 		};
 		return LongStream.generate(random::nextLong).limit(50)
 			.mapToObj(it -> {
-				final int index = Math.abs((int) (it % pojoClasses.length));
+				final int index = Math.abs((int) (it % 2));
 				return Arguments.of(pojoClasses[index], it);
 			});
 	}
@@ -507,7 +492,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 	@DisplayName("Should enrich custom entity model instance")
 	@ParameterizedTest
-	@MethodSource("testedOpenPojoClasses")
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void enrichCustomEntity(
 		Class<? extends AbstractProductPojo> theClass,
@@ -544,7 +529,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 	@DisplayName("Should limit custom entity model instance")
 	@ParameterizedTest
-	@MethodSource("testedOpenPojoClasses")
+	@MethodSource("testedPojoClasses")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void limitCustomEntity(
 		Class<? extends AbstractProductPojo> theClass,
@@ -568,6 +553,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 				dataInLocales(Locale.ENGLISH)
 			)
 			.orElse(null);
+
 
 		final AbstractProductPojo limitedProduct = evitaSession.enrichOrLimitEntity(
 			partiallyLoadedEntity,
