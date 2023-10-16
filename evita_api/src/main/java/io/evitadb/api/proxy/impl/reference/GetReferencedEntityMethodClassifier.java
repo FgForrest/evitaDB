@@ -135,9 +135,11 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 							entityType.orElse("N/A") + "` entity type!"
 					)
 				);
-				return (sealedEntity, reference) -> reference.getReferencedEntity()
-					.map(it -> proxyFactory.createEntityProxy(parameter.getType(), it))
-					.orElse(null);
+				return (sealedEntity, reference) -> {
+					return reference.getReferencedEntity()
+						.map(it -> proxyFactory.createEntityProxy(parameter.getType(), it))
+						.orElse(null);
+				};
 			} else if (referencedEntityGroup != null) {
 				// or return complex type of the referenced entity group
 				Assert.isTrue(

@@ -41,6 +41,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
 import java.util.*;
 import java.util.Map.Entry;
@@ -745,26 +746,35 @@ public class ReflectionLookup {
 
 	private static Map<String, PropertyDescriptor> mapGettersAndSetters(Class<?> onClass) {
 		final Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
-		final Method[] methods = onClass.getMethods();
-		for (Method method : methods) {
-			final String methodName = method.getName();
-			final String propertyName;
-			final boolean isGetter;
-			if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
-				propertyName = StringUtils.uncapitalize(methodName.substring(3));
-				isGetter = true;
-			} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
-				propertyName = StringUtils.uncapitalize(methodName.substring(2));
-				isGetter = true;
-			} else if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && void.class.equals(method.getReturnType()) && method.getParameterCount() == 1) {
-				propertyName = StringUtils.uncapitalize(methodName.substring(3));
-				isGetter = false;
-			} else {
-				continue;
+		if (onClass.isRecord()) {
+			final RecordComponent[] recordComponents = onClass.getRecordComponents();
+			for (RecordComponent recordComponent : recordComponents) {
+				final String propertyName = recordComponent.getName();
+				final Field propertyField = mapField(onClass, propertyName);
+				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, false, propertyField);
 			}
+		} else {
+			final Method[] methods = onClass.getMethods();
+			for (Method method : methods) {
+				final String methodName = method.getName();
+				final String propertyName;
+				final boolean isGetter;
+				if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
+					propertyName = StringUtils.uncapitalize(methodName.substring(3));
+					isGetter = true;
+				} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
+					propertyName = StringUtils.uncapitalize(methodName.substring(2));
+					isGetter = true;
+				} else if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && void.class.equals(method.getReturnType()) && method.getParameterCount() == 1) {
+					propertyName = StringUtils.uncapitalize(methodName.substring(3));
+					isGetter = false;
+				} else {
+					continue;
+				}
 
-			final Field propertyField = mapField(onClass, propertyName);
-			registerPropertyDescriptor(result, method, propertyName, isGetter, propertyField);
+				final Field propertyField = mapField(onClass, propertyName);
+				registerPropertyDescriptor(result, method, propertyName, isGetter, propertyField);
+			}
 		}
 		return result;
 	}

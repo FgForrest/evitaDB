@@ -41,7 +41,7 @@ public record ProductCategoryRecord(
 	@ReferencedEntity int primaryKey,
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY) Long orderInCategory,
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL) String label,
-	@ReferencedEntity AbstractCategoryPojo category,
+	@ReferencedEntity CategoryRecord category,
 	@ReferencedEntity EntityReference categoryReference,
 	@ReferencedEntity Integer categoryReferencePrimaryKey
 ) implements Serializable {

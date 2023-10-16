@@ -1253,7 +1253,11 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 							entityLocaleEquals(locale)
 						),
 						require(
-							entityFetchAll(),
+							entityFetch(
+								attributeContentAll(), hierarchyContent(),
+								associatedDataContentAll(), priceContentAll(),
+								referenceContentAllWithAttributes()
+							),
 							queryTelemetry(),
 							priceHistogram(20),
 							attributeHistogram(20, ATTRIBUTE_QUANTITY),

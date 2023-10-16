@@ -23,19 +23,16 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.mock.AbstractCategoryPojo;
-import io.evitadb.api.mock.AbstractProductCategoryPojo;
-import io.evitadb.api.mock.AbstractProductPojo;
-import io.evitadb.api.mock.ProductPojo;
+import io.evitadb.api.mock.CategoryRecord;
+import io.evitadb.api.mock.ProductCategoryRecord;
+import io.evitadb.api.mock.ProductRecord;
 import io.evitadb.api.mock.TestEntity;
-import io.evitadb.api.proxy.SealedEntityProxy;
-import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -50,14 +47,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -72,28 +67,28 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@DisplayName("Evita entity POJO proxying functionality")
+@DisplayName("Evita entity record proxying functionality")
 @Tag(FUNCTIONAL_TEST)
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
 
 	private static void assertCategories(
-		@Nonnull Stream<AbstractCategoryPojo> categoryReferences,
+		@Nonnull Stream<CategoryRecord> categoryReferences,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nonnull int[] expectedCategoryIds,
 		@Nullable Locale locale
 	) {
 		assertNotNull(categoryReferences);
-		final AbstractCategoryPojo[] references = categoryReferences
-			.sorted(Comparator.comparingInt(AbstractCategoryPojo::getId))
-			.toArray(AbstractCategoryPojo[]::new);
+		final CategoryRecord[] references = categoryReferences
+			.sorted(Comparator.comparingInt(CategoryRecord::id))
+			.toArray(CategoryRecord[]::new);
 
 		assertEquals(expectedCategoryIds.length, references.length);
-		for (AbstractCategoryPojo reference : references) {
+		for (CategoryRecord reference : references) {
 			assertCategory(
 				reference,
-				originalCategories.computeIfAbsent(reference.getId(), id -> {
+				originalCategories.computeIfAbsent(reference.id(), id -> {
 					throw new AssertionError("Category with id " + id + " not found");
 				}),
 				locale
@@ -102,36 +97,38 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	private static void assertCategory(
-		@Nonnull AbstractCategoryPojo category,
+		@Nonnull CategoryRecord category,
 		@Nonnull SealedEntity sealedEntity,
 		@Nullable Locale locale
 	) {
-		assertEquals(TestEntity.CATEGORY, category.getEntityType());
-		assertEquals(sealedEntity.getPrimaryKey(), category.getId());
-		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_CODE), category.getCode());
-		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_PRIORITY), category.getPriority());
-		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_VALIDITY), category.getValidity());
-		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), category.getName());
+		assertEquals(TestEntity.CATEGORY, category.entityType());
+		assertEquals(sealedEntity.getPrimaryKey(), category.id());
+		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_CODE), category.code());
+		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_PRIORITY), category.priority());
+		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_VALIDITY), category.validity());
+		assertEquals(sealedEntity.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale), category.name());
 	}
 
 	private static void assertCategoryReferences(
-		@Nonnull Stream<AbstractProductCategoryPojo> categoryReferences,
+		@Nonnull Stream<ProductCategoryRecord> categoryReferences,
+		@Nonnull SealedEntity originalProduct,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nonnull int[] expectedCategoryIds,
 		@Nullable Locale locale,
 		boolean externalEntities
 	) {
 		assertNotNull(categoryReferences);
-		final AbstractProductCategoryPojo[] references = categoryReferences
-			.sorted(Comparator.comparingInt(AbstractProductCategoryPojo::getPrimaryKey))
-			.toArray(AbstractProductCategoryPojo[]::new);
+		final ProductCategoryRecord[] references = categoryReferences
+			.sorted(Comparator.comparingInt(ProductCategoryRecord::primaryKey))
+			.toArray(ProductCategoryRecord[]::new);
 
 		assertEquals(expectedCategoryIds.length, references.length);
-		for (AbstractProductCategoryPojo reference : references) {
+		for (ProductCategoryRecord reference : references) {
 			assertCategoryReference(
 				reference,
+				originalProduct.getReference(Entities.CATEGORY, reference.primaryKey()).orElseThrow(),
 				originalCategories.computeIfAbsent(
-					reference.getPrimaryKey(),
+					reference.primaryKey(),
 					id -> {
 						throw new AssertionError("Category with id " + id + " not found");
 					}
@@ -143,76 +140,75 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	private static void assertCategoryReference(
-		@Nonnull AbstractProductCategoryPojo productCategory,
+		@Nonnull ProductCategoryRecord productCategory,
+		@Nonnull ReferenceContract reference,
 		@Nonnull SealedEntity sealedEntity,
 		@Nullable Locale locale,
 		boolean externalEntities
 	) {
-		assertEquals(sealedEntity.getPrimaryKey(), productCategory.getPrimaryKey());
+		assertEquals(sealedEntity.getPrimaryKey(), productCategory.primaryKey());
 
-		assertTrue(productCategory instanceof SealedEntityReferenceProxy);
-		final ReferenceContract theReference = ((SealedEntityReferenceProxy) productCategory).getReference();
-		final Long categoryPriority = theReference.getAttribute(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY, Long.class);
-		assertEquals(categoryPriority, productCategory.getOrderInCategory());
+		final Long categoryPriority = reference.getAttribute(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY, Long.class);
+		assertEquals(categoryPriority, productCategory.orderInCategory());
 
-		assertEquals(theReference.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.getLabel());
+		assertEquals(reference.getAttribute(ATTRIBUTE_CATEGORY_LABEL, locale), productCategory.label());
 
 		if (externalEntities) {
-			assertCategory(productCategory.getCategory(), sealedEntity, locale);
-			assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.getCategoryReference());
-			assertEquals(sealedEntity.getPrimaryKey(), productCategory.getCategoryReferencePrimaryKey());
+			assertCategory(productCategory.category(), sealedEntity, locale);
+			assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.categoryReference());
+			assertEquals(sealedEntity.getPrimaryKey(), productCategory.categoryReferencePrimaryKey());
 		} else {
-			assertNull(productCategory.getCategory());
+			assertNull(productCategory.category());
 		}
 
 	}
 
 	private static void assertCategoryParent(
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
-		@Nonnull AbstractCategoryPojo category,
+		@Nonnull CategoryRecord category,
 		@Nullable Locale locale
 	) {
-		final SealedEntity originalCategory = originalCategories.get(category.getId());
+		final SealedEntity originalCategory = originalCategories.get(category.id());
 		if (originalCategory.getParentEntity().isEmpty()) {
-			assertNull(category.getParentId());
-			assertNull(category.getParentEntityReference());
-			assertNull(category.getParentEntity());
+			assertNull(category.parentId());
+			assertNull(category.parentEntityReference());
+			assertNull(category.parentEntity());
 		} else {
 			final int expectedParentId = originalCategory.getParentEntity().get().getPrimaryKey();
 			assertEquals(
 				expectedParentId,
-				category.getParentId()
+				category.parentId()
 			);
 			assertEquals(
 				new EntityReference(Entities.CATEGORY, expectedParentId),
-				category.getParentEntityReference()
+				category.parentEntityReference()
 			);
 			assertEquals(
 				expectedParentId,
-				category.getParentEntityClassifier().getPrimaryKey()
+				category.parentEntityClassifier().getPrimaryKey()
 			);
 			assertEquals(
 				expectedParentId,
-				category.getParentEntityClassifierWithParent().getPrimaryKey()
+				category.parentEntityClassifierWithParent().getPrimaryKey()
 			);
-			assertCategory(category.getParentEntity(), originalCategories.get(expectedParentId), locale);
-			assertCategoryParent(originalCategories, category.getParentEntity(), locale);
+			assertCategory(category.parentEntity(), originalCategories.get(expectedParentId), locale);
+			assertCategoryParent(originalCategories, category.parentEntity(), locale);
 		}
 	}
 
 	private static void assertCategoryParents(
-		@Nonnull Collection<AbstractCategoryPojo> categories,
+		@Nonnull Collection<CategoryRecord> categories,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nullable Locale locale
 	) {
-		for (AbstractCategoryPojo category : categories) {
+		for (CategoryRecord category : categories) {
 			assertCategoryParent(originalCategories, category, locale);
 		}
 	}
 
 	private static void assertProduct(
 		@Nonnull SealedEntity originalProduct,
-		@Nullable AbstractProductPojo product,
+		@Nullable ProductRecord product,
 		@Nonnull Map<Integer, SealedEntity> originalCategories,
 		@Nullable Locale locale,
 		boolean externalEntities
@@ -224,142 +220,137 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		final Optional<ReferencedFileSet> referenceFileSetOptional = ofNullable(originalProduct.getAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, ReferencedFileSet.class, ReflectionLookup.NO_CACHE_INSTANCE));
 		referenceFileSetOptional
 			.ifPresent(it -> {
-				assertEquals(it, product.getReferencedFileSet());
-				assertEquals(it, product.getReferencedFileSetAsDifferentProperty());
+				assertEquals(it, product.referencedFileSet());
+				assertEquals(it, product.referencedFileSetAsDifferentProperty());
 			});
 
-		assertCategoryParents(product.getCategories(), originalCategories, locale);
+		assertCategoryParents(product.categories(), originalCategories, locale);
 
 		final int[] expectedCategoryIds = originalProduct.getReferences(Entities.CATEGORY)
 			.stream()
 			.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 			.toArray();
 
-		assertCategoryIds(product.getCategoryIds().stream(), expectedCategoryIds);
-		assertCategoryIds(product.getCategoryIdsAsList().stream(), expectedCategoryIds);
-		assertCategoryIds(product.getCategoryIdsAsSet().stream(), expectedCategoryIds);
-		assertCategoryIds(Arrays.stream(product.getCategoryIdsAsArray()).boxed(), expectedCategoryIds);
+		assertCategoryIds(product.categoryIds().stream(), expectedCategoryIds);
+		assertCategoryIds(product.categoryIdsAsList().stream(), expectedCategoryIds);
+		assertCategoryIds(product.categoryIdsAsSet().stream(), expectedCategoryIds);
+		assertCategoryIds(Arrays.stream(product.categoryIdsAsArray()).boxed(), expectedCategoryIds);
 
-		assertCategoryEntityReferences(product.getCategoryReferences().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(product.getCategoryReferencesAsList().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(product.getCategoryReferencesAsSet().stream(), expectedCategoryIds);
-		assertCategoryEntityReferences(Arrays.stream(product.getCategoryReferencesAsArray()), expectedCategoryIds);
+		assertCategoryEntityReferences(product.categoryReferences().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.categoryReferencesAsList().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(product.categoryReferencesAsSet().stream(), expectedCategoryIds);
+		assertCategoryEntityReferences(Arrays.stream(product.categoryReferencesAsArray()), expectedCategoryIds);
 
 		if (externalEntities) {
-			assertCategories(product.getCategories().stream(), originalCategories, expectedCategoryIds, locale);
-			assertCategories(product.getCategoriesAsList().stream(), originalCategories, expectedCategoryIds, locale);
-			assertCategories(product.getCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, locale);
-			assertCategories(Arrays.stream(product.getCategoriesAsArray()), originalCategories, expectedCategoryIds, locale);
+			assertCategories(product.categories().stream(), originalCategories, expectedCategoryIds, locale);
+			assertCategories(product.categoriesAsList().stream(), originalCategories, expectedCategoryIds, locale);
+			assertCategories(product.categoriesAsSet().stream(), originalCategories, expectedCategoryIds, locale);
+			assertCategories(Arrays.stream(product.categoriesAsArray()), originalCategories, expectedCategoryIds, locale);
 		} else {
-			assertTrue(product.getCategories().isEmpty());
-			assertTrue(product.getCategoriesAsList().isEmpty());
-			assertTrue(product.getCategoriesAsSet().isEmpty());
-			assertTrue(ArrayUtils.isEmpty(product.getCategoriesAsArray()));
+			assertTrue(product.categories().isEmpty());
+			assertTrue(product.categoriesAsList().isEmpty());
+			assertTrue(product.categoriesAsSet().isEmpty());
+			assertTrue(ArrayUtils.isEmpty(product.categoriesAsArray()));
 		}
 
-		assertCategoryReferences(product.getProductCategories().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
-		assertCategoryReferences(product.getProductCategoriesAsList().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
-		assertCategoryReferences(product.getProductCategoriesAsSet().stream(), originalCategories, expectedCategoryIds, locale, externalEntities);
-		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(product.productCategories().stream(), originalProduct, originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(product.productCategoriesAsList().stream(), originalProduct, originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(product.productCategoriesAsSet().stream(), originalProduct, originalCategories, expectedCategoryIds, locale, externalEntities);
+		assertCategoryReferences(Arrays.stream(product.productCategoriesAsArray()), originalProduct, originalCategories, expectedCategoryIds, locale, externalEntities);
 
-		assertThrows(ContextMissingException.class, product::getPriceForSale);
+		assertNull(product.priceForSale());
 
-		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
+		final PriceContract[] allPricesForSale = product.allPricesForSale();
 		final PriceContract[] expectedAllPricesForSale = originalProduct.getAllPricesForSale().toArray(PriceContract[]::new);
 		assertEquals(expectedAllPricesForSale.length, allPricesForSale.length);
 		assertArrayEquals(expectedAllPricesForSale, allPricesForSale);
 
 		final PriceContract[] expectedAllPrices = originalProduct.getPrices().toArray(PriceContract[]::new);
-		final PriceContract[] allPrices = Arrays.stream(product.getAllPricesAsArray())
+		final PriceContract[] allPrices = Arrays.stream(product.allPricesAsArray())
 			.toArray(PriceContract[]::new);
 
 		assertEquals(expectedAllPrices.length, allPrices.length);
 		assertArrayEquals(expectedAllPrices, allPrices);
 
-		assertArrayEquals(expectedAllPrices, product.getAllPricesAsList().toArray(PriceContract[]::new));
-		assertArrayEquals(expectedAllPrices, product.getAllPricesAsSet().toArray(PriceContract[]::new));
-		assertArrayEquals(expectedAllPrices, product.getAllPrices().toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.allPricesAsList().toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.allPricesAsSet().toArray(PriceContract[]::new));
+		assertArrayEquals(expectedAllPrices, product.allPrices().toArray(PriceContract[]::new));
 
 		final Optional<PriceContract> first = Arrays.stream(expectedAllPrices).filter(it -> "basic".equals(it.priceList())).findFirst();
 		if (first.isEmpty()) {
-			assertNull(product.getBasicPrice());
+			assertNull(product.basicPrice());
 		} else {
 			assertEquals(
 				first.get(),
-				product.getBasicPrice()
+				product.basicPrice()
 			);
 		}
 	}
 
-	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable AbstractProductPojo product) {
+	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable ProductRecord product) {
 		assertNotNull(product);
-		assertEquals(originalProduct.getPrimaryKey(), product.getId());
-		assertEquals(TestEntity.PRODUCT, product.getEntityType());
+		assertEquals(originalProduct.getPrimaryKey(), product.id());
+		assertEquals(TestEntity.PRODUCT, product.entityType());
 	}
 
-	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
-		if (locale == null) {
-			if (!((SealedEntityProxy)product).getSealedEntity().getLocales().isEmpty()) {
-				assertArrayEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
-			}
+	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull ProductRecord product, @Nonnull Locale locale) {
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.code());
+		final String actualName = originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale, String.class);
+		if (actualName == null) {
+			assertNull(product.names());
 		} else {
-			final String actualName = originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, locale, String.class);
-			if (actualName == null) {
-				assertNull(product.getNames());
-			} else {
-				assertArrayEquals(new String[]{actualName}, product.getNames());
-			}
+			assertArrayEquals(new String[]{actualName}, product.names());
 		}
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.getQuantity());
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.getAlias());
-		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.getTestEnum());
+
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_QUANTITY), product.quantity());
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_ALIAS), product.alias());
+		assertEquals(TestEnum.valueOf(originalProduct.getAttribute(ATTRIBUTE_ENUM, String.class)), product.testEnum());
 
 		// methods with implementation not directly annotated by @Attribute annotation are not intercepted
 		assertEquals("computed EAN", product.getEan());
 		// methods with different name are intercepted based on @Attribute annotation
-		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_EAN), product.getEanAsDifferentProperty());
+		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_EAN), product.eanAsDifferentProperty());
 
 		assertEquals(
 			ofNullable(originalProduct.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY)),
-			ofNullable(product.getAvailable())
+			ofNullable(product.available())
 		);
 
 		assertArrayEquals(
 			originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class),
-			product.getMarketsAttribute()
+			product.marketsAttribute()
 		);
 
 		assertArrayEquals(
 			originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class),
-			product.getMarketsAttributeAsList().toArray(new String[0])
+			product.marketsAttributeAsList().toArray(new String[0])
 		);
 
 		assertArrayEquals(
 			Arrays.stream(originalProduct.getAttribute(ATTRIBUTE_MARKETS, String[].class)).sorted().distinct().toArray(String[]::new),
-			product.getMarketsAttributeAsSet().stream().sorted().toArray(String[]::new)
+			product.marketsAttributeAsSet().stream().sorted().toArray(String[]::new)
 		);
 	}
 
-	private static void assertProductAssociatedData(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
+	private static void assertProductAssociatedData(@Nonnull SealedEntity originalProduct, @Nonnull ProductRecord product, @Nullable Locale locale) {
 		assertEquals(
 			originalProduct.getAssociatedData(DataGenerator.ASSOCIATED_DATA_LABELS, locale, Labels.class, REFLECTION_LOOKUP),
-			product.getLabels()
+			product.labels()
 		);
 
 		assertArrayEquals(
 			originalProduct.getAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class, REFLECTION_LOOKUP),
-			product.getMarkets()
+			product.markets()
 		);
 
 		assertArrayEquals(
 			originalProduct.getAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class, REFLECTION_LOOKUP),
-			product.getMarketsAsList().toArray(new String[0])
+			product.marketsAsList().toArray(new String[0])
 		);
 
 		assertArrayEquals(
 			Arrays.stream(originalProduct.getAssociatedData(ASSOCIATED_DATA_MARKETS, String[].class, REFLECTION_LOOKUP)).distinct().sorted().toArray(String[]::new),
-			product.getMarketsAsSet().stream().sorted().toArray(String[]::new)
+			product.marketsAsSet().stream().sorted().toArray(String[]::new)
 		);
 	}
 
@@ -369,7 +360,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	 * @param proxy      Proxy instance
 	 * @param proxyClass Proxy class
 	 */
-	private static void verifyAllFieldsAreSet(@Nonnull Object proxy, @Nonnull Class<?> proxyClass, String... except) {
+	private static void verifyAllComponentsAreSet(@Nonnull Object proxy, @Nonnull Class<?> proxyClass, String... except) {
 		final Field[] fields = proxyClass.getDeclaredFields();
 		final Set<String> exceptFields = new HashSet<>(Arrays.asList(except));
 		for (Field field : fields) {
@@ -384,43 +375,22 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		}
 	}
 
-	protected static Stream<Arguments> testedPojoClasses() {
-		return Stream.of(
-			Arguments.of(AbstractProductPojo.class),
-			Arguments.of(ProductPojo.class)
-		);
-	}
-
-	protected static Stream<Arguments> returnRandomSeedAndTestPojoClasses() {
-		final Random random = new Random();
-		final Class<?>[] pojoClasses = new Class[] {
-			AbstractProductPojo.class,
-			ProductPojo.class
-		};
-		return LongStream.generate(random::nextLong).limit(50)
-			.mapToObj(it -> {
-				final int index = Math.abs((int) (it % 2));
-				return Arguments.of(pojoClasses[index], it);
-			});
-	}
-
 	@DisplayName("Should return entity schema directly or via model class")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldReturnEntitySchema(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
+	void shouldReturnEntitySchema(EvitaSessionContract evitaSession) {
 		assertNotNull(evitaSession.getEntitySchema(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchema(theClass));
+		assertNotNull(evitaSession.getEntitySchema(ProductRecord.class));
 		assertEquals(
 			evitaSession.getEntitySchema(Entities.PRODUCT),
-			evitaSession.getEntitySchema(theClass)
+			evitaSession.getEntitySchema(ProductRecord.class)
 		);
 
 		assertNotNull(evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT));
-		assertNotNull(evitaSession.getEntitySchemaOrThrow(theClass));
+		assertNotNull(evitaSession.getEntitySchemaOrThrow(ProductRecord.class));
 		assertEquals(
 			evitaSession.getEntitySchemaOrThrow(Entities.PRODUCT),
-			evitaSession.getEntitySchemaOrThrow(theClass)
+			evitaSession.getEntitySchemaOrThrow(ProductRecord.class)
 		);
 	}
 
@@ -437,11 +407,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should get custom entity model instance")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void getCustomEntity(
-		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -466,8 +434,8 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.findFirst()
 			.orElseThrow();
 
-		final AbstractProductPojo proxiedEntity = evitaSession.getEntity(
-			theClass, theProduct.getPrimaryKey(),
+		final ProductRecord proxiedEntity = evitaSession.getEntity(
+			ProductRecord.class, theProduct.getPrimaryKey(),
 			hierarchyContent(),
 			attributeContentAll(),
 			associatedDataContentAll(),
@@ -476,9 +444,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			dataInLocales(Locale.ENGLISH)
 		).orElse(null);
 
-		verifyAllFieldsAreSet(
-			proxiedEntity, theClass,
-			"priceForSale", "allPricesForSale"
+		verifyAllComponentsAreSet(
+			proxiedEntity, ProductRecord.class,
+			"priceForSale"
 		);
 
 		assertProduct(
@@ -490,29 +458,17 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
-	@DisplayName("Should enrich custom entity model instance")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@DisplayName("Should fail to enrich custom entity model instance")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void enrichCustomEntity(
-		Class<? extends AbstractProductPojo> theClass,
-		EvitaSessionContract evitaSession,
-		List<SealedEntity> originalProducts,
-		Map<Integer, SealedEntity> originalCategories
-	) {
-		final SealedEntity theProduct = originalProducts
-			.stream()
-			.filter(it -> it.getPrimaryKey() == 1)
-			.findFirst()
-			.orElseThrow();
-
-		final AbstractProductPojo partiallyLoadedEntity = evitaSession
-			.getEntity(theClass, 1)
+	void failsToEnrichCustomEntity(EvitaSessionContract evitaSession) {
+		final ProductRecord partiallyLoadedEntity = evitaSession
+			.getEntity(ProductRecord.class, 1)
 			.orElse(null);
 
-		assertProduct(
-			theProduct,
-			evitaSession.enrichEntity(
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> evitaSession.enrichEntity(
 				partiallyLoadedEntity,
 				hierarchyContent(),
 				attributeContentAll(),
@@ -520,31 +476,19 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 				priceContentAll(),
 				referenceContentAllWithAttributes(),
 				dataInLocales(Locale.ENGLISH)
-			),
-			originalCategories,
-			Locale.ENGLISH,
-			false
+			)
 		);
 	}
 
-	@DisplayName("Should limit custom entity model instance")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@DisplayName("Should fail to limit custom entity model instance")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void limitCustomEntity(
-		Class<? extends AbstractProductPojo> theClass,
-		EvitaSessionContract evitaSession,
-		List<SealedEntity> originalProducts
+	void failsToLimitCustomEntity(
+		EvitaSessionContract evitaSession
 	) {
-		final SealedEntity originalProduct = originalProducts
-			.stream()
-			.filter(it -> it.getPrimaryKey() == 1)
-			.findFirst()
-			.orElseThrow();
-
-		final AbstractProductPojo partiallyLoadedEntity = evitaSession
+		final ProductRecord partiallyLoadedEntity = evitaSession
 			.getEntity(
-				theClass, 1,
+				ProductRecord.class, 1,
 				hierarchyContent(),
 				attributeContentAll(),
 				associatedDataContentAll(),
@@ -555,22 +499,19 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.orElse(null);
 
 
-		final AbstractProductPojo limitedProduct = evitaSession.enrichOrLimitEntity(
-			partiallyLoadedEntity,
-			attributeContentAll()
+		assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> evitaSession.enrichOrLimitEntity(
+				partiallyLoadedEntity,
+				attributeContentAll()
+			)
 		);
-
-		assertProductBasicData(originalProduct, limitedProduct);
-		assertProductAttributes(originalProduct, limitedProduct, null);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
 	}
 
 	@DisplayName("Should return entity reference")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void queryOneEntityReference(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
+	void queryOneEntityReference(EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
@@ -603,9 +544,8 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@DisplayName("Should return custom entity model instance")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@ParameterizedTest
-	@MethodSource("returnRandomSeedAndTestPojoClasses")
+	@MethodSource("returnRandomSeed")
 	void queryOneRandomizedEntity(
-		Class<? extends AbstractProductPojo> theClass,
 		long seed,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
@@ -641,18 +581,16 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 		System.out.println("PK: " + primaryKey);
 		assertProduct(
 			theProduct,
-			evitaSession.queryOne(query, theClass).orElse(null),
+			evitaSession.queryOne(query, ProductRecord.class).orElse(null),
 			originalCategories,
 			Locale.ENGLISH, false
 		);
 	}
 
 	@DisplayName("Should return custom entity model instance")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryOneCustomEntity(
-		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -680,17 +618,16 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 		assertProduct(
 			theProduct,
-			evitaSession.queryOne(query, theClass).orElse(null),
+			evitaSession.queryOne(query, ProductRecord.class).orElse(null),
 			originalCategories,
 			Locale.ENGLISH, false
 		);
 	}
 
 	@DisplayName("Should return same proxy instances for repeated calls")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void shouldReturnSameInstancesForRepeatedCalls(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
+	void shouldReturnSameInstancesForRepeatedCalls(EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1)),
@@ -706,25 +643,25 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			)
 		);
 
-		final AbstractProductPojo product = evitaSession.queryOne(query, theClass)
+		final ProductRecord product = evitaSession.queryOne(query, ProductRecord.class)
 			.orElseThrow();
 
 		for (int i = 0; i < 2; i++) {
-			final AbstractProductCategoryPojo[] array1 = product.getProductCategoriesAsArray();
-			final AbstractProductCategoryPojo[] array2 = product.getProductCategoriesAsArray();
+			final ProductCategoryRecord[] array1 = product.productCategoriesAsArray();
+			final ProductCategoryRecord[] array2 = product.productCategoriesAsArray();
 			for (int j = 0; j < array1.length; j++) {
-				final AbstractProductCategoryPojo productCategory1 = array1[j];
-				final AbstractProductCategoryPojo productCategory2 = array2[j];
+				final ProductCategoryRecord productCategory1 = array1[j];
+				final ProductCategoryRecord productCategory2 = array2[j];
 
 				assertSame(productCategory1, productCategory2);
-				assertSame(productCategory1.getCategory(), productCategory2.getCategory());
+				assertSame(productCategory1.category(), productCategory2.category());
 			}
 
-			final AbstractCategoryPojo[] catArray1 = product.getCategoriesAsArray();
-			final AbstractCategoryPojo[] catArray2 = product.getCategoriesAsArray();
+			final CategoryRecord[] catArray1 = product.categoriesAsArray();
+			final CategoryRecord[] catArray2 = product.categoriesAsArray();
 			for (int j = 0; j < catArray1.length; j++) {
-				final AbstractCategoryPojo category1 = catArray1[j];
-				final AbstractCategoryPojo category2 = catArray2[j];
+				final CategoryRecord category1 = catArray1[j];
+				final CategoryRecord category2 = catArray2[j];
 
 				assertSame(category1, category2);
 			}
@@ -733,10 +670,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should return list of entity references")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void queryListOfEntityReference(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession) {
+	void queryListOfEntityReference(EvitaSessionContract evitaSession) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(
@@ -760,10 +696,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should return list of sealed entities")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void queryListOfSealedEntities(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+	void queryListOfSealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1, 2)),
@@ -779,11 +714,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should return list of custom entity model instances")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryListOfCustomEntities(
-		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -808,10 +741,10 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
 			.toList();
 
-		final List<? extends AbstractProductPojo> products = evitaSession.queryList(query, theClass);
+		final List<? extends ProductRecord> products = evitaSession.queryList(query, ProductRecord.class);
 		for (int i = 0; i < theProducts.size(); i++) {
 			final SealedEntity expectedProduct = theProducts.get(i);
-			final AbstractProductPojo actualProduct = products.get(i);
+			final ProductRecord actualProduct = products.get(i);
 			assertProduct(
 				expectedProduct,
 				actualProduct,
@@ -848,10 +781,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should query sealed entities")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
-	void querySealedEntities(Class<? extends AbstractProductPojo> theClass, EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
+	void querySealedEntities(EvitaSessionContract evitaSession, List<SealedEntity> originalProducts) {
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1, 2)),
@@ -867,11 +799,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should query custom entity model instances")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void queryCustomEntities(
-		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -896,10 +826,10 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.filter(it -> it.getPrimaryKey() == 1 || it.getPrimaryKey() == 2)
 			.toList();
 
-		final List<? extends AbstractProductPojo> products = evitaSession.query(query, theClass).getRecordData();
+		final List<? extends ProductRecord> products = evitaSession.query(query, ProductRecord.class).getRecordData();
 		for (int i = 0; i < theProducts.size(); i++) {
 			final SealedEntity expectedProduct = theProducts.get(i);
-			final AbstractProductPojo actualProduct = products.get(i);
+			final ProductRecord actualProduct = products.get(i);
 			assertProduct(
 				expectedProduct,
 				actualProduct,
@@ -910,11 +840,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should wrap an pojo and load data in single localization")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldProxyToPojoWithCzechLocalization(
-		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -926,7 +854,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.findFirst()
 			.orElseThrow();
 
-		final Optional<? extends AbstractProductPojo> productRef = evitaSession.queryOne(
+		final Optional<? extends ProductRecord> productRef = evitaSession.queryOne(
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
@@ -954,7 +882,7 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 					)
 				)
 			),
-			theClass
+			ProductRecord.class
 		);
 
 		assertProduct(
@@ -967,11 +895,9 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should wrap an pojo and load all data")
-	@ParameterizedTest
-	@MethodSource("testedPojoClasses")
+	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldProxyToPojo(
-		Class<? extends AbstractProductPojo> theClass,
 		EvitaSessionContract evitaSession,
 		List<SealedEntity> originalProducts,
 		Map<Integer, SealedEntity> originalCategories
@@ -983,8 +909,8 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			.findFirst()
 			.orElseThrow();
 
-		final Optional<? extends AbstractProductPojo> productRef = evitaSession.getEntity(
-			theClass,
+		final Optional<? extends ProductRecord> productRef = evitaSession.getEntity(
+			ProductRecord.class,
 			theProduct.getPrimaryKey(),
 			dataInLocales(Locale.ENGLISH),
 			attributeContentAll(),

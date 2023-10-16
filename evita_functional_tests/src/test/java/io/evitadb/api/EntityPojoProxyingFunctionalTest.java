@@ -493,7 +493,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 		verifyAllFieldsAreSet(
 			proxiedEntity, theClass,
-			"priceForSale", "allPricesForSale"
+			"priceForSale"
 		);
 
 		assertProduct(

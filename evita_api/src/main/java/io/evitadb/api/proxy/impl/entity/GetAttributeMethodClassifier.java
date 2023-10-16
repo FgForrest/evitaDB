@@ -398,7 +398,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 						)
 					);
 				} else {
-					return null;
+					return defaultValueProvider.apply(null);
 				}
 			} :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
@@ -571,7 +571,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				indexedDecimalPlaces
 			);
 		} else {
-			return null;
+			return defaultValueProvider.apply(null);
 		}
 	}
 
@@ -626,7 +626,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				indexedDecimalPlaces
 			);
 		} else {
-			return null;
+			return defaultValueProvider.apply(null);
 		}
 	}
 
@@ -656,7 +656,12 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				)
 				.collect(Collectors.toSet());
 		} else {
-			return null;
+			final Serializable defaultValue = defaultValueProvider.apply(null);
+			if (defaultValue == null) {
+				return Collections.emptySet();
+			} else {
+				return Collections.singleton(defaultValue);
+			}
 		}
 	}
 
@@ -730,7 +735,12 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				)
 				.toList();
 		} else {
-			return null;
+			final Serializable defaultValue = defaultValueProvider.apply(null);
+			if (defaultValue == null) {
+				return Collections.emptyList();
+			} else {
+				return Collections.singletonList(defaultValue);
+			}
 		}
 	}
 
@@ -798,7 +808,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				)
 			);
 		} else {
-			return null;
+			return (Enum<?>) defaultValueProvider.apply(null);
 		}
 	}
 
@@ -831,7 +841,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				)
 			);
 		} else {
-			return null;
+			return (Enum<?>) defaultValueProvider.apply(null);
 		}
 	}
 
