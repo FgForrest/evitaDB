@@ -416,30 +416,41 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {
 								final String[] refAttr = ATTR_LINK_PARSER.split(it.substring(REF_LINK.length()));
-								final AttributeKey attributeKey = toAttributeKey(refAttr[1]);
-								if (refAttr[0].contains(REF_ENTITY_LINK)) {
+								if (refAttr.length == 1) {
+									// REF_LINK + " " + referenceSchema.getName() + " " + REF_ENTITY_LINK + referenceSchema.getReferencedEntityType()
 									final String[] refEntitySplit = refAttr[0].split(REF_ENTITY_LINK);
 									final String refName = refEntitySplit[0].trim();
 									return sealedEntity.getReferences(refName)
 										.stream()
-										.map(ReferenceContract::getReferencedEntity)
-										.filter(Optional::isPresent)
-										.map(Optional::get)
-										.filter(refEntity -> refEntity.getAttributeValue(attributeKey).isPresent())
-										.map(refEntity -> {
-											final String formattedValue = formatValue(refEntity.getAttributeValue(attributeKey).get().value());
-											return REF_ENTITY_LINK + refEntitySplit[1] + refEntity.getPrimaryKey() + ATTR_LINK + formattedValue;
-										})
+										.map(ReferenceContract::getReferencedPrimaryKey)
+										.map(refEntity -> REF_ENTITY_LINK + refEntitySplit[1] + ATTR_LINK + refEntity)
 										.collect(Collectors.joining(", "));
 								} else {
-									return sealedEntity.getReferences(refAttr[0])
-										.stream()
-										.filter(ref -> ref.getAttributeValue(attributeKey).isPresent())
-										.map(ref -> {
-											final String formattedValue = formatValue(ref.getAttributeValue(attributeKey).get().value());
-											return REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + formattedValue;
-										})
-										.collect(Collectors.joining(", "));
+									final AttributeKey attributeKey = toAttributeKey(refAttr[1]);
+									if (refAttr[0].contains(REF_ENTITY_LINK)) {
+										final String[] refEntitySplit = refAttr[0].split(REF_ENTITY_LINK);
+										final String refName = refEntitySplit[0].trim();
+										return sealedEntity.getReferences(refName)
+											.stream()
+											.map(ReferenceContract::getReferencedEntity)
+											.filter(Optional::isPresent)
+											.map(Optional::get)
+											.filter(refEntity -> refEntity.getAttributeValue(attributeKey).isPresent())
+											.map(refEntity -> {
+												final String formattedValue = formatValue(refEntity.getAttributeValue(attributeKey).get().value());
+												return REF_ENTITY_LINK + refEntitySplit[1] + " " + refEntity.getPrimaryKey() + ATTR_LINK + formattedValue;
+											})
+											.collect(Collectors.joining(", "));
+									} else {
+										return sealedEntity.getReferences(refAttr[0])
+											.stream()
+											.filter(ref -> ref.getAttributeValue(attributeKey).isPresent())
+											.map(ref -> {
+												final String formattedValue = formatValue(ref.getAttributeValue(attributeKey).get().value());
+												return REF_LINK + ref.getReferenceKey().primaryKey() + ATTR_LINK + formattedValue;
+											})
+											.collect(Collectors.joining(", "));
+									}
 								}
 							}),
 						Arrays.stream(headers)
@@ -476,22 +487,25 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		@Nonnull SealedEntitySchema entitySchema,
 		boolean localizedQuery
 	) {
-		return QueryUtils.findConstraints(
-				referenceContent, EntityFetch.class, SeparateEntityContentRequireContainer.class
-			)
-			.stream()
-			.flatMap(
-				refEntity -> getEntityHeaderStream(
-					refEntity,
-					() -> response.getRecordData()
-						.stream()
-						.flatMap(theEntity -> theEntity.getReferences(referenceSchema.getName()).stream())
-						.map(theRef -> theRef.getReferencedEntity().orElse(null))
-						.filter(Objects::nonNull),
-					entitySchema, localizedQuery,
-					REF_LINK + " " + referenceSchema.getName() + " " + REF_ENTITY_LINK + referenceSchema.getReferencedEntityType() + ATTR_LINK
+		return Stream.concat(
+			Stream.of(REF_LINK + " " + referenceSchema.getName() + " " + REF_ENTITY_LINK + referenceSchema.getReferencedEntityType()),
+			QueryUtils.findConstraints(
+					referenceContent, EntityFetch.class, SeparateEntityContentRequireContainer.class
 				)
-			);
+				.stream()
+				.flatMap(
+					refEntity -> getEntityHeaderStream(
+						refEntity,
+						() -> response.getRecordData()
+							.stream()
+							.flatMap(theEntity -> theEntity.getReferences(referenceSchema.getName()).stream())
+							.map(theRef -> theRef.getReferencedEntity().orElse(null))
+							.filter(Objects::nonNull),
+						entitySchema, localizedQuery,
+						REF_LINK + " " + referenceSchema.getName() + " " + REF_ENTITY_LINK + referenceSchema.getReferencedEntityType() + ATTR_LINK
+					)
+				)
+		);
 	}
 
 	/**

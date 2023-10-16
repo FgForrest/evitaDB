@@ -43,7 +43,6 @@ private static final long serialVersionUID = 0L;
     super(builder);
   }
   private GrpcBigDecimal() {
-    value_ = com.google.protobuf.ByteString.EMPTY;
     valueString_ = "";
   }
 
@@ -77,22 +76,7 @@ private static final long serialVersionUID = 0L;
           case 0:
             done = true;
             break;
-          case 8: {
-
-            scale_ = input.readUInt32();
-            break;
-          }
-          case 16: {
-
-            precision_ = input.readUInt32();
-            break;
-          }
-          case 26: {
-
-            value_ = input.readBytes();
-            break;
-          }
-          case 34: {
+          case 10: {
             java.lang.String s = input.readStringRequireUtf8();
 
             valueString_ = s;
@@ -130,59 +114,14 @@ private static final long serialVersionUID = 0L;
             io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.class, io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder.class);
   }
 
-  public static final int SCALE_FIELD_NUMBER = 1;
-  private int scale_;
-  /**
-   * <pre>
-   * The unscaled value of the BigDecimal.
-   * </pre>
-   *
-   * <code>uint32 scale = 1;</code>
-   * @return The scale.
-   */
-  @java.lang.Override
-  public int getScale() {
-    return scale_;
-  }
-
-  public static final int PRECISION_FIELD_NUMBER = 2;
-  private int precision_;
-  /**
-   * <pre>
-   * The precision of the BigDecimal.
-   * </pre>
-   *
-   * <code>uint32 precision = 2;</code>
-   * @return The precision.
-   */
-  @java.lang.Override
-  public int getPrecision() {
-    return precision_;
-  }
-
-  public static final int VALUE_FIELD_NUMBER = 3;
-  private com.google.protobuf.ByteString value_;
-  /**
-   * <pre>
-   * The byte serialized value in integer form.
-   * </pre>
-   *
-   * <code>bytes value = 3;</code>
-   * @return The value.
-   */
-  @java.lang.Override
-  public com.google.protobuf.ByteString getValue() {
-    return value_;
-  }
-
-  public static final int VALUESTRING_FIELD_NUMBER = 4;
+  public static final int VALUESTRING_FIELD_NUMBER = 1;
   private volatile java.lang.Object valueString_;
   /**
    * <pre>
    * The string serialized value.
    * </pre>
    *
-   * <code>string valueString = 4;</code>
+   * <code>string valueString = 1;</code>
    * @return The valueString.
    */
   @java.lang.Override
@@ -203,7 +142,7 @@ private static final long serialVersionUID = 0L;
    * The string serialized value.
    * </pre>
    *
-   * <code>string valueString = 4;</code>
+   * <code>string valueString = 1;</code>
    * @return The bytes for valueString.
    */
   @java.lang.Override
@@ -235,17 +174,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (scale_ != 0) {
-      output.writeUInt32(1, scale_);
-    }
-    if (precision_ != 0) {
-      output.writeUInt32(2, precision_);
-    }
-    if (!value_.isEmpty()) {
-      output.writeBytes(3, value_);
-    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(valueString_)) {
-      com.google.protobuf.GeneratedMessageV3.writeString(output, 4, valueString_);
+      com.google.protobuf.GeneratedMessageV3.writeString(output, 1, valueString_);
     }
     unknownFields.writeTo(output);
   }
@@ -256,20 +186,8 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (scale_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeUInt32Size(1, scale_);
-    }
-    if (precision_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeUInt32Size(2, precision_);
-    }
-    if (!value_.isEmpty()) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeBytesSize(3, value_);
-    }
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(valueString_)) {
-      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(4, valueString_);
+      size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, valueString_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -286,12 +204,6 @@ private static final long serialVersionUID = 0L;
     }
     io.evitadb.externalApi.grpc.generated.GrpcBigDecimal other = (io.evitadb.externalApi.grpc.generated.GrpcBigDecimal) obj;
 
-    if (getScale()
-        != other.getScale()) return false;
-    if (getPrecision()
-        != other.getPrecision()) return false;
-    if (!getValue()
-        .equals(other.getValue())) return false;
     if (!getValueString()
         .equals(other.getValueString())) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
@@ -305,12 +217,6 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + SCALE_FIELD_NUMBER;
-    hash = (53 * hash) + getScale();
-    hash = (37 * hash) + PRECISION_FIELD_NUMBER;
-    hash = (53 * hash) + getPrecision();
-    hash = (37 * hash) + VALUE_FIELD_NUMBER;
-    hash = (53 * hash) + getValue().hashCode();
     hash = (37 * hash) + VALUESTRING_FIELD_NUMBER;
     hash = (53 * hash) + getValueString().hashCode();
     hash = (29 * hash) + unknownFields.hashCode();
@@ -450,12 +356,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      scale_ = 0;
-
-      precision_ = 0;
-
-      value_ = com.google.protobuf.ByteString.EMPTY;
-
       valueString_ = "";
 
       return this;
@@ -484,9 +384,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcBigDecimal buildPartial() {
       io.evitadb.externalApi.grpc.generated.GrpcBigDecimal result = new io.evitadb.externalApi.grpc.generated.GrpcBigDecimal(this);
-      result.scale_ = scale_;
-      result.precision_ = precision_;
-      result.value_ = value_;
       result.valueString_ = valueString_;
       onBuilt();
       return result;
@@ -536,15 +433,6 @@ private static final long serialVersionUID = 0L;
 
     public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcBigDecimal other) {
       if (other == io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.getDefaultInstance()) return this;
-      if (other.getScale() != 0) {
-        setScale(other.getScale());
-      }
-      if (other.getPrecision() != 0) {
-        setPrecision(other.getPrecision());
-      }
-      if (other.getValue() != com.google.protobuf.ByteString.EMPTY) {
-        setValue(other.getValue());
-      }
       if (!other.getValueString().isEmpty()) {
         valueString_ = other.valueString_;
         onChanged();
@@ -578,145 +466,13 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private int scale_ ;
-    /**
-     * <pre>
-     * The unscaled value of the BigDecimal.
-     * </pre>
-     *
-     * <code>uint32 scale = 1;</code>
-     * @return The scale.
-     */
-    @java.lang.Override
-    public int getScale() {
-      return scale_;
-    }
-    /**
-     * <pre>
-     * The unscaled value of the BigDecimal.
-     * </pre>
-     *
-     * <code>uint32 scale = 1;</code>
-     * @param value The scale to set.
-     * @return This builder for chaining.
-     */
-    public Builder setScale(int value) {
-      
-      scale_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The unscaled value of the BigDecimal.
-     * </pre>
-     *
-     * <code>uint32 scale = 1;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearScale() {
-      
-      scale_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private int precision_ ;
-    /**
-     * <pre>
-     * The precision of the BigDecimal.
-     * </pre>
-     *
-     * <code>uint32 precision = 2;</code>
-     * @return The precision.
-     */
-    @java.lang.Override
-    public int getPrecision() {
-      return precision_;
-    }
-    /**
-     * <pre>
-     * The precision of the BigDecimal.
-     * </pre>
-     *
-     * <code>uint32 precision = 2;</code>
-     * @param value The precision to set.
-     * @return This builder for chaining.
-     */
-    public Builder setPrecision(int value) {
-      
-      precision_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The precision of the BigDecimal.
-     * </pre>
-     *
-     * <code>uint32 precision = 2;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearPrecision() {
-      
-      precision_ = 0;
-      onChanged();
-      return this;
-    }
-
-    private com.google.protobuf.ByteString value_ = com.google.protobuf.ByteString.EMPTY;
-    /**
-     * <pre>
-     * The byte serialized value in integer form.
-     * </pre>
-     *
-     * <code>bytes value = 3;</code>
-     * @return The value.
-     */
-    @java.lang.Override
-    public com.google.protobuf.ByteString getValue() {
-      return value_;
-    }
-    /**
-     * <pre>
-     * The byte serialized value in integer form.
-     * </pre>
-     *
-     * <code>bytes value = 3;</code>
-     * @param value The value to set.
-     * @return This builder for chaining.
-     */
-    public Builder setValue(com.google.protobuf.ByteString value) {
-      if (value == null) {
-    throw new NullPointerException();
-  }
-  
-      value_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * The byte serialized value in integer form.
-     * </pre>
-     *
-     * <code>bytes value = 3;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearValue() {
-      
-      value_ = getDefaultInstance().getValue();
-      onChanged();
-      return this;
-    }
-
     private java.lang.Object valueString_ = "";
     /**
      * <pre>
      * The string serialized value.
      * </pre>
      *
-     * <code>string valueString = 4;</code>
+     * <code>string valueString = 1;</code>
      * @return The valueString.
      */
     public java.lang.String getValueString() {
@@ -736,7 +492,7 @@ private static final long serialVersionUID = 0L;
      * The string serialized value.
      * </pre>
      *
-     * <code>string valueString = 4;</code>
+     * <code>string valueString = 1;</code>
      * @return The bytes for valueString.
      */
     public com.google.protobuf.ByteString
@@ -757,7 +513,7 @@ private static final long serialVersionUID = 0L;
      * The string serialized value.
      * </pre>
      *
-     * <code>string valueString = 4;</code>
+     * <code>string valueString = 1;</code>
      * @param value The valueString to set.
      * @return This builder for chaining.
      */
@@ -776,7 +532,7 @@ private static final long serialVersionUID = 0L;
      * The string serialized value.
      * </pre>
      *
-     * <code>string valueString = 4;</code>
+     * <code>string valueString = 1;</code>
      * @return This builder for chaining.
      */
     public Builder clearValueString() {
@@ -790,7 +546,7 @@ private static final long serialVersionUID = 0L;
      * The string serialized value.
      * </pre>
      *
-     * <code>string valueString = 4;</code>
+     * <code>string valueString = 1;</code>
      * @param value The bytes for valueString to set.
      * @return This builder for chaining.
      */

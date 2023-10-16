@@ -13,7 +13,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				require(
 					entityFetch(
 						attributeContent("code"),
-						referenceContentWithAttributes("brand")
+						referenceContent("brand")
 					)
 				)
 			)

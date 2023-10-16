@@ -44,14 +44,8 @@ message GrpcDateTimeRange {
 
 // Representation of Java's BigDecimal class with arbitrary precision.
 message GrpcBigDecimal {
-  // The unscaled value of the BigDecimal.
-  uint32 scale = 1;
-  // The precision of the BigDecimal.
-  uint32 precision = 2;
-  // The byte serialized value in integer form.
-  bytes value = 3;
   // The string serialized value.
-  string valueString = 4;
+  string valueString = 1;
 }
 
 // Structure for representing Locale objects specified by language tag.

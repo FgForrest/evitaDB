@@ -60,8 +60,6 @@ import io.evitadb.externalApi.grpc.generated.*;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -598,9 +596,9 @@ public class GrpcAssertions {
 
 	public static void assertHistograms(@Nonnull HistogramContract expectedHistogram, @Nonnull GrpcHistogram actualHistogram) {
 		final GrpcBigDecimal histogramMin = actualHistogram.getMin();
-		assertEquals(expectedHistogram.getMin(), new BigDecimal(histogramMin.getValueString(), new MathContext(histogramMin.getPrecision())).setScale(histogramMin.getScale(), RoundingMode.UNNECESSARY));
+		assertEquals(expectedHistogram.getMin(), EvitaDataTypesConverter.toBigDecimal(histogramMin));
 		final GrpcBigDecimal histogramMax = actualHistogram.getMax();
-		assertEquals(expectedHistogram.getMax(), new BigDecimal(histogramMax.getValueString(), new MathContext(histogramMax.getPrecision())).setScale(histogramMax.getScale(), RoundingMode.UNNECESSARY));
+		assertEquals(expectedHistogram.getMax(), EvitaDataTypesConverter.toBigDecimal(histogramMax));
 		assertEquals(expectedHistogram.getOverallCount(), actualHistogram.getOverallCount());
 		assertEquals(expectedHistogram.getBuckets().length, actualHistogram.getBucketsCount());
 
@@ -609,7 +607,7 @@ public class GrpcAssertions {
 			final GrpcHistogram.GrpcBucket actualBucket = actualHistogram.getBucketsList().get(i);
 			assertEquals(expectedBucket.getIndex(), actualBucket.getIndex());
 			final GrpcBigDecimal bucketThreshold = actualBucket.getThreshold();
-			assertEquals(expectedBucket.getThreshold(), new BigDecimal(bucketThreshold.getValueString(), new MathContext(bucketThreshold.getPrecision())).setScale(bucketThreshold.getScale(), RoundingMode.UNNECESSARY));
+			assertEquals(expectedBucket.getThreshold(), EvitaDataTypesConverter.toBigDecimal(bucketThreshold));
 			assertEquals(expectedBucket.getOccurrences(), actualBucket.getOccurrences());
 		}
 	}

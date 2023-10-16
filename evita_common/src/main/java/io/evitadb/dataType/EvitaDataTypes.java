@@ -663,7 +663,14 @@ public class EvitaDataTypes {
 			return CHAR_STRING_DELIMITER + ((String) value).replaceAll(STRING_DELIMITER, "\\\\'") + STRING_DELIMITER;
 		} else if (value instanceof Character) {
 			return CHAR_STRING_DELIMITER + ((Character) value).toString().replaceAll(STRING_DELIMITER, "\\\\'") + STRING_DELIMITER;
-		} else if (value instanceof Number) {
+		} else if (value instanceof BigDecimal bigDecimalValue) {
+			// Value normalisations were taken from https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto docs from Google.
+			// All other validation parts are done automatically by Java's BigDecimal
+			return bigDecimalValue.toString()
+				.replace("E", "e")
+				.replace("e+", "e");
+		}
+		else if (value instanceof Number) {
 			return value.toString();
 		} else if (value instanceof Boolean) {
 			return value.toString();

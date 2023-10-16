@@ -1109,6 +1109,34 @@ class EntitySchemaBuilderTest {
 		);
 	}
 
+	@Test
+	void shouldNotThrowWhenAssigningTheSameTypeToExistingAssociatedData() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema, categorySchema
+		);
+
+		final EntitySchemaContract updatedSchema = schemaBuilder
+			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+			.toInstance();
+
+		final EntitySchemaBuilder schemaBuilder2 = new InternalEntitySchemaBuilder(
+			catalogSchema, updatedSchema
+		);
+
+		assertDoesNotThrow(() ->
+			schemaBuilder2
+				.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+				.toInstance()
+		);
+
+		assertTrue(
+			schemaBuilder2
+				.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+				.toMutation()
+				.isEmpty()
+		);
+	}
+
 	private void assertSchemaContents(EntitySchemaContract updatedSchema) {
 		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_ASSOCIATED_DATA));
 		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_REFERENCES));

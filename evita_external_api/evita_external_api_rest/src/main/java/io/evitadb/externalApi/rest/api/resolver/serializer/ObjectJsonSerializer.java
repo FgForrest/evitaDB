@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Range;
 import io.evitadb.dataType.data.ComplexDataObjectToJsonConverter;
@@ -167,7 +168,7 @@ public class ObjectJsonSerializer {
 
 	@Nonnull
 	private String serialize(@Nonnull BigDecimal bigDecimal) {
-		return bigDecimal.toPlainString();
+		return EvitaDataTypes.formatValue(bigDecimal);
 	}
 
 	@Nonnull
