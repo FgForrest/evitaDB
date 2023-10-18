@@ -64,12 +64,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -162,9 +159,6 @@ public class EvitaServer {
 		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
 		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logMsg).map(it -> " (" + it + ")").orElse("") + "", ConsoleColor.DARK_GRAY);
-		ConsoleWriter.write("Timezone property:\n" + System.getProperty("user.timezone"), ConsoleColor.WHITE);
-		ConsoleWriter.write("Timezone seen:\n" + TimeZone.getDefault().toString(), ConsoleColor.WHITE);
-		ConsoleWriter.write("Now:\n" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME), ConsoleColor.WHITE);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))

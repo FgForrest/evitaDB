@@ -76,8 +76,6 @@ import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -87,7 +85,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
-import java.util.TimeZone;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -360,10 +357,6 @@ public class ExternalApiServer implements AutoCloseable {
 
 		rootServer.start();
 		registeredApiProviders.values().forEach(ExternalApiProvider::afterStart);
-
-		log.info("Timezone property:\n" + System.getProperty("user.timezone"));
-		log.info("Timezone seen:\n" + TimeZone.getDefault().toString());
-		log.info("Now:\n" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
 	}
 
 	/**
