@@ -630,7 +630,6 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			require(entityFetchAll())
 		);
 
-		System.out.println("PK: " + primaryKey);
 		assertProduct(
 			theProduct,
 			evitaSession.queryOne(query, ProductInterface.class).orElse(null),
