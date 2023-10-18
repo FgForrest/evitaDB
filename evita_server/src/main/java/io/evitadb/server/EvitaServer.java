@@ -196,7 +196,10 @@ public class EvitaServer {
 			}
 		}
 		// and then initialize logger so that `logback.configurationFile` argument might apply
-		getLog();
+		final Logger theLog = getLog();
+		theLog.info("Timezone property:\n" + System.getProperty("user.timezone"));
+		theLog.info("Timezone seen:\n" + TimeZone.getDefault().toString());
+		theLog.info("Now:\n" + OffsetDateTime.now().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
 		return logMsg;
 	}
 
