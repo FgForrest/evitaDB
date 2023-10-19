@@ -652,7 +652,6 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 			)
 		);
 
-		System.out.println("PK: " + primaryKey);
 		assertProduct(
 			theProduct,
 			evitaSession.queryOne(query, theClass).orElse(null),

@@ -578,7 +578,6 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			)
 		);
 
-		System.out.println("PK: " + primaryKey);
 		assertProduct(
 			theProduct,
 			evitaSession.queryOne(query, ProductRecord.class).orElse(null),
