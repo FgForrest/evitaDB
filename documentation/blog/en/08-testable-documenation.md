@@ -101,8 +101,8 @@ The C# client lives in a separate [repository] (https://github.com/FgForrest/evi
 CI/CD pipeline. When this pipeline passes, the client is published to the NuGet repository and is available for 
 download. The evitaDB CI/CD pipeline downloads the latest version of the client and uses it to execute the C# samples on 
 the Linux platform via our JUnit extension <SourceClass>evita_functional_tests/src/test/java/io/evitadb/documentation/csharp/CShell.java</SourceClass>.
-The client is run in a separate process and we take advantage of [Mono](https://www.mono-project.com/). The C# 
-executable runs the examples against [the demo dataset](https://demo.evitadb.io) and generates the MarkDown to 
+The client is run in a separate process and we take advantage of .NET multi-platform support and its ability to run on
+Linux. The C# executable runs the examples against [the demo dataset](https://demo.evitadb.io) and generates the MarkDown to 
 standard output, which is captured by the JUnit extension and compared against the expected content.
 
 ## Component & activity pseudo-diagram
