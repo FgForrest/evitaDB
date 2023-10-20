@@ -52,7 +52,7 @@ public class GetCatalogHandler extends CatalogHandler {
 	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
+		return restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
 			.map(it -> (EndpointResponse<CatalogContract>) new SuccessEndpointResponse<>(it))
 			.orElse(new NotFoundEndpointResponse<>());
 	}

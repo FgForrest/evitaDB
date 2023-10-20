@@ -66,7 +66,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.externalApi.api.ExternalApiNamingConventions.ARGUMENT_NAME_NAMING_CONVENTION;
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.CURRENCY_ENUM;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.rest.api.catalog.dataApi.builder.DataApiNamesConstructor.constructEntityFullResponseObjectName;
@@ -198,7 +197,7 @@ public class DataApiEndpointBuilder {
 		return Optional.of(
 			newCatalogEndpoint(buildingContext.getSchema())
 				.path(localized, p -> p
-					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
+					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.classifier())
 					.staticItem(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.urlPathItem()))
 				.method(HttpMethod.GET)
 				.operationId(CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY.operation(getLocalizedSuffix(localized)))
@@ -240,7 +239,7 @@ public class DataApiEndpointBuilder {
 		return Optional.of(
 			newCatalogEndpoint(buildingContext.getSchema())
 				.path(localized, p -> p
-					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier(URL_NAME_NAMING_CONVENTION))
+					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.classifier())
 					.staticItem(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.urlPathItem()))
 				.method(HttpMethod.GET)
 				.operationId(CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY.operation(getLocalizedSuffix(localized)))

@@ -35,7 +35,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ExternalApiNamingConventions {
 
-	public static final NamingConvention URL_NAME_NAMING_CONVENTION = NamingConvention.KEBAB_CASE;
 	public static final NamingConvention TYPE_NAME_NAMING_CONVENTION = NamingConvention.PASCAL_CASE;
 	public static final NamingConvention PROPERTY_NAME_NAMING_CONVENTION = NamingConvention.CAMEL_CASE;
 	public static final NamingConvention PROPERTY_NAME_PART_NAMING_CONVENTION = NamingConvention.PASCAL_CASE;
