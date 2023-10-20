@@ -10,7 +10,7 @@ motive: assets/images/08-testable-documentation.png
 proofreading: 'done'
 ---
 
-The technical documentation written by evitaDb developers requires a different approach than the documentation written 
+The technical documentation written by evitaDB developers requires a different approach than the documentation written 
 by marketing or sales people. Developers are tied to their integrated development environment (IDE) and want it to be 
 close and interlinked with the source code they are working on. They don't want fancy editors or to spend too much time 
 on styling - plain MarkDown is usually the best choice for them. What they want is to have the documentation in the same 
@@ -56,13 +56,13 @@ correct? We need to test them regularly and check that they still produce the sa
 In this way we can also test the availability and correctness of the demo dataset, which is not entirely static, but 
 also changes over time.
 
-However, testing is quite a challenge. Each latform/language requires a different way of running the examples. Let's 
+However, testing is quite a challenge. Each platform/language requires a different way of running the examples. Let's 
 have a look at each of them:
 
 1. The Java examples were quite challenging and their testing was documented in the [previous blog post](06-document-examples-testing.md)
 2. evitaQL uses [Java Client](/documentation/use/connectors/java)
-3. REST API uses simple http client to make requests
-4. GraphQL API uses [java-graphql-client](https://github.com/graphql-java/graphql-java)
+3. REST API uses simple HTTP client to make requests
+4. GraphQL API uses simple HTTP client to make requests
 5. C# examples use [C# Client](/documentation/use/connectors/c-sharp)
 
 ## Obstacles overcome
@@ -79,7 +79,7 @@ consideration and formatting.
 ### Github rate-limiting
 
 We use the GitHub API to fetch the source code of the examples from the repository. The problem is that GitHub has a 
-[rate-limiting policy] (https://docs.github.com/en/rest/overview/resources-in-the-rest-api?apiVersion=2022-11-28#rate-limits),
+[rate-limiting policy](https://docs.github.com/en/rest/overview/resources-in-the-rest-api?apiVersion=2022-11-28#rate-limits),
 which means that we can't fetch the source code of the examples too often. Due to the number of examples on each page, 
 we often hit the limit. We had to implement a proxying mechanism that caches the source code of the examples locally and
 only fetches it from GitHub if it's not available in the cache or if its [eTag](https://www.endorlabs.com/blog/how-to-get-the-most-out-of-github-api-rate-limits#conditional-requests-aka-etag) has changed, using the 
@@ -97,7 +97,7 @@ the correct location.
 
 ### C-Sharp client
 
-The C# client lives in a separate [repository] (https://github.com/FgForrest/evitaDB-C-Sharp-client) and has its own 
+The C# client lives in a separate [repository](https://github.com/FgForrest/evitaDB-C-Sharp-client) and has its own 
 CI/CD pipeline. When this pipeline passes, the client is published to the NuGet repository and is available for 
 download. The evitaDB CI/CD pipeline downloads the latest version of the client and uses it to execute the C# samples on 
 the Linux platform via our JUnit extension <SourceClass>evita_functional_tests/src/test/java/io/evitadb/documentation/csharp/CShell.java</SourceClass>.
