@@ -6,7 +6,7 @@ perex: |
   and whose interest is that the documentation written is correct and does not become outdated over time.
 date: '20.20.2023'
 author: 'Jan Novotný'
-motive: assets/images/08-testable-documenation/motive.jpg
+motive: assets/images/08-testable-documenation.jpg
 proofreading: 'done'
 ---
 
