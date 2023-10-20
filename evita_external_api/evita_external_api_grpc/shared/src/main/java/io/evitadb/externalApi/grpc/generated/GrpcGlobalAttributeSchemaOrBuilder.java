@@ -134,11 +134,25 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
 
   /**
    * <pre>
+   * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+   * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+   * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+   * helpful to developers in quickly finding their way around the data. There should be very few representative
+   * attributes in the entity type, and the unique ones are usually the best to choose.
+   * </pre>
+   *
+   * <code>bool representative = 9;</code>
+   * @return The representative.
+   */
+  boolean getRepresentative();
+
+  /**
+   * <pre>
    * Data type of the attribute. Must be one of Evita-supported values.
    * Internally the scalar is converted into Java-corresponding data type.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
@@ -148,7 +162,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * Internally the scalar is converted into Java-corresponding data type.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType();
@@ -159,7 +173,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
    * @return Whether the defaultValue field is set.
    */
   boolean hasDefaultValue();
@@ -169,7 +183,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
    * @return The defaultValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue();
@@ -179,12 +193,19 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder();
 
   /**
-   * <code>int32 indexedDecimalPlaces = 11;</code>
+   * <pre>
+   * Determines how many fractional places are important when entities are compared during filtering or sorting. It is
+   * significant to know that all values of this attribute will be converted to {&#64;link java.lang.Integer}, so the attribute
+   * number must not ever exceed maximum limits of {&#64;link java.lang.Integer} type when scaling the number by the power
+   * of ten using `indexedDecimalPlaces` as exponent.
+   * </pre>
+   *
+   * <code>int32 indexedDecimalPlaces = 12;</code>
    * @return The indexedDecimalPlaces.
    */
   int getIndexedDecimalPlaces();
@@ -197,7 +218,7 @@ public interface GrpcGlobalAttributeSchemaOrBuilder extends
    * better to have this ensured by the database engine.
    * </pre>
    *
-   * <code>bool uniqueGlobally = 12;</code>
+   * <code>bool uniqueGlobally = 13;</code>
    * @return The uniqueGlobally.
    */
   boolean getUniqueGlobally();

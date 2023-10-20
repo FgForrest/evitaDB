@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
@@ -124,8 +124,8 @@ class EntityConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
 			Map.of(
-				"test1", AttributeSchema._internalBuild("test1", LocalDateTime.class, true),
-				"test2", AttributeSchema._internalBuild("test2", Boolean[].class, true)
+				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true),
+				"test2", EntityAttributeSchema._internalBuild("test2", Boolean[].class, true)
 			),
 			Map.of(
 				"test1", AssociatedDataSchema._internalBuild("test1", "Lorem ipsum", "Alert", Integer.class, false, true),

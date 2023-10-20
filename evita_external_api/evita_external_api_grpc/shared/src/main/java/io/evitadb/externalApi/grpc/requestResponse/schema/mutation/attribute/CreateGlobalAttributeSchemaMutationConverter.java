@@ -50,6 +50,7 @@ public class CreateGlobalAttributeSchemaMutationConverter implements SchemaMutat
 			mutation.getSortable(),
 			mutation.getLocalized(),
 			mutation.getNullable(),
+			mutation.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(mutation.getDefaultValue()) : null,
 			mutation.getIndexedDecimalPlaces()

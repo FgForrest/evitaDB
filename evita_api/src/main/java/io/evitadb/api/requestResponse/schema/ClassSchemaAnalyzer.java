@@ -36,14 +36,12 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
-import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -70,9 +68,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -186,6 +182,15 @@ public class ClassSchemaAnalyzer {
 			}
 			if (attributeAnnotation.sortable()) {
 				whichIs.sortable();
+			}
+			if (attributeAnnotation.representative()) {
+				if (whichIs instanceof EntityAttributeSchemaBuilder entityBuilder) {
+					entityBuilder.representative();
+				} else if (whichIs instanceof GlobalAttributeSchemaBuilder entityBuilder) {
+					entityBuilder.representative();
+				} else {
+					throw new IllegalArgumentException("Reference attribute cannot be made representative!");
+				}
 			}
 			if (attributeAnnotation.localized()) {
 				whichIs.localized();

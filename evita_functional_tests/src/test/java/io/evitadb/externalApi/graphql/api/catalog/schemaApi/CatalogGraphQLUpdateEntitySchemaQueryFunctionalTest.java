@@ -357,6 +357,10 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 							... on AttributeSchema {
 								name
 							}
+							... on EntityAttributeSchema {
+								__typename
+								name
+							}
 							... on GlobalAttributeSchema {
 								name
 							}

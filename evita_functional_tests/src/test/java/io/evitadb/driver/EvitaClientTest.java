@@ -50,10 +50,10 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.Predecessor;
@@ -597,7 +597,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
 					assertTrue(brand.isPresent());
 
-					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
 					assertTrue(nameAttribute.isPresent());
 					assertTrue(nameAttribute.get().isLocalized());
 
@@ -642,7 +642,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
 					assertTrue(product.isPresent());
 
-					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
 					assertTrue(productNameAttribute.isPresent());
 					assertTrue(productNameAttribute.get().isLocalized());
 				}

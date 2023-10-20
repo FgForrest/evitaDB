@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -111,7 +112,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				final Map<String, Object> attributes = (Map<String, Object>) catalogSchemaDto.get(CatalogSchemaDescriptor.ATTRIBUTES.name());
 				attributes.put(
 					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
-					createGlobalAttributeSchemaDto(attributeSchema)
+					createAttributeSchemaDto(attributeSchema)
 				);
 			});
 
@@ -163,7 +164,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				final Map<String, Object> attributes = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.ATTRIBUTES.name());
 				attributes.put(
 					attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
-					attributeSchema instanceof GlobalAttributeSchemaContract ? createGlobalAttributeSchemaDto((GlobalAttributeSchemaContract) attributeSchema) : createAttributeSchemaDto(attributeSchema)
+					createAttributeSchemaDto(attributeSchema)
 				);
 			});
 		entitySchema.getSortableAttributeCompounds()
@@ -202,7 +203,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 
 	@Nonnull
 	protected static Map<String, Object> createAttributeSchemaDto(@Nonnull AttributeSchemaContract attributeSchema) {
-		return map()
+		final MapBuilder dtoBuilder = map()
 			.e(NamedSchemaDescriptor.NAME.name(), attributeSchema.getName())
 			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), attributeSchema.getNameVariant(NamingConvention.CAMEL_CASE))
@@ -213,39 +214,25 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription())
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice())
-			.e(AttributeSchemaDescriptor.UNIQUE.name(), attributeSchema.isUnique())
+			.e(AttributeSchemaDescriptor.UNIQUE.name(), attributeSchema.isUnique());
+		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
+			dtoBuilder.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), globalAttributeSchema.isUniqueGlobally());
+		}
+		dtoBuilder
 			.e(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable())
 			.e(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable())
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
-			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable())
+			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
+		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
+			dtoBuilder.e(GlobalAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
+		}
+		dtoBuilder
 			.e(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()))
 			.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), serializeDefaultValue(attributeSchema.getDefaultValue()))
-			.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces())
-			.build();
-	}
+			.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
 
-	@Nonnull
-	protected static Map<String, Object> createGlobalAttributeSchemaDto(@Nonnull GlobalAttributeSchemaContract attributeSchema) {
-		return map()
-			.e(NamedSchemaDescriptor.NAME.name(), attributeSchema.getName())
-			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
-				.e(NameVariantsDescriptor.CAMEL_CASE.name(), attributeSchema.getNameVariant(NamingConvention.CAMEL_CASE))
-				.e(NameVariantsDescriptor.PASCAL_CASE.name(), attributeSchema.getNameVariant(NamingConvention.PASCAL_CASE))
-				.e(NameVariantsDescriptor.SNAKE_CASE.name(), attributeSchema.getNameVariant(NamingConvention.SNAKE_CASE))
-				.e(NameVariantsDescriptor.UPPER_SNAKE_CASE.name(), attributeSchema.getNameVariant(NamingConvention.UPPER_SNAKE_CASE))
-				.e(NameVariantsDescriptor.KEBAB_CASE.name(), attributeSchema.getNameVariant(NamingConvention.KEBAB_CASE))
-				.build())
-			.e(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription())
-			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice())
-			.e(AttributeSchemaDescriptor.UNIQUE.name(), attributeSchema.isUnique())
-			.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), attributeSchema.isUniqueGlobally())
-			.e(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable())
-			.e(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable())
-			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
-			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable())
-			.e(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()))
-			.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), serializeDefaultValue(attributeSchema.getDefaultValue()))
-			.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces())
+
+		return dtoBuilder
 			.build();
 	}
 

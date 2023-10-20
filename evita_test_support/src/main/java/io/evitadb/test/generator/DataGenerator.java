@@ -230,14 +230,14 @@ public class DataGenerator {
 
 	private static void generateRandomAttributes(
 		@Nonnull String entityType,
-		@Nonnull Collection<AttributeSchemaContract> attributeSchema,
+		@Nonnull Collection<? extends AttributeSchemaContract> attributeSchema,
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
 		@Nonnull Predicate<String> attributeFilter, Function<Locale, Faker> localeFaker,
 		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
 		@Nonnull Faker genericFaker,
-		@Nonnull AttributesEditor<?> attributesEditor,
+		@Nonnull AttributesEditor<?,?> attributesEditor,
 		@Nonnull Collection<Locale> usedLocales,
 		@Nonnull Collection<Locale> allLocales
 	) {
@@ -486,7 +486,7 @@ public class DataGenerator {
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull SortableAttributesChecker sortableAttributesChecker,
-		@Nonnull AttributesEditor<?> attributesBuilder,
+		@Nonnull AttributesEditor<?,?> attributesBuilder,
 		@Nonnull AttributeSchemaContract attribute,
 		@Nonnull Class<? extends Serializable> type,
 		@Nonnull String entityType,
@@ -614,7 +614,7 @@ public class DataGenerator {
 
 	private static <T extends Serializable> T generateRandomString(
 		@Nonnull Map<Object, Integer> uniqueSequencer,
-		@Nonnull AttributesEditor<?> attributesBuilder,
+		@Nonnull AttributesEditor<?,?> attributesBuilder,
 		@Nonnull AttributeSchemaContract attribute,
 		@Nonnull String entityType,
 		@Nonnull String attributeName,
@@ -1268,7 +1268,7 @@ public class DataGenerator {
 		final SealedCatalogSchema catalogSchema = evitaSession.getCatalogSchema();
 		if (Arrays.stream(attributeNames).anyMatch(it -> it.equals(ATTRIBUTE_CODE))) {
 			if (catalogSchema.getAttribute(ATTRIBUTE_CODE).isEmpty()) {
-				schemaBuilder.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique().nullable());
+				schemaBuilder.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique().nullable().representative());
 			} else {
 				schemaBuilder.withGlobalAttribute(ATTRIBUTE_CODE);
 			}

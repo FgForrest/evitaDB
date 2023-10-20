@@ -76,7 +76,6 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -121,7 +120,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	private final Entity baseEntity;
 	@Delegate(types = AttributesContract.class)
-	private final ExistingAttributesBuilder attributesBuilder;
+	private final ExistingEntityAttributesBuilder attributesBuilder;
 	@Delegate(types = AssociatedDataContract.class)
 	private final ExistingAssociatedDataBuilder associatedDataBuilder;
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
@@ -139,7 +138,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity.getDelegate();
-		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, null, this.baseEntity.attributes, baseEntity.getAttributePredicate());
+		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
 		this.referenceMutations = new HashMap<>();
@@ -160,7 +159,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity;
-		this.attributesBuilder = new ExistingAttributesBuilder(this.baseEntity.schema, null, this.baseEntity.attributes, ExistsPredicate.instance());
+		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
 		this.referenceMutations = new HashMap<>();
@@ -727,20 +726,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	private ReferenceSchemaContract getReferenceSchemaOrThrowException(@Nonnull String referenceName) {
 		return getSchema().getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotKnownException(referenceName));
-	}
-
-	private class ReferenceUniqueAttributeCheck implements BiPredicate<String, String>, Serializable {
-		@Serial private static final long serialVersionUID = 3153392405996708805L;
-
-		@Override
-		public boolean test(String referenceName, String attributeName) {
-			return getReferences()
-				.stream()
-				.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
-				.filter(Droppable::exists)
-				.anyMatch(it -> it.getAttributeValue(attributeName).map(Droppable::exists).orElse(false));
-		}
-
 	}
 
 }

@@ -63,6 +63,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			true,
 			false,
 			true,
+			true,
 			String.class,
 			"defaultCode",
 			2
@@ -78,6 +79,7 @@ class CreateAttributeSchemaMutationConverterTest {
 				.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
 				.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), false)
 				.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
+				.e(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), true)
 				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 				.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 				.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
@@ -95,6 +97,7 @@ class CreateAttributeSchemaMutationConverterTest {
 				.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), "true")
 				.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), "false")
 				.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), "true")
+				.e(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), "true")
 				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), "String")
 				.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 				.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), "2")
@@ -108,6 +111,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
+			false,
 			false,
 			false,
 			false,

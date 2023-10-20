@@ -186,6 +186,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.isSortable(),
 				attributeSchemaContract.isLocalized(),
 				attributeSchemaContract.isNullable(),
+				attributeSchemaContract.isRepresentative(),
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces()

@@ -62,7 +62,7 @@ import java.util.function.BooleanSupplier;
 @SuppressWarnings("unchecked")
 public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeSchemaEditor<T>, S extends AttributeSchemaContract>
 	implements AttributeSchemaEditor<T>, InternalSchemaBuilderHelper
-	permits AttributeSchemaBuilder, GlobalAttributeSchemaBuilder {
+	permits AttributeSchemaBuilder, EntityAttributeSchemaBuilder, GlobalAttributeSchemaBuilder {
 	@Serial private static final long serialVersionUID = -1519084392486171781L;
 	protected final S baseSchema;
 	protected final CatalogSchemaContract catalogSchema;
@@ -359,7 +359,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			// apply the mutations not reflected in the schema
 			for (int i = lastMutationReflectedInSchema; i < attributeMutations.size(); i++) {
 				final AttributeSchemaMutation mutation = attributeMutations.get(i);
-				currentSchema = mutation.mutate(null, currentSchema);
+				currentSchema = mutation.mutate(null, currentSchema, getAttributeSchemaType());
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Attribute unexpectedly removed from inside!");
 				}
@@ -371,6 +371,11 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		}
 		return this.updatedSchema;
 	}
+
+	/**
+	 * Returns the type of the attribute this builder builds.
+	 */
+	protected abstract Class<S> getAttributeSchemaType();
 
 	/**
 	 * Method allows adding specific mutation on the fly.

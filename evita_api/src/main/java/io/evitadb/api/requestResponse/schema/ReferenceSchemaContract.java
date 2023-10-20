@@ -66,7 +66,7 @@ import java.util.function.Function;
  */
 public interface ReferenceSchemaContract extends
 	NamedSchemaWithDeprecationContract,
-	SortableAttributeCompoundSchemaProvider
+	SortableAttributeCompoundSchemaProvider<AttributeSchemaContract>
 {
 
 	/**

@@ -302,10 +302,37 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+   * @return Whether the setAttributeSchemaRepresentativeMutation field is set.
+   */
+  boolean hasSetAttributeSchemaRepresentativeMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+   * @return The setAttributeSchemaRepresentativeMutation.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation getSetAttributeSchemaRepresentativeMutation();
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder getSetAttributeSchemaRepresentativeMutationOrBuilder();
+
+  /**
+   * <pre>
    * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
    * @return Whether the setAttributeSchemaSortableMutation field is set.
    */
   boolean hasSetAttributeSchemaSortableMutation();
@@ -314,7 +341,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
    * @return The setAttributeSchemaSortableMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation getSetAttributeSchemaSortableMutation();
@@ -323,7 +350,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder getSetAttributeSchemaSortableMutationOrBuilder();
 
@@ -332,7 +359,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
    * @return Whether the setAttributeSchemaUniqueMutation field is set.
    */
   boolean hasSetAttributeSchemaUniqueMutation();
@@ -341,7 +368,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
    * @return The setAttributeSchemaUniqueMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation getSetAttributeSchemaUniqueMutation();
@@ -350,7 +377,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder getSetAttributeSchemaUniqueMutationOrBuilder();
 
@@ -359,7 +386,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
    * @return Whether the useGlobalAttributeSchemaMutation field is set.
    */
   boolean hasUseGlobalAttributeSchemaMutation();
@@ -368,7 +395,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
    * @return The useGlobalAttributeSchemaMutation.
    */
   io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation getUseGlobalAttributeSchemaMutation();
@@ -377,7 +404,7 @@ public interface GrpcAttributeSchemaMutationOrBuilder extends
    * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder getUseGlobalAttributeSchemaMutationOrBuilder();
 

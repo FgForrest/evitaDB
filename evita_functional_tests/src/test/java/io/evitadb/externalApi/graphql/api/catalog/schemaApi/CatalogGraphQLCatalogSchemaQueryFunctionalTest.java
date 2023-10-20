@@ -30,9 +30,9 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.*;
-import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -306,10 +306,10 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 										}
 									}
 									allAttributes {
-										... on AttributeSchema {
+		                                ... on EntityAttributeSchema {
 											__typename
-		                                    name
-		                                }
+											name
+										}
 		                                ... on GlobalAttributeSchema {
 		                                    __typename
 		                                    name
@@ -373,7 +373,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 								.e(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), productSchema.getAttributes().values()
 									.stream()
 									.map(attributeSchema -> map()
-										.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : AttributeSchemaDescriptor.THIS.name())
+										.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : EntityAttributeSchemaDescriptor.THIS.name())
 										.e(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName())
 										.build())
 									.toList())
@@ -437,7 +437,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 								__typename
 								name
 								allAttributes {
-									... on AttributeSchema {
+									... on EntityAttributeSchema {
 										__typename
 										name
 									}
@@ -467,7 +467,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.stream()
 									.map(attributeSchema ->
 										map()
-											.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : AttributeSchemaDescriptor.THIS.name())
+											.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : EntityAttributeSchemaDescriptor.THIS.name())
 											.e(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName())
 											.build()
 									)

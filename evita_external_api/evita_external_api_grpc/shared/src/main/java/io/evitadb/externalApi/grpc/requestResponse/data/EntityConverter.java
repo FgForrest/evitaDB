@@ -149,9 +149,8 @@ public class EntityConverter {
 						.stream()
 						.map(it -> toReference(entitySchema, it))
 						.collect(Collectors.toList()),
-					new Attributes(
+					new EntityAttributes(
 						entitySchema,
-						null,
 						toAttributeValues(
 							grpcEntity.getGlobalAttributesMap(),
 							grpcEntity.getLocalizedAttributesMap()

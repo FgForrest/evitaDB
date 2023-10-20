@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -52,7 +53,7 @@ import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySch
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W>, AssociatedDataEditor<W>, PricesEditor<W> {
+public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W, EntityAttributeSchemaContract>, AssociatedDataEditor<W>, PricesEditor<W> {
 
 	/**
 	 * Sets hierarchy information of the entity. Hierarchy information allows to compose hierarchy tree composed of
@@ -63,7 +64,7 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 
 	/**
 	 * Removes existing parent of the entity. If there are other entities, that refer transitively via
-	 * {@link EntityContract#getParent()} this entity their will become "orphans" and their parent needs to be removed
+	 * {@link EntityContract#getParentEntity()} this entity their will become "orphans" and their parent needs to be removed
 	 * as well, or it must be "rewired" to another parent.
 	 */
 	W removeParent();

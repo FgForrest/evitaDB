@@ -103,7 +103,8 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable, type, (Serializable) defaultValue, indexedDecimalPlaces
+			unique, filterable, sortable, localized, nullable,
+			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}
 

@@ -40,94 +40,97 @@ message GrpcEntitySchemaMutation {
 
     // Mutation is responsible for setting up a new `AttributeSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` alone.
-    GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 9;
+    GrpcCreateAttributeSchemaMutation createAttributeSchemaMutation = 20;
     // Mutation is responsible for setting value to a `AttributeSchema.defaultValue` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 10;
+    GrpcModifyAttributeSchemaDefaultValueMutation modifyAttributeSchemaDefaultValueMutation = 21;
     // Mutation is responsible for setting value to a `AttributeSchema.deprecationNotice` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 11;
+    GrpcModifyAttributeSchemaDeprecationNoticeMutation modifyAttributeSchemaDeprecationNoticeMutation = 22;
     // Mutation is responsible for setting value to a `AttributeSchema.description` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 12;
+    GrpcModifyAttributeSchemaDescriptionMutation modifyAttributeSchemaDescriptionMutation = 23;
     // Mutation is responsible for renaming an existing `AttributeSchema` in `EntitySchema` or `GlobalAttributeSchema` in `CatalogSchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 13;
+    GrpcModifyAttributeSchemaNameMutation modifyAttributeSchemaNameMutation = 24;
     // Mutation is responsible for setting value to a `AttributeSchema.type` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 14;
+    GrpcModifyAttributeSchemaTypeMutation modifyAttributeSchemaTypeMutation = 25;
     // Mutation is responsible for removing an existing `AttributeSchema` in the `EntitySchema` or `GlobalAttributeSchema`
     // in the `CatalogSchema`. Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 15;
+    GrpcRemoveAttributeSchemaMutation removeAttributeSchemaMutation = 26;
     // Mutation is responsible for setting value to a `AttributeSchema.filterable` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 16;
+    GrpcSetAttributeSchemaFilterableMutation setAttributeSchemaFilterableMutation = 27;
     // Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 17;
+    GrpcSetAttributeSchemaLocalizedMutation setAttributeSchemaLocalizedMutation = 28;
     // Mutation is responsible for setting value to a `AttributeSchema.nullable` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 18;
+    GrpcSetAttributeSchemaNullableMutation setAttributeSchemaNullableMutation = 29;
+    // Mutation is responsible for setting value to a `AttributeSchema.representative` in `EntitySchema`.
+    // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
+    GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 30;
     // Mutation is responsible for setting value to a `AttributeSchema.sortable` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 19;
+    GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 31;
     // Mutation is responsible for setting value to a `AttributeSchema.unique` in `EntitySchema`.
     // Mutation can be used for altering also the existing `AttributeSchema` or `GlobalAttributeSchema` alone.
-    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 20;
+    GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 32;
     // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
-    GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 21;
+    GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 33;
 
     // Mutation is responsible for adding one or more currencies to a `EntitySchema.currencies` in `EntitySchema`.
-    GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 22;
+    GrpcAllowCurrencyInEntitySchemaMutation allowCurrencyInEntitySchemaMutation = 50;
     // Mutation is responsible for adding one or more modes to a `EntitySchema.evolutionMode` in `EntitySchema`.
-    GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 23;
+    GrpcAllowEvolutionModeInEntitySchemaMutation allowEvolutionModeInEntitySchemaMutation = 51;
     // Mutation is responsible for adding one or more locales to a `EntitySchema.locales` in `EntitySchema`.
-    GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 24;
+    GrpcAllowLocaleInEntitySchemaMutation allowLocaleInEntitySchemaMutation = 52;
     // Mutation is responsible for removing one or more currencies from a `EntitySchema.currencies` in `EntitySchema`.
-    GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 25;
+    GrpcDisallowCurrencyInEntitySchemaMutation disallowCurrencyInEntitySchemaMutation = 53;
     // Mutation is responsible for removing one or more modes from a `EntitySchema.evolutionMode` in `EntitySchema`.
-    GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 26;
+    GrpcDisallowEvolutionModeInEntitySchemaMutation disallowEvolutionModeInEntitySchemaMutation = 54;
     // Mutation is responsible for removing one or more locales to a `EntitySchema.locales` in `EntitySchema`.
-    GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 27;
+    GrpcDisallowLocaleInEntitySchemaMutation disallowLocaleInEntitySchemaMutation = 55;
     // Mutation is responsible for setting a `EntitySchema.deprecationNotice` in `EntitySchema`.
-    GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 28;
+    GrpcModifyEntitySchemaDeprecationNoticeMutation modifyEntitySchemaDeprecationNoticeMutation = 56;
     // Mutation is responsible for setting a `EntitySchema.description` in `EntitySchema`.
-    GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 29;
+    GrpcModifyEntitySchemaDescriptionMutation modifyEntitySchemaDescriptionMutation = 57;
     // Mutation is responsible for setting a `EntitySchema.withGeneratedPrimaryKey` in `EntitySchema`.
-    GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 30;
+    GrpcSetEntitySchemaWithGeneratedPrimaryKeyMutation setEntitySchemaWithGeneratedPrimaryKeyMutation = 58;
     // Mutation is responsible for setting a `EntitySchema.withHierarchy` in `EntitySchema`.
-    GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 31;
+    GrpcSetEntitySchemaWithHierarchyMutation setEntitySchemaWithHierarchyMutation = 59;
     // Mutation is responsible for setting a `EntitySchema.withPrice` in `EntitySchema`.
-    GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 32;
+    GrpcSetEntitySchemaWithPriceMutation setEntitySchemaWithPriceMutation = 60;
 
     // Mutation is responsible for setting up a new `ReferenceSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 33;
+    GrpcCreateReferenceSchemaMutation createReferenceSchemaMutation = 80;
     // Mutation is a holder for a single `AttributeSchema` that affect any of `ReferenceSchema.attributes` in the `EntitySchema`.
-    GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 34;
+    GrpcModifyReferenceAttributeSchemaMutation modifyReferenceAttributeSchemaMutation = 81;
     // Mutation is responsible for setting value to a `ReferenceSchema.cardinality` in `EntitySchema`.
-    GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 35;
+    GrpcModifyReferenceSchemaCardinalityMutation modifyReferenceSchemaCardinalityMutation = 82;
     // Mutation is responsible for setting value to a `ReferenceSchema.deprecationNotice` in `EntitySchema`.
-    GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 36;
+    GrpcModifyReferenceSchemaDeprecationNoticeMutation modifyReferenceSchemaDeprecationNoticeMutation = 83;
     // Mutation is responsible for setting value to a `ReferenceSchema.description` in `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 37;
+    GrpcModifyReferenceSchemaDescriptionMutation modifyReferenceSchemaDescriptionMutation = 84;
     // Mutation is responsible for renaming an existing `ReferenceSchema` in `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 38;
+    GrpcModifyReferenceSchemaNameMutation modifyReferenceSchemaNameMutation = 85;
     // Mutation is responsible for setting value to a `ReferenceSchema.referencedGroupType` in `EntitySchema`.
-    GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 39;
+    GrpcModifyReferenceSchemaRelatedEntityGroupMutation modifyReferenceSchemaRelatedEntityGroupMutation = 86;
     // Mutation is responsible for setting value to a `ReferenceSchema.referencedEntityType` in `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 40;
+    GrpcModifyReferenceSchemaRelatedEntityMutation modifyReferenceSchemaRelatedEntityMutation = 87;
     // Mutation is responsible for removing an existing `ReferenceSchema` in the `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 41;
+    GrpcRemoveReferenceSchemaMutation removeReferenceSchemaMutation = 88;
     // Mutation is responsible for setting value to a `ReferenceSchema.faceted` in `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 42;
+    GrpcSetReferenceSchemaFacetedMutation setReferenceSchemaFacetedMutation = 89;
     // Mutation is responsible for setting value to a `ReferenceSchema.indexed` in `EntitySchema`.
     // Mutation can be used for altering also the existing `ReferenceSchema` alone.
-    GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 43;
+    GrpcSetReferenceSchemaFilterableMutation setReferenceSchemaIndexedMutation = 90;
   }
 }

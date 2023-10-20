@@ -26,14 +26,17 @@ package io.evitadb.api.requestResponse.data;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -43,7 +46,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AttributesEditor<W extends AttributesEditor<W>> extends AttributesContract {
+public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends AttributeSchemaContract> extends AttributesContract<S> {
 
 	/**
 	 * Removes value associated with the key or null when the attribute is missing.
@@ -113,17 +116,35 @@ public interface AttributesEditor<W extends AttributesEditor<W>> extends Attribu
 	/**
 	 * Interface that simply combines writer and builder contracts together.
 	 */
-	interface AttributesBuilder extends AttributesEditor<AttributesBuilder>, BuilderContract<Attributes> {
+	interface AttributesBuilder<S extends AttributeSchemaContract> extends AttributesEditor<AttributesBuilder<S>, S>, BuilderContract<Attributes<S>> {
 
 		@Nonnull
 		@Override
 		Stream<? extends AttributeMutation> buildChangeSet();
 
 		/**
+		 * Returns human readable string representation of the attribute schema location.
+		 */
+		@Nonnull
+		Supplier<String> getLocationResolver();
+
+		/**
 		 * Method creates implicit attribute type for the attribute value that doesn't map to any existing (known) attribute
 		 * type of the {@link EntitySchemaContract} schema.
 		 */
-		static AttributeSchemaContract createImplicitSchema(@Nonnull AttributeValue attributeValue) {
+		static EntityAttributeSchemaContract createImplicitEntityAttributeSchema(@Nonnull AttributeValue attributeValue) {
+			return EntityAttributeSchema._internalBuild(
+				attributeValue.key().attributeName(),
+				Objects.requireNonNull(attributeValue.value()).getClass(),
+				attributeValue.key().localized()
+			);
+		}
+
+		/**
+		 * Method creates implicit attribute type for the attribute value that doesn't map to any existing (known) attribute
+		 * type of the {@link EntitySchemaContract} schema.
+		 */
+		static AttributeSchemaContract createImplicitReferenceAttributeSchema(@Nonnull AttributeValue attributeValue) {
 			return AttributeSchema._internalBuild(
 				attributeValue.key().attributeName(),
 				Objects.requireNonNull(attributeValue.value()).getClass(),

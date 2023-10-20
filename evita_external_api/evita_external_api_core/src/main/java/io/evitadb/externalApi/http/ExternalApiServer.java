@@ -53,6 +53,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.jboss.threads.EnhancedQueueExecutor;
 import org.xnio.Xnio;
+import org.xnio.XnioWorker;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,6 +86,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -368,10 +370,25 @@ public class ExternalApiServer implements AutoCloseable {
 			return;
 		}
 
-		registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-		rootServer.stop();
+		try {
+			registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
+			rootServer.stop();
+			final XnioWorker worker = rootServer.getWorker();
+			worker.shutdown();
+			try {
+				if (!worker.awaitTermination(5000, TimeUnit.MILLISECONDS)) {
+					worker.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				worker.shutdownNow();
+				Thread.currentThread().interrupt();
+				throw new RuntimeException(e);
+			}
 
-		ConsoleWriter.write("External APIs stopped.\n");
+			ConsoleWriter.write("External APIs stopped.\n");
+		} catch (Exception ex) {
+			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");
+		}
 	}
 
 	private void configureUndertow(

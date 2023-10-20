@@ -28,7 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
@@ -111,7 +111,7 @@ public class EntitySchemaSerializer extends Serializer<EntitySchema> {
 		final int indexedPricePlaces = input.readInt(true);
 		@SuppressWarnings("unchecked") final Set<Locale> locales = kryo.readObject(input, LinkedHashSet.class);
 		@SuppressWarnings("unchecked") final Set<Currency> currencies = kryo.readObject(input, LinkedHashSet.class);
-		@SuppressWarnings("unchecked") final Map<String, AttributeSchemaContract> attributeSchema = kryo.readObject(input, LinkedHashMap.class, heterogeneousSerializer);
+		@SuppressWarnings("unchecked") final Map<String, EntityAttributeSchemaContract> attributeSchema = kryo.readObject(input, LinkedHashMap.class, heterogeneousSerializer);
 		@SuppressWarnings("unchecked") final Map<String, AssociatedDataSchemaContract> associatedDataSchema = kryo.readObject(input, LinkedHashMap.class);
 		@SuppressWarnings("unchecked") final Map<String, ReferenceSchemaContract> referenceSchema = kryo.readObject(input, LinkedHashMap.class, heterogeneousSerializer);
 		@SuppressWarnings("unchecked") final Set<EvolutionMode> evolutionMode = kryo.readObject(input, Set.class);
