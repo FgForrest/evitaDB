@@ -116,7 +116,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_DESCRIPTION_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaDescriptionMutationDescriptor.THIS);
 	PropertyDescriptor MODIFY_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_NAME_MUTATION = PropertyDescriptor.nullableFromObject(ModifySortableAttributeCompoundSchemaNameMutationDescriptor.THIS);
 	PropertyDescriptor REMOVE_SORTABLE_ATTRIBUTE_COMPOUND_SCHEMA_MUTATION = PropertyDescriptor.nullableFromObject(RemoveSortableAttributeCompoundSchemaMutationDescriptor.THIS);
-	
+
 	/**
 	 * Reference schema mutations
 	 */
@@ -172,6 +172,7 @@ public interface EntitySchemaMutationAggregateDescriptor {
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_REPRESENTATIVE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_SORTABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_UNIQUE_MUTATION,
 			USE_GLOBAL_ATTRIBUTE_SCHEMA_MUTATION,

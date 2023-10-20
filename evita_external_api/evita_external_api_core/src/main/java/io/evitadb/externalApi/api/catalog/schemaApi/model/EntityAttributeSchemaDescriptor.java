@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
-import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -32,44 +32,45 @@ import java.util.List;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 
 /**
- * Descriptor of {@link GlobalAttributeSchema} for schema-based external APIs. It describes what properties of global attribute schema are
+ * Descriptor of {@link EntityAttributeSchema} for schema-based external APIs. It describes what properties of global attribute schema are
  * supported in API for better field names and docs maintainability.
  *
- * It should copy {@link GlobalAttributeSchema} closely so that it can be used for altering the schema though external API.
+ * It should copy {@link EntityAttributeSchema} closely so that it can be used for altering the schema though external API.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDescriptor {
+public interface EntityAttributeSchemaDescriptor extends AttributeSchemaDescriptor {
 
-	PropertyDescriptor UNIQUE_GLOBALLY = PropertyDescriptor.builder()
-		.name("uniqueGlobally")
+	PropertyDescriptor REPRESENTATIVE = PropertyDescriptor.builder()
+		.name("representative")
 		.description("""
-			When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
-            entity having certain value of this attribute in entire catalog.
-            
-            As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
-            better to have this ensured by the database engine.
+			If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+			primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+			affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+			helpful to developers in quickly finding their way around the data. There should be very few representative
+			attributes in the entity type, and the unique ones are usually the best to choose.
 			""")
 		.type(nonNull(Boolean.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
-		.name("GlobalAttributeSchema")
+		.name("EntityAttributeSchema")
 		.description("""
 			This is the definition object for attributes that are stored along with
-			catalog. Definition objects allow to describe the structure of the catalog so that
-			in any time everyone can consult complete structure of the catalog. Definition object is similar to Java reflection
+			entity. Definition objects allow to describe the structure of the entity type so that
+			in any time everyone can consult complete structure of the entity type. Definition object is similar to Java reflection
 			process where you can also at any moment see which fields and methods are available for the class.
 			
-			Catalog attributes allows defining set of data that are fetched in bulk along with the catalog body.
+			Entity attributes allows defining set of data that are fetched in bulk along with the entity body.
 			Attributes may be indexed for fast filtering or can be used to sort along. Attributes are not automatically indexed
 			in order not to waste precious memory space for data that will never be used in search queries.
 			
 			Filtering in attributes is executed by using constraints like `and`, `or`, `not`,
-			`attribute{name}Equals`, `attribute{name}Contains` and many others. Sorting can be achieved with
-			`attribute{name}Natural` or others.
+			`attribute_{name}_equals`, `attribute_{name}_contains` and many others. Sorting can be achieved with
+			`attribute_{name}_natural` or others.
 			
 			Attributes are not recommended for bigger data as they are all loaded at once when requested.
+			Large data that are occasionally used store in associated data.
 			""")
 		.staticFields(List.of(
 			NAME,
@@ -77,7 +78,6 @@ public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDe
 			DESCRIPTION,
 			DEPRECATION_NOTICE,
 			UNIQUE,
-			UNIQUE_GLOBALLY,
 			FILTERABLE,
 			SORTABLE,
 			LOCALIZED,

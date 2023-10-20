@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.builder;
 
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -82,6 +83,7 @@ public class EntitySchemaObjectBuilder {
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(objectBuilderTransformer).build());
@@ -201,6 +203,8 @@ public class EntitySchemaObjectBuilder {
 		final OpenApiSimpleType attributeSchemaType;
 		if (attributeSchema instanceof GlobalAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()));
+		} else if (attributeSchema instanceof  EntityAttributeSchemaContract) {
+			attributeSchemaType = nonNull(typeRefTo(EntityAttributeSchemaDescriptor.THIS.name()));
 		} else {
 			attributeSchemaType = nonNull(typeRefTo(AttributeSchemaDescriptor.THIS.name()));
 		}

@@ -153,6 +153,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,
+			REPRESENTATIVE,
 			TYPE,
 			DEFAULT_VALUE,
 			INDEXED_DECIMAL_PLACES

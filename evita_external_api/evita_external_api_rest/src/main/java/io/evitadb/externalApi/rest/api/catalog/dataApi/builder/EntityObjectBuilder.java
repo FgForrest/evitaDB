@@ -68,7 +68,6 @@ import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeR
 
 /**
  * Builds OpenAPI entity object (schema) based on information provided in building context
- * TODO LHO - this needs revision for `representative` which is valid only for global / entity attribute schemas
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */

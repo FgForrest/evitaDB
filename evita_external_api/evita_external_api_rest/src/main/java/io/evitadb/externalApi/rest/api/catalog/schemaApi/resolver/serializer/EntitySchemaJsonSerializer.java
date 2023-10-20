@@ -26,19 +26,12 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EvolutionMode;
-import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
@@ -129,6 +122,9 @@ public class EntitySchemaJsonSerializer extends SchemaJsonSerializer {
 		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
+		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
+			attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
+		}
 		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()));
 		attributeSchemaNode.set(
 			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),

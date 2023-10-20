@@ -57,8 +57,7 @@ public class AttributeValueDataFetcher<T extends Serializable> implements DataFe
     @Nullable
     @Override
     public T get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-        /* TODO LHO - I'm not sure this is correct! */
-        final AttributesContract<EntityAttributeSchemaContract> attributes = environment.getSource();
+        final AttributesContract<?> attributes = environment.getSource();
         final Locale locale = ((EntityQueryContext) environment.getLocalContext()).getDesiredLocale();
 
         if (locale == null && attributeSchema.isLocalized()) {

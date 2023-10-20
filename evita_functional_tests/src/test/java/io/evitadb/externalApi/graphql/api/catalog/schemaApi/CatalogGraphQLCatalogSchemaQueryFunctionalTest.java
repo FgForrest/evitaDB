@@ -306,10 +306,10 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 										}
 									}
 									allAttributes {
-										... on AttributeSchema {
+		                                ... on EntityAttributeSchema {
 											__typename
-		                                    name
-		                                }
+											name
+										}
 		                                ... on GlobalAttributeSchema {
 		                                    __typename
 		                                    name
@@ -373,7 +373,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 								.e(EntitySchemaDescriptor.ALL_ATTRIBUTES.name(), productSchema.getAttributes().values()
 									.stream()
 									.map(attributeSchema -> map()
-										.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : AttributeSchemaDescriptor.THIS.name())
+										.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : EntityAttributeSchemaDescriptor.THIS.name())
 										.e(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName())
 										.build())
 									.toList())
@@ -437,7 +437,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 								__typename
 								name
 								allAttributes {
-									... on AttributeSchema {
+									... on EntityAttributeSchema {
 										__typename
 										name
 									}
@@ -467,7 +467,7 @@ public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraph
 									.stream()
 									.map(attributeSchema ->
 										map()
-											.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : AttributeSchemaDescriptor.THIS.name())
+											.e(TYPENAME_FIELD, (attributeSchema instanceof GlobalAttributeSchemaContract) ? GlobalAttributeSchemaDescriptor.THIS.name() : EntityAttributeSchemaDescriptor.THIS.name())
 											.e(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName())
 											.build()
 									)

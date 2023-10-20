@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntitySchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NameVariantsDescriptor;
@@ -217,6 +218,7 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
+						.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), false)
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
