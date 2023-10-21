@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -69,7 +70,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Getter private final Cardinality referenceCardinality;
 	@Getter private final String referencedEntityType;
 	@Delegate(types = AttributesContract.class)
-	private final AttributesBuilder attributesBuilder;
+	private final AttributesBuilder<AttributeSchemaContract> attributesBuilder;
 	@Getter private String groupType;
 	@Getter private Integer groupId;
 
@@ -77,12 +78,15 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull String attributeName,
-		@Nullable Class<? extends Serializable> aClass
+		@Nullable Class<? extends Serializable> aClass,
+		@Nonnull Supplier<String> locationSupplier
 	) {
 		final AttributeSchemaContract attributeSchema = ofNullable(referenceSchema)
 			.flatMap(it -> it.getAttribute(attributeName))
 			.orElse(null);
-		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, aClass, null, attributeSchema);
+		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+			entitySchema, attributeName, aClass, null, attributeSchema, locationSupplier
+		);
 	}
 
 	static void verifyAttributeIsInSchemaAndTypeMatch(
@@ -90,12 +94,15 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull String attributeName,
 		@Nullable Class<? extends Serializable> aClass,
-		@Nonnull Locale locale
+		@Nonnull Locale locale,
+		@Nonnull Supplier<String> locationSupplier
 	) {
 		final AttributeSchemaContract attributeSchema = ofNullable(referenceSchema)
 			.flatMap(it -> it.getAttribute(attributeName))
 			.orElse(null);
-		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, aClass, locale, attributeSchema);
+		InitialAttributesBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+			entitySchema, attributeName, aClass, locale, attributeSchema, locationSupplier
+		);
 	}
 
 	public <T extends BiPredicate<String, String> & Serializable> InitialReferenceBuilder(
@@ -111,7 +118,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		this.referencedEntityType = referencedEntityType;
 		this.groupId = null;
 		this.groupType = null;
-		this.attributesBuilder = new InitialAttributesBuilder(
+		this.attributesBuilder = new InitialReferenceAttributesBuilder(
 			entitySchema,
 			entitySchema.getReference(referenceName)
 				.orElseGet(() -> Reference.createImplicitSchema(referenceName, referencedEntityType, referenceCardinality, null)),
@@ -194,7 +201,9 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 			return removeAttribute(attributeName);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -207,7 +216,9 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 			return removeAttribute(attributeName);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -227,7 +238,9 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 			return removeAttribute(attributeName, locale);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
+			verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
@@ -240,7 +253,9 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 			return removeAttribute(attributeName, locale);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
-			verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
+			verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
@@ -250,7 +265,9 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Override
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.referenceKey.referenceName()).orElse(null);
-		verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null);
+		verifyAttributeIsInSchemaAndTypeMatch(
+			entitySchema, referenceSchema, mutation.getAttributeKey().attributeName(), null, attributesBuilder.getLocationResolver()
+		);
 		attributesBuilder.mutateAttribute(mutation);
 		return this;
 	}

@@ -26,8 +26,8 @@ package io.evitadb.externalApi.lab.api.builder;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AssociatedDataSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeElementDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
-import io.evitadb.externalApi.api.catalog.schemaApi.model.ReferenceSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.SortableAttributeCompoundSchemaDescriptor;
 import io.evitadb.externalApi.lab.api.model.GenericAttributeSchemaUnionDescriptor;
 import io.evitadb.externalApi.lab.api.model.GenericEntitySchemaDescriptor;
@@ -69,6 +69,7 @@ public class GenericEntitySchemaObjectBuilder {
 
 	public void buildCommonTypes() {
 		buildingContext.registerType(AttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
+		buildingContext.registerType(EntityAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(GlobalAttributeSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildAttributeSchemaUnion());
 		buildingContext.registerType(buildAttributeSchemasObject());
@@ -122,6 +123,7 @@ public class GenericEntitySchemaObjectBuilder {
 			.type(OpenApiObjectUnionType.ONE_OF)
 			.discriminator(GenericAttributeSchemaUnionDescriptor.DISCRIMINATOR.name())
 			.object(typeRefTo(AttributeSchemaDescriptor.THIS.name()))
+			.object(typeRefTo(EntityAttributeSchemaDescriptor.THIS.name()))
 			.object(typeRefTo(GlobalAttributeSchemaDescriptor.THIS.name()))
 			.build();
 	}

@@ -71,7 +71,7 @@ public interface EntitySchemaContract extends
 	Versioned,
 	NamedSchemaWithDeprecationContract,
 	ContentComparator<EntitySchemaContract>,
-	SortableAttributeCompoundSchemaProvider
+	SortableAttributeCompoundSchemaProvider<EntityAttributeSchemaContract>
 {
 
 	/**

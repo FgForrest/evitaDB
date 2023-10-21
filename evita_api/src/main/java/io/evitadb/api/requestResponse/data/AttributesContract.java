@@ -54,12 +54,12 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AttributesContract extends Serializable {
+public interface AttributesContract<S extends AttributeSchemaContract> extends Serializable {
 
 	/**
 	 * Returns true if single attribute differs between first and second instance.
 	 */
-	static boolean anyAttributeDifferBetween(AttributesContract first, AttributesContract second) {
+	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(AttributesContract<S> first, AttributesContract<S> second) {
 		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
 		final Collection<AttributeValue> otherValues = second.attributesAvailable() ? second.getAttributeValues() : Collections.emptyList();
 
@@ -265,7 +265,7 @@ public interface AttributesContract extends Serializable {
 	 * Returns definition for the attribute of specified name.
 	 */
 	@Nonnull
-	Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName);
+	Optional<S> getAttributeSchema(@Nonnull String attributeName);
 
 	/**
 	 * Returns set of all attribute names registered in this attribute set. The result set is not limited to the set

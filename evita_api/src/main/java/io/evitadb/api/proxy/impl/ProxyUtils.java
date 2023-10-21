@@ -30,6 +30,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,6 +43,7 @@ import java.util.OptionalLong;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
+import static one.edee.oss.proxycian.utils.GenericsUtils.getGenericType;
 import static one.edee.oss.proxycian.utils.GenericsUtils.getMethodReturnType;
 import static one.edee.oss.proxycian.utils.GenericsUtils.getNestedMethodReturnTypes;
 
@@ -93,6 +96,26 @@ public class ProxyUtils {
 	}
 
 	/**
+	 * Returns multiple wrapped generic type of the parameter.
+	 */
+	public static Class<?>[] getResolvedTypes(
+		@Nonnull Parameter parameter,
+		@Nonnull Class<?> ownerClass
+	) {
+		final List<Class<?>> collectedTypes = new LinkedList<>();
+		collectedTypes.add(parameter.getType());
+
+		List<GenericBundle> nestedMethodReturnTypes = getNestedParameterTypes(ownerClass, parameter);
+		while (!nestedMethodReturnTypes.isEmpty()) {
+			collectedTypes.add(nestedMethodReturnTypes.get(0).getResolvedType());
+			final GenericBundle[] genericTypes = nestedMethodReturnTypes.get(0).getGenericTypes();
+			nestedMethodReturnTypes = ArrayUtils.isEmpty(genericTypes) ? Collections.emptyList() : Arrays.asList(genericTypes);
+		}
+
+		return collectedTypes.toArray(Class[]::new);
+	}
+
+	/**
 	 * Creates a function that wraps the result into an Optional or primitive optional.
 	 */
 	@Nonnull
@@ -105,6 +128,30 @@ public class ProxyUtils {
 			return OptionalLongUnaryOperator.INSTANCE;
 		} else {
 			return OptionalUnaryOperator.INSTANCE;
+		}
+	}
+
+	/**
+	 * Returns generic types used in the parameter of the method or constructor.
+	 * @param mainClass class that contains the method or constructor
+	 * @param parameter parameter of the method or constructor
+	 * @return list of generic types
+	 */
+	@Nonnull
+	public static List<GenericBundle> getNestedParameterTypes(@Nonnull Class<?> mainClass, @Nonnull Parameter parameter) {
+		Type genericReturnType = parameter.getParameterizedType();
+		Class<?> returnType = parameter.getType();
+		if (genericReturnType == returnType) {
+			return Collections.emptyList();
+		} else {
+			if (!(genericReturnType instanceof Class)) {
+				List<GenericBundle> resolvedTypes = getGenericType(mainClass, genericReturnType);
+				if (!resolvedTypes.isEmpty()) {
+					return resolvedTypes;
+				}
+			}
+
+			return Collections.emptyList();
 		}
 	}
 

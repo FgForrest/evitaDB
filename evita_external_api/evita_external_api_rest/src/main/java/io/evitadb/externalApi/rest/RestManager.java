@@ -54,7 +54,6 @@ import javax.annotation.Nonnull;
 import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
@@ -220,6 +219,6 @@ public class RestManager {
 
 	@Nonnull
 	private UriPath constructCatalogPath(@Nonnull CatalogContract catalog, @Nonnull UriPath endpointPath) {
-		return UriPath.of(catalog.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION), endpointPath);
+		return UriPath.of(catalog.getSchema().getName(), endpointPath);
 	}
 }

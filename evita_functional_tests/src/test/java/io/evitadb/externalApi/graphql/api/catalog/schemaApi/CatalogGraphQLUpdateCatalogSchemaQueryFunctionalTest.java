@@ -341,7 +341,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
                         name
 						version
 						allAttributes {
-							... on AttributeSchema {
+							... on EntityAttributeSchema {
+								__typename
 								name
 							}
 							... on GlobalAttributeSchema {

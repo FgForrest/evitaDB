@@ -49,6 +49,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			true,
 			true,
 			false,
+			false,
 			String.class,
 			"defaultCode",
 			0
@@ -64,6 +65,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			false,
 			false,
 			true,
+			false,
 			String.class,
 			null,
 			0

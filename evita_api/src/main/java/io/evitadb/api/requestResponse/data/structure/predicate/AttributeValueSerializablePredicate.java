@@ -169,7 +169,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeName))) &&
-			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
+			(this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale)));
 	}
 
 	/**

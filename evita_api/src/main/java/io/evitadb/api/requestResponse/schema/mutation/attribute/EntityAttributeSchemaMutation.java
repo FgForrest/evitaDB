@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
@@ -49,7 +50,7 @@ public interface EntityAttributeSchemaMutation extends AttributeSchemaMutation, 
 	default EntitySchemaContract replaceAttributeIfDifferent(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull AttributeSchemaContract existingAttributeSchema,
-		@Nonnull AttributeSchemaContract updatedAttributeSchema
+		@Nonnull EntityAttributeSchemaContract updatedAttributeSchema
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
 			// we don't need to update entity schema - the associated data already contains the requested change

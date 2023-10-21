@@ -23,7 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.builder;
 
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
@@ -239,7 +239,7 @@ public class FullResponseObjectBuilder {
 			return existingAttributeHistogramObject;
 		}
 
-		final List<AttributeSchemaContract> attributeSchemas = entitySchema
+		final List<EntityAttributeSchemaContract> attributeSchemas = entitySchema
 			.getAttributes()
 			.values()
 			.stream()

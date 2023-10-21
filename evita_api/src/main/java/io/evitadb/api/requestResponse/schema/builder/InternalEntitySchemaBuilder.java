@@ -43,6 +43,8 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.RemoveReferenceS
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.CreateSortableAttributeCompoundSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
+import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.NamingConvention;
@@ -332,10 +334,13 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	) {
 		final Optional<AssociatedDataSchemaContract> existingAssociatedData = getAssociatedData(dataName);
 		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
+		final Class<? extends Serializable> toBeAssignedType = EvitaDataTypes.isSupportedTypeOrItsArray(ofType) ?
+			EvitaDataTypes.toWrappedForm(ofType) :
+			ComplexDataObject.class;
 		final AssociatedDataSchemaBuilder associatedDataSchemaBuilder = existingAssociatedData
 			.map(it -> {
 				isTrue(
-					ofType.equals(it.getType()),
+					toBeAssignedType.equals(it.getType()),
 					() -> new InvalidSchemaMutationException(
 						"Associated data " + dataName + " has already assigned type " + it.getType() +
 							", cannot change this type to: " + ofType + "!"
@@ -524,7 +529,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	public EntitySchemaBuilder withAttribute(
 		@Nonnull String attributeName,
 		@Nonnull Class<? extends Serializable> ofType,
-		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
+		@Nullable Consumer<EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder> whichIs
 	) {
 		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
 		catalogSchema.getAttribute(attributeName)
@@ -533,11 +538,11 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					catalogSchema.getName(), Objects.requireNonNull(it)
 				);
 			});
-		final Optional<AttributeSchemaContract> existingAttribute = getAttribute(attributeName);
-		final AttributeSchemaBuilder attributeSchemaBuilder =
+		final Optional<EntityAttributeSchemaContract> existingAttribute = getAttribute(attributeName);
+		final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder attributeSchemaBuilder =
 			existingAttribute
 				.map(it -> {
-					final AttributeSchemaBuilder builder = new AttributeSchemaBuilder(baseSchema, it);
+					final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder builder = new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(baseSchema, it);
 					isTrue(
 						ofType.equals(it.getType()),
 						() -> new AttributeAlreadyPresentInEntitySchemaException(
@@ -546,10 +551,10 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					);
 					return builder;
 				})
-				.orElseGet(() -> new AttributeSchemaBuilder(baseSchema, attributeName, ofType));
+				.orElseGet(() -> new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(baseSchema, attributeName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
-		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
+		final EntityAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
 		checkSortableTraits(attributeName, attributeSchema);
 
 		// check the names in all naming conventions are unique in the catalog schema

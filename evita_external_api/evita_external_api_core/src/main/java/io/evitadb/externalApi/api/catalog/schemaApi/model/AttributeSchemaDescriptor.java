@@ -130,7 +130,7 @@ public interface AttributeSchemaDescriptor extends NamedSchemaWithDeprecationDes
 		.name("AttributeSchema")
 		.description("""
 			This is the definition object for attributes that are stored along with
-			entity. Definition objects allow to describe the structure of the entity type so that
+			entity or reference. Definition objects allow to describe the structure of the entity type so that
 			in any time everyone can consult complete structure of the entity type. Definition object is similar to Java reflection
 			process where you can also at any moment see which fields and methods are available for the class.
 			

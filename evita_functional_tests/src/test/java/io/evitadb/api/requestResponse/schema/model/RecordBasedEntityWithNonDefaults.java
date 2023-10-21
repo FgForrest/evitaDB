@@ -59,7 +59,8 @@ public record RecordBasedEntityWithNonDefaults(
 		description = "customCode description",
 		deprecated = "And already deprecated!",
 		uniqueGlobally = true,
-		sortable = true
+		sortable = true,
+		representative = true
 	)
 	@Nonnull
 	String code,

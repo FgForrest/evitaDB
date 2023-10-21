@@ -37,7 +37,7 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -309,7 +309,7 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private Optional<GraphQLObjectType> buildAttributeHistogramObject(@Nonnull EntitySchemaContract entitySchema) {
-		final List<AttributeSchemaContract> attributeSchemas = entitySchema
+		final List<EntityAttributeSchemaContract> attributeSchemas = entitySchema
 			.getAttributes()
 			.values()
 			.stream()

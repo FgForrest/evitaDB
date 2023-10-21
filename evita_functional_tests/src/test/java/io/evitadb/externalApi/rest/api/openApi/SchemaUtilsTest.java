@@ -65,7 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 class SchemaUtilsTest {
-	private static final String urlPathToProductList = "/product/list";
+	private static final String urlPathToProductList = "/PRODUCT/list";
 	public static final String REST_THOUSAND_PRODUCTS_OPEN_API = REST_THOUSAND_PRODUCTS + "openApi";
 
 	@DataSet(value = REST_THOUSAND_PRODUCTS_OPEN_API, destroyAfterClass = true)

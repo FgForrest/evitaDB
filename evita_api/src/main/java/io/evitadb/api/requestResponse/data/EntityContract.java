@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
@@ -51,7 +52,13 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntityContract extends EntityClassifierWithParent, ContentComparator<EntityContract>, AttributesContract, AssociatedDataContract, PricesContract, Versioned, Droppable {
+public interface EntityContract extends EntityClassifierWithParent,
+	ContentComparator<EntityContract>,
+	AttributesContract<EntityAttributeSchemaContract>,
+	AssociatedDataContract,
+	PricesContract,
+	Versioned,
+	Droppable {
 
 	/**
 	 * Returns schema of the entity, that fully describes its structure and capabilities. Schema is up-to-date to the

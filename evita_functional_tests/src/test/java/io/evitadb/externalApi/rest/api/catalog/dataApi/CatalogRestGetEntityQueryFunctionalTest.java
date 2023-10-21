@@ -83,7 +83,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/PRODUCT/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
@@ -125,7 +125,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/PRODUCT/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, codeAttribute)
@@ -168,7 +168,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + CZECH_LOCALE.toLanguageTag() + "/product/get")
+			.urlPathSuffix("/" + CZECH_LOCALE.toLanguageTag() + "/PRODUCT/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_CODE, codeAttribute)
@@ -206,7 +206,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/PRODUCT/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), pk)
@@ -246,7 +246,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/PRODUCT/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(ATTRIBUTE_URL, urlAttribute)
@@ -266,7 +266,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		final int pk = findEntityWithPricePk(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get/" + pk)
+			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
@@ -284,7 +284,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		final int pk = findEntityWithPricePk(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get/" + pk)
+			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), "AAA")
@@ -324,7 +324,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/get/" + category.getPrimaryKey())
+			.urlPathSuffix("/CATEGORY/get/" + category.getPrimaryKey())
 			.httpMethod(Request.METHOD_GET)
 			.requestParam(FetchEntityEndpointHeaderDescriptor.HIERARCHY_CONTENT.name(), true)
 			.executeAndExpectOkAndThen()
@@ -355,7 +355,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get/" + pk)
+			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
@@ -391,7 +391,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get/" + pk)
+			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRICE_IN_CURRENCY.name(), CURRENCY_CZK.getCurrencyCode())
@@ -429,7 +429,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get/" + pk)
+			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
@@ -467,7 +467,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/get/" + pk)
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.BODY_FETCH.name(), Boolean.TRUE)
@@ -503,7 +503,7 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get/" + pk)
+			.urlPathSuffix("/PRODUCT/get/" + pk)
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.REFERENCE_CONTENT_ALL.name(), true)

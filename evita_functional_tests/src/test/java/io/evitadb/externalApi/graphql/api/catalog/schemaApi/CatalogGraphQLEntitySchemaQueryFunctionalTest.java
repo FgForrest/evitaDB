@@ -25,6 +25,7 @@ package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -174,9 +175,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			}
 		).orElseThrow();
 
-		final AttributeSchemaContract urlSchema = productSchema.getAttribute(ATTRIBUTE_URL).orElseThrow();
-		final AttributeSchemaContract quantitySchema = productSchema.getAttribute(ATTRIBUTE_QUANTITY).orElseThrow();
-		final AttributeSchemaContract deprecatedSchema = productSchema.getAttribute(ATTRIBUTE_DEPRECATED).orElseThrow();
+		final EntityAttributeSchemaContract codeSchema = productSchema.getAttribute(ATTRIBUTE_CODE).orElseThrow();
+		final EntityAttributeSchemaContract urlSchema = productSchema.getAttribute(ATTRIBUTE_URL).orElseThrow();
+		final EntityAttributeSchemaContract quantitySchema = productSchema.getAttribute(ATTRIBUTE_QUANTITY).orElseThrow();
+		final EntityAttributeSchemaContract deprecatedSchema = productSchema.getAttribute(ATTRIBUTE_DEPRECATED).orElseThrow();
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/schema")
@@ -186,6 +188,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 						getProductSchema {
 							attributes {
 								__typename
+								code {
+									__typename
+									representative
+								}
 								url {
 									__typename
 									unique
@@ -230,6 +236,10 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 					map()
 						.e(EntitySchemaDescriptor.ATTRIBUTES.name(), map()
 							.e(TYPENAME_FIELD, AttributeSchemasDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+							.e(ATTRIBUTE_CODE, map()
+								.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
+								.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), codeSchema.isRepresentative())
+								.build())
 							.e(ATTRIBUTE_URL, map()
 								.e(TYPENAME_FIELD, GlobalAttributeSchemaDescriptor.THIS.name())
 								.e(AttributeSchemaDescriptor.UNIQUE.name(), urlSchema.isUnique())
@@ -375,8 +385,8 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 						.build();
 				} else {
 					return map()
-						.e(TYPENAME_FIELD, AttributeSchemaDescriptor.THIS.name())
-						.e(AttributeSchemaDescriptor.NAME.name(), it.getName())
+						.e(TYPENAME_FIELD, EntityAttributeSchemaDescriptor.THIS.name())
+						.e(GlobalAttributeSchemaDescriptor.NAME.name(), it.getName())
 						.build();
 				}
 			})
@@ -389,7 +399,7 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 					query {
 						getProductSchema {
 							allAttributes {
-								... on AttributeSchema {
+								... on EntityAttributeSchema {
 									__typename
 									name
 								}
@@ -406,10 +416,6 @@ public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQ
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(
-				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_ATTRIBUTES.name() + "." + TYPENAME_FIELD,
-				containsInRelativeOrder(AttributeSchemaDescriptor.THIS.name())
-			)
 			.body(
 				PRODUCT_SCHEMA_PATH + "." + EntitySchemaDescriptor.ALL_ATTRIBUTES.name(),
 				equalTo(expectedBody)

@@ -28,6 +28,7 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.UnsatisfiedDependencyException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 
 import javax.annotation.Nonnull;
@@ -48,7 +49,7 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	@Override
 	public <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity
+		@Nonnull EntityContract entity
 	) throws EntityClassInvalidException {
 		throw new UnsatisfiedDependencyException(
 			"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +

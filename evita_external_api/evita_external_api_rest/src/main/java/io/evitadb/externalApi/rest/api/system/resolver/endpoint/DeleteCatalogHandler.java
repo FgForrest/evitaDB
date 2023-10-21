@@ -62,7 +62,7 @@ public class DeleteCatalogHandler extends JsonRestHandler<Void, SystemRestHandli
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION);
+		final Optional<CatalogContract> catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName);
 		if (catalog.isEmpty()) {
 			return new NotFoundEndpointResponse<>();
 		}

@@ -93,6 +93,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaFilterableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaFilterableMutation((GrpcSetAttributeSchemaFilterableMutation) m), new SetAttributeSchemaFilterableMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaLocalizedMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaLocalizedMutation((GrpcSetAttributeSchemaLocalizedMutation) m), new SetAttributeSchemaLocalizedMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaNullableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaNullableMutation((GrpcSetAttributeSchemaNullableMutation) m), new SetAttributeSchemaNullableMutationConverter()));
+		TO_GRPC_CONVERTERS.put(SetAttributeSchemaRepresentativeMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaRepresentativeMutation((GrpcSetAttributeSchemaRepresentativeMutation) m), new SetAttributeSchemaRepresentativeMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaSortableMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaSortableMutation((GrpcSetAttributeSchemaSortableMutation) m), new SetAttributeSchemaSortableMutationConverter()));
 		TO_GRPC_CONVERTERS.put(SetAttributeSchemaUniqueMutation.class, new ToGrpc((b, m) -> b.setSetAttributeSchemaUniqueMutation((GrpcSetAttributeSchemaUniqueMutation) m), new SetAttributeSchemaUniqueMutationConverter()));
 		TO_GRPC_CONVERTERS.put(UseGlobalAttributeSchemaMutation.class, new ToGrpc((b, m) -> b.setUseGlobalAttributeSchemaMutation((GrpcUseGlobalAttributeSchemaMutation) m), new UseGlobalAttributeSchemaMutationConverter()));
@@ -142,6 +143,7 @@ public class DelegatingEntitySchemaMutationConverter implements SchemaMutationCo
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAFILTERABLEMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetAttributeSchemaFilterableMutation, new SetAttributeSchemaFilterableMutationConverter()));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMALOCALIZEDMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetAttributeSchemaLocalizedMutation, new SetAttributeSchemaLocalizedMutationConverter()));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMANULLABLEMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetAttributeSchemaNullableMutation, new SetAttributeSchemaNullableMutationConverter()));
+		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAREPRESENTATIVEMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetAttributeSchemaRepresentativeMutation, new SetAttributeSchemaRepresentativeMutationConverter()));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMASORTABLEMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetAttributeSchemaSortableMutation, new SetAttributeSchemaSortableMutationConverter()));
 		TO_JAVA_CONVERTERS.put(SETATTRIBUTESCHEMAUNIQUEMUTATION, new ToJava(GrpcEntitySchemaMutation::getSetAttributeSchemaUniqueMutation, new SetAttributeSchemaUniqueMutationConverter()));
 		TO_JAVA_CONVERTERS.put(USEGLOBALATTRIBUTESCHEMAMUTATION, new ToJava(GrpcEntitySchemaMutation::getUseGlobalAttributeSchemaMutation, new UseGlobalAttributeSchemaMutationConverter()));

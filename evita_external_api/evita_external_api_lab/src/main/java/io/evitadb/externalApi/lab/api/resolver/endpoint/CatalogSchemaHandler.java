@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -70,7 +69,7 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchema
 
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final CatalogContract catalog = restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
+		final CatalogContract catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
 			.orElseThrow(() -> new RestInvalidArgumentException("Catalog `" + catalogName + "` does not exist."));
 
 		if (modifiesData()) {

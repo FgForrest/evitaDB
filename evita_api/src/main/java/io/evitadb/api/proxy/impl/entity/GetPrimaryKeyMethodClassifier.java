@@ -25,12 +25,17 @@ package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.lang.reflect.Parameter;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
@@ -49,19 +54,50 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<Ob
 	 */
 	public static final GetPrimaryKeyMethodClassifier INSTANCE = new GetPrimaryKeyMethodClassifier();
 
+	/**
+	 * Tries to identify primary key request from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType class the constructor belongs to
+	 * @param parameter constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	@Nullable
+	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+
+		final PrimaryKey primaryKey = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, PrimaryKey.class);
+		final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, PrimaryKeyRef.class);
+
+		if (primaryKey != null ||
+			primaryKeyRef != null ||
+			(PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName) &&
+				(Integer.class.isAssignableFrom(parameterType) ||
+					int.class.isAssignableFrom(parameterType)))) {
+			return EntityContract::getPrimaryKey;
+		} else {
+			return null;
+		}
+	}
+
 	public GetPrimaryKeyMethodClassifier() {
 		super(
 			"getPrimaryKey",
 			(method, proxyState) -> {
 				// We are interested only in abstract methods without arguments
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (method.getParameterCount() > 0) {
 					return null;
 				}
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
 				// to match the method by its name
-				final PrimaryKey primaryKey = reflectionLookup.getAnnotationInstance(method, PrimaryKey.class);
-				final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstance(method, PrimaryKeyRef.class);
+				final PrimaryKey primaryKey = reflectionLookup.getAnnotationInstanceForProperty(method, PrimaryKey.class);
+				final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstanceForProperty(method, PrimaryKeyRef.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
 				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);

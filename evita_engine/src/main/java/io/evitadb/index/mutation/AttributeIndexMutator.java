@@ -134,8 +134,8 @@ public interface AttributeIndexMutator {
 			}
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
-					globalAttributeSchema.isUniqueGlobally() &&
-					executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)
+				globalAttributeSchema.isUniqueGlobally() &&
+				executor.shouldIndexPrimaryKey(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 			) {
 				final CatalogIndex catalogIndex = executor.getCatalogIndex();
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
@@ -335,10 +335,7 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor
 	) {
-		final SortableAttributeCompoundSchemaProvider compoundProvider = ofNullable(referenceKey)
-			.map(it -> (SortableAttributeCompoundSchemaProvider) entitySchema.getReferenceOrThrowException(referenceKey.referenceName()))
-			.orElse(entitySchema);
-
+		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
@@ -389,10 +386,7 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull EntityStoragePartAccessor entityStoragePartAccessor
 	) {
-		final SortableAttributeCompoundSchemaProvider compoundProvider = ofNullable(referenceKey)
-			.map(it -> (SortableAttributeCompoundSchemaProvider) entitySchema.getReferenceOrThrowException(referenceKey.referenceName()))
-			.orElse(entitySchema);
-
+		final SortableAttributeCompoundSchemaProvider<?> compoundProvider = getSortableAttributeCompoundSchemaProvider(entitySchema, referenceKey);
 		final Function<String, AttributeSchema> attributeSchemaProvider = attributeName -> compoundProvider.getAttribute(attributeName)
 			.map(AttributeSchema.class::cast)
 			.orElse(null);
@@ -420,16 +414,34 @@ public interface AttributeIndexMutator {
 			allCompounds.filter(it -> it.isLocalized(attributeSchemaProvider));
 
 		filteredCompounds.forEach(
-				it -> removeOldCompound(
-					entityPrimaryKey, entityIndex, it,
-					locale,
-					createAttributeElementToAttributeValueProvider(
-						attributeSchemaProvider,
-						attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
-						locale
-					)
+			it -> removeOldCompound(
+				entityPrimaryKey, entityIndex, it,
+				locale,
+				createAttributeElementToAttributeValueProvider(
+					attributeSchemaProvider,
+					attributeKey -> entityAttributeValueSupplier.getAttributeValue(attributeKey).orElse(null),
+					locale
 				)
-			);
+			)
+		);
+	}
+
+	/**
+	 * Returns {@link SortableAttributeCompoundSchemaProvider} for the given entity and `referenceKey`. When the
+	 * `referenceKey` is null, the method returns the entity itself, otherwise the reference is returned.
+	 */
+	@Nonnull
+	private static SortableAttributeCompoundSchemaProvider<?> getSortableAttributeCompoundSchemaProvider(
+		@Nonnull EntitySchema entitySchema,
+		@Nullable ReferenceKey referenceKey
+	) {
+		final SortableAttributeCompoundSchemaProvider<?> compoundProvider;
+		if (referenceKey == null) {
+			compoundProvider = entitySchema;
+		} else {
+			compoundProvider = entitySchema.getReferenceOrThrowException(referenceKey.referenceName());
+		}
+		return compoundProvider;
 	}
 
 	/**
@@ -560,8 +572,8 @@ public interface AttributeIndexMutator {
 			.stream()
 			.map(
 				it -> ofNullable(attributeElementValueProvider.apply(it))
-						.map(AttributeValue::value)
-						.orElse(null)
+					.map(AttributeValue::value)
+					.orElse(null)
 			)
 			.toArray();
 

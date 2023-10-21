@@ -471,10 +471,10 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				return evitaServer;
 			}
 			// try at most 5 times
-		} while (initAttempt < 300);
+		} while (initAttempt < 3000);
 
 		throw new IllegalStateException(
-			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 1 minute!",
+			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls()).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 minutes!",
 			lastException
 		);
 	}
@@ -729,6 +729,18 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				throw new ParameterResolutionException("Requested data set " + dataSetToUse + " has no initialization method within the class (Method with @DataSet annotation)!");
 			}
 			synchronized (dataSetInfo) {
+				final BiPredicate<ExtensionContext, DataSetState> dataStateTearDownFct = (terminationContext, dataSetState) -> {
+					if (useDataSet.destroyAfterTest()) {
+						return terminationContext.getTestMethod()
+							.map(m -> m.equals(dataSetState.testMethod()))
+							.orElse(false);
+					} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
+						return terminationContext.getRequiredTestClass()
+							.equals(dataSetState.testInstance().getClass());
+					} else {
+						return false;
+					}
+				};
 				//noinspection resource
 				if (dataSetInfo.evitaInstance() == null) {
 					// fill in the reference to the test instance, that is known only now
@@ -799,18 +811,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								extensionContext.getRequiredTestInstance(),
 								extensionContext.getRequiredTestMethod(),
 								evita, evitaServer, dataCarrier,
-								(terminationContext, dataSetState) -> {
-									if (useDataSet.destroyAfterTest()) {
-										return terminationContext.getTestMethod()
-											.map(m -> m.equals(dataSetState.testMethod()))
-											.orElse(false);
-									} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
-										return terminationContext.getRequiredTestClass()
-											.equals(dataSetState.testInstance().getClass());
-									} else {
-										return false;
-									}
-								}
+								dataStateTearDownFct
 							);
 						}
 					);
@@ -835,18 +836,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					return dataSetInfo.updateState(
 						extensionContext.getRequiredTestInstance(),
 						extensionContext.getRequiredTestMethod(),
-						(terminationContext, dataSetState) -> {
-							if (useDataSet.destroyAfterTest()) {
-								return terminationContext.getTestMethod()
-									.map(m -> m.equals(dataSetState.testMethod()))
-									.orElse(false);
-							} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
-								return terminationContext.getRequiredTestClass()
-									.equals(dataSetState.testInstance().getClass());
-							} else {
-								return false;
-							}
-						}
+						dataStateTearDownFct
 					);
 				}
 			}
@@ -863,22 +853,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		boolean destroyAfterClass,
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
-
-		protected DataSetInfo(
-			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
-			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
-			boolean readOnly, boolean destroyAfterClass,
-			@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
-		) {
-			this.name = name;
-			this.catalogName = catalogName;
-			this.initMethod = initMethod;
-			this.destroyMethods = destroyMethods;
-			this.webApi = webApi;
-			this.readOnly = readOnly;
-			this.destroyAfterClass = destroyAfterClass;
-			this.dataSetInfoAtomicReference = dataSetInfoAtomicReference;
-		}
 
 		public DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,

@@ -45,7 +45,6 @@ import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataEditor.AssociatedDataBuilder;
-import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -189,7 +188,7 @@ public class Entity implements SealedEntity {
 	 * Attributes are not recommended for bigger data as they are all loaded at once when {@link AttributeContent}
 	 * requirement is used. Large data that are occasionally used store in {@link @AssociatedData}.
 	 */
-	@Delegate(types = AttributesContract.class) final Attributes attributes;
+	@Delegate(types = EntityAttributes.class) final EntityAttributes attributes;
 	/**
 	 * Associated data carry additional data entries that are never used for filtering / sorting but may be needed to be fetched
 	 * along with entity in order to present data to the target consumer (i.e. user / API / bot). Associated data may be stored
@@ -247,7 +246,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull Attributes attributes,
+		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales
@@ -279,7 +278,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull Attributes attributes,
+		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
@@ -316,7 +315,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull Attributes attributes,
+		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
@@ -344,7 +343,7 @@ public class Entity implements SealedEntity {
 		@Nonnull EntitySchemaContract schema,
 		@Nullable Integer parent,
 		@Nullable Collection<ReferenceContract> references,
-		@Nullable Attributes attributes,
+		@Nullable EntityAttributes attributes,
 		@Nullable AssociatedData associatedData,
 		@Nullable Prices prices,
 		@Nullable Set<Locale> locales,
@@ -400,7 +399,7 @@ public class Entity implements SealedEntity {
 		}
 
 		// create or reuse existing attribute container
-		final Attributes newAttributeContainer = recreateAttributeContainer(entitySchema, possibleEntity, newAttributes);
+		final EntityAttributes newAttributeContainer = recreateAttributeContainer(entitySchema, possibleEntity, newAttributes);
 
 		// create or reuse existing associated data container
 		final AssociatedData newAssociatedDataContainer = recreateAssociatedDataContainer(entitySchema, possibleEntity, newAssociatedData);
@@ -659,20 +658,19 @@ public class Entity implements SealedEntity {
 	 */
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	@Nonnull
-	private static Attributes recreateAttributeContainer(
+	private static EntityAttributes recreateAttributeContainer(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<AttributeKey, AttributeValue> newAttributes
 	) {
-		final Attributes newAttributeContainer;
+		final EntityAttributes newAttributeContainer;
 		if (newAttributes.isEmpty()) {
 			newAttributeContainer = possibleEntity
 				.map(it -> it.attributes)
-				.orElseGet(() -> new Attributes(entitySchema, null));
+				.orElseGet(() -> new EntityAttributes(entitySchema));
 		} else {
-			newAttributeContainer = new Attributes(
+			newAttributeContainer = new EntityAttributes(
 				entitySchema,
-				null,
 				Stream.concat(
 					possibleEntity.map(Entity::getAttributeValues).orElseGet(Collections::emptyList)
 						.stream()
@@ -683,7 +681,7 @@ public class Entity implements SealedEntity {
 						entitySchema.getAttributes().values().stream(),
 						newAttributes.values().stream()
 							.filter(it -> !entitySchema.getAttributes().containsKey(it.key().attributeName()))
-							.map(AttributesBuilder::createImplicitSchema)
+							.map(AttributesBuilder::createImplicitEntityAttributeSchema)
 					)
 					.collect(
 						Collectors.toMap(
@@ -854,7 +852,7 @@ public class Entity implements SealedEntity {
 		@Nullable Integer primaryKey,
 		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull Attributes attributes,
+		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
@@ -886,7 +884,7 @@ public class Entity implements SealedEntity {
 		@Nullable Integer primaryKey,
 		@Nullable Integer parent,
 		@Nonnull Collection<ReferenceContract> references,
-		@Nonnull Attributes attributes,
+		@Nonnull EntityAttributes attributes,
 		@Nonnull AssociatedData associatedData,
 		@Nonnull Prices prices,
 		@Nonnull Set<Locale> locales,
@@ -931,7 +929,7 @@ public class Entity implements SealedEntity {
 		this.withHierarchy = this.schema.isWithHierarchy();
 		this.references = Collections.emptyMap();
 		this.referencesDefined = Collections.emptySet();
-		this.attributes = new Attributes(this.schema, null);
+		this.attributes = new EntityAttributes(this.schema);
 		this.associatedData = new AssociatedData(this.schema);
 		this.prices = new io.evitadb.api.requestResponse.data.structure.Prices(
 			this.schema, 1, Collections.emptySet(), PriceInnerRecordHandling.NONE

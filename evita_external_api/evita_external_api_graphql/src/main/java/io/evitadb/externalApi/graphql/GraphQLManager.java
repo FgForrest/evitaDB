@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -247,7 +246,7 @@ public class GraphQLManager {
 	 */
 	@Nonnull
 	private UriPath buildCatalogDataApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
-		return UriPath.of(catalogSchema.getNameVariants().get(URL_NAME_NAMING_CONVENTION));
+		return UriPath.of(catalogSchema.getName());
 	}
 
 	/**

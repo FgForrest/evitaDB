@@ -33,7 +33,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaContract extends AttributeSchemaContract {
+public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaContract {
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single

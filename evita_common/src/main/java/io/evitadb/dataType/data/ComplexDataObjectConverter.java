@@ -52,7 +52,6 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
@@ -79,7 +78,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ComplexDataObjectConverter<T extends Serializable> {
-	private static final RecordComponent[] EMPTY_RECORD_COMPONENTS = new RecordComponent[0];
 	private static final DataItem[] EMPTY_DATA_ITEMS = new DataItem[0];
 	private final ReflectionLookup reflectionLookup;
 	private final T container;
@@ -528,13 +526,20 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ExtractionContext extractionCtx
 	) {
-		final Collection<Method> setters = reflectionLookup.findAllSetters(containerClass);
-		final RecordComponent[] recordComponents = ofNullable(containerClass.getRecordComponents()).orElse(EMPTY_RECORD_COMPONENTS);
-		final Set<String> propertyNames = Stream.concat(
-				setters.stream().map(it -> ReflectionLookup.getPropertyNameFromMethodName(it.getName())),
-				Arrays.stream(recordComponents).map(RecordComponent::getName)
-			)
-			.collect(Collectors.toSet());
+		final Set<String> propertyNames;
+		final Collection<Method> writers;
+		if (containerClass.isRecord()) {
+			writers = Collections.emptyList();
+			propertyNames = Arrays.stream(containerClass.getRecordComponents())
+				.map(RecordComponent::getName)
+				.collect(Collectors.toSet());
+		} else {
+			writers = reflectionLookup.findAllSetters(containerClass);
+			propertyNames = writers
+				.stream()
+				.map(it -> ReflectionLookup.getPropertyNameFromMethodName(it.getName()))
+				.collect(Collectors.toSet());
+		}
 		final Set<ArgumentKey> allPropertyNames = serializedForm.getPropertyNames()
 			.stream()
 			.map(it -> new ArgumentKey(it, Object.class))
@@ -553,7 +558,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			)
 		);
 
-		for (Method setter : setters) {
+		for (Method setter : writers) {
 			if (reflectionLookup.getAnnotationInstanceForProperty(setter, NonSerializedData.class) != null) {
 				// skip property
 				continue;

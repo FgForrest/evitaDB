@@ -31,7 +31,7 @@ import java.util.function.Function;
  * This is the two-arity specialization of {@link Function}.
  *
  * <p>This is a <a href="package-summary.html">functional interface</a>
- * whose functional method is {@link #apply(Object, Object)}.
+ * whose functional method is {@link #apply(Object)}.
  *
  * @param <U> the type of the second argument to the function
  * @param <R> the type of the result of the function

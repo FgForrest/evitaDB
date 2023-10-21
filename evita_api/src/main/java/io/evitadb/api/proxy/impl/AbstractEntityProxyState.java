@@ -23,9 +23,11 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.ProxyReferenceFactory;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
@@ -42,22 +44,19 @@ import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_RECIPE;
-import static io.evitadb.api.proxy.impl.ProxycianFactory.DEFAULT_ENTITY_REFERENCE_RECIPE;
-
 /**
  * Abstract parent class for all entity proxy states. It contains all the common fields and methods.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@EqualsAndHashCode(of = {"sealedEntity", "proxyClass"})
+@EqualsAndHashCode(of = {"entity", "proxyClass"})
 @RequiredArgsConstructor(access = AccessLevel.PROTECTED)
-class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
+public abstract class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider, ProxyFactory, ProxyReferenceFactory {
 	@Serial private static final long serialVersionUID = -6935480192166155348L;
 	/**
 	 * The sealed entity that is being proxied.
 	 */
-	@Nonnull protected final SealedEntity sealedEntity;
+	@Nonnull protected final EntityContract entity;
 	/**
 	 * The class of the proxy was built upon.
 	 */
@@ -88,8 +87,8 @@ class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	 * Returns the sealed entity that is being proxied.
 	 */
 	@Nonnull
-	public SealedEntity getSealedEntity() {
-		return sealedEntity;
+	public EntityContract getEntity() {
+		return entity;
 	}
 
 	/**
@@ -109,11 +108,11 @@ class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	}
 
 	/**
-	 * Returns entity schema from the {@link #sealedEntity}.
+	 * Returns entity schema from the {@link #entity}.
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchema() {
-		return sealedEntity.getSchema();
+		return entity.getSchema();
 	}
 
 	@Override
@@ -133,13 +132,12 @@ class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	 * Method allows to create a new proxy instance of the given sealed entity, using actual proxy recipe configuration.
 	 */
 	@Nonnull
-	public <T> T createEntityProxy(@Nonnull Class<T> entityContract, @Nonnull SealedEntity sealedEntity) {
+	public <T> T createEntityProxy(@Nonnull Class<T> entityContract, @Nonnull EntityContract entity) {
 		//noinspection unchecked
 		return (T) generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(entityContract, sealedEntity.getType(), sealedEntity.getPrimaryKey(), ProxyType.ENTITY),
+			new ProxyInstanceCacheKey(entityContract, entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY),
 			key -> ProxycianFactory.createProxy(
-				key.proxyClass(), recipes, collectedRecipes, sealedEntity, getReflectionLookup(),
-				cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_RECIPE)
+				key.proxyClass(), recipes, collectedRecipes, entity, getReflectionLookup()
 			)
 		);
 	}
@@ -148,13 +146,12 @@ class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	 * Method allows to create a new proxy instance of the given reference, using actual proxy recipe configuration.
 	 */
 	@Nonnull
-	public <T> T createReferenceProxy(@Nonnull Class<T> referenceContract, @Nonnull ReferenceContract reference) {
+	public <T> T createEntityReferenceProxy(@Nonnull Class<T> referenceContract, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
 		//noinspection unchecked
 		return (T) generatedProxyObjects.computeIfAbsent(
 			new ProxyInstanceCacheKey(referenceContract, reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
 			key -> ProxycianFactory.createProxy(
-				key.proxyClass(), recipes, collectedRecipes, sealedEntity, reference, getReflectionLookup(),
-				cacheKey -> collectedRecipes.computeIfAbsent(cacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE)
+				key.proxyClass(), recipes, collectedRecipes, entity, reference, getReflectionLookup()
 			)
 		);
 	}
@@ -186,10 +183,10 @@ class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
 	 * @param primaryKey primary key of the object being wrapped
 	 * @param proxyType  the type of the proxy (entity or reference)
 	 */
-	private record ProxyInstanceCacheKey(
+	protected record ProxyInstanceCacheKey(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull String identifier,
-		@Nonnull int primaryKey,
+		int primaryKey,
 		@Nonnull ProxyType proxyType
 	) {
 	}

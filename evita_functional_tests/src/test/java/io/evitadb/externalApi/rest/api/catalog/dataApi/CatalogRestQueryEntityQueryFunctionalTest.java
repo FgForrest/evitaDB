@@ -129,7 +129,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
                     {
@@ -180,7 +180,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -231,7 +231,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
                 """
@@ -283,7 +283,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/query")
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
                     {
@@ -309,7 +309,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should fail when locale is both in body and in URL")
 	void shouldFailWhenLocaleIsBothInBodyAndInUrl(RestTester tester, List<SealedEntity> originalProductEntities) {
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/query")
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -329,7 +329,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return error for invalid argument in products query")
 	void shouldReturnErrorForInvalidArgumentInProductsQuery(RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -355,7 +355,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final var pks = findEntityWithPricePks(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -397,7 +397,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/query")
+			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -445,7 +445,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/query")
+			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -495,7 +495,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/query")
+			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -559,7 +559,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -635,7 +635,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -713,7 +713,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -774,7 +774,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -807,7 +807,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final var pks = findEntityWithPricePks(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -840,7 +840,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final var pks = findEntityWithPricePks(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -890,7 +890,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -942,7 +942,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -991,7 +991,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/query")
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -1041,7 +1041,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
                     {
@@ -1092,7 +1092,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 					"""
@@ -1180,7 +1180,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -1279,7 +1279,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertTrue(expectedEntities.length > 0);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -1353,7 +1353,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.toArray(Integer[]::new);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -1405,7 +1405,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertTrue(expectedEntities.size() > 10);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -1455,7 +1455,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		assertTrue(expectedEntities.size() > 10);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -1502,7 +1502,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -1536,7 +1536,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return error for missing attribute histogram buckets count")
 	void shouldReturnErrorForMissingAttributeHistogramBucketsCount(RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -1583,7 +1583,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -1614,7 +1614,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	@DisplayName("Should return error for missing price histogram buckets count")
 	void shouldReturnErrorForMissingPriceHistogramBucketsCount(RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -2459,7 +2459,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final var expectedBody = createFacetSummaryDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -2501,7 +2501,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final var expectedBody = createFacetSummaryDto(response, Entities.BRAND);
 ;
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 					{
@@ -2597,7 +2597,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	                                              @Nonnull String hierarchies,
 	                                              @Nonnull Object... args) {
 		return tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/query")
+			.urlPathSuffix("/CATEGORY/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				String.format(
@@ -2660,7 +2660,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 	                                                    @Nonnull String hierarchies,
 	                                                    @Nonnull Object... args) {
 		return tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/query")
+			.urlPathSuffix("/PRODUCT/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				String.format(

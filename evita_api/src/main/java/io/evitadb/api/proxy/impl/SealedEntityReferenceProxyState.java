@@ -26,8 +26,8 @@ package io.evitadb.api.proxy.impl;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
@@ -51,14 +51,14 @@ public class SealedEntityReferenceProxyState
 	@Nonnull private final ReferenceContract reference;
 
 	public SealedEntityReferenceProxyState(
-		@Nonnull SealedEntity sealedEntity,
+		@Nonnull EntityContract entity,
 		@Nonnull ReferenceContract reference,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		super(sealedEntity, proxyClass, recipes, collectedRecipes, reflectionLookup);
+		super(entity, proxyClass, recipes, collectedRecipes, reflectionLookup);
 		this.reference = reference;
 	}
 
@@ -79,13 +79,13 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public String getType() {
-		return sealedEntity.getType();
+		return entity.getType();
 	}
 
 	@Nonnull
 	@Override
 	public Integer getPrimaryKey() {
-		return sealedEntity.getPrimaryKey();
+		return entity.getPrimaryKey();
 	}
 
 	@Override

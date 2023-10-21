@@ -52,7 +52,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema._internalGenerateNameVariantIndex;
-import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toAttributeSchema;
+import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toReferenceAttributeSchema;
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema.toSortableAttributeCompoundSchema;
 import static java.util.Optional.ofNullable;
 
@@ -285,7 +285,7 @@ public final class ReferenceSchema implements ReferenceSchemaContract {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> toAttributeSchema(it.getValue())
+						it -> toReferenceAttributeSchema(it.getValue())
 					)
 				)
 		);

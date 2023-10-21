@@ -26,6 +26,7 @@ package io.evitadb.api.proxy.impl;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
@@ -45,30 +46,40 @@ public class SealedEntityProxyState
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 
 	public SealedEntityProxyState(
-		@Nonnull SealedEntity sealedEntity,
+		@Nonnull EntityContract entity,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		super(sealedEntity, proxyClass, recipes, collectedRecipes, reflectionLookup);
+		super(entity, proxyClass, recipes, collectedRecipes, reflectionLookup);
 	}
 
 	@Nonnull
 	@Override
 	public String getType() {
-		return sealedEntity.getType();
+		return entity.getType();
+	}
+
+	@Nonnull
+	@Override
+	public SealedEntity getSealedEntity() {
+		if (entity instanceof SealedEntity sealedEntity) {
+			return sealedEntity;
+		} else {
+			throw new IllegalStateException("Proxy state does not wrap a sealed entity.");
+		}
 	}
 
 	@Nonnull
 	@Override
 	public Integer getPrimaryKey() {
-		return sealedEntity.getPrimaryKey();
+		return entity.getPrimaryKey();
 	}
 
 	@Override
 	public String toString() {
-		return sealedEntity.toString();
+		return entity.toString();
 	}
 
 }

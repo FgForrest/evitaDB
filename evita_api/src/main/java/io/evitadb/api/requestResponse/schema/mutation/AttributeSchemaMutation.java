@@ -60,6 +60,6 @@ public interface AttributeSchemaMutation extends SchemaMutation {
 	 * @param attributeSchema current version of the schema as an input to mutate
 	 */
 	@Nullable
-	<S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema);
+	<S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType);
 
 }
