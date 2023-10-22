@@ -50,7 +50,9 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
@@ -81,6 +83,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
@@ -339,6 +342,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
+	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
+		assertActive();
+		return executeInTransactionIfPossible(session -> {
+			final EntityCollectionContract collection = getCatalog().createCollectionForEntity(entityType, session);
+			return collection.getSchema().openForWrite();
+		});
+	}
+
+	@Nonnull
+	@Override
 	public SealedEntitySchema defineEntitySchemaFromModelClass(@Nonnull Class<?> modelClass) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
@@ -580,16 +593,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		}
 	}
 
-	@Nonnull
-	@Override
-	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
-		assertActive();
-		return executeInTransactionIfPossible(session -> {
-			final EntityCollectionContract collection = getCatalog().createCollectionForEntity(entityType, session);
-			return collection.getSchema().openForWrite();
-		});
-	}
-
 	@Override
 	public int updateCatalogSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		assertActive();
@@ -676,6 +679,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
+	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
+		return proxyFactory.createEntityBuilderProxy(
+			expectedType,
+			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType))
+		);
+	}
+
+	@Nonnull
+	@Override
 	public EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
@@ -686,10 +698,81 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public EntityReference upsertEntity(@Nonnull EntityBuilder entityBuilder) {
-		return entityBuilder.toMutation()
-			.map(this::upsertEntity)
-			.orElseGet(() -> new EntityReference(entityBuilder.getType(), entityBuilder.getPrimaryKey()));
+	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
+		return proxyFactory.createEntityBuilderProxy(
+			expectedType,
+			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType), primaryKey)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
+		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.orElseGet(() -> {
+					// no modification occurred, we can return the reference to the original entity
+					// the `toInstance` method should be cost-free in this case, as no modifications occurred
+					final EntityContract entity = (EntityContract) ie.toInstance();
+					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+				});
+		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			final Collection<EntityMutation> mutations = sealedEntityProxy.getMutations();
+			if (mutations.isEmpty()) {
+				// no modification occurred, we can return the reference to the original entity
+				// the `toInstance` method should be cost-free in this case, as no modifications occurred
+				final SealedEntity entity = sealedEntityProxy.getSealedEntity();
+				return new EntityReference(entity.getType(), entity.getPrimaryKey());
+			} else if (mutations.size() == 1) {
+				return upsertEntity(mutations.iterator().next());
+			} else {
+				throw new EvitaInvalidUsageException(
+					"Method `upsertEntity` expects changes only in a single entity! " +
+						"Yet the provided instance of type `" + customEntity.getClass() + "` contains " + mutations.size() + " changed entities!",
+					"Invalid usage of method `upsertEntity`!"
+				);
+			}
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntity` expects an instance of InstanceEditor, " +
+					"yet the provided instance is of type `" + customEntity.getClass() + "` doesn't implement it!",
+				"Invalid usage of method `upsertEntity`!"
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <S extends Serializable> List<EntityReference> upsertEntities(@Nonnull S... customEntity) {
+		if (customEntity.length == 0) {
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntities` expects at least one entity to be provided!",
+				"Invalid usage of method `upsertEntities`!"
+			);
+		} else {
+			final S exampleEntity = customEntity[0];
+			if (exampleEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+				return Arrays.stream(customEntity)
+					.map(it -> ((InstanceEditor<?>)it))
+					.map(InstanceEditor::toMutation)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.map(this::upsertEntity)
+					.toList();
+			} else if (exampleEntity instanceof SealedEntityProxy sealedEntityProxy) {
+				return sealedEntityProxy.getMutations()
+					.stream()
+					.map(this::upsertEntity)
+					.toList();
+			} else {
+				throw new EvitaInvalidUsageException(
+					"Method `upsertEntity` expects an instance of InstanceEditor, " +
+						"yet the provided instance is of type `" + exampleEntity.getClass() + "` doesn't implement it!",
+					"Invalid usage of method `upsertEntity`!"
+				);
+			}
+		}
 	}
 
 	@Nonnull

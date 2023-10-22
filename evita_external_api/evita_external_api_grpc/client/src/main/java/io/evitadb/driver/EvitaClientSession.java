@@ -58,6 +58,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
@@ -77,13 +78,13 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
@@ -110,6 +111,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -119,7 +121,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -278,37 +279,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return schemaCache.getLatestCatalogSchema(
 			this::fetchCatalogSchema,
 			entityType -> this.getEntitySchema(entityType).orElse(null)
-		);
-	}
-
-	/**
-	 * This method is internal and is a special form of {@link #getCatalogSchema()} that can handle the situation when
-	 * this particular session is already closed and opens a new temporary one for accessing the schemas on the server
-	 * side when necessary.
-	 *
-	 * @param evita - reference to the {@link EvitaClient} instance that is used to open a new temporary session when necessary
-	 * @return {@link SealedCatalogSchema} of the catalog targeted by this session
-	 */
-	@Nonnull
-	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
-		assertActive();
-		return schemaCache.getLatestCatalogSchema(
-			() -> isActive() ?
-				this.fetchCatalogSchema() :
-				evita.queryCatalog(
-					catalogName,
-					session -> {
-						return ((EvitaClientSession)session).fetchCatalogSchema();
-					}
-				),
-			entityType -> isActive() ?
-				this.getEntitySchema(entityType).orElse(null) :
-				evita.queryCatalog(
-					catalogName,
-					session -> {
-						return session.getEntitySchema(entityType).orElse(null);
-					}
-				)
 		);
 	}
 
@@ -877,6 +847,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
+	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
+		assertActive();
+		final EntityBuilder entityBuilder = createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType));
+		return this.proxyFactory.createEntityBuilderProxy(expectedType, entityBuilder);
+	}
+
+	@Nonnull
+	@Override
 	public EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(
@@ -896,10 +874,80 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public EntityReference upsertEntity(@Nonnull EntityBuilder entityBuilder) {
-		return entityBuilder.toMutation()
-			.map(this::upsertEntity)
-			.orElseGet(() -> new EntityReference(entityBuilder.getType(), entityBuilder.getPrimaryKey()));
+	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
+		assertActive();
+		final EntityBuilder entityBuilder = createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType), primaryKey);
+		return this.proxyFactory.createEntityBuilderProxy(expectedType, entityBuilder);
+	}
+
+	@Nonnull
+	@Override
+	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
+		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.orElseGet(() -> {
+					// no modification occurred, we can return the reference to the original entity
+					// the `toInstance` method should be cost-free in this case, as no modifications occurred
+					final EntityContract entity = (EntityContract) ie.toInstance();
+					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+				});
+		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			final Collection<EntityMutation> mutations = sealedEntityProxy.getMutations();
+			if (mutations.isEmpty()) {
+				// no modification occurred, we can return the reference to the original entity
+				// the `toInstance` method should be cost-free in this case, as no modifications occurred
+				final SealedEntity entity = sealedEntityProxy.getSealedEntity();
+				return new EntityReference(entity.getType(), entity.getPrimaryKey());
+			} else if (mutations.size() == 1) {
+				return upsertEntity(mutations.iterator().next());
+			} else {
+				throw new EvitaInvalidUsageException(
+					"Method `upsertEntity` expects changes only in a single entity! " +
+						"Yet the provided instance of type `" + customEntity.getClass() + "` contains " + mutations.size() + " changed entities!",
+					"Invalid usage of method `upsertEntity`!"
+				);
+			}
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntity` expects an instance of InstanceEditor, " +
+					"yet the provided instance is of type `" + customEntity.getClass() + "` doesn't implement it!",
+				"Invalid usage of method `upsertEntity`!"
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <S extends Serializable> List<EntityReference> upsertEntities(@Nonnull S... customEntity) {
+		if (customEntity.length == 0) {
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntities` expects at least one entity to be provided!",
+				"Invalid usage of method `upsertEntities`!"
+			);
+		} else {
+			final S exampleEntity = customEntity[0];
+			if (exampleEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+				return Arrays.stream(customEntity)
+					.map(it -> ((InstanceEditor<?>)it))
+					.map(InstanceEditor::toMutation)
+					.filter(Optional::isPresent)
+					.map(Optional::get)
+					.map(this::upsertEntity)
+					.toList();
+			} else if (exampleEntity instanceof SealedEntityProxy sealedEntityProxy) {
+				return sealedEntityProxy.getMutations()
+					.stream()
+					.map(this::upsertEntity)
+					.toList();
+			} else {
+				throw new EvitaInvalidUsageException(
+					"Method `upsertEntity` expects an instance of InstanceEditor, " +
+						"yet the provided instance is of type `" + exampleEntity.getClass() + "` doesn't implement it!",
+					"Invalid usage of method `upsertEntity`!"
+				);
+			}
+		}
 	}
 
 	@Nonnull
@@ -1168,6 +1216,37 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public long getInactivityDurationInSeconds() {
 		return (System.currentTimeMillis() - lastCall) / 1000;
+	}
+
+	/**
+	 * This method is internal and is a special form of {@link #getCatalogSchema()} that can handle the situation when
+	 * this particular session is already closed and opens a new temporary one for accessing the schemas on the server
+	 * side when necessary.
+	 *
+	 * @param evita - reference to the {@link EvitaClient} instance that is used to open a new temporary session when necessary
+	 * @return {@link SealedCatalogSchema} of the catalog targeted by this session
+	 */
+	@Nonnull
+	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
+		assertActive();
+		return schemaCache.getLatestCatalogSchema(
+			() -> isActive() ?
+				this.fetchCatalogSchema() :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return ((EvitaClientSession) session).fetchCatalogSchema();
+					}
+				),
+			entityType -> isActive() ?
+				this.getEntitySchema(entityType).orElse(null) :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return session.getEntitySchema(entityType).orElse(null);
+					}
+				)
+		);
 	}
 
 	/**

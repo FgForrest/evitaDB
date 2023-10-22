@@ -50,7 +50,9 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
@@ -312,7 +314,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
 						ArrayUtils.mergeArrays(
-							new RequireConstraint[] {require(entityFetch())},
+							new RequireConstraint[]{require(entityFetch())},
 							query.getRequire().getChildren()
 						),
 						query.getRequire().getAdditionalChildren()
@@ -409,7 +411,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
 						ArrayUtils.mergeArrays(
-							new RequireConstraint[] {require(entityFetch())},
+							new RequireConstraint[]{require(entityFetch())},
 							query.getRequire().getChildren()
 						),
 						query.getRequire().getAdditionalChildren()
@@ -499,7 +501,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 					query.getOrderBy(),
 					(Require) query.getRequire().getCopyWithNewChildren(
 						ArrayUtils.mergeArrays(
-							new RequireConstraint[] {require(entityFetch())},
+							new RequireConstraint[]{require(entityFetch())},
 							query.getRequire().getChildren()
 						),
 						query.getRequire().getAdditionalChildren()
@@ -780,35 +782,68 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
-	 * TOBEDONE #43 - support new variants for the model class
 	 *
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EntityBuilder)}
+	 * @param entityType type of the entity that should be created
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(InstanceEditor)}
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity(@Nonnull String entityType);
 
 	/**
+	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
+	 * TODO JNO - add description and mention InstanceEditor which is not necessary, but good
+	 *
+	 * @param expectedType type of the entity that should be created annotated with {@link Entity}
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)}
+	 */
+	@Nonnull
+	<S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType);
+
+	/**
 	 * Creates entity builder for new entity with externally defined primary key needed to be inserted to
 	 * the collection.
 	 *
-	 * TOBEDONE #43 - support new variants for the model class
-	 *
+	 * @param entityType type of the entity that should be created
 	 * @param primaryKey externally assigned primary key for the entity
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(EntityBuilder)}
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(InstanceEditor)}
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey);
 
 	/**
-	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts {@link EntityBuilder} that can produce
-	 * mutation.
+	 * Creates entity builder for new entity with externally defined primary key needed to be inserted to
+	 * the collection.
 	 *
-	 * TOBEDONE #43 - support new variants for the model class
-	 *
-	 * @param entityBuilder that contains changed entity state
+	 * @param expectedType type of the entity that should be created annotated with {@link Entity}
+	 * @param primaryKey   externally assigned primary key for the entity
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)}
 	 */
 	@Nonnull
-	EntityReference upsertEntity(@Nonnull EntityBuilder entityBuilder);
+	<S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey);
+
+	/**
+	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts custom entity instance that can produce
+	 * mutation. The entity instance must represent a proxied instance that can be cast to {@link InstanceEditor}
+	 * under the cover (it may not explicitly implement this interface, but the proxying mechanism will do that).
+	 *
+	 * It's not possible to upsert non-proxied instances such as Java records or final or sealed classes.
+	 *
+	 * @param customEntity that contains changed entity state
+	 */
+	@Nonnull
+	<S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity);
+
+	/**
+	 * Shorthand method for {@link #upsertEntity(EntityMutation)} that accepts custom entity instance that can produce
+	 * mutation. The entity instance must represent a proxied instance that can be cast to {@link InstanceEditor}
+	 * under the cover (it may not explicitly implement this interface, but the proxying mechanism will do that).
+	 *
+	 * It's not possible to upsert non-proxied instances such as Java records or final or sealed classes.
+	 *
+	 * @param customEntity that contains changed entity state
+	 */
+	@Nonnull
+	<S extends Serializable> List<EntityReference> upsertEntities(@Nonnull S... customEntity);
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
@@ -912,7 +947,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * the data untouched.
 	 *
 	 * @return number of removed entities and the body of the deleted root entity
-	 * @throws EvitaInvalidUsageException when entity type has not hierarchy support enabled in schema
+	 * @throws EvitaInvalidUsageException  when entity type has not hierarchy support enabled in schema
 	 * @throws EntityClassInvalidException when entity type cannot be extracted from the class
 	 */
 	@Nonnull

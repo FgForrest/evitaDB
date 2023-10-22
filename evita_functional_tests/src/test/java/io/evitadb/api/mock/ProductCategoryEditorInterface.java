@@ -21,34 +21,33 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy;
+package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
+import java.util.Locale;
 
 /**
- * This interface is implemented by all proxy types that wrap a sealed entity and provide access to an instance of
- * the {@link SealedEntity} trapped in the proxy state object.
+ * Example interface mapping a product category reference.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityProxy extends EvitaProxy {
+public interface ProductCategoryEditorInterface extends ProductCategoryInterface {
 
-	/**
-	 * Returns the underlying sealed entity that is wrapped into a requested proxy type.
-	 * @return the underlying sealed entity
-	 */
-	@Nonnull
-	SealedEntity getSealedEntity();
+	void setPrimaryKey(int primaryKey);
 
-	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @return
-	 */
-	@Nonnull
-	Collection<EntityMutation> getMutations();
+	void setOrderInCategory(@Nonnull Long orderInCategory);
+
+	void setLabel(@Nonnull String label);
+
+	void setLabel(Locale locale, @Nonnull String label);
+
+	void setCategory(@Nonnull CategoryInterface category);
+
+	void setCategoryReference(@Nonnull EntityReference categoryReference);
+
+	void setCategoryReferencePrimaryKey(int categoryReferencePrimaryKey);
 
 }
+

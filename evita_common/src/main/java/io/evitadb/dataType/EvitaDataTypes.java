@@ -589,7 +589,7 @@ public class EvitaDataTypes {
 	}
 
 	/**
-	 * Method converts unknown object to the requested type supported by by Evita.
+	 * Method converts unknown object to the requested type supported by Evita.
 	 *
 	 * @return unknownObject converted to requested type
 	 * @throws UnsupportedDataTypeException when unknownObject cannot be converted to any of Evita supported types

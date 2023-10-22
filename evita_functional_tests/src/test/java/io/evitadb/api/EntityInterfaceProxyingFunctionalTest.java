@@ -38,7 +38,6 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
-import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -85,9 +84,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
 public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
-	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts";
-	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
-	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 
 	private static void assertCategories(
 		@Nonnull Stream<CategoryInterface> categoryReferences,

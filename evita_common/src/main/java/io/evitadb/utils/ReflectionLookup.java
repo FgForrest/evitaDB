@@ -105,6 +105,30 @@ public class ReflectionLookup {
 	}
 
 	/**
+	 * Returns true if method matches the getter format.
+	 */
+	public static boolean isGetter(@Nonnull String methodName) {
+		if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3))) {
+			return true;
+		} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2))) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Returns true if method matches the setter format.
+	 */
+	public static boolean isSetter(@Nonnull String methodName) {
+		if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3))) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/**
 	 * When passed type is an array, its component type is returned, otherwise the type is returned back without any
 	 * additional logic attached.
 	 */
@@ -569,7 +593,23 @@ public class ReflectionLookup {
 			.orElseGet(() -> {
 				final Optional<String> propertyName = getPropertyNameFromMethodNameIfPossible(method.getName());
 				return propertyName
-					.map(it -> getAnnotationInstanceForProperty(method.getDeclaringClass(), it, annotationType))
+					.map(
+						it -> ofNullable(getAnnotationInstanceForProperty(method.getDeclaringClass(), it, annotationType))
+							.orElseGet(() -> {
+								// try to find annotation on opposite method
+								if (isGetter(method.getName())) {
+									return ofNullable(findSetter(method.getDeclaringClass(), it))
+										.map(setter -> getAnnotationInstance(setter, annotationType))
+										.orElse(null);
+								} else if (isSetter(method.getName())) {
+									return ofNullable(findGetter(method.getDeclaringClass(), it))
+										.map(getter -> getAnnotationInstance(getter, annotationType))
+										.orElse(null);
+								} else {
+									return null;
+								}
+							})
+					)
 					.orElse(null);
 			});
 	}

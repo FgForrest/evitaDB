@@ -23,12 +23,19 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.ProxyReferenceFactory;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -37,10 +44,13 @@ import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreProvider;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -74,6 +84,10 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 * The reflection lookup instance used to access the reflection data in a memoized fashion.
 	 */
 	@Nonnull protected transient ReflectionLookup reflectionLookup;
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nullable protected EntityBuilder entityBuilder;
 	/**
 	 * Cache for the already generated proxies so that the same method call returns the same instance.
 	 */
@@ -128,29 +142,73 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		return localDataStore;
 	}
 
-	/**
-	 * Method allows to create a new proxy instance of the given sealed entity, using actual proxy recipe configuration.
-	 */
 	@Nonnull
-	public <T> T createEntityProxy(@Nonnull Class<T> entityContract, @Nonnull EntityContract entity) {
+	public EntityBuilder getEntityBuilder() {
+		if (entityBuilder == null) {
+			if (entity instanceof EntityDecorator entityDecorator) {
+				entityBuilder = new ExistingEntityBuilder(entityDecorator);
+			} else if (entity instanceof Entity theEntity) {
+				entityBuilder = new ExistingEntityBuilder(theEntity);
+			} else if (entity instanceof EntityBuilder theBuilder) {
+				entityBuilder = theBuilder;
+			} else {
+				throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+			}
+		}
+		return entityBuilder;
+	}
+
+	@Nonnull
+	public Collection<EntityMutation> getMutations() {
+		return this.entityBuilder == null ?
+			Collections.emptyList() :
+			this.entityBuilder.toMutation()
+				.map(Collections::singletonList)
+				.orElse(Collections.emptyList());
+	}
+
+	@Nonnull
+	@Override
+	public <T> T createEntityProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) {
 		//noinspection unchecked
 		return (T) generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(entityContract, entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY),
-			key -> ProxycianFactory.createProxy(
+			new ProxyInstanceCacheKey(expectedType, entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY),
+			key -> ProxycianFactory.createEntityProxy(
 				key.proxyClass(), recipes, collectedRecipes, entity, getReflectionLookup()
 			)
 		);
 	}
 
-	/**
-	 * Method allows to create a new proxy instance of the given reference, using actual proxy recipe configuration.
-	 */
 	@Nonnull
-	public <T> T createEntityReferenceProxy(@Nonnull Class<T> referenceContract, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
+	@Override
+	public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
 		//noinspection unchecked
 		return (T) generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(referenceContract, reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
-			key -> ProxycianFactory.createProxy(
+			new ProxyInstanceCacheKey(expectedType, entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY_BUILDER),
+			key -> ProxycianFactory.createEntityBuilderProxy(
+				key.proxyClass(), recipes, collectedRecipes, entity, getReflectionLookup()
+			)
+		);
+	}
+
+	@Nonnull
+	public <T> T createEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
+		//noinspection unchecked
+		return (T) generatedProxyObjects.computeIfAbsent(
+			new ProxyInstanceCacheKey(expectedType, reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
+			key -> ProxycianFactory.createEntityReferenceProxy(
+				key.proxyClass(), recipes, collectedRecipes, entity, reference, getReflectionLookup()
+			)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public <T> T createEntityBuilderReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
+		//noinspection unchecked
+		return (T) generatedProxyObjects.computeIfAbsent(
+			new ProxyInstanceCacheKey(expectedType, reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE_BUILDER),
+			key -> ProxycianFactory.createEntityBuilderReferenceProxy(
 				key.proxyClass(), recipes, collectedRecipes, entity, reference, getReflectionLookup()
 			)
 		);
@@ -172,7 +230,9 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 */
 	private enum ProxyType {
 		ENTITY,
-		REFERENCE
+		ENTITY_BUILDER,
+		REFERENCE,
+		REFERENCE_BUILDER,
 	}
 
 	/**

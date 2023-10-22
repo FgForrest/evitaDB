@@ -229,7 +229,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	 * it tries to match the attribute name by the name of the method.
 	 */
 	@Nullable
-	private static AttributeSchemaContract getAttributeSchema(
+	public static AttributeSchemaContract getAttributeSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema
@@ -849,7 +849,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		super(
 			"getAttribute",
 			(method, proxyState) -> {
-				// We only want to handle non-abstract methods with no parameters or a single Locale parameter
+				// We only want to handle methods with no parameters or a single Locale parameter
 				if (
 					method.getParameterCount() > 1 ||
 						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))

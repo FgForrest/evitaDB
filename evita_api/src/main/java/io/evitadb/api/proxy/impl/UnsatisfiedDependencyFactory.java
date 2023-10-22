@@ -44,6 +44,11 @@ import javax.annotation.Nonnull;
  */
 public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
+	private static final UnsatisfiedDependencyException UNSATISFIED_DEPENDENCY_EXCEPTION = new UnsatisfiedDependencyException(
+		"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
+			"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
+		"Required dependency is not available in evitaDB engine, contact developers of the application."
+	);
 
 	@Nonnull
 	@Override
@@ -51,11 +56,12 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntityContract entity
 	) throws EntityClassInvalidException {
-		throw new UnsatisfiedDependencyException(
-			"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
-				"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
-			"Required dependency is not available in evitaDB engine, contact developers of the application."
-		);
+		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
 	}
 
+	@Nonnull
+	@Override
+	public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
+		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
+	}
 }

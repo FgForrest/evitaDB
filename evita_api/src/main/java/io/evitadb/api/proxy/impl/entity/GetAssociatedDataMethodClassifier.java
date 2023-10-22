@@ -170,7 +170,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * it tries to match the associated data name by the name of the method.
 	 */
 	@Nullable
-	private static AssociatedDataSchemaContract getAssociatedDataSchema(
+	public static AssociatedDataSchemaContract getAssociatedDataSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema

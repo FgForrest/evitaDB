@@ -54,4 +54,20 @@ public interface ProxyFactory {
 		@Nonnull EntityContract entity
 	) throws EntityClassInvalidException;
 
+	/**
+	 * Creates proxy instance of entity builder that implements `expectedType` contract. Entity proxy respects
+	 * request context used in the query that fetched original {@link SealedEntity}.
+	 *
+	 * @param expectedType contract that the proxy should implement
+	 * @param entity sealed entity to create proxy for
+	 * @return proxy instance of sealed entity
+	 * @param <T> type of contract that the proxy should implement
+	 * @throws EntityClassInvalidException if the proxy contract is not valid
+	 */
+	@Nonnull
+	<T> T createEntityBuilderProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity
+	) throws EntityClassInvalidException;
+
 }

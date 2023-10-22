@@ -28,9 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -41,7 +39,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -64,8 +61,8 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 
 	/**
 	 * Removes existing parent of the entity. If there are other entities, that refer transitively via
-	 * {@link EntityContract#getParentEntity()} this entity their will become "orphans" and their parent needs to be removed
-	 * as well, or it must be "rewired" to another parent.
+	 * {@link EntityContract#getParentEntity()} this entity their will become "orphans" and their parent needs to be
+	 * removed as well, or it must be "rewired" to another parent.
 	 */
 	W removeParent();
 
@@ -174,40 +171,15 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * is in the database at the time update request arrives.
 	 */
 	@NotThreadSafe
-	interface EntityBuilder extends EntityEditor<EntityBuilder> {
+	interface EntityBuilder extends EntityEditor<EntityBuilder>, InstanceEditor<Entity> {
 
 		/**
-		 * Returns object that contains set of {@link LocalMutation} instances describing
-		 * what changes occurred in the builder and which should be applied on the existing {@link EntityContract} version.
-		 * Each mutation increases {@link Versioned#version()} of the modified object and allows to detect race conditions
-		 * based on "optimistic locking" mechanism in very granular way.
+		 * {@inheritDoc}
 		 */
+		@Override
 		@Nonnull
-		Optional<EntityMutation> toMutation();
-
-		/**
-		 * Returns built "local up-to-date" {@link EntityContract} instance that may not represent globally "up-to-date"
-		 * state because it is based on the version of the entity known when builder was created.
-		 *
-		 * Mutation allows Evita to perform surgical updates on the latest version of the {@link EntityContract} object
-		 * which is in the database at the time update request arrives.
-		 *
-		 * This method is particularly useful for tests.
-		 */
-		@Nonnull
-		Entity toInstance();
-
-		/**
-		 * The method is a shortcut for calling {@link EvitaSessionContract#upsertEntity(EntityBuilder)} the other
-		 * way around. Method simplifies the statements, makes them more readable and in combination with builder
-		 * pattern usage it's also easier to use.
-		 *
-		 * @param session to use for upserting the modified (built) entity
-		 * @return the reference to the updated / created entity
-		 */
-		@Nonnull
-		default EntityReference upsertVia(@Nonnull EvitaSessionContract session) {
-			return session.upsertEntity(this);
+		default Class<Entity> getContract() {
+			return Entity.class;
 		}
 
 	}
