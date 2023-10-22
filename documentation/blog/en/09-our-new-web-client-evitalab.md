@@ -1,7 +1,7 @@
 ---
 title: Our new web client, evitaLab
 perex: |
-  It’s always a bit “painful” to troubleshoot a problem with your production data inside a database if you don’t have a
+  It’s always a bit painful to troubleshoot a problem with your production data inside a database if you don’t have a
   handy tool to look inside easily, and instead, you have to write different kinds of queries using different tools to get
   the information that you need. We feel the same way. That’s why we’ve created a hopefully handy GUI client for evitaDB
   called evitaLab, so you have a buddy when you’re either just playing with evitaDB or you’re already debugging production
@@ -12,14 +12,6 @@ motive: assets/images/09-our-new-web-client-evitalab.png
 proofreading: 'done'
 ---
 
-It’s always a bit “painful” to troubleshoot a problem with your production data inside a database if you don’t have a
-handy tool to look inside easily, and instead, you have to write different kinds of queries using different tools to get
-the information that you need. We feel the same way. That’s why we’ve created a hopefully handy GUI client for evitaDB
-called evitaLab, so you have a buddy when you’re either just playing with evitaDB or you’re already debugging production
-data.
-
-![evitaLab preview](assets/images/09-preview.png "evitaLab preview")
-
 The idea behind evitaLab is simple and that is to provide a common environment for all your evitaDB instances that you
 need to access and manage. Currently, the main available tools are:
 
@@ -28,6 +20,8 @@ need to access and manage. Currently, the main available tools are:
 - “query consoles” to quickly write queries (in evitaQL, GraphQL, etc.)
 
 All the tools are accessible with a few clicks within an evitaDB instance connection.
+
+![evitaLab preview](assets/images/09-preview.png "evitaLab preview")
 
 ## Data visualization
 
@@ -39,7 +33,7 @@ Currently, we support two main data visualization tools: data grid and schema vi
 
 ### Data grid
 
-The data grid lets you browse your stored entities without writing any queries. It displays flattened entities as rows
+The data grid allows you to browse your stored entities without writing any queries. It displays flattened entities as rows
 in an interactive table just like in SQL IDEs. Of course, there are limits to what we can display in a flat structure,
 but it’s a great tool for debugging or just browsing entities, because you can easily see pretty printed all the data
 you need in columns next to each other, or even compare multiple entities side by side.
@@ -48,7 +42,9 @@ you need in columns next to each other, or even compare multiple entities side b
 
 By default, it loads the first page of all entities in a selected collection with basic entity data and representative
 attributes. You can further customize it by selecting which entity data you want to see in the detailed property
-selector.
+selector and in which locale. Because evitaDB has native support for localized data, evitaLab allows you to easily
+switch between different locales and see the data only in the selected locale. Note that if a locale is selected, only entities 
+that have any data in that locale are displayed.
 
 ![Property selector in data grid](assets/images/09-property-selector.png "Property selector in data grid")
 
@@ -97,8 +93,8 @@ The evitaQL console is similar to the GraphQL console. It allows you to write an
 language. Unfortunately, unlike the GraphQL console, we don’t have any autocompletion support for the evitaQL language
 yet.
 
-Although, we currently support parsing the evitaQL query language from string only internally in the gRPC API, the
-implementations of evitaQL in Java and C# are almost identical, so you can test Java and C# queries.
+Although we currently support parsing the evitaQL query language from string only internally in the gRPC API, you can
+use the evitaQL console to test Java and C# queries with a few manual transformations.
 
 ![evitaQL console](assets/images/09-evitaql-console.png "evitaQL console")
 
