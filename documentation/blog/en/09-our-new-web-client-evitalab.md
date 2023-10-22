@@ -1,10 +1,10 @@
 ---
 title: Our new web client, evitaLab
 perex: |
-  It’s always a bit painful to troubleshoot a problem with your production data inside a database if you don’t have a
+  It's always a bit painful to troubleshoot a problem with your production data inside a database if you don't have a
   handy tool to look inside easily, and instead, you have to write different kinds of queries using different tools to get
-  the information that you need. We feel the same way. That’s why we’ve created a hopefully handy GUI client for evitaDB
-  called evitaLab, so you have a buddy when you’re either just playing with evitaDB or you’re already debugging production
+  the information that you need. We feel the same way. That's why we've created a hopefully handy GUI client for evitaDB
+  called evitaLab, so you have a buddy when you're either just playing with evitaDB or you're already debugging production
   data.
 date: '21.10.2023'
 author: 'Lukáš Hornych'
@@ -25,7 +25,7 @@ All the tools are accessible with a few clicks within an evitaDB instance connec
 
 ## Data visualization
 
-Data visualization is one of the main features of evitaLab. It’s designed to hopefully make it easier to browse through
+Data visualization is one of the main features of evitaLab. It's designed to hopefully make it easier to browse through
 stored data and internal data structures, because nobody wants to write tedious queries just to quickly verify some data
 or configuration.
 
@@ -35,7 +35,7 @@ Currently, we support two main data visualization tools: data grid and schema vi
 
 The data grid allows you to browse your stored entities without writing any queries. It displays flattened entities as rows
 in an interactive table just like in SQL IDEs. Of course, there are limits to what we can display in a flat structure,
-but it’s a great tool for debugging or just browsing entities, because you can easily see pretty printed all the data
+but it's a great tool for debugging or just browsing entities, because you can easily see pretty printed all the data
 you need in columns next to each other, or even compare multiple entities side by side.
 
 ![Base data grid](assets/images/09-data-grid.png "Base data grid")
@@ -90,7 +90,7 @@ currently quite slow unfortunately).
 ### evitaQL console
 
 The evitaQL console is similar to the GraphQL console. It allows you to write and execute queries in our own query
-language. Unfortunately, unlike the GraphQL console, we don’t have any autocompletion support for the evitaQL language
+language. Unfortunately, unlike the GraphQL console, we don't have any autocompletion support for the evitaQL language
 yet.
 
 Although we currently support parsing the evitaQL query language from string only internally in the gRPC API, you can
@@ -102,7 +102,7 @@ In the future, we plan to support variables and autocompletion in the same way a
 
 ### REST console
 
-Unfortunately, the initial version of evitaLab doesn’t include any tools for evitaDB’s REST APIs. Hopefully, we will
+Unfortunately, the initial version of evitaLab doesn't include any tools for evitaDB's REST APIs. Hopefully, we will
 have at least some support soon.
 
 ## evitaDB connection manager
@@ -123,8 +123,8 @@ as a standalone client.
 
 ## evitaDB docs interactivity
 
-We’ve taken advantage of the fact that evitaLab is a web application which is being hosted on the demo of evitaDB, so
-we’ve implemented support for running example queries from the evitaDB documentation directly in evitaLab. This way you
+We've taken advantage of the fact that evitaLab is a web application which is being hosted on the demo of evitaDB, so
+we've implemented support for running example queries from the evitaDB documentation directly in evitaLab. This way you
 can easily see what data an example query returns and play with it. You can read more about this in
 our [older post](https://evitadb.io/blog/08-testable-documenation#examples-interactivity).
 
@@ -132,11 +132,11 @@ our [older post](https://evitadb.io/blog/08-testable-documenation#examples-inter
 
 ## Running
 
-We’ve designed evitaLab to be easily runnable in several different scenarios for the best developer experience. You can
+We've designed evitaLab to be easily runnable in several different scenarios for the best developer experience. You can
 run evitaLab:
 
 - by running evitaDB - each evitaDB instance contains a copy of a local evitaLab, which is exposed by default at
-  the [https://{your-server}:5555/lab](https://{your-server}:5555/lab) URL
+  the [https://your-server:5555/lab](https://your-server:5555/lab) URL
 - by visiting the [evitaDB demo website](https://demo.evitadb.io), where a read-only copy of evitaLab with a demo
   dataset is available for exploration
 - as a standalone evitaLab from [Docker image](https://github.com/lukashornych/evitalab#docker) (temporary solution for
@@ -145,7 +145,7 @@ run evitaLab:
 The first option is the easiest way to access evitaLab with your local data if you have a running local evitaDB
 instance. You can even use this approach in your test environment to be able to quickly analyze evitaDB data in your
 remote test environment. As mentioned above, evitaDB automatically passes a connection to itself to the served evitaLab,
-so you don’t need to configure anything.
+so you don't need to configure anything.
 
 ## Future plans
 
