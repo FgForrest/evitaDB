@@ -140,7 +140,7 @@ We've designed evitaLab to be easily runnable in several different scenarios for
 run evitaLab:
 
 - by running evitaDB - each evitaDB instance contains a copy of a local evitaLab, which is exposed by default at
-  the [https://{your-server}:5555/lab](https://{your-server}:5555/lab) URL
+  the [https://your-server:5555/lab](https://your-server:5555/lab) URL
 - by visiting the [evitaDB demo website](https://demo.evitadb.io), where a read-only copy of evitaLab with a demo
   dataset is available for exploration
 - as a standalone evitaLab from [Docker image](https://github.com/lukashornych/evitalab#docker) (temporary solution for
