@@ -112,6 +112,15 @@ public @interface Attribute {
 	boolean localized() default false;
 
 	/**
+	 * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+	 * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+	 * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+	 * helpful to developers in quickly finding their way around the data. There should be very few representative
+	 * attributes in the entity type, and the unique ones are usually the best to choose.
+	 */
+	boolean representative() default false;
+
+	/**
 	 * Sets the number of indexed decimal places. Makes sense only for attributes of type {@link java.math.BigDecimal}.
 	 * Determines the count of decimal places that will be taken into an account when value is converted to int type
 	 * that is used for filtering / sorting.

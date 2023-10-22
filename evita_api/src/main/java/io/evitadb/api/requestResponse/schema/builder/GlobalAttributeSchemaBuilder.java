@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -81,11 +82,17 @@ public final class GlobalAttributeSchemaBuilder
 				baseSchema.isSortable(),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
+				baseSchema.isRepresentative(),
 				baseSchema.getType(),
 				baseSchema.getDefaultValue(),
 				baseSchema.getIndexedDecimalPlaces()
 			)
 		);
+	}
+
+	@Override
+	protected Class<GlobalAttributeSchemaContract> getAttributeSchemaType() {
+		return GlobalAttributeSchemaContract.class;
 	}
 
 	@Override
@@ -108,6 +115,36 @@ public final class GlobalAttributeSchemaBuilder
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
 					toInstance().getName(),
+					decider.getAsBoolean()
+				)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder representative() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaRepresentativeMutation(
+					baseSchema.getName(),
+					true
+				)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public GlobalAttributeSchemaBuilder representative(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaRepresentativeMutation(
+					baseSchema.getName(),
 					decider.getAsBoolean()
 				)
 			)

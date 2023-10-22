@@ -97,7 +97,7 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	protected List<Server> buildOpenApiServers() {
 		return Arrays.stream(restConfig.getBaseUrls())
 			.map(baseUrl -> new Server()
-				.url(baseUrl + getSchema().getNameVariant(ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)))
+				.url(baseUrl + getSchema().getName()))
 			.toList();
 	}
 

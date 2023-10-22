@@ -529,7 +529,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	public EntitySchemaBuilder withAttribute(
 		@Nonnull String attributeName,
 		@Nonnull Class<? extends Serializable> ofType,
-		@Nullable Consumer<AttributeSchemaEditor.AttributeSchemaBuilder> whichIs
+		@Nullable Consumer<EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder> whichIs
 	) {
 		final CatalogSchemaContract catalogSchema = catalogSchemaAccessor.get();
 		catalogSchema.getAttribute(attributeName)
@@ -538,11 +538,11 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					catalogSchema.getName(), Objects.requireNonNull(it)
 				);
 			});
-		final Optional<AttributeSchemaContract> existingAttribute = getAttribute(attributeName);
-		final AttributeSchemaBuilder attributeSchemaBuilder =
+		final Optional<EntityAttributeSchemaContract> existingAttribute = getAttribute(attributeName);
+		final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder attributeSchemaBuilder =
 			existingAttribute
 				.map(it -> {
-					final AttributeSchemaBuilder builder = new AttributeSchemaBuilder(baseSchema, it);
+					final io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder builder = new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(baseSchema, it);
 					isTrue(
 						ofType.equals(it.getType()),
 						() -> new AttributeAlreadyPresentInEntitySchemaException(
@@ -551,10 +551,10 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 					);
 					return builder;
 				})
-				.orElseGet(() -> new AttributeSchemaBuilder(baseSchema, attributeName, ofType));
+				.orElseGet(() -> new io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder(baseSchema, attributeName, ofType));
 
 		ofNullable(whichIs).ifPresent(it -> it.accept(attributeSchemaBuilder));
-		final AttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
+		final EntityAttributeSchemaContract attributeSchema = attributeSchemaBuilder.toInstance();
 		checkSortableTraits(attributeName, attributeSchema);
 
 		// check the names in all naming conventions are unique in the catalog schema

@@ -71,6 +71,7 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE, false),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
+			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),
 			valueType,
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)

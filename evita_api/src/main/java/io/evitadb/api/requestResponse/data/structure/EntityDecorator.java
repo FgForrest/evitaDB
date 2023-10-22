@@ -48,7 +48,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializabl
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
@@ -724,7 +724,7 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
+	public Optional<EntityAttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
 		return delegate.getAttributeSchema(attributeName);
 	}
 

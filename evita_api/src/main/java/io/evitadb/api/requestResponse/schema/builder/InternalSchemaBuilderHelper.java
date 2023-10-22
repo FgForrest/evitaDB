@@ -351,7 +351,7 @@ public interface InternalSchemaBuilderHelper {
 	default void checkSortableTraits(
 		@Nonnull String compoundSchemaName,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		@Nonnull Map<String, AttributeSchemaContract> attributeSchemas
+		@Nonnull Map<String, ? extends AttributeSchemaContract> attributeSchemas
 	) {
 		for (AttributeElement attributeElement : compoundSchemaContract.getAttributeElements()) {
 			final AttributeSchemaContract attributeSchema = attributeSchemas.get(attributeElement.attributeName());

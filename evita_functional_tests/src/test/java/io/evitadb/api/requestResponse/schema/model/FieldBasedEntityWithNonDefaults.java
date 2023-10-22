@@ -64,7 +64,8 @@ public class FieldBasedEntityWithNonDefaults {
 		description = "customCode description",
 		deprecated = "And already deprecated!",
 		uniqueGlobally = true,
-		sortable = true
+		sortable = true,
+		representative = true
 	)
 	@Nonnull
 	private String code;

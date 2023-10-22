@@ -77,11 +77,17 @@ public final class AttributeSchemaBuilder
 				baseSchema.isSortable(),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
+				false,
 				baseSchema.getType(),
 				baseSchema.getDefaultValue(),
 				baseSchema.getIndexedDecimalPlaces()
 			)
 		);
+	}
+
+	@Override
+	protected Class<AttributeSchemaContract> getAttributeSchemaType() {
+		return AttributeSchemaContract.class;
 	}
 
 	@Override

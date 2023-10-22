@@ -39,7 +39,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaDescriptor extends AttributeSchemaDescriptor {
+public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDescriptor {
 
 	PropertyDescriptor UNIQUE_GLOBALLY = PropertyDescriptor.builder()
 		.name("uniqueGlobally")
@@ -66,8 +66,8 @@ public interface GlobalAttributeSchemaDescriptor extends AttributeSchemaDescript
 			in order not to waste precious memory space for data that will never be used in search queries.
 			
 			Filtering in attributes is executed by using constraints like `and`, `or`, `not`,
-			`attribute_{name}_equals`, `attribute_{name}_contains` and many others. Sorting can be achieved with
-			`attribute_{name}_natural` or others.
+			`attribute{name}Equals`, `attribute{name}Contains` and many others. Sorting can be achieved with
+			`attribute{name}Natural` or others.
 			
 			Attributes are not recommended for bigger data as they are all loaded at once when requested.
 			""")
@@ -82,6 +82,7 @@ public interface GlobalAttributeSchemaDescriptor extends AttributeSchemaDescript
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,
+			REPRESENTATIVE,
 			TYPE,
 			DEFAULT_VALUE,
 			INDEXED_DECIMAL_PLACES

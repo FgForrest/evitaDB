@@ -80,7 +80,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 				.log()
 				.ifValidationFails().
 			when()
-				.post(baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName()) + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
+				.post(baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
 			then()
 				.log()
 				.ifError();

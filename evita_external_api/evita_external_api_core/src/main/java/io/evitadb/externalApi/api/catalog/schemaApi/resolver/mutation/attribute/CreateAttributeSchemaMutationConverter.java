@@ -70,6 +70,7 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),
 			valueType,
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)

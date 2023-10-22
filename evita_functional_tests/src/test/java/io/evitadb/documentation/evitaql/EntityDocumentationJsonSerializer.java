@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -149,7 +150,7 @@ public class EntityDocumentationJsonSerializer extends JsonSerializer<EntityCont
 	/**
 	 * Writes all attributes from {@link AttributesContract} to a JSON.
 	 */
-	private static void writeAttributes(@Nonnull JsonGenerator gen, @Nonnull AttributesContract value) {
+	private static void writeAttributes(@Nonnull JsonGenerator gen, @Nonnull AttributesContract<? extends AttributeSchemaContract> value) {
 		if (value.attributesAvailable() && !value.getAttributeValues().isEmpty()) {
 			wrap(() -> {
 				gen.writeFieldName("attributes");
