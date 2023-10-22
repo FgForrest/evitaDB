@@ -1,7 +1,7 @@
 ---
 title: Our new web client, evitaLab
 perex: |
-  It’s always a bit “painful” to troubleshoot a problem with your production data inside a database if you don’t have a
+  It’s always a bit painful to troubleshoot a problem with your production data inside a database if you don’t have a
   handy tool to look inside easily, and instead, you have to write different kinds of queries using different tools to get
   the information that you need. We feel the same way. That’s why we’ve created a hopefully handy GUI client for evitaDB
   called evitaLab, so you have a buddy when you’re either just playing with evitaDB or you’re already debugging production
