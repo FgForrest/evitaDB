@@ -158,7 +158,7 @@ class ObjectJsonSerializerTest {
 		final Price price = new Price(new PriceKey(1, "my", Currency.getInstance("CZK")), 2, new BigDecimal("10.5"),
 			new BigDecimal("5.4"), new BigDecimal("15.9"), DateTimeRange.until(OffsetDateTime.of(2022, 10, 24, 14, 2, 10,5, ZoneOffset.ofHours(2))), true);
 		final String serialized = mapper.writeValueAsString(tested.serializeObject(price));
-		assertEquals("{\"priceId\":1,\"priceList\":\"my\",\"currency\":\"CZK\",\"innerRecordId\":2,\"sellable\":true,\"priceWithoutTax\":\"10.5\",\"priceWithTax\":\"15.9\",\"taxRate\":\"5.4\",\"validity\":[null,\"2022-10-24T14:02:10.000000005+02:00\"]}", serialized);
+		assertEquals("{\"priceId\":1,\"priceList\":\"my\",\"currency\":\"CZK\",\"innerRecordId\":2,\"sellable\":true,\"priceWithoutTax\":\"10.5\",\"priceWithTax\":\"15.9\",\"taxRate\":\"5.4\",\"validity\":[null,\"2022-10-24T14:02:10+02:00\"]}", serialized);
 	}
 
 }

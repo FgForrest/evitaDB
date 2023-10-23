@@ -7,7 +7,6 @@ perex: |
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
-
 **Work in progress**
 
 This article will contain copy of:
