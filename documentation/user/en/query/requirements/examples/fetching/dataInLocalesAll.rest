@@ -1,4 +1,4 @@
-POST /rest/evita/brand/query
+POST /rest/evita/Brand/query
 
 {
   "filterBy" : {
