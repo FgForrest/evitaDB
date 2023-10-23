@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 /**
@@ -88,7 +89,7 @@ public class DateTimeRangeCoercing extends RangeCoercing<OffsetDateTime, DateTim
     @Override
     protected String formatRangeEnd(@Nullable OffsetDateTime end) {
         return Optional.ofNullable(end)
-            .map(e -> e.format(FORMATTER))
+            .map(e -> e.truncatedTo(ChronoUnit.MILLIS).format(FORMATTER))
             .orElse(null);
     }
 
