@@ -224,7 +224,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		final Schema<?> dateTimeSchema = new StringSchema();
 		dateTimeSchema
 			.format(FORMAT_DATE_TIME)
-			.example("2022-09-27T13:28:27.357442951+02:00");
+			.example("2022-09-27T13:28:27.357+02:00");
 		return dateTimeSchema;
 	}
 
@@ -236,7 +236,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		final Schema<?> dateTimeSchema = new StringSchema();
 		dateTimeSchema
 			.format(FORMAT_LOCAL_DATE_TIME)
-			.example("2022-09-27T13:28:27.357442951");
+			.example("2022-09-27T13:28:27.357");
 		return dateTimeSchema;
 	}
 
@@ -260,7 +260,7 @@ public class OpenApiScalar implements OpenApiSimpleType {
 		final Schema<?> dateTimeSchema = new StringSchema();
 		dateTimeSchema
 			.format(FORMAT_LOCAL_TIME)
-			.example("13:28:27.357442951");
+			.example("13:28:27.357");
 		return dateTimeSchema;
 	}
 

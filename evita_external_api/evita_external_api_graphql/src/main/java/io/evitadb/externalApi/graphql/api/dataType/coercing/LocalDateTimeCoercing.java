@@ -34,6 +34,7 @@ import java.time.DateTimeException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 
 /**
  * {@link Coercing} for converting between Java's side {@link LocalDateTime} and client string.
@@ -51,7 +52,7 @@ public class LocalDateTimeCoercing implements Coercing<LocalDateTime, String> {
             throw new CoercingSerializeException("Local date time data fetcher result is not a local date time.");
         }
         try {
-            return ((LocalDateTime) dataFetcherResult).format(FORMATTER);
+            return ((LocalDateTime) dataFetcherResult).truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }

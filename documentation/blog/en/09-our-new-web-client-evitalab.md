@@ -130,6 +130,10 @@ our [older post](https://evitadb.io/blog/08-testable-documenation#examples-inter
 
 ![evitaDB docs evitaLab button](assets/images/09-docs-interactivity.png "evitaDB docs evitaLab button")
 
+A specific example query is passed in the URL to evitaLab, so you can use it to share these examples with others if you
+want to discuss it or referenced it in an issue. But beware that only examples in the evitaDB repository are supported 
+due to security reasons.
+
 ## Running
 
 We've designed evitaLab to be easily runnable in several different scenarios for the best developer experience. You can

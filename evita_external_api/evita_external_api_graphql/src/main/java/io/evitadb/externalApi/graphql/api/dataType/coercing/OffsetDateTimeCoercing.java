@@ -34,6 +34,7 @@ import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 
 /**
  * {@link Coercing} for converting between Java's side {@link OffsetDateTime} and client string.
@@ -51,7 +52,7 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
             throw new CoercingSerializeException("Offset date time data fetcher result is not a offset date time.");
         }
         try {
-            return ((OffsetDateTime) dataFetcherResult).format(FORMATTER);
+            return ((OffsetDateTime) dataFetcherResult).truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
