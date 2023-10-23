@@ -71,7 +71,7 @@ api:                                              # [see API configuration](#api
       mTLS:
         enabled: false
         allowedClientCertificatePaths: []
-    lab:
+    lab:                                          # [see evitaLab configuration](#evitalab-configuration)
       enabled: true
       host: localhost:5555
       tlsEnabled: true
