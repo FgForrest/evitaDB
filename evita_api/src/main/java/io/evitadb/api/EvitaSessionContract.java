@@ -784,14 +784,16 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
 	 *
 	 * @param entityType type of the entity that should be created
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(InstanceEditor)}
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)}
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity(@Nonnull String entityType);
 
 	/**
 	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
-	 * TODO JNO - add description and mention InstanceEditor which is not necessary, but good
+	 * The expected typ might any class that is annotated with {@link Entity} annotation. It may implement
+	 * {@link InstanceEditor}, which allows you to call {@link InstanceEditor#upsertVia(EvitaSessionContract)} method
+	 * and analyze the gathered mutations.
 	 *
 	 * @param expectedType type of the entity that should be created annotated with {@link Entity}
 	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)}
@@ -805,7 +807,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *
 	 * @param entityType type of the entity that should be created
 	 * @param primaryKey externally assigned primary key for the entity
-	 * @return builder instance to be filled up and stored via {@link #upsertEntity(InstanceEditor)}
+	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)} 
 	 */
 	@Nonnull
 	EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey);
@@ -843,7 +845,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * @param customEntity that contains changed entity state
 	 */
 	@Nonnull
-	<S extends Serializable> List<EntityReference> upsertEntities(@Nonnull S... customEntity);
+	<S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity);
 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.

@@ -45,7 +45,7 @@ import java.util.function.Function;
 import static io.evitadb.api.proxy.impl.entity.GetAssociatedDataMethodClassifier.getAssociatedDataSchema;
 
 /**
- * Identifies methods that are used to set entity primary key from an entity and provides their implementation.
+ * Identifies methods that are used to set entity associated data into an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

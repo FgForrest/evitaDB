@@ -23,8 +23,10 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
@@ -50,10 +52,12 @@ import java.io.Serializable;
 import java.lang.reflect.Parameter;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
+import static java.util.Optional.ofNullable;
 
 /**
  * Identifies methods that are used to get parent entity from an sealed entity and provides their implementation.
@@ -122,16 +126,21 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	/**
 	 * Implementation that returns an {@link EntityReference} of parent entity.
 	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentReferenceResult(
 		@Nonnull Function<EntityContract, Optional<EntityClassifierWithParent>> parentEntityExtractor,
+		@Nonnull Class expectedType,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final EntityContract sealedEntity = theState.getEntity();
 			return resultWrapper.apply(
 				parentEntityExtractor.apply(sealedEntity)
-					.map(it -> new EntityReference(sealedEntity.getType(), it.getPrimaryKey()))
+					.map(
+						it -> theState.getReferencedEntityObject(sealedEntity.getType(), it.getPrimaryKey(), expectedType, ProxyType.PARENT, ProxyType.PARENT_BUILDER)
+							.orElseGet(() -> new EntityReference(sealedEntity.getType(), it.getPrimaryKey()))
+					)
 					.orElse(null)
 			);
 		};
@@ -142,13 +151,13 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentClassifierResult(
-		@Nonnull Function<EntityContract, Optional<EntityClassifierWithParent>> parentEntityExtractor,
+		@Nonnull BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> parentEntityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final EntityContract sealedEntity = theState.getEntity();
 			return resultWrapper.apply(
-				parentEntityExtractor.apply(sealedEntity)
+				parentEntityExtractor.apply(sealedEntity, theState)
 					.orElse(null)
 			);
 		};
@@ -160,12 +169,20 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentEntityResult(
 		@Nonnull Class<?> itemType,
-		@Nonnull Function<EntityContract, Optional<EntityClassifierWithParent>> parentEntityExtractor,
+		@Nonnull BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> parentEntityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			parentEntityExtractor.apply(theState.getEntity())
-				.map(it -> theState.createEntityProxy(itemType, (SealedEntity) it))
+			parentEntityExtractor.apply(theState.getEntity(), theState)
+				.map(it -> {
+					if (itemType.isInstance(it)) {
+						return it;
+					} else if (it instanceof SealedEntity sealedEntity) {
+						return theState.createEntityProxy(itemType, sealedEntity);
+					} else {
+						throw ContextMissingException.hierarchyEntityContextMissing();
+					}
+				})
 				.orElse(null)
 		);
 	}
@@ -186,7 +203,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					return null;
 				}
 
-				// it may also return an class that is annotated with entity annotation and its entity name must exactly
+				// it must also return an class that is annotated with entity annotation and its entity name must exactly
 				// match the parent entity name derived from actual schema
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
@@ -195,12 +212,13 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 
 				final Entity entityInstance = reflectionLookup.getClassAnnotation(valueType, Entity.class);
 				final EntityRef entityRefInstance = reflectionLookup.getClassAnnotation(valueType, EntityRef.class);
-				final Optional<String> entityType = Optional.ofNullable(entityInstance)
+				final Optional<String> entityType = ofNullable(entityInstance)
 					.map(Entity::name)
-					.or(() -> Optional.ofNullable(entityRefInstance).map(EntityRef::value));
+					.or(() -> ofNullable(entityRefInstance).map(EntityRef::value));
 
+				final String expectedParentEntityType = proxyState.getEntitySchema().getName();
 				Assert.isTrue(
-					entityType.map(it -> Objects.equals(it, proxyState.getEntitySchema().getName())).orElse(true),
+					entityType.map(it -> Objects.equals(it, expectedParentEntityType)).orElse(true),
 					() -> new EntityClassInvalidException(
 						valueType,
 						"Entity class type `" + proxyState.getProxyClass() + "` parent must represent same entity type, " +
@@ -218,11 +236,22 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(valueType))) {
 					return singleParentIdResult(parentEntityExtractor, resultWrapper, EvitaDataTypes.toWrappedForm(valueType));
 				} else if (valueType.equals(EntityReference.class)) {
-					return singleParentReferenceResult(parentEntityExtractor, resultWrapper);
-				} else if (valueType.equals(EntityClassifier.class) || valueType.equals(EntityClassifierWithParent.class)) {
-					return singleParentClassifierResult(parentEntityExtractor, resultWrapper);
+					return singleParentReferenceResult(parentEntityExtractor, valueType, resultWrapper);
 				} else {
-					return singleParentEntityResult(valueType, parentEntityExtractor, resultWrapper);
+					//noinspection unchecked
+					final BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> simpleCachedParentEntityExtractor = (sealedEntity, sealedEntityProxyState) -> sealedEntity.getParentEntity()
+						.map(parent -> sealedEntityProxyState.getReferencedEntityObject(expectedParentEntityType, parent.getPrimaryKey(), valueType, ProxyType.PARENT, ProxyType.PARENT_BUILDER)
+							.orElse(parent));
+					final BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> cachedParentEntityExtractor =
+						resultWrapper instanceof OptionalProducingOperator ?
+							(sealedEntity, sealedEntityProxyState) -> sealedEntity.parentAvailable() ? simpleCachedParentEntityExtractor.apply(sealedEntity, sealedEntityProxyState) : Optional.empty() :
+							simpleCachedParentEntityExtractor;
+
+					if (valueType.equals(EntityClassifier.class) || valueType.equals(EntityClassifierWithParent.class)) {
+						return singleParentClassifierResult(cachedParentEntityExtractor, resultWrapper);
+					} else {
+						return singleParentEntityResult(valueType, cachedParentEntityExtractor, resultWrapper);
+					}
 				}
 			}
 		);

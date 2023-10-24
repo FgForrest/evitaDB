@@ -43,7 +43,7 @@ import java.util.OptionalInt;
 import static io.evitadb.api.proxy.impl.entity.GetAttributeMethodClassifier.getAttributeSchema;
 
 /**
- * Identifies methods that are used to set entity primary key from an entity and provides their implementation.
+ * Identifies methods that are used to set entity attributes into an entity and provides their implementation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

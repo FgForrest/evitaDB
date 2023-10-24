@@ -23,17 +23,39 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
+import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
+import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Proxy state for proxies that wrap sealed entity.
@@ -44,6 +66,16 @@ public class SealedEntityProxyState
 	extends AbstractEntityProxyState
 	implements EntityClassifier, SealedEntityProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
+	/**
+	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
+	 * from internally wrapped entity {@link #getSealedEntity()}.
+	 */
+	@Nullable protected EntityBuilder entityBuilder;
+	/**
+	 * Optional information about the last {@link EntityReference} returned from {@link EvitaSessionContract#upsertEntity(EntityMutation)},
+	 * it may contain newly assigned {@link EntityContract#getPrimaryKey()} that is not available in the wrapped entity.
+	 */
+	private EntityReference entityReference;
 
 	public SealedEntityProxyState(
 		@Nonnull EntityContract entity,
@@ -63,6 +95,13 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
+	public Integer getPrimaryKey() {
+		return ofNullable(entity.getPrimaryKey())
+			.orElseGet(() -> ofNullable(entityReference).map(EntityReference::getPrimaryKey).orElse(null));
+	}
+
+	@Nonnull
+	@Override
 	public SealedEntity getSealedEntity() {
 		if (entity instanceof SealedEntity sealedEntity) {
 			return sealedEntity;
@@ -73,8 +112,139 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public Integer getPrimaryKey() {
-		return entity.getPrimaryKey();
+	public Optional<EntityMutationWithCallback> getEntityMutation() {
+		return Optional.ofNullable(this.entityBuilder)
+			.map(InstanceEditor::toMutation)
+			.filter(Optional::isPresent)
+			.map(Optional::get)
+			.map(it -> new EntityMutationWithCallback(it, entityReference -> this.entityReference = entityReference));
+	}
+
+	@Override
+	@Nonnull
+	public Stream<EntityMutationWithCallback> getReferencedEntityMutations() {
+		return this.generatedProxyObjects.entrySet().stream()
+			.filter(it -> it.getKey().proxyType() == ProxyType.PARENT_BUILDER || it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY_BUILDER)
+			.flatMap(
+				it -> Stream.concat(
+					// we need first store the referenced entities of referenced entity (depth wise)
+					((SealedEntityProxy) it.getValue().proxyOfAnyType()).getReferencedEntityMutations(),
+					// and then the referenced entity itself
+					((SealedEntityProxy) it.getValue().proxyOfAnyType()).getEntityMutation()
+						.stream()
+						.map(
+							mutation -> {
+								final EntityMutation theMutation = mutation.theMutation();
+								final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
+								final Consumer<EntityReference> externalCallback = it.getValue().callback();
+								return new EntityMutationWithCallback(
+									theMutation,
+									mutationCallback == null ?
+										externalCallback :
+										entityReference -> {
+											mutation.updateEntityReference(entityReference);
+											externalCallback.accept(entityReference);
+										}
+								);
+							}
+						)
+				)
+			);
+	}
+
+	@Override
+	public void registerReferencedEntityObject(
+		@Nonnull String referencedEntityType,
+		int referencedPrimaryKey,
+		@Nonnull Serializable proxy,
+		@Nonnull Class<? extends Serializable> proxyType,
+		@Nonnull ProxyType logicalType
+	) {
+		generatedProxyObjects.put(
+			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType),
+			new ProxyWithUpsertCallback(proxy)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public <T extends Serializable> Optional<T> getReferencedEntityObject(
+		@Nonnull String referencedEntityType,
+		int referencedPrimaryKey,
+		@Nonnull Class<T> expectedType,
+		@Nonnull ProxyType... proxyType
+	) {
+		Assert.isPremiseValid(proxyType.length > 0, "At least one proxy type must be specified.");
+		return Arrays.stream(proxyType)
+			.map(it -> generatedProxyObjects.get(
+				new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, it)
+			))
+			.filter(Objects::nonNull)
+			.map(it -> it.proxy(expectedType).orElse(null))
+			.filter(Objects::nonNull)
+			.findFirst();
+	}
+
+	@Nonnull
+	public Optional<EntityBuilder> getEntityBuilderIfPresent() {
+		return ofNullable(this.entityBuilder);
+	}
+
+	@Nonnull
+	public EntityBuilder getEntityBuilder() {
+		if (entityBuilder == null) {
+			if (entity instanceof EntityDecorator entityDecorator) {
+				entityBuilder = new ExistingEntityBuilder(entityDecorator);
+			} else if (entity instanceof Entity theEntity) {
+				entityBuilder = new ExistingEntityBuilder(theEntity);
+			} else if (entity instanceof EntityBuilder theBuilder) {
+				entityBuilder = theBuilder;
+			} else {
+				throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+			}
+		}
+		return entityBuilder;
+	}
+
+	@Nonnull
+	public <T> T createReferencedEntityBuilderProxy(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Class<T> expectedType,
+		int primaryKey,
+		@Nonnull ProxyType proxyType
+	) throws EntityClassInvalidException {
+		return generatedProxyObjects.computeIfAbsent(
+			new ProxyInstanceCacheKey(entitySchema.getName(), primaryKey, proxyType),
+			key -> new ProxyWithUpsertCallback(
+				ProxycianFactory.createEntityBuilderProxy(
+					expectedType, recipes, collectedRecipes, new InitialEntityBuilder(entitySchema, primaryKey), getReflectionLookup()
+				)
+			)
+		)
+			.proxy(expectedType)
+			.orElseThrow();
+	}
+
+	@Nonnull
+	public <T> T createReferencedEntityBuilderProxyWithCallback(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull Consumer<EntityReference> callback,
+		@Nonnull ProxyType proxyType
+	) throws EntityClassInvalidException {
+		return generatedProxyObjects.computeIfAbsent(
+			new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
+			key -> new ProxyWithUpsertCallback(
+				ProxycianFactory.createEntityBuilderProxy(
+					expectedType, recipes, collectedRecipes,
+					new InitialEntityBuilder(entitySchema),
+					getReflectionLookup()
+				),
+				callback
+			)
+		)
+			.proxy(expectedType)
+			.orElseThrow();
 	}
 
 	@Override

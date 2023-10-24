@@ -83,7 +83,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
@@ -96,6 +95,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static java.util.Optional.empty;
@@ -718,21 +718,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					return new EntityReference(entity.getType(), entity.getPrimaryKey());
 				});
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			final Collection<EntityMutation> mutations = sealedEntityProxy.getMutations();
-			if (mutations.isEmpty()) {
-				// no modification occurred, we can return the reference to the original entity
-				// the `toInstance` method should be cost-free in this case, as no modifications occurred
-				final SealedEntity entity = sealedEntityProxy.getSealedEntity();
-				return new EntityReference(entity.getType(), entity.getPrimaryKey());
-			} else if (mutations.size() == 1) {
-				return upsertEntity(mutations.iterator().next());
-			} else {
-				throw new EvitaInvalidUsageException(
-					"Method `upsertEntity` expects changes only in a single entity! " +
-						"Yet the provided instance of type `" + customEntity.getClass() + "` contains " + mutations.size() + " changed entities!",
-					"Invalid usage of method `upsertEntity`!"
-				);
-			}
+			return sealedEntityProxy.getEntityMutation()
+				.map(entityMutation -> {
+					final EntityReference entityReference = upsertEntity(entityMutation.theMutation());
+					entityMutation.updateEntityReference(entityReference);
+					return entityReference;
+				})
+				.orElseGet(() -> {
+					// no modification occurred, we can return the reference to the original entity
+					// the `toInstance` method should be cost-free in this case, as no modifications occurred
+					final SealedEntity entity = sealedEntityProxy.getSealedEntity();
+					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+				});
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Method `upsertEntity` expects an instance of InstanceEditor, " +
@@ -744,34 +741,31 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public <S extends Serializable> List<EntityReference> upsertEntities(@Nonnull S... customEntity) {
-		if (customEntity.length == 0) {
-			throw new EvitaInvalidUsageException(
-				"Method `upsertEntities` expects at least one entity to be provided!",
-				"Invalid usage of method `upsertEntities`!"
-			);
+	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
+		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+			return ((InstanceEditor<?>)customEntity).toMutation()
+				.map(this::upsertEntity)
+				.map(List::of)
+				.orElse(Collections.emptyList());
+		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			return Stream.concat(
+					// we need first to store the referenced entities (deep wise)
+					sealedEntityProxy.getReferencedEntityMutations(),
+					// then the entity itself
+					sealedEntityProxy.getEntityMutation().stream()
+				)
+				.map(entityMutation -> {
+					final EntityReference entityReference = upsertEntity(entityMutation.theMutation());
+					entityMutation.updateEntityReference(entityReference);
+					return entityReference;
+				})
+				.toList();
 		} else {
-			final S exampleEntity = customEntity[0];
-			if (exampleEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
-				return Arrays.stream(customEntity)
-					.map(it -> ((InstanceEditor<?>)it))
-					.map(InstanceEditor::toMutation)
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.map(this::upsertEntity)
-					.toList();
-			} else if (exampleEntity instanceof SealedEntityProxy sealedEntityProxy) {
-				return sealedEntityProxy.getMutations()
-					.stream()
-					.map(this::upsertEntity)
-					.toList();
-			} else {
-				throw new EvitaInvalidUsageException(
-					"Method `upsertEntity` expects an instance of InstanceEditor, " +
-						"yet the provided instance is of type `" + exampleEntity.getClass() + "` doesn't implement it!",
-					"Invalid usage of method `upsertEntity`!"
-				);
-			}
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntity` expects an instance of InstanceEditor, " +
+					"yet the provided instance is of type `" + customEntity.getClass() + "` doesn't implement it!",
+				"Invalid usage of method `upsertEntity`!"
+			);
 		}
 	}
 

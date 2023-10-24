@@ -52,6 +52,13 @@ public class ContextMissingException extends EvitaInvalidUsageException {
 		);
 	}
 
+	public static ContextMissingException hierarchyEntityContextMissing() {
+		return new ContextMissingException(
+			"Parent entity was not fetched along with the entity. You need to use `hierarchyContent` with `entityFetch` " +
+				"requirement in your `require` part of the query."
+		);
+	}
+
 	public static ContextMissingException attributeContextMissing() {
 		return new ContextMissingException(
 			"No attributes were fetched along with the entity. You need to use `attributeContent` requirement in " +

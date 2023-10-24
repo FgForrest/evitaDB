@@ -23,12 +23,19 @@
 
 package io.evitadb.api.proxy.impl.entityBuilder;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import one.edee.oss.proxycian.MethodClassification;
+import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.recipe.Advice;
+import one.edee.oss.proxycian.util.ReflectionUtils;
 
 import java.io.Serial;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 
@@ -49,10 +56,42 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 	@SuppressWarnings("unchecked")
 	private static final List<MethodClassification<?, SealedEntityProxy>> METHOD_CLASSIFICATION = Arrays.asList(
 		new MethodClassification[]{
+			new PredicateMethodClassification<Object, Method, SealedEntityProxyState>(
+				"getContract",
+				(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "getContract".equals(method.getName()),
+				(method, proxyState) -> method,
+				(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getProxyClass()
+			),
+			new PredicateMethodClassification<Object, Method, SealedEntityProxyState>(
+				"toMutation",
+				(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toMutation".equals(method.getName()),
+				(method, proxyState) -> method,
+				(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getEntityBuilderIfPresent()
+					.flatMap(InstanceEditor::toMutation)
+			),
+			new PredicateMethodClassification<Object, Method, SealedEntityProxyState>(
+				"toInstance",
+				(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toInstance".equals(method.getName()),
+				(method, proxyState) -> method,
+				(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getEntityBuilderIfPresent()
+					.map(InstanceEditor::toInstance)
+					.map(EntityContract.class::cast)
+					.map(it -> (Object) proxyState.createNewNonCachedEntityProxy(proxyState.getProxyClass(), it))
+					.orElse(proxy)
+			),
+			new PredicateMethodClassification<Object, Method, SealedEntityProxyState>(
+				"upsertVia",
+				(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "upsertVia".equals(method.getName()),
+				(method, proxyState) -> method,
+				(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getEntityBuilderIfPresent()
+					.flatMap(InstanceEditor::toMutation)
+					.map(it -> ((EvitaSessionContract)args[0]).upsertEntity(it))
+					.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()))
+			),
 			SetAttributeMethodClassifier.INSTANCE,
-			SetAssociatedDataMethodClassifier.INSTANCE/*,
+			SetAssociatedDataMethodClassifier.INSTANCE,
+			SetParentEntityMethodClassifier.INSTANCE/*,
 			SetReferenceMethodClassifier.INSTANCE,
-			SetParentEntityMethodClassifier.INSTANCE,
 			SetPriceMethodClassifier.INSTANCE*/
 		}
 	);

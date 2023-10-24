@@ -25,7 +25,9 @@ package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
+import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.generator.DataGenerator;
@@ -35,23 +37,32 @@ import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
  * Example interface mapping a category entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface CategoryEditorInterface extends CategoryInterface {
+public interface CategoryEditorInterface extends CategoryInterface, InstanceEditor<CategoryInterface> {
 
+	@ParentEntity
 	CategoryEditorInterface setParentId(@Nullable Integer parentId);
 
+	@ParentEntity
 	CategoryEditorInterface setParentEntity(@Nullable CategoryInterface parentEntity);
 
+	@ParentEntity
 	CategoryEditorInterface setParentEntityReference(@Nullable EntityReference parentEntityReference);
 
+	@ParentEntity
 	CategoryEditorInterface setParentEntityClassifier(@Nullable EntityClassifier parentEntityClassifier);
 
+	@ParentEntity
 	CategoryEditorInterface setParentEntityClassifierWithParent(@Nullable EntityClassifierWithParent parentEntityClassifierWithParent);
+
+	@ParentEntity
+	CategoryEditorInterface withParent(int parentPrimaryKey, @Nonnull Consumer<CategoryEditorInterface> setupLogic);
 
 	CategoryEditorInterface setCode(@Nonnull String code);
 
@@ -68,5 +79,4 @@ public interface CategoryEditorInterface extends CategoryInterface {
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	void setReferencedFiles(ReferencedFileSet referencedFiles);
-
 }
