@@ -651,6 +651,13 @@ This configuration controls how the actual evitaLab web client will be served th
         <p>**Default**: `true`</p>
         <p>Whether evitaDB should serve the built-in evitaLab web client alongside the evitaLab API.</p>
     </dd>
+    <dt>readOnly</dt>
+    <dd>
+        <p>**Default**: `false`</p>
+        <p>Whether the evitaLab web client should be served in read-only mode. This means that it's runtime data and
+        configuration cannot be changed. It doesn't mean that it will not allow you to change the data
+        of an accessed evitaDB instance. This must be configured at the [scope of the evitaDB instance](#server-configuration).</p>
+    </dd>
     <dt>preconfiguredConnections</dt>
     <dd>
         <p>**Default**: `null`</p>
