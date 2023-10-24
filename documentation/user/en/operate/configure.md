@@ -651,22 +651,15 @@ This configuration controls how the actual evitaLab web client will be served th
         <p>**Default**: `true`</p>
         <p>Whether evitaDB should serve the built-in evitaLab web client alongside the evitaLab API.</p>
     </dd>
-    <dt>readOnly</dt>
-    <dd>
-        <p>**Default**: `false`</p>
-        <p>Whether the evitaLab web client should be served in read-only mode. This means that it's runtime data and
-        configuration cannot be changed. It doesn't mean that it will not allow you to change the data
-        of an accessed evitaDB instance. This must be configured at the [scope of the evitaDB instance](#server-configuration).
-        </p>
-    </dd>
     <dt>preconfiguredConnections</dt>
     <dd>
         <p>**Default**: `null`</p>
         <p>It allows passing a list of evitaDB connections to the web client. These connections will be ready to use
         by a user of the web client. By default (when `null` is passed), evitaDB will pass itself as a preconfigured
         connection for quick access. This can be disabled by passing empty list, or it can be completely overridden by 
-        passing a custom list of connections.
+        passing a custom list of connections.</p>
 
+        <p>
         It accepts either a path to YAML file prefixed with `!include` with a list of connections, or a list of connections
         directly in the main configuration. A single connection can be defined as follows:
 
@@ -675,7 +668,9 @@ This configuration controls how the actual evitaLab web client will be served th
           labApiUrl: "https://your-server:5555/lab/api" # URL of the evitaLab API accessible from the web browser 
           gqlUrl: "https://your-server:5555/gql" # URL of the GraphQL API accessible from the web browser
         ```
+        </p>
 
+        <p>
         This is especially useful for when the evitaDB server is running locally on a server behind a reverse proxy and 
         it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
         pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
