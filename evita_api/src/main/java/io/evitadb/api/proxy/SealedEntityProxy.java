@@ -98,14 +98,14 @@ public interface SealedEntityProxy extends EvitaProxy {
 	void registerReferencedEntityObject(
 		@Nonnull String referencedEntityType,
 		int referencedPrimaryKey,
-		@Nonnull Serializable proxy,
-		@Nonnull Class<? extends Serializable> proxyType,
+		@Nonnull Object proxy,
+		@Nonnull Class<?> proxyType,
 		@Nonnull ProxyType logicalType
 	);
 
 	/**
 	 * Returns the registered proxy, matching the registration context in method
-	 * {@link #registerReferencedEntityObject(String, int, Serializable, Class, ProxyType)}.
+	 * {@link #registerReferencedEntityObject(String, int, Object, Class, ProxyType)}.
 	 *
 	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
 	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity

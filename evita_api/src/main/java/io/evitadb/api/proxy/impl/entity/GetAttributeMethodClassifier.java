@@ -29,6 +29,8 @@ import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.AttributesContract;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
@@ -562,10 +564,10 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			//noinspection unchecked
 			return EvitaDataTypes.toTargetType(
 				defaultValueProvider.apply(
-					entity.getAttribute(
-						attributeName,
-						parameterType
-					)
+					entity.getAttributeValue(attributeName)
+						.filter(Droppable::exists)
+						.map(AttributeValue::value)
+						.orElse(null)
 				),
 				parameterType,
 				indexedDecimalPlaces
@@ -595,11 +597,13 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 						//noinspection DataFlowIssue,unchecked
 						return EvitaDataTypes.toTargetType(
 							defaultValueProvider.apply(
-								entity.getAttribute(
-									attributeName,
-									locale,
-									parameterType.getComponentType()
-								)
+								entity.getAttributeValue(
+										attributeName,
+										locale
+									)
+									.filter(Droppable::exists)
+									.map(AttributeValue::value)
+									.orElse(null)
 							),
 							parameterType.getComponentType(),
 							indexedDecimalPlaces
@@ -616,11 +620,13 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			//noinspection unchecked
 			return toTargetType(
 				defaultValueProvider.apply(
-					entity.getAttribute(
-						attributeName,
-						locale,
-						parameterType
-					)
+					entity.getAttributeValue(
+							attributeName,
+							locale
+						)
+						.filter(Droppable::exists)
+						.map(AttributeValue::value)
+						.orElse(null)
 				),
 				parameterType,
 				indexedDecimalPlaces
@@ -641,10 +647,10 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		if (entity.attributeAvailable(attributeName)) {
 			final Serializable[] value = (Serializable[]) defaultValueProvider.apply(
-				entity.getAttribute(
-					attributeName,
-					parameterType
-				)
+				entity.getAttributeValue(attributeName)
+					.filter(Droppable::exists)
+					.map(AttributeValue::value)
+					.orElse(null)
 			);
 			return Arrays.stream(value)
 				.map(
@@ -688,11 +694,13 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			);
 		} else if (locale != null && entity.attributeAvailable(attributeName, locale)) {
 			value = (Serializable[]) defaultValueProvider.apply(
-				entity.getAttribute(
-					attributeName,
-					locale,
-					parameterType
-				)
+				entity.getAttributeValue(
+						attributeName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AttributeValue::value)
+					.orElse(null)
 			);
 		} else {
 			return Collections.emptySet();
@@ -720,10 +728,10 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		if (entity.attributeAvailable(attributeName)) {
 			final Serializable[] value = (Serializable[]) defaultValueProvider.apply(
-				entity.getAttribute(
-					attributeName,
-					parameterType
-				)
+				entity.getAttributeValue(attributeName)
+					.filter(Droppable::exists)
+					.map(AttributeValue::value)
+					.orElse(null)
 			);
 			return Arrays.stream(value)
 				.map(
@@ -767,11 +775,13 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			);
 		} else if (locale != null && entity.attributeAvailable(attributeName, locale)) {
 			value = (Serializable[]) defaultValueProvider.apply(
-				entity.getAttribute(
-					attributeName,
-					locale,
-					parameterType
-				)
+				entity.getAttributeValue(
+						attributeName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AttributeValue::value)
+					.orElse(null)
 			);
 		} else {
 			return Collections.emptyList();
@@ -801,10 +811,10 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			return Enum.valueOf(
 				parameterType,
 				(String) defaultValueProvider.apply(
-					entity.getAttribute(
-						attributeName,
-						String.class
-					)
+					entity.getAttributeValue(attributeName)
+						.filter(Droppable::exists)
+						.map(AttributeValue::value)
+						.orElse(null)
 				)
 			);
 		} else {
@@ -833,11 +843,13 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			return Enum.valueOf(
 				parameterType,
 				(String) defaultValueProvider.apply(
-					entity.getAttribute(
-						attributeName,
-						locale,
-						String.class
-					)
+					entity.getAttributeValue(
+							attributeName,
+							locale
+						)
+						.filter(Droppable::exists)
+						.map(AttributeValue::value)
+						.orElse(null)
 				)
 			);
 		} else {
@@ -937,8 +949,9 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 
 						final BiFunction<EntityContract, String, Serializable> attributeExtractor =
 							resultWrapper instanceof OptionalProducingOperator ?
-								(entity, attributeName) -> entity.attributeAvailable(attributeName) ? entity.getAttribute(attributeName) : null :
-								AttributesContract::getAttribute;
+								(entity, attributeName) -> entity.attributeAvailable(attributeName) ?
+									entity.getAttributeValue(attributeName).filter(Droppable::exists).map(AttributeValue::value).orElse(null) : null :
+								(theEntity, theAttributeName) -> theEntity.getAttributeValue(theAttributeName).filter(Droppable::exists).map(AttributeValue::value).orElse(null);
 
 						if (collectionType != null && Set.class.isAssignableFrom(collectionType)) {
 							//noinspection unchecked

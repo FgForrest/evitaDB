@@ -171,15 +171,15 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * is in the database at the time update request arrives.
 	 */
 	@NotThreadSafe
-	interface EntityBuilder extends EntityEditor<EntityBuilder>, InstanceEditor<Entity> {
+	interface EntityBuilder extends EntityEditor<EntityBuilder>, InstanceEditor<SealedEntity> {
 
 		/**
 		 * {@inheritDoc}
 		 */
 		@Override
 		@Nonnull
-		default Class<Entity> getContract() {
-			return Entity.class;
+		default Class<SealedEntity> getContract() {
+			return SealedEntity.class;
 		}
 
 	}

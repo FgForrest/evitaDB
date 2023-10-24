@@ -21,24 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.data;
+package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-
-import javax.annotation.concurrent.Immutable;
-import javax.annotation.concurrent.ThreadSafe;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 
 /**
- * Sealed entity is read only form of entity that contains seal-breaking actions such as opening its contents to write
- * actions using {@link EntityBuilder} or accepting mutations that create {@link EntityMutation} objects. All seal
- * breaking actions don't modify {@link SealedEntity} contents and only create new objects based on it. This keeps this
- * class immutable and thread safe.
+ * Custom interface following the open/closed principle of evitaDB.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@ThreadSafe
-@Immutable
-public interface SealedEntity extends EntityContract, SealedInstance<SealedEntity, EntityBuilder> {
+public interface SealedCategoryInterface extends CategoryInterface, SealedInstance<CategoryInterface, CategoryEditorInterface> {
 
 }

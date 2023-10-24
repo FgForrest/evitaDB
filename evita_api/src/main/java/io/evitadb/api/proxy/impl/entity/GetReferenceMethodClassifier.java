@@ -29,6 +29,7 @@ import io.evitadb.api.proxy.ProxyReferenceFactory;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -65,6 +66,7 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 import static java.util.Optional.ofNullable;
@@ -223,17 +225,22 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleEntityReferenceResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final Collection<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), cleanReferenceName);
-			if (references == null || references.isEmpty()) {
+			final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
+			if (references == null) {
 				return resultWrapper.apply(null);
 			} else {
-				final ReferenceContract theReference = references.iterator().next();
-				return resultWrapper.apply(new EntityReference(theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey()));
+				final Optional<ReferenceContract> firstReference = references.findFirst();
+				if (firstReference.isEmpty()) {
+					return resultWrapper.apply(null);
+				} else {
+					final ReferenceContract theReference = firstReference.get();
+					return resultWrapper.apply(new EntityReference(theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey()));
+				}
 			}
 		};
 	}
@@ -243,14 +250,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> singleEntityReferenceResult(
-		@Nonnull String cleanReferenceName
+		@Nonnull String referenceName
 	) {
 		return sealedEntity -> {
-			final Collection<ReferenceContract> references = sealedEntity.getReferences(cleanReferenceName);
-			if (references.isEmpty()) {
+			final Optional<ReferenceContract> firstReference = sealedEntity.getReferences(referenceName)
+				.stream()
+				.filter(Droppable::exists)
+				.findFirst();
+			if (firstReference.isEmpty()) {
 				return null;
 			} else {
-				final ReferenceContract theReference = references.iterator().next();
+				final ReferenceContract theReference = firstReference.get();
 				return new EntityReference(theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey());
 			}
 		};
@@ -261,14 +271,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfEntityReferencesResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
-					.map(refs -> refs.stream()
+				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+					.map(refs -> refs
 						.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 						.toList()
 					).orElse(Collections.emptyList())
@@ -286,6 +296,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 					.toList();
 			} else {
@@ -299,15 +310,15 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfEntityReferencesResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
+				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 							.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
 					).orElse(Collections.emptySet())
@@ -325,6 +336,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
@@ -338,14 +350,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfEntityReferencesResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
-					.map(refs -> refs.stream()
+				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+					.map(refs -> refs
 						.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 						.toArray(EntityReference[]::new)
 					).orElse(null)
@@ -363,6 +375,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 					.toArray(EntityReference[]::new);
 			} else {
@@ -376,17 +389,22 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleEntityIdResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final Collection<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), cleanReferenceName);
-			if (references == null || references.isEmpty()) {
+			final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
+			if (references == null) {
 				return resultWrapper.apply(null);
 			} else {
-				final ReferenceContract theReference = references.iterator().next();
-				return resultWrapper.apply(theReference.getReferencedPrimaryKey());
+				final Optional<ReferenceContract> firstReference = references.findFirst();
+				if (firstReference.isEmpty()) {
+					return resultWrapper.apply(null);
+				} else {
+					final ReferenceContract theReference = firstReference.get();
+					return resultWrapper.apply(theReference.getReferencedPrimaryKey());
+				}
 			}
 		};
 	}
@@ -400,11 +418,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
-				final Collection<ReferenceContract> references = sealedEntity.getReferences(referenceName);
-				if (references.isEmpty()) {
+				final Optional<ReferenceContract> firstReference = sealedEntity.getReferences(referenceName)
+					.stream()
+					.filter(Droppable::exists)
+					.findFirst();
+				if (firstReference.isEmpty()) {
 					return null;
 				} else {
-					final ReferenceContract theReference = references.iterator().next();
+					final ReferenceContract theReference = firstReference.get();
 					return theReference.getReferencedPrimaryKey();
 				}
 			} else {
@@ -418,14 +439,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfEntityIdsResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Function<Object, Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
-					.map(refs -> refs.stream()
+				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+					.map(refs -> refs
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.toList()
 					).orElse(Collections.emptyList())
@@ -443,6 +464,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(ReferenceContract::getReferencedPrimaryKey)
 					.toList();
 			} else {
@@ -456,14 +478,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfEntityIdsResult(
-		@Nonnull String cleanReferenceName,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Function<Object, Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
-					.map(refs -> refs.stream()
+				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+					.map(refs -> refs
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
 					).orElse(Collections.emptySet())
@@ -481,6 +503,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(ReferenceContract::getReferencedPrimaryKey)
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
@@ -494,9 +517,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfEntityIdsResult(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nonnull Class<? extends Serializable> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (itemType.isPrimitive()) {
@@ -506,9 +529,10 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.apply(
-					ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
+					ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
 						.map(
-							refs -> refs.stream().filter(Objects::nonNull)
+							refs -> refs
+								.filter(Objects::nonNull)
 								.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 								.toArray()
 						).orElse(null)
@@ -516,9 +540,10 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		} else {
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.apply(
-					ofNullable(referenceExtractor.apply(theState.getEntity(), cleanReferenceName))
+					ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
 						.map(
-							refs -> refs.stream().filter(Objects::nonNull)
+							refs -> refs
+								.filter(Objects::nonNull)
 								.map(ReferenceContract::getReferencedPrimaryKey)
 								.map(it -> EvitaDataTypes.toTargetType(it, itemType))
 								.toArray(count -> (Object[]) Array.newInstance(itemType, count))
@@ -544,6 +569,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				if (sealedEntity.referencesAvailable(referenceName)) {
 					return sealedEntity.getReferences(referenceName)
 						.stream()
+						.filter(Droppable::exists)
 						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
 						.toArray();
 				} else {
@@ -555,6 +581,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				if (sealedEntity.referencesAvailable(referenceName)) {
 					return sealedEntity.getReferences(referenceName)
 						.stream()
+						.filter(Droppable::exists)
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.map(it -> EvitaDataTypes.toTargetType(it, itemType))
 						.toArray(count -> (Object[]) Array.newInstance(itemType, count));
@@ -573,18 +600,24 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String entityName,
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final Collection<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
-			if (references == null || references.isEmpty()) {
+			final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
+			if (references == null) {
 				return resultWrapper.apply(null);
 			} else {
-				return resultWrapper.apply(
-					createProxy(entityName, referenceName, itemType, theState, references.iterator().next(), entityExtractor)
-				);
+				final Optional<ReferenceContract> firstReference = references.findFirst();
+				if (firstReference.isEmpty()) {
+					return resultWrapper.apply(null);
+				} else {
+					final ReferenceContract theReference = firstReference.get();
+					return resultWrapper.apply(
+						createProxy(entityName, referenceName, itemType, theState, theReference, entityExtractor)
+					);
+				}
 			}
 		};
 	}
@@ -602,12 +635,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
-				final Collection<ReferenceContract> references = sealedEntity.getReferences(referenceName);
-				if (references.isEmpty()) {
-					return null;
-				} else {
-					return createProxy(entityName, referenceName, itemType, proxyFactory, references.iterator().next(), entityExtractor);
-				}
+				final Optional<ReferenceContract> firstReference = sealedEntity.getReferences(referenceName)
+					.stream()
+					.filter(Droppable::exists)
+					.findFirst();
+				return firstReference
+					.map(
+						referenceContract -> createProxy(
+							entityName, referenceName, itemType, proxyFactory, referenceContract, entityExtractor
+						)
+					)
+					.orElse(null);
 			} else {
 				return null;
 			}
@@ -622,7 +660,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String entityName,
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -630,7 +668,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			resultWrapper.apply(
 				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> createProxy(entityName, referenceName, itemType, theState, it, entityExtractor))
 							.filter(Objects::nonNull)
 							.toList()
@@ -656,6 +694,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					return Collections.emptyList();
 				} else {
 					return references.stream()
+						.filter(Droppable::exists)
 						.map(it -> createProxy(entityName, referenceName, itemType, proxyFactory, it, entityExtractor))
 						.filter(Objects::nonNull)
 						.toList();
@@ -674,7 +713,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String entityName,
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -682,7 +721,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			resultWrapper.apply(
 				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> createProxy(entityName, referenceName, itemType, theState, it, entityExtractor))
 							.filter(Objects::nonNull)
 							.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
@@ -708,6 +747,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					return Collections.emptySet();
 				} else {
 					return references.stream()
+						.filter(Droppable::exists)
 						.map(it -> createProxy(entityName, referenceName, itemType, proxyFactory, it, entityExtractor))
 						.filter(Objects::nonNull)
 						.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
@@ -726,7 +766,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String entityName,
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
@@ -734,7 +774,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			resultWrapper.apply(
 				ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> createProxy(entityName, referenceName, itemType, theState, it, entityExtractor))
 							.filter(Objects::nonNull)
 							.toArray(count -> (Object[]) Array.newInstance(itemType, count))
@@ -760,6 +800,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					return null;
 				} else {
 					return references.stream()
+						.filter(Droppable::exists)
 						.map(it -> createProxy(entityName, referenceName, itemType, proxyFactory, it, entityExtractor))
 						.filter(Objects::nonNull)
 						.toArray(count -> (Object[]) Array.newInstance(itemType, count));
@@ -781,12 +822,16 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return sealedEntity -> {
 			if (sealedEntity.referencesAvailable(referenceName)) {
-				final Collection<ReferenceContract> references = sealedEntity.getReferences(referenceName);
-				if (references.isEmpty()) {
-					return null;
-				} else {
-					return proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, references.iterator().next());
-				}
+				final Optional<ReferenceContract> firstReference = sealedEntity.getReferences(referenceName)
+					.stream()
+					.filter(Droppable::exists)
+					.findFirst();
+				return firstReference.map(
+						referenceContract -> proxyReferenceFactory.createEntityReferenceProxy(
+							itemType, sealedEntity, referenceContract
+						)
+					)
+					.orElse(null);
 			} else {
 				return null;
 			}
@@ -800,18 +845,25 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleReferenceResult(
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final EntityContract entity = theState.getEntity();
-			final Collection<ReferenceContract> references = referenceExtractor.apply(entity, referenceName);
-			if (references == null || references.isEmpty()) {
+			final Stream<ReferenceContract> references = referenceExtractor.apply(entity, referenceName);
+
+			if (references == null) {
 				return resultWrapper.apply(null);
 			} else {
-				return resultWrapper.apply(
-					theState.createEntityReferenceProxy(itemType, entity, references.iterator().next())
-				);
+				final Optional<ReferenceContract> firstReference = references.findFirst();
+				if (firstReference.isEmpty()) {
+					return resultWrapper.apply(null);
+				} else {
+					final ReferenceContract theReference = firstReference.get();
+					return resultWrapper.apply(
+						theState.createEntityReferenceProxy(itemType, entity, references.iterator().next())
+					);
+				}
 			}
 		};
 	}
@@ -829,6 +881,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, it))
 					.toList();
 			} else {
@@ -842,17 +895,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> listOfReferenceResult(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final EntityContract entity = theState.getEntity();
 			return resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(entity, cleanReferenceName))
+				ofNullable(referenceExtractor.apply(entity, referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> theState.createEntityReferenceProxy(itemType, entity, it))
 							.toList()
 					).orElse(Collections.emptyList())
@@ -865,17 +918,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfReferenceResult(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final EntityContract entity = theState.getEntity();
 			return resultWrapper.apply(
-				ofNullable(referenceExtractor.apply(entity, cleanReferenceName))
+				ofNullable(referenceExtractor.apply(entity, referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> theState.createEntityReferenceProxy(itemType, entity, it))
 							.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
 					).orElse(Collections.emptySet())
@@ -896,6 +949,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, it))
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
@@ -911,7 +965,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> arrayOfReferenceResult(
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -919,7 +973,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			return resultWrapper.apply(
 				ofNullable(referenceExtractor.apply(entity, referenceName))
 					.map(
-						refs -> refs.stream()
+						refs -> refs
 							.map(it -> theState.createEntityReferenceProxy(itemType, entity, it))
 							.toArray(count -> (Object[]) Array.newInstance(itemType, count))
 					).orElse(null)
@@ -940,6 +994,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (sealedEntity.referencesAvailable(referenceName)) {
 				return sealedEntity.getReferences(referenceName)
 					.stream()
+					.filter(Droppable::exists)
 					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, it))
 					.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 			} else {
@@ -959,7 +1014,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String targetEntityType,
 		@Nullable Class<?> collectionType,
 		@Nonnull Class<?> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		// we return directly the referenced entity - either it or its group by matching the entity referenced name
@@ -1088,17 +1143,17 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> getEntityReference(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType
 	) {
 		if (collectionType == null) {
-			return singleEntityReferenceResult(cleanReferenceName);
+			return singleEntityReferenceResult(referenceName);
 		} else if (collectionType.isArray()) {
-			return arrayOfEntityReferencesResult(cleanReferenceName);
+			return arrayOfEntityReferencesResult(referenceName);
 		} else if (Set.class.isAssignableFrom(collectionType)) {
-			return setOfEntityReferencesResult(cleanReferenceName);
+			return setOfEntityReferencesResult(referenceName);
 		} else {
-			return listOfEntityReferencesResult(cleanReferenceName);
+			return listOfEntityReferencesResult(referenceName);
 		}
 	}
 
@@ -1107,19 +1162,19 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getEntityReference(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (collectionType == null) {
-			return singleEntityReferenceResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return singleEntityReferenceResult(referenceName, referenceExtractor, resultWrapper);
 		} else if (collectionType.isArray()) {
-			return arrayOfEntityReferencesResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return arrayOfEntityReferencesResult(referenceName, referenceExtractor, resultWrapper);
 		} else if (Set.class.isAssignableFrom(collectionType)) {
-			return setOfEntityReferencesResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return setOfEntityReferencesResult(referenceName, referenceExtractor, resultWrapper);
 		} else {
-			return listOfEntityReferencesResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return listOfEntityReferencesResult(referenceName, referenceExtractor, resultWrapper);
 		}
 	}
 
@@ -1128,20 +1183,20 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getEntityId(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
 		@Nullable Class<? extends Serializable> itemType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (collectionType == null) {
-			return singleEntityIdResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return singleEntityIdResult(referenceName, referenceExtractor, resultWrapper);
 		} else if (collectionType.isArray()) {
-			return arrayOfEntityIdsResult(cleanReferenceName, itemType, referenceExtractor, resultWrapper);
+			return arrayOfEntityIdsResult(referenceName, itemType, referenceExtractor, resultWrapper);
 		} else if (Set.class.isAssignableFrom(collectionType)) {
-			return setOfEntityIdsResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return setOfEntityIdsResult(referenceName, referenceExtractor, resultWrapper);
 		} else {
-			return listOfEntityIdsResult(cleanReferenceName, referenceExtractor, resultWrapper);
+			return listOfEntityIdsResult(referenceName, referenceExtractor, resultWrapper);
 		}
 	}
 
@@ -1150,18 +1205,18 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> getEntityId(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
 		@Nullable Class<? extends Serializable> itemType
 	) {
 		if (collectionType == null) {
-			return singleEntityIdResult(cleanReferenceName);
+			return singleEntityIdResult(referenceName);
 		} else if (collectionType.isArray()) {
-			return arrayOfEntityIdsResult(cleanReferenceName, itemType);
+			return arrayOfEntityIdsResult(referenceName, itemType);
 		} else if (Set.class.isAssignableFrom(collectionType)) {
-			return setOfEntityIdsResult(cleanReferenceName);
+			return setOfEntityIdsResult(referenceName);
 		} else {
-			return listOfEntityIdsResult(cleanReferenceName);
+			return listOfEntityIdsResult(referenceName);
 		}
 	}
 
@@ -1170,20 +1225,20 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getReference(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
-		@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor,
+		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
 		@Nonnull Class<?> itemType,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		if (collectionType == null) {
-			return singleReferenceResult(cleanReferenceName, itemType, referenceExtractor, resultWrapper);
+			return singleReferenceResult(referenceName, itemType, referenceExtractor, resultWrapper);
 		} else if (collectionType.isArray()) {
-			return arrayOfReferenceResult(cleanReferenceName, itemType, referenceExtractor, resultWrapper);
+			return arrayOfReferenceResult(referenceName, itemType, referenceExtractor, resultWrapper);
 		} else if (Set.class.isAssignableFrom(collectionType)) {
-			return setOfReferenceResult(cleanReferenceName, itemType, referenceExtractor, resultWrapper);
+			return setOfReferenceResult(referenceName, itemType, referenceExtractor, resultWrapper);
 		} else {
-			return listOfReferenceResult(cleanReferenceName, itemType, referenceExtractor, resultWrapper);
+			return listOfReferenceResult(referenceName, itemType, referenceExtractor, resultWrapper);
 		}
 	}
 
@@ -1247,11 +1302,11 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						itemType = resolvedTypes[index];
 					}
 
-					@Nonnull BiFunction<EntityContract, String, Collection<ReferenceContract>> referenceExtractor =
+					@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor =
 						resultWrapper instanceof OptionalProducingOperator ?
 							(entity, theReferenceName) -> entity.referencesAvailable(theReferenceName) ?
-								entity.getReferences(theReferenceName) : null :
-							EntityContract::getReferences;
+								entity.getReferences(theReferenceName).stream().filter(Droppable::exists) : null :
+							(theEntity, theRefName) -> theEntity.getReferences(theRefName).stream().filter(Droppable::exists);
 
 					// return the appropriate result
 					final Entity entityInstance = reflectionLookup.getClassAnnotation(itemType, Entity.class);

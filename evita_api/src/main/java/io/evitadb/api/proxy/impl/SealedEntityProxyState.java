@@ -93,11 +93,14 @@ public class SealedEntityProxyState
 		return entity.getType();
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
 		return ofNullable(entity.getPrimaryKey())
-			.orElseGet(() -> ofNullable(entityReference).map(EntityReference::getPrimaryKey).orElse(null));
+			.orElseGet(() -> ofNullable(entityReference)
+				.map(EntityReference::getPrimaryKey)
+				.orElse(null)
+			);
 	}
 
 	@Nonnull
@@ -156,8 +159,8 @@ public class SealedEntityProxyState
 	public void registerReferencedEntityObject(
 		@Nonnull String referencedEntityType,
 		int referencedPrimaryKey,
-		@Nonnull Serializable proxy,
-		@Nonnull Class<? extends Serializable> proxyType,
+		@Nonnull Object proxy,
+		@Nonnull Class<?> proxyType,
 		@Nonnull ProxyType logicalType
 	) {
 		generatedProxyObjects.put(

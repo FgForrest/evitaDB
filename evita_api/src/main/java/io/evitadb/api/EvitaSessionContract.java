@@ -793,7 +793,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
 	 * The expected typ might any class that is annotated with {@link Entity} annotation. It may implement
 	 * {@link InstanceEditor}, which allows you to call {@link InstanceEditor#upsertVia(EvitaSessionContract)} method
-	 * and analyze the gathered mutations.
+	 * and analyze the gathered mutations.  Beware - the returned instance is always mutable and not thread safe!
 	 *
 	 * @param expectedType type of the entity that should be created annotated with {@link Entity}
 	 * @return builder instance to be filled up and stored via {@link #upsertEntity(Serializable)}
@@ -813,8 +813,10 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey);
 
 	/**
-	 * Creates entity builder for new entity with externally defined primary key needed to be inserted to
-	 * the collection.
+	 * Creates entity builder for new entity without specified primary key needed to be inserted to the collection.
+	 * The expected typ might any class that is annotated with {@link Entity} annotation. It may implement
+	 * {@link InstanceEditor}, which allows you to call {@link InstanceEditor#upsertVia(EvitaSessionContract)} method
+	 * and analyze the gathered mutations.  Beware - the returned instance is always mutable and not thread safe!
 	 *
 	 * @param expectedType type of the entity that should be created annotated with {@link Entity}
 	 * @param primaryKey   externally assigned primary key for the entity

@@ -29,6 +29,7 @@ import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
@@ -444,11 +445,13 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		if (entity.associatedDataAvailable(associatedDataName)) {
 			return Enum.valueOf(
 				parameterType,
-				(String) entity.getAssociatedData(
-					associatedDataName,
-					String.class,
-					reflectionLookup
-				)
+				entity.getAssociatedDataValue(
+						associatedDataName
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> ComplexDataObjectConverter.getOriginalForm(value, String.class, reflectionLookup))
+					.orElse(null)
 			);
 		} else {
 			return null;
@@ -463,7 +466,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class parameterType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		if (entity.attributeAvailable(associatedDataName)) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
 			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
 			final Set<Locale> locales = localePredicate.getLocales();
 			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
@@ -476,12 +479,13 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				//noinspection unchecked
 				return Enum.valueOf(
 					parameterType,
-					(String) entity.getAssociatedData(
-						associatedDataName,
-						locale,
-						String.class,
-						reflectionLookup
-					)
+					entity.getAssociatedDataValue(
+							associatedDataName,
+							locale
+						).filter(Droppable::exists)
+						.map(AssociatedDataValue::value)
+						.map(value -> ComplexDataObjectConverter.getOriginalForm(value, String.class, reflectionLookup))
+						.orElse(null)
 				);
 			} else {
 				return null;
@@ -491,7 +495,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		}
 	}
 
-	@SuppressWarnings({"rawtypes"})
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Serializable getAssociatedDataAsSingleValue(
 		@Nonnull EntityContract entity,
@@ -500,11 +504,13 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			return entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
+			return entity.getAssociatedDataValue(
+					associatedDataName
+				)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> ComplexDataObjectConverter.getOriginalForm(value, parameterType, reflectionLookup))
+				.orElse(null);
 		} else {
 			return null;
 		}
@@ -518,7 +524,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class parameterType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		if (entity.attributeAvailable(associatedDataName)) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
 			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
 			final Set<Locale> locales = localePredicate.getLocales();
 			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
@@ -528,12 +534,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 						.stream()
 						.map(it -> {
 							//noinspection DataFlowIssue,unchecked
-							return entity.getAssociatedData(
-								associatedDataName,
-								locale,
-								parameterType.getComponentType(),
-								reflectionLookup
-							);
+							return entity.getAssociatedDataValue(
+									associatedDataName,
+									locale
+								)
+								.filter(Droppable::exists)
+								.map(AssociatedDataValue::value)
+								.map(value -> ComplexDataObjectConverter.getOriginalForm(value, parameterType.getComponentType(), reflectionLookup))
+								.orElse(null);
 						})
 						.toArray(count -> (Serializable[]) Array.newInstance(parameterType.getComponentType(), count));
 				} else {
@@ -544,12 +552,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				}
 			} else if (locale != null) {
 				//noinspection unchecked
-				return entity.getAssociatedData(
-					associatedDataName,
-					locale,
-					parameterType,
-					reflectionLookup
-				);
+				return entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, parameterType, reflectionLookup))
+					.orElse(null);
 			} else {
 				return null;
 			}
@@ -567,11 +577,13 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
+			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedDataValue(
+					associatedDataName
+				)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> ComplexDataObjectConverter.getOriginalForm(value, parameterType, reflectionLookup))
+				.orElse(null);
 			return Arrays.stream(associatedData).collect(Collectors.toSet());
 		} else {
 			return null;
@@ -600,12 +612,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 						"multiple arrays and losing the information about the associated locale!"
 				);
 			} else if (locale != null) {
-				associatedData = (Serializable[]) entity.getAssociatedData(
-					associatedDataName,
-					locale,
-					parameterType,
-					reflectionLookup
-				);
+				associatedData = (Serializable[]) entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> ComplexDataObjectConverter.getOriginalForm(value, parameterType, reflectionLookup))
+					.orElse(null);
 			} else {
 				return Collections.emptySet();
 			}
@@ -626,11 +640,11 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
+			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedDataValue(associatedDataName)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> ComplexDataObjectConverter.getOriginalForm(value, parameterType, reflectionLookup))
+				.orElse(null);
 			return Arrays.stream(associatedData).toList();
 		} else {
 			return null;
@@ -659,12 +673,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 						"multiple arrays and losing the information about the associated locale!"
 				);
 			} else if (locale != null) {
-				associatedData = (Serializable[]) entity.getAssociatedData(
-					associatedDataName,
-					locale,
-					parameterType,
-					reflectionLookup
-				);
+				associatedData = (Serializable[]) entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> ComplexDataObjectConverter.getOriginalForm(value, parameterType, reflectionLookup))
+					.orElse(null);
 			} else {
 				return Collections.emptyList();
 			}
@@ -733,8 +749,9 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 
 					final BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor =
 						resultWrapper instanceof OptionalProducingOperator ?
-							(entity, associatedDataName) -> entity.associatedDataAvailable(associatedDataName) ? entity.getAssociatedDataValue(associatedDataName) : Optional.empty() :
-							AssociatedDataContract::getAssociatedDataValue;
+							(entity, associatedDataName) -> entity.associatedDataAvailable(associatedDataName) ?
+								entity.getAssociatedDataValue(associatedDataName).filter(Droppable::exists) : Optional.empty() :
+							(theEntity, theAssociatedDataName) -> theEntity.getAssociatedDataValue(theAssociatedDataName).filter(Droppable::exists);
 
 					if (associatedDataSchema.isLocalized()) {
 

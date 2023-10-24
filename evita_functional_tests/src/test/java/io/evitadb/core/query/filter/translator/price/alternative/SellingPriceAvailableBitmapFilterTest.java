@@ -25,7 +25,7 @@ package io.evitadb.core.query.filter.translator.price.alternative;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
@@ -70,7 +70,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	private static final DateTimeRange FAR_FUTURE = DateTimeRange.since(
 		OffsetDateTime.now().plusYears(100)
 	);
-	private Map<Integer, Entity> entities;
+	private Map<Integer, SealedEntity> entities;
 
 	@BeforeEach
 	void setUp() {
@@ -99,7 +99,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					.toInstance()
 			)
 			.collect(
-				Collectors.toMap(Entity::getPrimaryKey, Function.identity())
+				Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity())
 			);
 	}
 
