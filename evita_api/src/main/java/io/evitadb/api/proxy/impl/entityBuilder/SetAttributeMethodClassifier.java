@@ -60,13 +60,17 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				final int valueParameterPosition;
 				final OptionalInt localeParameterPosition;
 				// We only want to handle methods with exactly one parameter, or two parameters of which one is Locale
-				if (method.getParameterCount() == 1 && Serializable.class.isAssignableFrom(method.getParameterTypes()[0]) && !Locale.class.isAssignableFrom(method.getParameterTypes()[0])) {
+				final Class<?>[] parameterTypes = method.getParameterTypes();
+				if (method.getParameterCount() == 1 &&
+					(EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(parameterTypes[0])) &&
+					!Locale.class.isAssignableFrom(parameterTypes[0])
+				) {
 					valueParameterPosition = 0;
 					localeParameterPosition = OptionalInt.empty();
-				} else if ((method.getParameterCount() == 2 && Arrays.stream(method.getParameterTypes()).allMatch(Serializable.class::isAssignableFrom))) {
+				} else if ((method.getParameterCount() == 2 && Arrays.stream(parameterTypes).allMatch(EvitaDataTypes::isSupportedTypeOrItsArrayOrEnum))) {
 					int lp = -1;
-					for (int i = 0; i < method.getParameterTypes().length; i++) {
-						 if (Locale.class.isAssignableFrom(method.getParameterTypes()[i])) {
+					for (int i = 0; i < parameterTypes.length; i++) {
+						 if (Locale.class.isAssignableFrom(parameterTypes[i])) {
 							 lp = i;
 							 break;
 						 }

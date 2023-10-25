@@ -30,6 +30,6 @@ import io.evitadb.api.requestResponse.data.SealedInstance;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedCategoryInterface extends CategoryInterface, SealedInstance<CategoryInterface, CategoryEditorInterface> {
+public interface CategoryInterfaceSealed extends CategoryInterface, SealedInstance<CategoryInterface, CategoryInterfaceEditor> {
 
 }

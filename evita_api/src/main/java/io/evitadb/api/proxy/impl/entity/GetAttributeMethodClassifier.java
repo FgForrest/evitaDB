@@ -244,7 +244,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			return schemaLocator.apply(attributeInstance.name());
 		} else if (attributeRefInstance != null) {
 			return schemaLocator.apply(attributeRefInstance.value());
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
+		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> attributeName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return attributeName
 				.flatMap(attrName -> entitySchema.getAttributeByName(attrName, NamingConvention.CAMEL_CASE))

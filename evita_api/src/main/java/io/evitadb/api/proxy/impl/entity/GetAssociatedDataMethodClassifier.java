@@ -182,7 +182,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
 		} else if (associatedDataRefInstance != null) {
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class) && ClassUtils.isAbstract(method)) {
+		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, AssociatedData.class) && ClassUtils.isAbstract(method)) {
 			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName())
 				.flatMap(
 					associatedDataName -> entitySchema.getAssociatedDataByName(

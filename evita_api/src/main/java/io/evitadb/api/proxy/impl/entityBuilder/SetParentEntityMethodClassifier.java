@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
@@ -67,7 +68,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				// first we need to identify whether the method returns a parent entity
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ParentEntity.class);
-				if (parentEntity == null) {
+				if (parentEntity == null || !proxyState.getEntitySchema().isWithHierarchy()) {
 					return null;
 				}
 
@@ -78,11 +79,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				Optional<Class> consumerType = Optional.empty();
 				for (int i = 0; i < parameterCount; i++) {
 					final Class<?> parameterType = method.getParameterTypes()[i];
-					if (int.class.equals(parameterType) ||
-						long.class.equals(parameterType) ||
-						short.class.equals(parameterType) ||
-						byte.class.equals(parameterType) ||
-						Number.class.isAssignableFrom(parameterType)) {
+					if (NumberUtils.isIntConvertibleNumber(parameterType)) {
 						parentIdIndex = OptionalInt.of(i);
 					} else if (Consumer.class.isAssignableFrom(parameterType)) {
 						consumerIndex = OptionalInt.of(i);

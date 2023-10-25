@@ -44,35 +44,35 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface CategoryEditorInterface extends CategoryInterface, InstanceEditor<CategoryInterface> {
+public interface CategoryInterfaceEditor extends CategoryInterface, InstanceEditor<CategoryInterface> {
 
 	@ParentEntity
-	CategoryEditorInterface setParentId(@Nullable Integer parentId);
+	CategoryInterfaceEditor setParentId(@Nullable Integer parentId);
 
 	@ParentEntity
-	CategoryEditorInterface setParentEntity(@Nullable CategoryInterface parentEntity);
+	CategoryInterfaceEditor setParentEntity(@Nullable CategoryInterface parentEntity);
 
 	@ParentEntity
-	CategoryEditorInterface setParentEntityReference(@Nullable EntityReference parentEntityReference);
+	CategoryInterfaceEditor setParentEntityReference(@Nullable EntityReference parentEntityReference);
 
 	@ParentEntity
-	CategoryEditorInterface setParentEntityClassifier(@Nullable EntityClassifier parentEntityClassifier);
+	CategoryInterfaceEditor setParentEntityClassifier(@Nullable EntityClassifier parentEntityClassifier);
 
 	@ParentEntity
-	CategoryEditorInterface setParentEntityClassifierWithParent(@Nullable EntityClassifierWithParent parentEntityClassifierWithParent);
+	CategoryInterfaceEditor setParentEntityClassifierWithParent(@Nullable EntityClassifierWithParent parentEntityClassifierWithParent);
 
 	@ParentEntity
-	CategoryEditorInterface withParent(int parentPrimaryKey, @Nonnull Consumer<CategoryEditorInterface> setupLogic);
+	CategoryInterfaceEditor withParent(int parentPrimaryKey, @Nonnull Consumer<CategoryInterfaceEditor> setupLogic);
 
-	CategoryEditorInterface setCode(@Nonnull String code);
+	CategoryInterfaceEditor setCode(@Nonnull String code);
 
-	CategoryEditorInterface setName(@Nonnull String name);
+	CategoryInterfaceEditor setName(@Nonnull String name);
 
-	CategoryEditorInterface setName(@Nonnull Locale locale, @Nonnull String name);
+	CategoryInterfaceEditor setName(@Nonnull Locale locale, @Nonnull String name);
 
-	CategoryEditorInterface setPriority(@Nonnull Long priority);
+	CategoryInterfaceEditor setPriority(@Nonnull Long priority);
 
-	CategoryEditorInterface setValidity(@Nullable DateTimeRange validity);
+	CategoryInterfaceEditor setValidity(@Nullable DateTimeRange validity);
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
 	void setLabels(Labels labels);

@@ -70,9 +70,9 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			openForWriteMethodClassification(),
 			SetAttributeMethodClassifier.INSTANCE,
 			SetAssociatedDataMethodClassifier.INSTANCE,
-			SetParentEntityMethodClassifier.INSTANCE/*,
-			SetReferenceMethodClassifier.INSTANCE,
-			SetPriceMethodClassifier.INSTANCE*/
+			SetParentEntityMethodClassifier.INSTANCE,
+			SetPriceMethodClassifier.INSTANCE/*,
+			SetReferenceMethodClassifier.INSTANCE*/
 		}
 	);
 

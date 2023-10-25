@@ -160,7 +160,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			return entitySchema.getReferenceOrThrowException(referenceInstance.name());
 		} else if (referenceRefInstance != null) {
 			return entitySchema.getReferenceOrThrowException(referenceRefInstance.value());
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, Reference.class) && ClassUtils.isAbstract(method)) {
+		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Reference.class) && ClassUtils.isAbstract(method)) {
 			final Optional<String> referenceName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 			return referenceName
 				.flatMap(it -> entitySchema.getReferenceByName(it, NamingConvention.CAMEL_CASE))

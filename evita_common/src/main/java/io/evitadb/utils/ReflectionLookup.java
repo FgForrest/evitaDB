@@ -75,7 +75,8 @@ public class ReflectionLookup {
 	private final WeakConcurrentMap<Class<?>, Map<String, PropertyDescriptor>> propertiesCache = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, List<Method>> gettersWithCorrespondingSetterOrConstructor = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, Set<Class<?>>> interfacesCache = new WeakConcurrentMap<>();
-	private final WeakConcurrentMap<MethodAndPackage, Boolean> samePackageAnnotation = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<MethodAndPackage, Boolean> methodSamePackageAnnotation = new WeakConcurrentMap<>();
+	private final WeakConcurrentMap<FieldAndPackage, Boolean> fieldSamePackageAnnotation = new WeakConcurrentMap<>();
 	private final WeakConcurrentMap<Class<?>, Map<Object, Object>> extractorCache = new WeakConcurrentMap<>();
 	private final ReflectionCachingBehaviour cachingBehaviour;
 
@@ -434,11 +435,52 @@ public class ReflectionLookup {
 	 * Returns true if method has at least one annotation in the same package as the passed annotation.
 	 */
 	public boolean hasAnnotationInSamePackage(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
-		return samePackageAnnotation.computeIfAbsent(
+		return methodSamePackageAnnotation.computeIfAbsent(
 			new MethodAndPackage(method, annotation.getPackage()),
 			tuple -> Arrays.stream(tuple.method().getAnnotations())
 				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
 		);
+	}
+
+	/**
+	 * Returns true if field has at least one annotation in the same package as the passed annotation.
+	 */
+	public boolean hasAnnotationInSamePackage(@Nonnull Field field, @Nonnull Class<? extends Annotation> annotation) {
+		return fieldSamePackageAnnotation.computeIfAbsent(
+			new FieldAndPackage(field, annotation.getPackage()),
+			tuple -> Arrays.stream(tuple.field().getAnnotations())
+				.anyMatch(it -> Objects.equals(it.annotationType().getPackage(), tuple.annotationPackage()))
+		);
+	}
+
+	/**
+	 * Returns true if method has at least one annotation in the same package as the passed annotation.
+	 */
+	public boolean hasAnnotationForPropertyInSamePackage(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
+		if (hasAnnotationInSamePackage(method, annotation)) {
+			return true;
+		} else {
+			final Optional<String> propertyName = getPropertyNameFromMethodNameIfPossible(method.getName());
+			if (propertyName.isPresent()) {
+				final Field propertyField = findPropertyField(method.getDeclaringClass(), propertyName.get());
+				if (propertyField != null && hasAnnotationInSamePackage(propertyField, annotation)) {
+					return true;
+				}
+				// try to find annotation on opposite method
+				if (isGetter(method.getName())) {
+					return ofNullable(findSetter(method.getDeclaringClass(), method))
+						.map(setter -> hasAnnotationForPropertyInSamePackage(setter, annotation))
+						.orElse(false);
+				} else if (isSetter(method.getName())) {
+					return ofNullable(findGetter(method.getDeclaringClass(), method))
+						.map(getter -> hasAnnotationForPropertyInSamePackage(getter, annotation))
+						.orElse(false);
+				} else {
+					return false;
+				}
+			}
+			return false;
+		}
 	}
 
 	/**
@@ -1140,6 +1182,15 @@ public class ReflectionLookup {
 	 */
 	private record MethodAndPackage(
 		@Nonnull Method method,
+		@Nonnull Package annotationPackage) {
+
+	}
+
+	/**
+	 * Cache key for {@link #hasAnnotationForPropertyInSamePackage(Method, Class)}.
+	 */
+	private record FieldAndPackage(
+		@Nonnull Field field,
 		@Nonnull Package annotationPackage) {
 
 	}

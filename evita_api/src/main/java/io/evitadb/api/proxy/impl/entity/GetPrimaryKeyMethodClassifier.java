@@ -105,7 +105,7 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<Ob
 
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (primaryKey != null || primaryKeyRef != null || (
-					!reflectionLookup.hasAnnotationInSamePackage(method, PrimaryKey.class) &&
+					!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, PrimaryKey.class) &&
 						Number.class.isAssignableFrom(toWrappedForm(valueType)) &&
 						ClassUtils.isAbstract(method) &&
 						propertyName

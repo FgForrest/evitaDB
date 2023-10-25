@@ -215,7 +215,7 @@ public interface ProductInterface extends EntityClassifier {
 	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
 	Set<String> getMarketsAsSet();
 
-	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
 	List<String> getMarketsAsList();
 
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)

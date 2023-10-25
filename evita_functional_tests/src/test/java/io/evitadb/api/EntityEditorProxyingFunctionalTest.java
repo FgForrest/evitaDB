@@ -23,8 +23,10 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.mock.CategoryEditorInterface;
 import io.evitadb.api.mock.CategoryInterface;
+import io.evitadb.api.mock.CategoryInterfaceEditor;
+import io.evitadb.api.mock.ProductInterface;
+import io.evitadb.api.mock.ProductInterfaceEditor;
 import io.evitadb.api.mock.UnknownEntityEditorInterface;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -35,8 +37,7 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.evitadb.test.generator.DataGenerator.Labels;
-import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
+import io.evitadb.test.generator.DataGenerator.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -46,20 +47,15 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_VALIDITY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.generator.DataGenerator.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
@@ -89,6 +85,25 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		}
 	}
 
+	private static void assertProduct(
+		SealedEntity product,
+		String code, String name, TestEnum theEnum,
+		BigDecimal quantity, boolean optionallyAvailable, Long priority,
+		String[] markets
+	) {
+		assertEquals(code, product.getAttribute(ATTRIBUTE_CODE));
+		assertEquals(name, product.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
+		assertEquals(theEnum, product.getAttribute(ATTRIBUTE_ENUM, TestEnum.class));
+		assertEquals(quantity, product.getAttribute(ATTRIBUTE_QUANTITY));
+		assertEquals(priority, product.getAttribute(ATTRIBUTE_PRIORITY));
+		if (optionallyAvailable) {
+			assertTrue(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
+		} else {
+			assertFalse(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
+		}
+		assertEquals(markets, product.getAttribute(ATTRIBUTE_MARKETS));
+	}
+
 	private static void assertUnknownEntity(SealedEntity unknownEntity, String code, String name, long priority) {
 		assertEquals(code, unknownEntity.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, unknownEntity.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
@@ -104,7 +119,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final DateTimeRange validity = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(CategoryEditorInterface.class, 1000)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1000)
 					.setCode("root-category")
 					.setName(CZECH_LOCALE, "Kořenová kategorie")
 					.setPriority(78L)
@@ -150,7 +165,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(CategoryEditorInterface.class, 1001)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1001)
 					.setCode("child-category-1")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -190,7 +205,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final EntityReference parentEntityReference = new EntityReference(Entities.CATEGORY, 1000);
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(CategoryEditorInterface.class, 1002)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1002)
 					.setCode("child-category-2")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -231,7 +246,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final EntityReferenceWithParent parentEntityReference = new EntityReferenceWithParent(Entities.CATEGORY, 1000, null);
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(CategoryEditorInterface.class, 1003)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1003)
 					.setCode("child-category-3")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -272,9 +287,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final CategoryEditorInterface parentEntity = evitaSession.getEntity(CategoryEditorInterface.class, 1000)
+				final CategoryInterfaceEditor parentEntity = evitaSession.getEntity(CategoryInterfaceEditor.class, 1000)
 					.orElseThrow();
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(CategoryEditorInterface.class, 1004)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1004)
 					.setCode("child-category-4")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -310,7 +325,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(CategoryEditorInterface.class, 1005)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceEditor.class, 1005)
 					.setCode("child-category-5")
 					.setName(CZECH_LOCALE, "Dětská kategorie")
 					.setPriority(90L)
@@ -374,6 +389,52 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertUnknownEntity(
 					evitaSession.getEntity("newlyDefinedEntity", newEntity.getId(), entityFetchAllContent()).orElseThrow(),
 					"entity1", "Nějaká entita", 78L
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should create new entity with prices and references of custom type")
+	@Order(8)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithPricesAndReferences(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-1")
+					.setName(CZECH_LOCALE, "Produkt 1")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"});
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(11, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals("product-1", modifiedInstance.getCode());
+				assertEquals("Produkt 1", modifiedInstance.getName(CZECH_LOCALE));
+				assertEquals(TestEnum.ONE, modifiedInstance.getEnum());
+				assertEquals(BigDecimal.TEN, modifiedInstance.getQuantity());
+				assertTrue(modifiedInstance.isOptionallyAvailable());
+				assertArrayEquals(new String[]{"market-1", "market-2"}, modifiedInstance.getMarketsAttribute());
+				assertArrayEquals(new String[]{"market-3", "market-4"}, modifiedInstance.getMarkets());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				assertProduct(
+					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
+					"product-1", "Produkt 1", TestEnum.ONE, BigDecimal.TEN, true, 78L,
+					new String[]{"market-1", "market-2"}
 				);
 			}
 		);

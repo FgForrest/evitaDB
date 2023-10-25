@@ -23,9 +23,9 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.mock.CategoryEditorInterface;
 import io.evitadb.api.mock.CategoryInterface;
-import io.evitadb.api.mock.SealedCategoryInterface;
+import io.evitadb.api.mock.CategoryInterfaceEditor;
+import io.evitadb.api.mock.CategoryInterfaceSealed;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -93,10 +93,10 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 			evitaSession -> {
 				/*
 					This is somehow weird scenario - created instances are always mutable - so the `openForWrite` is
-					technically not necessary, but the create new entity should be correctly called with CategoryEditorInterface
-					here and not the SealedCategoryInterface
+					technically not necessary, but the create new entity should be correctly called with CategoryInterfaceEditor
+					here and not the CategoryInterfaceSealed
 				 */
-				final CategoryEditorInterface newCategory = evitaSession.createNewEntity(SealedCategoryInterface.class, 1000)
+				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceSealed.class, 1000)
 					.openForWrite()
 					.setCode("root-category")
 					.setName(CZECH_LOCALE, "Kořenová kategorie")
@@ -143,17 +143,17 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
-				final SealedCategoryInterface sealedCategory = evitaSession.queryOne(
+				final CategoryInterfaceSealed sealedCategory = evitaSession.queryOne(
 					Query.query(
 						filterBy(
 							entityPrimaryKeyInSet(1000)
 						),
 						require(entityFetchAll())
 					),
-					SealedCategoryInterface.class
+					CategoryInterfaceSealed.class
 				).orElseThrow();
 
-				final CategoryEditorInterface updatedCategory = sealedCategory
+				final CategoryInterfaceEditor updatedCategory = sealedCategory
 					.openForWrite()
 					.setCode("updated-root-category")
 					.setName(CZECH_LOCALE, "Aktualizovaná kořenová kategorie")

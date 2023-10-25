@@ -24,15 +24,17 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
@@ -44,102 +46,111 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductInterfaceEditor extends EntityClassifier {
+public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor<ProductInterface> {
 
-	void setId(int id);
+	ProductInterfaceEditor setId(int id);
 
-	void setEntityType(@Nonnull TestEntity entityType);
+	ProductInterfaceEditor setCode(@Nonnull String code);
 
-	void setCode(@Nonnull String code);
+	ProductInterfaceEditor setName(@Nonnull String name);
 
-	void setName(@Nonnull String name);
+	ProductInterfaceEditor setName(Locale locale, @Nonnull String name);
 
-	void setName(Locale locale, @Nonnull String name);
+	ProductInterfaceEditor setQuantity(@Nonnull BigDecimal quantity);
 
-	void setEanAsDifferentProperty(@Nonnull String eanAsDifferentProperty);
+	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
+	ProductInterfaceEditor setPriority(Long priority);
 
-	void setQuantity(@Nonnull BigDecimal quantity);
+	ProductInterfaceEditor setEnum(TestEnum testEnum);
 
-	void setQuantityAsDifferentProperty(@Nonnull BigDecimal quantityAsDifferentProperty);
+	ProductInterfaceEditor setAlias(boolean alias);
 
-	void setEnum(TestEnum testEnum);
+	ProductInterfaceEditor setOptionallyAvailable(boolean optionallyAvailable);
 
-	void setAlias(boolean alias);
+	ProductInterfaceEditor setReferencedFileSet(ReferencedFileSet referencedFileSet);
 
-	void setOptionallyAvailable(boolean optionallyAvailable);
+	ProductInterfaceEditor setReferencedFileSetAsDifferentProperty(ReferencedFileSet referencedFileSetAsDifferentProperty);
 
-	void setReferencedFileSet(ReferencedFileSet referencedFileSet);
+	ProductInterfaceEditor setCategoryIds(Collection<Integer> categoryIds);
 
-	void setReferencedFileSetAsDifferentProperty(ReferencedFileSet referencedFileSetAsDifferentProperty);
+	ProductInterfaceEditor setCategoryIdsAsList(List<Integer> categoryIdsAsList);
 
-	void setCategoryIds(Collection<Integer> categoryIds);
+	ProductInterfaceEditor setCategoryIdsAsSet(Set<Integer> categoryIdsAsSet);
 
-	void setCategoryIdsAsList(List<Integer> categoryIdsAsList);
+	ProductInterfaceEditor setCategoryIdsAsArray(int[] categoryIdsAsArray);
 
-	void setCategoryIdsAsSet(Set<Integer> categoryIdsAsSet);
+	ProductInterfaceEditor setCategoryReferences(Collection<EntityReference> categoryReferences);
 
-	void setCategoryIdsAsArray(int[] categoryIdsAsArray);
+	ProductInterfaceEditor setCategoryReferencesAsList(List<EntityReference> categoryReferencesAsList);
 
-	void setCategoryReferences(Collection<EntityReference> categoryReferences);
+	ProductInterfaceEditor setCategoryReferencesAsSet(Set<EntityReference> categoryReferencesAsSet);
 
-	void setCategoryReferencesAsList(List<EntityReference> categoryReferencesAsList);
+	ProductInterfaceEditor setCategoryReferencesAsArray(EntityReference[] categoryReferencesAsArray);
 
-	void setCategoryReferencesAsSet(Set<EntityReference> categoryReferencesAsSet);
+	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
 
-	void setCategoryReferencesAsArray(EntityReference[] categoryReferencesAsArray);
+	ProductInterfaceEditor setProductCategoriesAsList(List<ProductCategoryInterface> productCategoriesAsList);
 
-	void setProductCategories(Collection<ProductCategoryInterface> productCategories);
+	ProductInterfaceEditor setProductCategoriesAsSet(Set<ProductCategoryInterface> productCategoriesAsSet);
 
-	void setProductCategoriesAsList(List<ProductCategoryInterface> productCategoriesAsList);
+	ProductInterfaceEditor setProductCategoriesAsArray(ProductCategoryInterface[] productCategoriesAsArray);
 
-	void setProductCategoriesAsSet(Set<ProductCategoryInterface> productCategoriesAsSet);
+	ProductInterfaceEditor setCategories(Collection<CategoryInterface> categories);
 
-	void setProductCategoriesAsArray(ProductCategoryInterface[] productCategoriesAsArray);
+	ProductInterfaceEditor setCategoriesAsList(List<CategoryInterface> categoriesAsList);
 
-	void setCategories(Collection<CategoryInterface> categories);
+	ProductInterfaceEditor setCategoriesAsSet(Set<CategoryInterface> categoriesAsSet);
 
-	void setCategoriesAsList(List<CategoryInterface> categoriesAsList);
+	ProductInterfaceEditor setCategoriesAsArray(CategoryInterface[] categoriesAsArray);
 
-	void setCategoriesAsSet(Set<CategoryInterface> categoriesAsSet);
+	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
-	void setCategoriesAsArray(CategoryInterface[] categoriesAsArray);
+	ProductInterfaceEditor setMarkets(String[] markets);
 
-	void setPriceForSale(PriceContract priceForSale);
+	ProductInterfaceEditor setMarketsAsSet(Set<String> marketsAsSet);
 
-	void setPriceForSale(String priceList, @Nonnull Currency currency);
+	ProductInterfaceEditor setMarketsAsList(List<String> marketsAsList);
 
-	void setPriceForSale(String priceList, @Nonnull Currency currency, @Nonnull OffsetDateTime validNow);
+	ProductInterfaceEditor setMarketsAttribute(String[] marketsAttribute);
 
-	void setAllPricesForSale(PriceContract[] allPricesForSale);
+	ProductInterfaceEditor setMarketsAttributeAsSet(Set<String> marketsAttributeAsSet);
 
-	void setAllPricesForSale(String priceList, PriceContract[] allPricesForSale);
+	ProductInterfaceEditor setMarketsAttributeAsList(List<String> marketsAttributeAsList);
 
-	void setAllPricesForSale(@Nonnull Currency currency, PriceContract[] allPricesForSale);
+	ProductInterfaceEditor setBasicPrice(PriceContract basicPrice);
 
-	void setAllPricesForSale(String priceList, @Nonnull Currency currency, PriceContract[] allPricesForSale);
+	ProductInterfaceEditor setBasicPrice(
+		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
+		String currencyCode, int priceId,
+		DateTimeRange validIn,
+		Integer innerRecordId
+	);
 
-	void setBasicPrice(PriceContract basicPrice);
+	ProductInterfaceEditor setBasicPrice(
+		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
+		Currency currency, int priceId
+	);
 
-	void setAllPrices(Collection<PriceContract> allPrices);
+	ProductInterfaceEditor setPrice(PriceContract price);
 
-	void setAllPricesAsList(List<PriceContract> allPricesAsList);
+	ProductInterfaceEditor setPrice(
+		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
+		String priceList, String currencyCode, int priceId,
+		DateTimeRange validIn,
+		Integer innerRecordId
+	);
 
-	void setAllPricesAsSet(Set<PriceContract> allPricesAsSet);
+	ProductInterfaceEditor setPrice(
+		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
+		String priceList, Currency currency, int priceId
+	);
 
-	void setAllPricesAsArray(PriceContract[] allPricesAsArray);
+	ProductInterfaceEditor setAllPrices(Collection<PriceContract> allPrices);
 
-	void setLabels(Labels labels);
+	ProductInterfaceEditor setAllPricesAsList(List<PriceContract> allPricesAsList);
 
-	void setMarkets(String[] markets);
+	ProductInterfaceEditor setAllPricesAsSet(Set<PriceContract> allPricesAsSet);
 
-	void setMarketsAsSet(Set<String> marketsAsSet);
-
-	void setMarketsAsList(List<String> marketsAsList);
-
-	void setMarketsAttribute(String[] marketsAttribute);
-
-	void setMarketsAttributeAsSet(Set<String> marketsAttributeAsSet);
-
-	void setMarketsAttributeAsList(List<String> marketsAttributeAsList);
+	ProductInterfaceEditor setAllPricesAsArray(PriceContract[] allPricesAsArray);
 
 }

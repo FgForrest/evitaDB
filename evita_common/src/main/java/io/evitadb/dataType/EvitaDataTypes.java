@@ -546,6 +546,14 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns true if type (may be array type) is directly supported by evitaDB or Java enum.
+	 */
+	public static boolean isSupportedTypeOrItsArrayOrEnum(@Nonnull Class<?> type) {
+		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
+		return EvitaDataTypes.isSupportedType(typeToCheck) || typeToCheck.isEnum();
+	}
+
+	/**
 	 * If passed type is a primitive type or array of primitive types, the wrapper type or array of wrapper types
 	 * is returned in response.
 	 */
