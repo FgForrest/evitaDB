@@ -73,6 +73,8 @@ import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
  *
+ * TODO JNO - refactor common code to shared methods along all method classifiers
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class GetAssociatedDataMethodClassifier extends DirectMethodClassification<Object, SealedEntityProxyState> {

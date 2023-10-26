@@ -38,7 +38,9 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.data.structure.InitialReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
@@ -155,20 +157,6 @@ public class SealedEntityProxyState
 			);
 	}
 
-	@Override
-	public void registerReferencedEntityObject(
-		@Nonnull String referencedEntityType,
-		int referencedPrimaryKey,
-		@Nonnull Object proxy,
-		@Nonnull Class<?> proxyType,
-		@Nonnull ProxyType logicalType
-	) {
-		generatedProxyObjects.put(
-			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType),
-			new ProxyWithUpsertCallback(proxy)
-		);
-	}
-
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getReferencedEntityObject(
@@ -213,16 +201,25 @@ public class SealedEntityProxyState
 	public <T> T createReferencedEntityBuilderProxy(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Class<T> expectedType,
-		int primaryKey,
-		@Nonnull ProxyType proxyType
+		@Nonnull ProxyType proxyType,
+		int primaryKey
 	) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
 			new ProxyInstanceCacheKey(entitySchema.getName(), primaryKey, proxyType),
-			key -> new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityBuilderProxy(
-					expectedType, recipes, collectedRecipes, new InitialEntityBuilder(entitySchema, primaryKey), getReflectionLookup()
-				)
-			)
+			key -> {
+				final ProxyWithUpsertCallback proxy = new ProxyWithUpsertCallback(
+					ProxycianFactory.createEntityBuilderProxy(
+						expectedType, recipes, collectedRecipes,
+						new InitialEntityBuilder(entitySchema, primaryKey),
+						getReflectionLookup()
+					)
+				);
+				registerReferencedEntityObject(
+					entitySchema.getName(), primaryKey,
+					proxy, proxyType
+				);
+				return proxy;
+			}
 		)
 			.proxy(expectedType)
 			.orElseThrow();
@@ -232,20 +229,104 @@ public class SealedEntityProxyState
 	public <T> T createReferencedEntityBuilderProxyWithCallback(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Class<T> expectedType,
-		@Nonnull Consumer<EntityReference> callback,
-		@Nonnull ProxyType proxyType
+		@Nonnull ProxyType proxyType,
+		@Nonnull Consumer<EntityReference> callback
 	) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
 			new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
-			key -> new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityBuilderProxy(
-					expectedType, recipes, collectedRecipes,
-					new InitialEntityBuilder(entitySchema),
-					getReflectionLookup()
-				),
-				callback
-			)
+			key -> {
+				final ProxyWithUpsertCallback proxy = new ProxyWithUpsertCallback(
+					ProxycianFactory.createEntityBuilderProxy(
+						expectedType, recipes, collectedRecipes,
+						new InitialEntityBuilder(entitySchema),
+						getReflectionLookup()
+					),
+					callback
+				);
+				registerReferencedEntityObject(
+					entitySchema.getName(), Integer.MIN_VALUE,
+					proxy, proxyType
+				);
+				return proxy;
+			}
 		)
+			.proxy(expectedType)
+			.orElseThrow();
+	}
+
+	@Nonnull
+	public <T> T createReferencedEntityBuilderProxy(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull ProxyType proxyType,
+		int primaryKey
+	) throws EntityClassInvalidException {
+		return generatedProxyObjects.computeIfAbsent(
+				new ProxyInstanceCacheKey(referenceSchema.getName(), primaryKey, proxyType),
+				key -> {
+					final ProxyWithUpsertCallback proxy = new ProxyWithUpsertCallback(
+						ProxycianFactory.createEntityBuilderReferenceProxy(
+							expectedType, recipes, collectedRecipes,
+							this.entity,
+							new InitialReferenceBuilder(
+								entitySchema,
+								referenceSchema.getName(),
+								primaryKey,
+								referenceSchema.getCardinality(),
+								referenceSchema.getReferencedEntityType()
+							),
+							getReflectionLookup()
+						)
+					);
+					registerReferencedEntityObject(
+						referenceSchema.getName(), primaryKey,
+						proxy, proxyType
+					);
+					return proxy;
+				}
+			)
+			.proxy(expectedType)
+			.orElseThrow();
+	}
+
+	@Nonnull
+	public <T> T createReferencedEntityBuilderProxyWithCallback(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull ProxyType proxyType,
+		@Nonnull Consumer<EntityReference> callback
+	) throws EntityClassInvalidException {
+		return generatedProxyObjects.computeIfAbsent(
+				new ProxyInstanceCacheKey(referenceSchema.getName(), Integer.MIN_VALUE, proxyType),
+				key -> {
+					final InitialReferenceBuilder referenceBuilder = new InitialReferenceBuilder(
+						entitySchema,
+						referenceSchema.getName(),
+						Integer.MIN_VALUE,
+						referenceSchema.getCardinality(),
+						referenceSchema.getReferencedEntityType()
+					);
+					final ProxyWithUpsertCallback proxy = new ProxyWithUpsertCallback(
+						ProxycianFactory.createEntityBuilderReferenceProxy(
+							expectedType, recipes, collectedRecipes,
+							this.entity,
+							referenceBuilder,
+							getReflectionLookup()
+						),
+						entRef -> {
+							referenceBuilder.setReferencedEntityPrimaryKey(entRef.getPrimaryKey());
+							callback.accept(entRef);
+						}
+					);
+					registerReferencedEntityObject(
+						referenceSchema.getName(), Integer.MIN_VALUE,
+						proxy, proxyType
+					);
+					return proxy;
+				}
+			)
 			.proxy(expectedType)
 			.orElseThrow();
 	}

@@ -25,7 +25,6 @@ package io.evitadb.api.proxy.impl.entityBuilder;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.proxy.SealedEntityProxy;
-import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
@@ -43,8 +42,7 @@ import java.io.Serial;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-
-import static java.util.Optional.ofNullable;
+import java.util.Set;
 
 /**
  * Advice allowing to implement all supported abstract methods on proxy wrapping {@link InstanceEditor}.
@@ -57,6 +55,12 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final EntityBuilderAdvice INSTANCE = new EntityBuilderAdvice();
+	/**
+	 * Contains set of method keywords which signalize the start of the removal operation.
+	 */
+	public static final Set<String> REMOVAL_KEYWORDS = Set.of(
+		"remove", "delete", "drop"
+	);
 	/**
 	 * List of all method classifications supported by this advice.
 	 */
@@ -71,8 +75,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			SetAttributeMethodClassifier.INSTANCE,
 			SetAssociatedDataMethodClassifier.INSTANCE,
 			SetParentEntityMethodClassifier.INSTANCE,
-			SetPriceMethodClassifier.INSTANCE/*,
-			SetReferenceMethodClassifier.INSTANCE*/
+			SetPriceMethodClassifier.INSTANCE,
+			SetReferenceMethodClassifier.INSTANCE
 		}
 	);
 
@@ -89,19 +93,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 					return genericType.get(0).getResolvedType();
 				}
 			},
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				final Object entityBuilder = proxyState.createEntityBuilderProxy(
-					methodContext, proxyState.getEntity()
-				);
-				proxyState.registerReferencedEntityObject(
-					proxyState.getType(),
-					ofNullable(proxyState.getPrimaryKey()).orElse(Integer.MIN_VALUE),
-					entityBuilder,
-					method.getReturnType(),
-					ProxyType.ENTITY_BUILDER
-				);
-				return entityBuilder;
-			}
+			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
+				proxyState.createEntityBuilderProxy(methodContext, proxyState.getEntity())
 		);
 	}
 

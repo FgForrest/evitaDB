@@ -253,7 +253,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	/**
 	 * Method returns ture if the entity type represents a referenced entity type.
 	 */
-	private static boolean isReferencedEntityType(
+	public static boolean isReferencedEntityType(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String entityType
@@ -278,7 +278,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	/**
 	 * Method returns ture if the entity type represents a referenced entity group type.
 	 */
-	private static boolean isReferencedEntityGroupType(
+	public static boolean isReferencedEntityGroupType(
 		@Nonnull Class<?> proxyClass,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String entityGroupType
@@ -308,7 +308,6 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
 					return null;
 				}
-
 
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ReferenceSchemaContract referenceSchema = proxyState.getReferenceSchema();

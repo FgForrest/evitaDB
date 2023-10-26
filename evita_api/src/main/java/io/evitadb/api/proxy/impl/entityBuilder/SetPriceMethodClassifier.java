@@ -58,6 +58,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.proxy.impl.entityBuilder.EntityBuilderAdvice.REMOVAL_KEYWORDS;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -733,7 +734,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 
 				final String methodName = method.getName();
-				if (methodName.startsWith("remove") || methodName.startsWith("delete") || methodName.startsWith("drop")) {
+				if (REMOVAL_KEYWORDS.stream().anyMatch(methodName::startsWith)) {
 					if (parameterCount == 0) {
 						return removeAllPrices(returnType, proxyClass, price);
 					} else {

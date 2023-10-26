@@ -85,27 +85,7 @@ public interface SealedEntityProxy extends EvitaProxy {
 	Stream<EntityMutationWithCallback> getReferencedEntityMutations();
 
 	/**
-	 * Method registers created proxy object that was created by this proxy instance and relates to referenced objects
-	 * accessed via it. We need to provide exactly the same instances of those objects when the same method is called
-	 * or the logically same object is retrieved via different method with compatible type.
-	 *
-	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
-	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
-	 * @param proxy                the proxy object
-	 * @param proxyType            the base type of the proxy object
-	 * @param logicalType          logical type of the proxy object
-	 */
-	void registerReferencedEntityObject(
-		@Nonnull String referencedEntityType,
-		int referencedPrimaryKey,
-		@Nonnull Object proxy,
-		@Nonnull Class<?> proxyType,
-		@Nonnull ProxyType logicalType
-	);
-
-	/**
-	 * Returns the registered proxy, matching the registration context in method
-	 * {@link #registerReferencedEntityObject(String, int, Object, Class, ProxyType)}.
+	 * Returns the registered proxy, matching the registration context in creation methods method.
 	 *
 	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
 	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity

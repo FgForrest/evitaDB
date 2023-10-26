@@ -27,8 +27,10 @@ import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
@@ -40,6 +42,7 @@ import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Example product interface for proxying.
@@ -102,6 +105,9 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	ProductInterfaceEditor setCategoriesAsSet(Set<CategoryInterface> categoriesAsSet);
 
 	ProductInterfaceEditor setCategoriesAsArray(CategoryInterface[] categoriesAsArray);
+
+	@ReferenceRef(Entities.PARAMETER)
+	ProductInterfaceEditor addParameter(int parameterId, Consumer<ParameterReferenceInterfaceEditor> parameterEditor);
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 

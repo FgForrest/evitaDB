@@ -50,6 +50,8 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * Abstract parent class for all entity proxy states. It contains all the common fields and methods.
  *
@@ -159,11 +161,20 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
 			new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY_BUILDER),
-			key -> new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityBuilderProxy(
-					expectedType, recipes, collectedRecipes, entity, getReflectionLookup()
-				)
-			)
+			key -> {
+				final ProxyWithUpsertCallback newProxy = new ProxyWithUpsertCallback(
+					ProxycianFactory.createEntityBuilderProxy(
+						expectedType, recipes, collectedRecipes, entity, getReflectionLookup()
+					)
+				);
+				registerReferencedEntityObject(
+					entity.getType(),
+					ofNullable(entity.getPrimaryKey()).orElse(Integer.MIN_VALUE),
+					newProxy,
+					ProxyType.ENTITY_BUILDER
+				);
+				return newProxy;
+			}
 		)
 			.proxy(expectedType)
 			.orElseThrow();
@@ -197,6 +208,28 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		)
 			.proxy(expectedType)
 			.orElseThrow();
+	}
+
+	/**
+	 * Method registers created proxy object that was created by this proxy instance and relates to referenced objects
+	 * accessed via it. We need to provide exactly the same instances of those objects when the same method is called
+	 * or the logically same object is retrieved via different method with compatible type.
+	 *
+	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
+	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
+	 * @param proxy                the proxy object
+	 * @param logicalType          logical type of the proxy object
+	 */
+	public void registerReferencedEntityObject(
+		@Nonnull String referencedEntityType,
+		int referencedPrimaryKey,
+		@Nonnull Object proxy,
+		@Nonnull ProxyType logicalType
+	) {
+		generatedProxyObjects.put(
+			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType),
+			new ProxyWithUpsertCallback(proxy)
+		);
 	}
 
 	/**

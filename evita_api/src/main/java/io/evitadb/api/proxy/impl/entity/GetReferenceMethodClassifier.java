@@ -149,7 +149,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * it tries to match the attribute name by the name of the method.
 	 */
 	@Nullable
-	private static ReferenceSchemaContract getReferenceSchema(
+	public static ReferenceSchemaContract getReferenceSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema

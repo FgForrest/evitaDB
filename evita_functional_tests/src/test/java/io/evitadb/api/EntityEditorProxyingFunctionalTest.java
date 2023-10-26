@@ -37,7 +37,6 @@ import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.evitadb.test.generator.DataGenerator.*;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -52,7 +51,11 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -399,6 +402,27 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldCreateNewCustomProductWithPricesAndReferences(EvitaContract evita) {
+		final int parameterId = evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+					query(
+						collection(Entities.PARAMETER),
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "parameter-1")
+						)
+					)
+				);
+				return parameterReference
+					.orElseGet(
+						() -> evitaSession.createNewEntity(Entities.PARAMETER)
+							.setAttribute(ATTRIBUTE_CODE, "parameter-1")
+							.upsertVia(evitaSession)
+					)
+					.getPrimaryKey();
+			}
+		);
+
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
@@ -410,7 +434,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
-					.setMarkets(new String[]{"market-3", "market-4"});
+					.setMarkets(new String[]{"market-3", "market-4"})
+					// TODO JNO - tohle vyzkoušet na něco, co nemá povinné atributy
+					// .addParameter(parameterId);
+					.addParameter(parameterId, that -> that.setPriority(1L));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());

@@ -23,31 +23,21 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
-
-import javax.annotation.Nonnull;
-import java.util.Locale;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.test.generator.DataGenerator;
 
 /**
- * Example interface mapping a product category reference.
+ * Example interface mapping a product parameter reference.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductCategoryEditorInterface extends ProductCategoryInterface {
+public interface ParameterReferenceInterface {
 
-	void setPrimaryKey(int primaryKey);
+	@ReferencedEntity
+	int getPrimaryKey();
 
-	void setOrderInCategory(@Nonnull Long orderInCategory);
-
-	void setLabel(@Nonnull String label);
-
-	void setLabel(Locale locale, @Nonnull String label);
-
-	void setCategory(@Nonnull CategoryInterface category);
-
-	void setCategoryReference(@Nonnull EntityReference categoryReference);
-
-	void setCategoryReferencePrimaryKey(int categoryReferencePrimaryKey);
+	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
+	Long getPriority();
 
 }
-
