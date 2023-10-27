@@ -272,6 +272,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		return this;
 	}
 
+	@Override
+	public boolean hasChanges() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {

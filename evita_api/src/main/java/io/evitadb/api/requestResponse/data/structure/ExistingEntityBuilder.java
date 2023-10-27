@@ -525,48 +525,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 				)
 			);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
-		if (existingReference.isPresent()) {
-			final Optional<ReferenceContract> referenceInBaseEntity = this.baseEntity.getReference(referencedEntityType, referencedPrimaryKey)
-				.filter(Droppable::exists);
-			final List<ReferenceMutation<?>> changeSet = referenceBuilder.buildChangeSet().collect(Collectors.toList());
-			if (referenceInBaseEntity.map(it -> it.exists() && !removedReferences.contains(referenceKey)).orElse(true)) {
-				this.referenceMutations.put(
-					referenceKey,
-					changeSet
-				);
-			} else {
-				this.referenceMutations.put(
-					referenceKey,
-					Stream.concat(
-							Stream.concat(
-								referenceInBaseEntity
-									.flatMap(ReferenceContract::getGroup)
-									.filter(Droppable::exists)
-									.stream()
-									.map(it -> new RemoveReferenceGroupMutation(referenceKey)),
-								referenceInBaseEntity
-									.map(AttributesContract::getAttributeValues)
-									.orElse(Collections.emptyList())
-									.stream()
-									.filter(Droppable::exists)
-									.map(it ->
-										new ReferenceAttributeMutation(
-											referenceKey,
-											new RemoveAttributeMutation(it.key())
-										)
-									)
-							),
-							changeSet.stream()
-						)
-						.collect(Collectors.toList())
-				);
-			}
-		} else {
-			this.referenceMutations.put(
-				referenceKey,
-				referenceBuilder.buildChangeSet().collect(Collectors.toList())
-			);
-		}
+		addOrReplaceReferenceMutations(referenceBuilder);
 		return this;
 	}
 
@@ -595,6 +554,53 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		);
 		this.removedReferences.add(referenceKey);
 		return this;
+	}
+
+	@Override
+	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
+		final Optional<ReferenceContract> existingReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
+		if (existingReference.isEmpty()) {
+			this.referenceMutations.put(
+				referenceKey,
+				referenceBuilder.buildChangeSet().collect(Collectors.toList())
+			);
+		} else {
+			final Optional<ReferenceContract> referenceInBaseEntity = this.baseEntity.getReference(referenceKey)
+				.filter(Droppable::exists);
+			if (referenceInBaseEntity.map(it -> it.exists() && !removedReferences.contains(referenceKey)).orElse(true)) {
+				this.referenceMutations.put(
+					referenceKey,
+					referenceBuilder.buildChangeSet().collect(Collectors.toList())
+				);
+			} else {
+				this.referenceMutations.put(
+					referenceKey,
+					Stream.concat(
+							Stream.concat(
+								referenceInBaseEntity
+									.flatMap(ReferenceContract::getGroup)
+									.filter(Droppable::exists)
+									.stream()
+									.map(it -> new RemoveReferenceGroupMutation(referenceKey)),
+								referenceInBaseEntity
+									.map(AttributesContract::getAttributeValues)
+									.orElse(Collections.emptyList())
+									.stream()
+									.filter(Droppable::exists)
+									.map(it ->
+										new ReferenceAttributeMutation(
+											referenceKey,
+											new RemoveAttributeMutation(it.key())
+										)
+									)
+							),
+							referenceBuilder.buildChangeSet()
+						)
+						.collect(Collectors.toList())
+				);
+			}
+		}
 	}
 
 	@Override

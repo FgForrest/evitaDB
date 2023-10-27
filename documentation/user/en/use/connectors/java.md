@@ -1,53 +1,28 @@
 ---
 title: Java
-perex:
-date: '17.1.2023'
+perex: |
+  The Java API is the native interface for communicating with evitaDB. It allows you to run evitaDB as an embedded 
+  database or to connect to a remote database server. It is designed to share common interfaces for both scenarios, 
+  allowing you to switch between embedded and remote without changing your code. This is particularly useful during 
+  development or unit testing, when you can use the embedded database and switch to the remote database in production. 
+date: '26.10.2023'
 author: 'Ing. Jan Novotný'
 ---
 
-**Work in progress**
+Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
+Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
+The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
+So none of these topics will be covered here.
 
-This article will contain description of Java, mainly the ideas behind its design from the API consumer perspective
-(not from the perspective of the Java API developer). It should also contain recommendations and hint how to use
-API correctly.
+## Java remote client
 
-The chapter should not describe the API itself - since there is separate [chapter](../api/api.md) about it, but rather
-describe the usage from the client point of view.
-
-This chapter should contain description both for embedded and for remote evitaDB server.
-
-## Custom contracts
-
-### Runtime requirements
-
-The custom contracts API uses Java proxies under the hood which requires the [Proxycian](https://github.com/FgForrest/Proxycian) 
-library to be present on classpath at runtime. Because the API is optional, we didn't want to bloat the evitaDB
-JAR with the Proxycian library.
-However, when developer wants to use the custom contracts API, the Proxycian library needs to be added as dependency
-```xml
-<dependency>
-  <groupId>one.edee.oss</groupId>
-  <artifactId>proxycian_bytebuddy</artifactId>
-  <version>1.3.7</version>
-</dependency>
-```
-and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html), 
-the `--add-modules` parameter needs to be used
-```shell
---add-modules proxycian.bytebuddy
-```
-
-****************************************************************
-
-## Notes
-
-The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
-is thread safe and only single instance of it is expected to be used in the application.
+Java remote client builds on top of the [gRPC API](./grpc.md). The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
+is thread safe and only single instance of it is expected to be used in the application. The client internally manages
+a pool of gRPC connections to handle parallel communication with the server.
 
 <Note type="info">
 The client instance is created regardless of whether the server is available. In order to verify that the server can be
-reached you need to call some method on it. The usual scenario would be [opening a new session](#open-session-to-catalog)
-to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
+reached you need to call some method on it. The usual scenario would be [opening a new session](../../get-started/create-first-database?lang=java#open-session-to-catalog-and-insert-your-first-entity) to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
 </Note>
 
 <Note type="warning">
@@ -55,11 +30,73 @@ The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java
 keeps a pool of opened resources and should be terminated by a `close()` method when you stop using it.  
 </Note>
 
-### TLS configuration
+### Configuration
 
-The following settings must be configured in the
+The minimal configuration of the client is done by providing the server address and port. The following example shows
+how to create a client instance that connects to the server running on `localhost` on port `5556`:
+
+```java
+var evita = new EvitaClient(
+	EvitaClientConfiguration.builder()
+		.host("localhost")
+		.port(5556)
+		.build()
+);
+```
+
+But there are more options that can be configured. Following table describes all available options that can be set in
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/config/EvitaClientConfiguration.java</SourceClass>
-configuration on the client side:
+on the client side:
+
+<dl>
+    <dt>clientId</dt>
+    <dd>
+        <p>**Default: `gRPC client at hostname`**</p>
+        <p></p>
+    </dd>
+    <dt>host</dt>
+    <dd></dd>
+    <dt>port</dt>
+    <dd></dd>
+    <dt>systemApiPort</dt>
+    <dd></dd>
+    <dt>useGeneratedCertificate</dt>
+    <dd></dd>
+    <dt>trustCertificate</dt>
+    <dd></dd>
+    <dt>mtlsEnabled</dt>
+    <dd></dd>
+    <dt>rootCaCertificatePath</dt>
+    <dd></dd>
+    <dt>certificateFileName</dt>
+    <dd></dd>
+    <dt>certificateKeyFileName</dt>
+    <dd></dd>
+    <dt>certificateKeyPassword</dt>
+    <dd></dd>
+    <dt>certificateFolderPath</dt>
+    <dd></dd>
+    <dt>trustStorePassword</dt>
+    <dd></dd>
+    <dt>reflectionLookupBehaviour</dt>
+    <dd>
+        <p>**Default: `CACHE`**</p>
+        <p>The behaviour of <SourceClass>evita_common/src/main/java/io/evitadb/utils/ReflectionLookup.java</SourceClass>
+        class analyzing classes for reflective information. Controls whether the once analyzed reflection information 
+        should be cached or freshly (and costly) retrieved each time asked.</p>
+    </dd>
+    <dt>waitForClose</dt>
+    <dd>
+        <p>**Default: `5`**</p>
+        <p>Number of `waitForCloseUnit` client should wait for opened connection to terminate gracefully before killing 
+        them by force.</p>
+    </dd>
+    <dt>waitForCloseUnit</dt>
+    <dd>
+        <p>**Default: `TimeUnit.SECONDS`**</p>
+        <p>It specifies the time unit for `waitForClose` property.</p>
+    </dd>
+</dl>
 
 - **`useGeneratedCertificate`**: (`true` by default) if set to `true`, the client downloads the root certificate of
   the server Certificate Authority from the `system` endpoint automatically
@@ -86,3 +123,24 @@ If `mTLS` is enabled on the server side and `useGeneratedCertificate` is set to 
 manually generated certificate in settings `certificatePath` and `certificateKeyPath`, otherwise the verification 
 process will fail and the connection will not be established.
 </Note>
+
+## Custom contracts
+
+### Runtime requirements
+
+The custom contracts API uses Java proxies under the hood which requires the [Proxycian](https://github.com/FgForrest/Proxycian) 
+library to be present on classpath at runtime. Because the API is optional, we didn't want to bloat the evitaDB
+JAR with the Proxycian library.
+However, when developer wants to use the custom contracts API, the Proxycian library needs to be added as dependency
+```xml
+<dependency>
+  <groupId>one.edee.oss</groupId>
+  <artifactId>proxycian_bytebuddy</artifactId>
+  <version>1.3.7</version>
+</dependency>
+```
+and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html), 
+the `--add-modules` parameter needs to be used
+```shell
+--add-modules proxycian.bytebuddy
+```

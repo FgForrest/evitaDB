@@ -30,6 +30,6 @@ package io.evitadb.api.mock;
  */
 public interface ParameterReferenceInterfaceEditor extends ParameterReferenceInterface {
 
-	void setPriority(Long priority);
+	void setCategoryPriority(Long priority);
 
 }

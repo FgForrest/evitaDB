@@ -21,14 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.proxy.impl.entityBuilder;
+package io.evitadb.api.proxy.impl.referenceBuilder;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.proxy.SealedEntityProxy;
-import io.evitadb.api.proxy.impl.SealedEntityProxyState;
-import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.proxy.SealedEntityReferenceProxy;
+import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
+import io.evitadb.api.requestResponse.data.BuilderContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedInstance;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import one.edee.oss.proxycian.MethodClassification;
 import one.edee.oss.proxycian.PredicateMethodClassification;
@@ -42,46 +46,38 @@ import java.io.Serial;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
- * Advice allowing to implement all supported abstract methods on proxy wrapping {@link InstanceEditor}.
+ * Advice allowing to implement all supported abstract methods on proxy wrapping {@link ReferenceContract}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
-	@Serial private static final long serialVersionUID = -4131476723105030817L;
+public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenceProxy> {
+	@Serial private static final long serialVersionUID = -5338309229187809879L;
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */
-	public static final EntityBuilderAdvice INSTANCE = new EntityBuilderAdvice();
-	/**
-	 * Contains set of method keywords which signalize the start of the removal operation.
-	 */
-	public static final Set<String> REMOVAL_KEYWORDS = Set.of(
-		"remove", "delete", "drop"
-	);
+	public static final EntityReferenceBuilderAdvice INSTANCE = new EntityReferenceBuilderAdvice();
 	/**
 	 * List of all method classifications supported by this advice.
 	 */
 	@SuppressWarnings("unchecked")
-	private static final List<MethodClassification<?, SealedEntityProxy>> METHOD_CLASSIFICATION = Arrays.asList(
+	private static final List<MethodClassification<?, SealedEntityReferenceProxy>> METHOD_CLASSIFICATION = Arrays.asList(
 		new MethodClassification[]{
+			/* TODO JNO - tohle zvalidovat, jeslti je korektní */
 			getContractMethodClassification(),
 			toMutationMethodClassification(),
 			toInstanceMethodClassification(),
 			upsertViaMethodClassification(),
 			openForWriteMethodClassification(),
-			SetAttributeMethodClassifier.INSTANCE,
-			SetAssociatedDataMethodClassifier.INSTANCE,
-			SetParentEntityMethodClassifier.INSTANCE,
-			SetPriceMethodClassifier.INSTANCE,
-			SetReferenceMethodClassifier.INSTANCE
+			/* TODO JNO - doplnit classifier na změnu skupiny */
+			SetReferenceAttributeMethodClassifier.INSTANCE
 		}
 	);
 
 	@Nonnull
-	private static PredicateMethodClassification<Object, Class<?>, SealedEntityProxyState> openForWriteMethodClassification() {
+	private static PredicateMethodClassification<Object, Class<?>, SealedEntityReferenceProxyState> openForWriteMethodClassification() {
 		return new PredicateMethodClassification<>(
 			"openForWrite",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, SealedInstance.class) && "openForWrite".equals(method.getName()),
@@ -94,57 +90,64 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityBuilderProxy(methodContext, proxyState.getEntity())
+				proxyState.createEntityReferenceBuilderProxy(methodContext, proxyState.getEntity(), proxyState.getReference())
 		);
 	}
 
 	@Nonnull
-	private static PredicateMethodClassification<Object, Method, SealedEntityProxyState> upsertViaMethodClassification() {
+	private static PredicateMethodClassification<Object, Method, SealedEntityReferenceProxyState> upsertViaMethodClassification() {
 		return new PredicateMethodClassification<>(
 			"upsertVia",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "upsertVia".equals(method.getName()),
 			(method, proxyState) -> method,
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				final EntityReference entityReference = proxyState.getEntityBuilderIfPresent()
-					.flatMap(InstanceEditor::toMutation)
-					.map(it -> ((EvitaSessionContract) args[0]).upsertEntity(it))
-					.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()));
-				proxyState.setEntityReference(entityReference);
-				return entityReference;
-			}
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getReferenceBuilderIfPresent()
+				.filter(ReferenceBuilder::hasChanges)
+				.map(
+					it -> new EntityUpsertMutation(
+						proxyState.getType(),
+						proxyState.getPrimaryKey(),
+						EntityExistence.MUST_EXIST, it.buildChangeSet().collect(Collectors.toList())
+					)
+				)
+				.map(it -> ((EvitaSessionContract) args[0]).upsertEntity(it))
+				.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()))
 		);
 	}
 
 	@Nonnull
-	private static PredicateMethodClassification<Object, Method, SealedEntityProxyState> toInstanceMethodClassification() {
+	private static PredicateMethodClassification<Object, Method, SealedEntityReferenceProxyState> toInstanceMethodClassification() {
 		return new PredicateMethodClassification<>(
 			"toInstance",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toInstance".equals(method.getName()),
 			(method, proxyState) -> method,
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				proxyState.propagateReferenceMutations();
-				return proxyState.getEntityBuilderIfPresent()
-					.map(InstanceEditor::toInstance)
-					.map(EntityContract.class::cast)
-					.map(it -> (Object) proxyState.createNewNonCachedEntityProxy(proxyState.getProxyClass(), it))
-					.orElse(proxy);
-			}
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getReferenceBuilderIfPresent()
+				.map(BuilderContract::build)
+				.map(ReferenceContract.class::cast)
+				.map(it -> (Object) proxyState.createNewNonCachedEntityReferenceProxy(proxyState.getProxyClass(), proxyState.getEntity(), it))
+				.orElse(proxy)
 		);
 	}
 
 	@Nonnull
-	private static PredicateMethodClassification<Object, Method, SealedEntityProxyState> toMutationMethodClassification() {
+	private static PredicateMethodClassification<Object, Method, SealedEntityReferenceProxyState> toMutationMethodClassification() {
 		return new PredicateMethodClassification<>(
 			"toMutation",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toMutation".equals(method.getName()),
 			(method, proxyState) -> method,
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getEntityBuilderIfPresent()
-				.flatMap(InstanceEditor::toMutation)
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getReferenceBuilderIfPresent()
+				.filter(ReferenceBuilder::hasChanges)
+				.map(
+					it -> new EntityUpsertMutation(
+						proxyState.getType(),
+						proxyState.getPrimaryKey(),
+						EntityExistence.MUST_EXIST, it.buildChangeSet().collect(Collectors.toList())
+					)
+				)
 		);
 	}
 
 	@Nonnull
-	private static PredicateMethodClassification<Object, Method, SealedEntityProxyState> getContractMethodClassification() {
+	private static PredicateMethodClassification<Object, Method, SealedEntityReferenceProxyState> getContractMethodClassification() {
 		return new PredicateMethodClassification<>(
 			"getContract",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "getContract".equals(method.getName()),
@@ -154,12 +157,12 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 	}
 
 	@Override
-	public Class<SealedEntityProxy> getRequestedStateContract() {
-		return SealedEntityProxy.class;
+	public Class<SealedEntityReferenceProxy> getRequestedStateContract() {
+		return SealedEntityReferenceProxy.class;
 	}
 
 	@Override
-	public List<MethodClassification<?, SealedEntityProxy>> getMethodClassification() {
+	public List<MethodClassification<?, SealedEntityReferenceProxy>> getMethodClassification() {
 		return METHOD_CLASSIFICATION;
 	}
 

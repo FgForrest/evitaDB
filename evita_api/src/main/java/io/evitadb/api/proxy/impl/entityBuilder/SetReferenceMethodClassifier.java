@@ -56,6 +56,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.proxy.impl.entity.GetReferenceMethodClassifier.getReferenceSchema;
 import static io.evitadb.api.proxy.impl.entityBuilder.EntityBuilderAdvice.REMOVAL_KEYWORDS;
+import static java.util.Optional.ofNullable;
 
 /**
  * Identifies methods that are used to set entity references into an entity and provides their implementation.
@@ -81,11 +82,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Class<?> returnType,
-		@Nonnull ResolvedParameter parameterType,
+		@Nullable ResolvedParameter parameterType,
 		@Nullable Class<?> consumerType
 	) {
-		final Entity parameterEntityInstance = reflectionLookup.getClassAnnotation(parameterType.resolvedType(), Entity.class);
-		final EntityRef parameterEntityRefInstance = reflectionLookup.getClassAnnotation(parameterType.resolvedType(), EntityRef.class);
+		final Entity parameterEntityInstance = parameterType == null ? null : reflectionLookup.getClassAnnotation(parameterType.resolvedType(), Entity.class);
+		final EntityRef parameterEntityRefInstance = parameterType == null ? null : reflectionLookup.getClassAnnotation(parameterType.resolvedType(), EntityRef.class);
 		final Entity consumerTypeEntityInstance = consumerType == null ? null : reflectionLookup.getClassAnnotation(consumerType, Entity.class);
 		final EntityRef consumerTypeEntityRefInstance = consumerType == null ? null : reflectionLookup.getClassAnnotation(consumerType, EntityRef.class);
 		final Entity returnTypeEntityInstance = returnType == null ? null : reflectionLookup.getClassAnnotation(returnType, Entity.class);
@@ -107,7 +108,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			recognizedIn = EntityRecognizedIn.CONSUMER;
 		} else if (returnTypeEntityInstance != null || returnTypeEntityRefInstance != null) {
 			entityContract = new ResolvedParameter(returnType, returnType);
-			recognizedIn = EntityRecognizedIn.CONSUMER;
+			recognizedIn = EntityRecognizedIn.RETURN_TYPE;
 		} else {
 			return Optional.empty();
 		}
@@ -125,20 +126,25 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				)
 			);
 		} else if (referenceSchema.getReferencedGroupType() == null) {
+			//noinspection rawtypes
 			throw new EntityClassInvalidException(
 				entityContract.resolvedType(),
 				"Referenced class type `" + entityContract.resolvedType() + "` must represent " +
 					"entity type `" + referenceSchema.getReferencedEntityType() + "`, " +
-					"but the class `" + parameterType + "` is annotated with @Entity referencing `" +
+					"but " +
+					(consumerType != null || parameterType != null ? "neither the parameter type `" + ofNullable((Class)consumerType).orElse(parameterType.resolvedType()).getName() + "` nor " : "") +
+					"the return type `" + returnType.getName() + "` is annotated with @Entity referencing `" +
 					referencedEntityType.orElse("N/A") + "` entity type!"
 			);
 		} else {
+			//noinspection rawtypes
 			throw new EntityClassInvalidException(
 				entityContract.resolvedType(),
 				"Referenced class type `" + entityContract.resolvedType() + "` must represent " +
 					"either entity type `" + referenceSchema.getReferencedEntityType() + "` or " +
 					"`" + referenceSchema.getReferencedGroupType() + "` (group), " +
-					"but the class `" + parameterType + "` is annotated with @Entity referencing `" +
+					(consumerType != null || parameterType != null ? "neither the parameter type `" + ofNullable((Class)consumerType).orElse(parameterType.resolvedType()).getName() + "` nor " : "") +
+					"the return type `" + returnType.getName() + "` is annotated with @Entity referencing `" +
 					referencedEntityType.orElse("N/A") + "` entity type!"
 			);
 		}
@@ -157,13 +163,17 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				);
 
 				final ResolvedParameter firstParameter;
-				if (Collection.class.isAssignableFrom(method.getParameterTypes()[0])) {
-					final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[0]);
-					firstParameter = new ResolvedParameter(method.getParameterTypes()[0], genericType.get(0).getResolvedType());
-				} else if (method.getParameterTypes()[0].isArray()) {
-					firstParameter = new ResolvedParameter(method.getParameterTypes()[0], method.getParameterTypes()[0].getComponentType());
+				if (method.getParameterCount() > 0) {
+					if (Collection.class.isAssignableFrom(method.getParameterTypes()[0])) {
+						final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[0]);
+						firstParameter = new ResolvedParameter(method.getParameterTypes()[0], genericType.get(0).getResolvedType());
+					} else if (method.getParameterTypes()[0].isArray()) {
+						firstParameter = new ResolvedParameter(method.getParameterTypes()[0], method.getParameterTypes()[0].getComponentType());
+					} else {
+						firstParameter = new ResolvedParameter(method.getParameterTypes()[0], method.getParameterTypes()[0]);
+					}
 				} else {
-					firstParameter = new ResolvedParameter(method.getParameterTypes()[0], method.getParameterTypes()[0]);
+					firstParameter = null;
 				}
 
 				OptionalInt referencedIdIndex = OptionalInt.empty();
@@ -200,18 +210,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					}
 				}
 
-				// if the referenced type is not found and the method doesn't return void or the proxy class (builder pattern)
-				// we assume that the method returns the referenced type
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-				if (referencedType.isEmpty() && !(void.class.equals(returnType) || proxyState.getProxyClass().equals(returnType))) {
-					referencedType = Optional.of(
-						new ResolvedParameter(
-							returnType,
-							returnType
-						)
-					);
-				}
-
 				final Optional<RecognizedContext> entityRecognizedIn = recognizeCallContext(
 					reflectionLookup, referenceSchema, returnType, firstParameter,
 					referencedType.map(ResolvedParameter::resolvedType).orElse(null)
@@ -280,7 +279,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 							referenceSchema,
 							entityRecognizedIn.get().entityContract().resolvedType()
 						);
-					} else {
+					} else if (void.class.equals(returnType)) {
 						return createReferencedEntityWithVoidResult(
 							referenceSchema,
 							entityRecognizedIn.get().entityContract().resolvedType()
@@ -337,7 +336,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
-			final Object referencedEntityInstance = theState.createReferencedEntityBuilderProxy(
+			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
@@ -372,7 +371,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
-			final Object referencedEntityInstance = theState.createReferencedEntityBuilderProxy(
+			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
@@ -403,7 +402,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
-			final Object referencedEntityInstance = theState.createReferencedEntityBuilderProxy(
+			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
@@ -431,7 +430,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Object referencedEntityInstance = theState.createReferencedEntityBuilderProxyWithCallback(
+			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxyWithCallback(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
@@ -460,7 +459,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Object referencedEntityInstance = theState.createReferencedEntityBuilderProxyWithCallback(
+			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxyWithCallback(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
@@ -490,7 +489,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			return theState.createReferencedEntityBuilderProxyWithCallback(
+			return theState.createEntityReferenceBuilderProxyWithCallback(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,

@@ -24,8 +24,10 @@
 package io.evitadb.api.proxy;
 
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * This interface is implemented by all proxy types that wrap a sealed entity reference and provide access to
@@ -41,5 +43,22 @@ public interface SealedEntityReferenceProxy extends EvitaProxy {
 	 */
 	@Nonnull
 	ReferenceContract getReference();
+
+	/**
+	 * Returns the reference builder on internally wrapped entity {@link #getReference()} or creates new.
+	 *
+	 * @return the reference builder
+	 */
+	@Nonnull
+	ReferenceBuilder getReferenceBuilder();
+
+	/**
+	 * Returns the reference builder that is created on demand by calling mutation method on internally wrapped entity
+	 * {@link #getReference()}.
+	 *
+	 * @return the reference builder
+	 */
+	@Nonnull
+	Optional<ReferenceBuilder> getReferenceBuilderIfPresent();
 
 }

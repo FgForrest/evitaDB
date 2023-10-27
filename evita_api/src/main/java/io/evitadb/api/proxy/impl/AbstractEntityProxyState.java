@@ -157,24 +157,26 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	}
 
 	@Nonnull
+	public <T> T createNewNonCachedEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
+		return ProxycianFactory.createEntityReferenceProxy(
+			expectedType, recipes, collectedRecipes, entity, reference, getReflectionLookup()
+		);
+	}
+
+	@Nonnull
 	@Override
 	public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY_BUILDER),
-			key -> {
-				final ProxyWithUpsertCallback newProxy = new ProxyWithUpsertCallback(
-					ProxycianFactory.createEntityBuilderProxy(
-						expectedType, recipes, collectedRecipes, entity, getReflectionLookup()
-					)
-				);
-				registerReferencedEntityObject(
-					entity.getType(),
-					ofNullable(entity.getPrimaryKey()).orElse(Integer.MIN_VALUE),
-					newProxy,
-					ProxyType.ENTITY_BUILDER
-				);
-				return newProxy;
-			}
+			new ProxyInstanceCacheKey(
+				entity.getType(),
+				ofNullable(entity.getPrimaryKey()).orElse(Integer.MIN_VALUE),
+				ProxyType.ENTITY_BUILDER
+			),
+			key -> new ProxyWithUpsertCallback(
+				ProxycianFactory.createEntityBuilderProxy(
+					expectedType, recipes, collectedRecipes, entity, getReflectionLookup()
+				)
+			)
 		)
 			.proxy(expectedType)
 			.orElseThrow();
@@ -197,7 +199,7 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 
 	@Nonnull
 	@Override
-	public <T> T createEntityBuilderReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
+	public <T> T createEntityReferenceBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
 			new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE_BUILDER),
 			key -> new ProxyWithUpsertCallback(

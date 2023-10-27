@@ -104,10 +104,10 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * automatically set up:
 	 *
 	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE - you'll be able to filter by presence of this reference
-	 *   (but this setting also consumes more memory)
+	 * (but this setting also consumes more memory)
 	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE - reference data will not be part of the {@link FacetSummary}
 	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is entity with matching
-	 *   `referencedEntityType` in current catalog, otherwise FALSE
+	 * `referencedEntityType` in current catalog, otherwise FALSE
 	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} - not defined
 	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} FALSE
 	 *
@@ -133,13 +133,13 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * automatically set up:
 	 *
 	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE - you'll be able to filter by presence of this reference
-	 *   (but this setting also consumes more memory)
+	 * (but this setting also consumes more memory)
 	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE - reference data will not be part of the {@link FacetSummary}
 	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is entity with matching
-	 *   `referencedEntityType` in current catalog, otherwise FALSE
+	 * `referencedEntityType` in current catalog, otherwise FALSE
 	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} - as defined in `whichIs` lambda
 	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} TRUE if there already is entity with matching
-	 * 	 {@link ReferenceContract#getGroup()} in current catalog, otherwise FALSE
+	 * {@link ReferenceContract#getGroup()} in current catalog, otherwise FALSE
 	 *
 	 * If you need to change this defaults you need to fetch the reference schema by calling
 	 * {@link CatalogContract#getEntitySchema(String)} and accessing it by
@@ -153,6 +153,16 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 		int referencedPrimaryKey,
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	);
+
+	/**
+	 * Adds new set of reference mutations for particular `referenceKey`, if some set is already present for that key,
+	 * it is replaced by a new set.
+	 *
+	 * This method is considered to be a part of private API.
+	 *
+	 * @param referenceBuilder reference builder wrapping the changes in the reference contract
+	 */
+	void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder);
 
 	/**
 	 * Removes existing reference of specified name and primary key.

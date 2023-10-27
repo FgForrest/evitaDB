@@ -312,7 +312,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.createReferencedEntityBuilderProxy(
+			final Serializable referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
 				theState.getEntitySchema(), expectedType, ProxyType.PARENT_BUILDER, parentId
 			);
 			entityBuilder.setParent(parentId);
@@ -339,7 +339,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.createReferencedEntityBuilderProxy(
+			final Serializable referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
 				theState.getEntitySchema(), expectedType, ProxyType.PARENT_BUILDER, parentId
 			);
 			entityBuilder.setParent(parentId);

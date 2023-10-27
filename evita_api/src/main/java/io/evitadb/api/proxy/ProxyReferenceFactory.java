@@ -69,7 +69,7 @@ public interface ProxyReferenceFactory {
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
 	@Nonnull
-	<T> T createEntityBuilderReferenceProxy(
+	<T> T createEntityReferenceBuilderProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntityContract entity,
 		@Nonnull ReferenceContract reference

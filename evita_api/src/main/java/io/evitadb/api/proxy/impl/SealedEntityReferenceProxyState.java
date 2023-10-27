@@ -28,6 +28,8 @@ import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
@@ -37,6 +39,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Proxy state for proxies that wrap sealed entity reference.
@@ -48,6 +51,14 @@ public class SealedEntityReferenceProxyState
 	extends AbstractEntityProxyState
 	implements EntityClassifier, SealedEntityReferenceProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
+	/**
+	 * Optional reference to the {@link ReferenceBuilder} that is created on demand by calling mutation method on
+	 * internally wrapped entity {@link #getReference()}.
+	 */
+	@Nullable protected ReferenceBuilder referenceBuilder;
+	/**
+	 * Wrapped sealed entity reference.
+	 */
 	@Nonnull private final ReferenceContract reference;
 
 	public SealedEntityReferenceProxyState(
@@ -64,10 +75,33 @@ public class SealedEntityReferenceProxyState
 
 	/**
 	 * Method returns reference schema of the wrapped sealed entity reference.
+	 * @return reference schema
 	 */
 	@Nullable
 	public ReferenceSchemaContract getReferenceSchema() {
 		return reference.getReferenceSchema().orElseThrow();
+	}
+
+	@Override
+	@Nonnull
+	public ReferenceBuilder getReferenceBuilder() {
+		if (referenceBuilder == null) {
+			if (reference instanceof ReferenceBuilder theBuilder) {
+				referenceBuilder = theBuilder;
+			} else {
+				referenceBuilder = new ExistingReferenceBuilder(
+					reference, getEntitySchema()
+				);
+			}
+		}
+		return referenceBuilder;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<ReferenceBuilder> getReferenceBuilderIfPresent() {
+		return Optional.of(referenceBuilder)
+			.filter(ReferenceBuilder::hasChanges);
 	}
 
 	@Override
@@ -92,5 +126,4 @@ public class SealedEntityReferenceProxyState
 	public String toString() {
 		return reference.toString();
 	}
-
 }

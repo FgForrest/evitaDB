@@ -272,6 +272,11 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		return this;
 	}
 
+	@Override
+	public boolean hasChanges() {
+		return referenceGroupMutation != null || attributesBuilder.isThereAnyChangeInMutations();
+	}
+
 	@Nonnull
 	@Override
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {

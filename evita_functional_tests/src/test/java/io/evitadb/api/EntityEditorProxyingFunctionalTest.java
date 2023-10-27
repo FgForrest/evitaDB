@@ -96,15 +96,15 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	) {
 		assertEquals(code, product.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, product.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
-		assertEquals(theEnum, product.getAttribute(ATTRIBUTE_ENUM, TestEnum.class));
+		assertEquals(theEnum, TestEnum.valueOf(product.getAttribute(ATTRIBUTE_ENUM)));
 		assertEquals(quantity, product.getAttribute(ATTRIBUTE_QUANTITY));
 		assertEquals(priority, product.getAttribute(ATTRIBUTE_PRIORITY));
 		if (optionallyAvailable) {
-			assertTrue(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
+			assertTrue(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class));
 		} else {
-			assertFalse(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY));
+			assertFalse(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class));
 		}
-		assertEquals(markets, product.getAttribute(ATTRIBUTE_MARKETS));
+		assertArrayEquals(markets, product.getAttribute(ATTRIBUTE_MARKETS));
 	}
 
 	private static void assertUnknownEntity(SealedEntity unknownEntity, String code, String name, long priority) {
@@ -417,6 +417,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.PARAMETER)
 							.setAttribute(ATTRIBUTE_CODE, "parameter-1")
+							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
 							.upsertVia(evitaSession)
 					)
 					.getPrimaryKey();
@@ -437,14 +438,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarkets(new String[]{"market-3", "market-4"})
 					// TODO JNO - tohle vyzkoušet na něco, co nemá povinné atributy
 					// .addParameter(parameterId);
-					.addParameter(parameterId, that -> that.setPriority(1L));
+					.addParameter(parameterId, that -> that.setCategoryPriority(1L));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(11, mutation.get().getLocalMutations().size());
+				assertEquals(12, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals("product-1", modifiedInstance.getCode());
@@ -454,6 +455,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertTrue(modifiedInstance.isOptionallyAvailable());
 				assertArrayEquals(new String[]{"market-1", "market-2"}, modifiedInstance.getMarketsAttribute());
 				assertArrayEquals(new String[]{"market-3", "market-4"}, modifiedInstance.getMarkets());
+				assertNotNull(modifiedInstance.getParameterById(parameterId));
+				assertEquals(parameterId, modifiedInstance.getParameterById(parameterId).getPrimaryKey());
+				assertEquals(1L, modifiedInstance.getParameterById(parameterId).getCategoryPriority());
 
 				newProduct.upsertVia(evitaSession);
 

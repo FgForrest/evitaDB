@@ -42,6 +42,7 @@ import io.evitadb.api.proxy.impl.reference.GetReferenceAttributeMethodClassifier
 import io.evitadb.api.proxy.impl.reference.GetReferencedEntityMethodClassifier;
 import io.evitadb.api.proxy.impl.reference.GetReferencedEntityPrimaryKeyMethodClassifier;
 import io.evitadb.api.proxy.impl.reference.GetReferencedGroupEntityPrimaryKeyMethodClassifier;
+import io.evitadb.api.proxy.impl.referenceBuilder.EntityReferenceBuilderAdvice;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -125,7 +126,8 @@ public class ProxycianFactory implements ProxyFactory {
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
 			LocalDataStoreAdvice.INSTANCE,
-			EntityReferenceContractAdvice.INSTANCE
+			EntityReferenceContractAdvice.INSTANCE,
+			EntityReferenceBuilderAdvice.INSTANCE
 		}
 	);
 
@@ -725,7 +727,7 @@ public class ProxycianFactory implements ProxyFactory {
 
 		@Nonnull
 		@Override
-		public <T> T createEntityBuilderReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
+		public <T> T createEntityReferenceBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
 			return ProxycianFactory.createEntityBuilderReferenceProxy(
 				expectedType, recipes, collectedRecipes, entity, reference, reflectionLookup
 			);
