@@ -40,6 +40,7 @@ cache:                                            # [see Cache configuration](#c
   cacheSizeInBytes: null
 
 api:                                              # [see API configuration](#api-configuration)
+  exposedOn: null
   ioThreads: 4
   certificate:                                    # [see TLS configuration](#tls-configuration) 
     generateAndUseSelfSigned: true
@@ -406,7 +407,23 @@ is resolved.
 
 ## API configuration
 
-This section of the configuration allows you to selectively enable, disable, and tweak specific APIs. 
+This section of the configuration allows you to selectively enable, disable, and tweak specific APIs.
+
+<dl>
+    <dt>ioThreads</dt>
+    <dd>
+        <p>**Default:** `4`</p>
+        <p>Defines the number of IO threads that will be used by Undertow for accept and send HTTP payload.</p>
+    </dd>
+    <dt>exposedOn</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. By specifying the `exposedOn` property you can specify
+           the name (without port) of the host system host name that will be used by all API endpoints without
+           specific `exposedHost` configuration property to use that host name and appropriate port.</p>
+    </dd>
+</dl>
 
 ### TLS configuration
 
@@ -483,6 +500,13 @@ provide an unsecured connection for security reasons.
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
         API, but not to the gRPC or System API.</p>
     </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
     <dt>tlsEnabled</dt>
     <dd>
         <p>**Default:** `true`</p>
@@ -517,6 +541,13 @@ provide an unsecured connection for security reasons.
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
         API, but not to the gRPC or System API.</p>
     </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
     <dt>tlsEnabled</dt>
     <dd>
         <p>**Default:** `true`</p>
@@ -545,6 +576,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the GraphQL API should listen on. The value must be different from all 
         other APIs because gRPC internally uses completely different web server.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
     </dd>
 </dl>
 
@@ -620,6 +658,13 @@ Besides that, it can also serve an entire evitaLab web client as its copy is bui
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
         The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
     </dd>
     <dt>tlsEnabled</dt>
     <dd>

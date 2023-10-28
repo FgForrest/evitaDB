@@ -45,6 +45,7 @@ import io.evitadb.externalApi.rest.api.system.model.LivenessDescriptor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
@@ -67,8 +68,8 @@ public class LabApiBuilder extends FinalRestBuilder<LabApiBuildingContext> {
 	/**
 	 * Creates new builder.
 	 */
-	public LabApiBuilder(@Nonnull LabConfig labConfig, @Nonnull Evita evita) {
-		super(new LabApiBuildingContext(labConfig, evita));
+	public LabApiBuilder(@Nullable String exposedOn, @Nonnull LabConfig labConfig, @Nonnull Evita evita) {
+		super(new LabApiBuildingContext(exposedOn, labConfig, evita));
 		this.endpointBuilder = new LabApiEndpointBuilder(operationPathParameterBuilderTransformer);
 
 		this.entityObjectBuilder = new GenericEntityObjectBuilder(

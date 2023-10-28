@@ -42,6 +42,7 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference.typeRefTo;
 
@@ -58,8 +59,8 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	/**
 	 * Creates new builder.
 	 */
-	public SystemRestBuilder(@Nonnull RestConfig restConfig, @Nonnull Evita evita) {
-		super(new SystemRestBuildingContext(restConfig, evita));
+	public SystemRestBuilder(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita) {
+		super(new SystemRestBuildingContext(exposedOn, restConfig, evita));
 		this.endpointBuilder = new SystemEndpointBuilder(operationPathParameterBuilderTransformer);
 	}
 

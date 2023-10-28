@@ -87,7 +87,7 @@ public class RestArtificialFullDatabaseBenchmarkState extends RestArtificialBenc
 		// start rest server
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(RestProvider.CODE, new RestConfig())),
+			new ApiOptions(null, null, new CertificateSettings.Builder().build(), Map.of(RestProvider.CODE, new RestConfig())),
 			Collections.singleton(new RestProviderRegistrar())
 		);
 		server.start();

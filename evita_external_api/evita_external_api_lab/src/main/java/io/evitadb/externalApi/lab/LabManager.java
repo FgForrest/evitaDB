@@ -98,7 +98,7 @@ public class LabManager {
 	 * Builds REST API for evitaLab and registers it into router.
 	 */
 	private void registerLabApi() {
-		final LabApiBuilder labApiBuilder = new LabApiBuilder(labConfig, evita);
+		final LabApiBuilder labApiBuilder = new LabApiBuilder(apiOptions.exposedOn(), labConfig, evita);
 		final Rest builtLabApi = labApiBuilder.build();
 		builtLabApi.endpoints().forEach(this::registerLabApiEndpoint);
 	}
