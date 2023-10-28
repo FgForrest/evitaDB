@@ -210,9 +210,10 @@ docker run --name evitadb -i --rm --net=host \
 index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
-# and you need to open ports manually
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \ 
-index.docker.io/evitadb/evitadb:latest
+# and you need to open ports manually and propagate host IP address to the container
+docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
+       -e "api.exposedOn=localhost" \ 
+       index.docker.io/evitadb/evitadb:latest
 ```
 
 When you start the evitaDB server you should see the following information in the console output:
