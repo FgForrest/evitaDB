@@ -38,8 +38,11 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.generator.DataGenerator.Labels;
@@ -79,6 +82,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(EvitaParameterResolver.class)
 @Slf4j
 public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest {
+	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityPojoProxyingFunctionalTest";
 
 	private static void assertCategories(
 		@Nonnull Stream<AbstractCategoryPojo> categoryReferences,
@@ -417,6 +421,12 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 				final int index = Math.abs((int) (it % pojoClasses.length));
 				return Arguments.of(pojoClasses[index], it);
 			});
+	}
+
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
+	@Override
+	DataCarrier setUp(Evita evita) {
+		return super.setUp(evita);
 	}
 
 	@DisplayName("Should return entity schema directly or via model class")
