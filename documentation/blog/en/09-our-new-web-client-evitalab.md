@@ -139,7 +139,8 @@ due to security reasons.
 We've designed evitaLab to be easily runnable in several different scenarios for the best developer experience. You can
 run evitaLab:
 
-- by running evitaDB - each evitaDB instance contains a copy of a local evitaLab, which is exposed by default at
+- [by running evitaDB](https://evitadb.io/documentation/operate/configure#evitalab-configuration) - each evitaDB instance 
+  contains a copy of a local evitaLab, which is exposed by default at
   the [https://your-server:5555/lab](https://your-server:5555/lab) URL
 - by visiting the [evitaDB demo website](https://demo.evitadb.io), where a read-only copy of evitaLab with a demo
   dataset is available for exploration
@@ -173,7 +174,7 @@ too much time on building custom components.
 
 If you are interested in trying out evitaLab after reading this post, you can visit
 our [demo instance](https://demo.evitadb.io), [create your own instance of evitaDB](https://evitadb.io/documentation/get-started/run-evitadb)
-with built-in local evitaLab or install the [Docker image](https://github.com/lukashornych/evitalab#docker) with
+with [built-in local evitaLab](https://evitadb.io/documentation/operate/configure#evitalab-configuration) or install the [Docker image](https://github.com/lukashornych/evitalab#docker) with
 standalone evitaLab.
 
 If you already have an evitaDB instance running somewhere, chances are you already have the built-in evitaLab instance

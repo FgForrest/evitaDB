@@ -17,6 +17,8 @@ server:                                           # [see Server configuration](#
   maxThreadCount: 16
   threadPriority: 5
   queueSize: 100
+  shortRunningThreadsTimeoutInSeconds: 1
+  killTimedOutShortRunningThreadsEverySeconds: 30
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
 
@@ -38,6 +40,7 @@ cache:                                            # [see Cache configuration](#c
   cacheSizeInBytes: null
 
 api:                                              # [see API configuration](#api-configuration)
+  exposedOn: null
   ioThreads: 4
   certificate:                                    # [see TLS configuration](#tls-configuration) 
     generateAndUseSelfSigned: true
@@ -57,6 +60,7 @@ api:                                              # [see API configuration](#api
       host: localhost:5555
       tlsEnabled: true
       allowedOrigins: null
+      parallelize: true
     rest:                                         # [see REST API configuration](#rest-api-configuration)
       enabled: true
       host: localhost:5555
@@ -68,6 +72,15 @@ api:                                              # [see API configuration](#api
       mTLS:
         enabled: false
         allowedClientCertificatePaths: []
+    lab:                                          # [see evitaLab configuration](#evitalab-configuration)
+      enabled: true
+      host: localhost:5555
+      tlsEnabled: true
+      allowedOrigins: null
+      gui:
+        enabled: true
+        readOnly: false
+        preconfiguredConnections: null
 ```
 
 <Note type="info">
@@ -245,16 +258,28 @@ This section contains general settings for the evitaDB server. It allows configu
         the thread pool to process them. Tasks that exceed this limit will be discarded (new requests/other tasks will 
         fail with an exception).</p>
     </dd>
+    <dt>shortRunningThreadsTimeoutInSeconds</dt>
+    <dd>
+        <p>**Default:** `1`</p>
+        <p>It sets the timeout in seconds after which threads that are supposed to be short-running should timeout and 
+        cancel its execution.</p>
+    </dd>
+    <dt>killTimedOutShortRunningThreadsEverySeconds</dt>
+    <dd>
+        <p>**Default:** `30`</p>
+        <p>It sets an interval in seconds in which short-running timed out threads are forced to be killed (unfortunately, 
+        it's not guarantied that the threads will be actually killed) and stack traces are printed</p>
+    </dd>
     <dt>closeSessionsAfterSecondsOfInactivity</dt>
     <dd>
-        <p>**Default: `60`**</p>
+        <p>**Default:** `60`</p>
         <p>It specifies the maximum acceptable period of 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> inactivity before 
         it is forcibly closed by the server side.</p>
     </dd>
     <dt>readOnly</dt>
     <dd>
-        <p>**Default: `false`**</p>
+        <p>**Default:** `false`</p>
         <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
            read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
     </dd>
@@ -382,7 +407,23 @@ is resolved.
 
 ## API configuration
 
-This section of the configuration allows you to selectively enable, disable, and tweak specific APIs. 
+This section of the configuration allows you to selectively enable, disable, and tweak specific APIs.
+
+<dl>
+    <dt>ioThreads</dt>
+    <dd>
+        <p>**Default:** `4`</p>
+        <p>Defines the number of IO threads that will be used by Undertow for accept and send HTTP payload.</p>
+    </dd>
+    <dt>exposedOn</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. By specifying the `exposedOn` property you can specify
+           the name (without port) of the host system host name that will be used by all API endpoints without
+           specific `exposedHost` configuration property to use that host name and appropriate port.</p>
+    </dd>
+</dl>
 
 ### TLS configuration
 
@@ -459,6 +500,13 @@ provide an unsecured connection for security reasons.
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the REST 
         API, but not to the gRPC or System API.</p>
     </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
     <dt>tlsEnabled</dt>
     <dd>
         <p>**Default:** `true`</p>
@@ -471,6 +519,11 @@ provide an unsecured connection for security reasons.
         <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
         that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
         allowed automatically.</p>
+    </dd>
+    <dt>parallelize</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Controls whether queries that fetch data from evitaDB engine will be executed in parallel.</p>
     </dd>
 </dl>
 
@@ -487,6 +540,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the GraphQL API should listen on. The value may be identical to the GraphQL 
         API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
     </dd>
     <dt>tlsEnabled</dt>
     <dd>
@@ -516,6 +576,13 @@ provide an unsecured connection for security reasons.
         <p>**Default:** `localhost:5555`</p>
         <p>It specifies the host and port that the GraphQL API should listen on. The value must be different from all 
         other APIs because gRPC internally uses completely different web server.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
     </dd>
 </dl>
 
@@ -572,5 +639,93 @@ more information.
         <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
         that are allowed to consume the GraphQL API. If no origins are specified, i.e. `null`, all origins are 
         allowed automatically.</p>
+    </dd>
+</dl>
+
+### evitaLab configuration
+
+evitaLab configuration primarily exposes a special API used by the [evitaLab web client](https://github.com/lukashornych/evitaLab).
+Besides that, it can also serve an entire evitaLab web client as its copy is built-in in evitaDB. 
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>It enables / disables evitaLab API.</p>
+    </dd>
+    <dt>host</dt>
+    <dd>
+        <p>**Default:** `localhost:5555`</p>
+        <p>It specifies the host and port that the evitaLab API/evitaLab web client should listen on.
+        The value may be identical to the GraphQL API and REST API, but not to the gRPC or System API.</p>
+    </dd>
+    <dt>exposedHost</dt>
+    <dd>
+        <p>When evitaDB is running in a Docker container and the ports are exposed on the host systems 
+           the internally resolved local host name and port usually don't match the host name and port 
+           evitaDB is available on that host system. If you specify this property, the `exposeOn` global property
+           is no longer used.</p>
+    </dd>
+    <dt>tlsEnabled</dt>
+    <dd>
+        <p>**Default:** `true`</p>
+        <p>Whether the [TLS](./tls.md) should be enabled for the evitaLab API/evitaLab web client. 
+        If multiple APIs share the same port, 
+        all such APIs need to have set the same `tlsEnabled` value, or each API must have its own port.</p>
+    </dd>
+    <dt>allowedOrigins</dt>
+    <dd>
+        <p>**Default:** `null`</p>
+        <p>Specifies comma separated [origins](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin) 
+        that are allowed to consume the evitaLab API/evitaLab web client. If no origins are specified, i.e. `null`,
+        all origins are allowed automatically.</p>
+    </dd>
+    <dt>gui</dt>
+    <dd>
+        <p>[See config](#gui-configuration)</p>
+    </dd>
+</dl>
+
+#### GUI configuration
+
+This configuration controls how the actual evitaLab web client will be served through HTTP protocol.
+
+<dl>
+    <dt>enabled</dt>
+    <dd>
+        <p>**Default**: `true`</p>
+        <p>Whether evitaDB should serve the built-in evitaLab web client alongside the evitaLab API.</p>
+    </dd>
+    <dt>readOnly</dt>
+    <dd>
+        <p>**Default**: `false`</p>
+        <p>Whether the evitaLab web client should be served in read-only mode. This means that it's runtime data and
+        configuration cannot be changed. It doesn't mean that it will not allow you to change the data
+        of an accessed evitaDB instance. This must be configured at the [scope of the evitaDB instance](#server-configuration).</p>
+    </dd>
+    <dt>preconfiguredConnections</dt>
+    <dd>
+        <p>**Default**: `null`</p>
+        <p>It allows passing a list of evitaDB connections to the web client. These connections will be ready to use
+        by a user of the web client. By default (when `null` is passed), evitaDB will pass itself as a preconfigured
+        connection for quick access. This can be disabled by passing empty list, or it can be completely overridden by 
+        passing a custom list of connections.</p>
+
+        <p>
+        It accepts either a path to YAML file prefixed with `!include` with a list of connections, or a list of connections
+        directly in the main configuration. A single connection can be defined as follows:
+
+        ```yaml
+        - name: "evitaDB local" # name displayed in evitaLab in connection manager
+          labApiUrl: "https://your-server:5555/lab/api" # URL of the evitaLab API accessible from the web browser 
+          gqlUrl: "https://your-server:5555/gql" # URL of the GraphQL API accessible from the web browser
+        ```
+        </p>
+
+        <p>
+        This is especially useful for when the evitaDB server is running locally on a server behind a reverse proxy and 
+        it is exposed on a different public domain and port, not on a localhost. Without custom connection configuration
+        pointing to the public domain, the evitaLab web client would try to connect to the server on localhost.
+        </p>
     </dd>
 </dl>

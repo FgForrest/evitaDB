@@ -505,7 +505,7 @@ public class ExternalApiServer implements AutoCloseable {
 			ConsoleWriter.write(
 				StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
 			);
-			final String[] baseUrls = configuration.getBaseUrls();
+			final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
 			for (int i = 0; i < baseUrls.length; i++) {
 				final String url = baseUrls[i];
 				if (i > 0) {

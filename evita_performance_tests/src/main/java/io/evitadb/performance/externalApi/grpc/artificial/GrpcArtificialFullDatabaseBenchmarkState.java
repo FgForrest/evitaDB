@@ -42,7 +42,6 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -91,7 +90,8 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 		// start grpc server
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(null, new CertificateSettings.Builder().build(), Map.of(
+			new ApiOptions(
+				null, null, new CertificateSettings.Builder().build(), Map.of(
 				SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT),
 				GrpcProvider.CODE, new GrpcConfig())
 			),
