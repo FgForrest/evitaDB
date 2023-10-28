@@ -327,6 +327,7 @@ String constraints are similar to [Comparable](#comparable-constraints), but ope
 allow operations specific to it:
 
 - [attribute in range](filtering/range.md#attribute-in-range)
+- [attribute in range now](filtering/range.md#attribute-in-range-now)
 
 ### Price constraints
 
