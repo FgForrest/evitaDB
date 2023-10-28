@@ -36,6 +36,7 @@ import io.evitadb.externalApi.rest.configuration.RestConfig;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Creates OpenAPI specification for Evita's catalog.
@@ -50,8 +51,8 @@ public class CatalogRestBuilder extends FinalRestBuilder<CatalogRestBuildingCont
 	/**
 	 * Creates new builder.
 	 */
-	public CatalogRestBuilder(@Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(new CatalogRestBuildingContext(restConfig, evita, catalog));
+	public CatalogRestBuilder(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
+		super(new CatalogRestBuildingContext(exposedOn, restConfig, evita, catalog));
 		this.endpointBuilder = new CatalogEndpointBuilder();
 	}
 

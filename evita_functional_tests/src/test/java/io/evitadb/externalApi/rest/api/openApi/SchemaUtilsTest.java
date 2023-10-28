@@ -74,7 +74,7 @@ class SchemaUtilsTest {
 		final Set<Entry<String, Object>> dataCarrier = new HashSet<>(TestDataGenerator.generateMainCatalogEntities(evita,20).entrySet());
 
 		final CatalogContract catalog = evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
-		final OpenAPI openApi = new CatalogRestBuilder(new RestConfig(true, "localhost:5555", null, "rest", null), evita, catalog).build().openApi();
+		final OpenAPI openApi = new CatalogRestBuilder(null, new RestConfig(true, "localhost:5555", null, null, "rest", null), evita, catalog).build().openApi();
 		dataCarrier.add(new SimpleEntry<>("openApi", openApi));
 
 		return new DataCarrier(dataCarrier);

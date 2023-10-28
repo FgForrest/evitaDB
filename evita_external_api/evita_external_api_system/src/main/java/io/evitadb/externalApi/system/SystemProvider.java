@@ -82,31 +82,52 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
 
 	@Override
 	public void writeToConsole() {
-		for (String serverNameUrl : serverNameUrls) {
-			ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));
+		ConsoleWriter.write(StringUtils.rightPad("   - server name served at: ", " ", ExternalApiServer.PADDING_START_UP));
+		for (int i = 0; i < serverNameUrls.length; i++) {
+			final String serverNameUrl = serverNameUrls[i];
+			if (i > 0) {
+				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+			}
 			ConsoleWriter.write(serverNameUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 		}
-		for (String certificateUrl : rootCertificateUrls) {
-			ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(certificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write(StringUtils.rightPad("   - CA certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+		for (int i = 0; i < rootCertificateUrls.length; i++) {
+			final String rootCertificateUrl = rootCertificateUrls[i];
+			if (i > 0) {
+				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+			}
+			ConsoleWriter.write(rootCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		}
-		for (String certificateUrl : serverCertificateUrls) {
-			ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(certificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write(StringUtils.rightPad("   - server certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+		for (int i = 0; i < serverCertificateUrls.length; i++) {
+			final String serverCertificateUrl = serverCertificateUrls[i];
+			if (i > 0) {
+				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+			}
+			ConsoleWriter.write(serverCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		}
-		for (String certificateUrl : clientCertificateUrls) {
-			ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(certificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write(StringUtils.rightPad("   - client certificate served at: ", " ", ExternalApiServer.PADDING_START_UP));
+		for (int i = 0; i < clientCertificateUrls.length; i++) {
+			final String clientCertificateUrl = clientCertificateUrls[i];
+			if (i > 0) {
+				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+			}
+			ConsoleWriter.write(clientCertificateUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
 		}
-		for (String clientPrivateKey : clientPrivateKeyUrls) {
-			ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
-			ConsoleWriter.write(clientPrivateKey, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-			ConsoleWriter.write("\n", ConsoleColor.WHITE);
-			ConsoleWriter.write("""
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write(StringUtils.rightPad("   - client private key served at: ", " ", ExternalApiServer.PADDING_START_UP));
+		for (int i = 0; i < clientPrivateKeyUrls.length; i++) {
+			final String clientPrivateKeyUrl = clientPrivateKeyUrls[i];
+			if (i > 0) {
+				ConsoleWriter.write(", ", ConsoleColor.WHITE);
+			}
+			ConsoleWriter.write(clientPrivateKeyUrl, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		}
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("""
                 
                 ************************* WARNING!!! *************************
                 You use mTLS with automatically generated client certificate.
@@ -115,8 +136,7 @@ public class SystemProvider implements ExternalApiProviderWithConsoleOutput<Syst
                 ************************* WARNING!!! *************************
                 
                 """,
-				ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
-			);
-		}
+			ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD
+		);
 	}
 }

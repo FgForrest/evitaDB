@@ -54,6 +54,7 @@ import io.undertow.util.HttpString;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -74,6 +75,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 public abstract class RestBuildingContext {
 
 	@Nonnull protected final AbstractApiConfiguration restConfig;
+	@Getter @Nullable private final String exposedOn;
 	@Getter @Nonnull private final Evita evita;
 
 	/**
@@ -91,9 +93,10 @@ public abstract class RestBuildingContext {
 	@Nonnull
 	private final Map<String, Class<? extends Enum<?>>> registeredCustomEnums = createHashMap(32);
 
-	protected RestBuildingContext(@Nonnull AbstractApiConfiguration restConfig, @Nonnull Evita evita) {
+	protected RestBuildingContext(@Nonnull String exposedOn, @Nonnull AbstractApiConfiguration restConfig, @Nonnull Evita evita) {
 		this.restConfig = restConfig;
 		this.evita = evita;
+		this.exposedOn = exposedOn;
 		this.objectMapper = setupObjectMapper();
 	}
 
