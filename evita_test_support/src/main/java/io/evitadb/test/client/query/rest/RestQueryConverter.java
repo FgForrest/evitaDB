@@ -36,7 +36,6 @@ import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.GenericDataLocator;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.StringUtils;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -91,7 +90,7 @@ public class RestQueryConverter implements AutoCloseable {
 
 	@Nonnull
 	private String resolveHeader(@Nonnull String catalogName, @Nonnull String entityType) {
-		return "/rest/" + StringUtils.toKebabCase(catalogName) + "/" + StringUtils.toKebabCase(entityType) + "/query";
+		return "/rest/" + catalogName + "/" + entityType + "/query";
 	}
 
 	@Nonnull

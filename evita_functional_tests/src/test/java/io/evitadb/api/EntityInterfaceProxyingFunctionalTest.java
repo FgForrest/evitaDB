@@ -84,6 +84,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.MethodName.class)
 @Slf4j
 public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
+	private static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityInterfaceProxyingFunctionalTest";
+	private static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
+	private static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 
 	private static void assertCategories(
 		@Nonnull Stream<CategoryInterface> categoryReferences,

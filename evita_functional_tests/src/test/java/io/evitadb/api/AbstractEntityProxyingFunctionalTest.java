@@ -24,12 +24,9 @@
 package io.evitadb.api;
 
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.core.Evita;
 import io.evitadb.dataType.data.ReflectionCachingBehaviour;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.annotation.DataSet;
-import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.utils.ReflectionLookup;
 
 import javax.annotation.Nonnull;
@@ -47,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public abstract class AbstractEntityProxyingFunctionalTest extends AbstractHundredProductsFunctionalTest implements EvitaTestSupport {
-	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts";
+
 	protected static final Locale CZECH_LOCALE = new Locale("cs", "CZ");
 	protected static final ReflectionLookup REFLECTION_LOOKUP = new ReflectionLookup(ReflectionCachingBehaviour.CACHE);
 
@@ -85,12 +82,6 @@ public abstract class AbstractEntityProxyingFunctionalTest extends AbstractHundr
 				.toArray(Integer[]::new),
 			references
 		);
-	}
-
-	@DataSet(value = AbstractEntityProxyingFunctionalTest.HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
-	@Override
-	DataCarrier setUp(Evita evita) {
-		return super.setUp(evita);
 	}
 
 }

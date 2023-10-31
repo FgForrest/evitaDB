@@ -43,6 +43,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -684,14 +685,14 @@ public class EvitaDataTypes {
 			return value.toString();
 		} else if (value instanceof Range) {
 			return value.toString();
-		} else if (value instanceof OffsetDateTime) {
-			return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format((TemporalAccessor) value);
-		} else if (value instanceof LocalDateTime) {
-			return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format((TemporalAccessor) value);
+		} else if (value instanceof OffsetDateTime offsetDateTime) {
+			return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime.truncatedTo(ChronoUnit.MILLIS));
+		} else if (value instanceof LocalDateTime localDateTime) {
+			return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime.truncatedTo(ChronoUnit.MILLIS));
 		} else if (value instanceof LocalDate) {
 			return DateTimeFormatter.ISO_LOCAL_DATE.format((TemporalAccessor) value);
-		} else if (value instanceof LocalTime) {
-			return DateTimeFormatter.ISO_LOCAL_TIME.format((TemporalAccessor) value);
+		} else if (value instanceof LocalTime localTime) {
+			return DateTimeFormatter.ISO_LOCAL_TIME.format(localTime.truncatedTo(ChronoUnit.MILLIS));
 		} else if (value instanceof Locale) {
 			return CHAR_STRING_DELIMITER + ((Locale) value).toLanguageTag() + CHAR_STRING_DELIMITER;
 		} else if (value instanceof Currency) {

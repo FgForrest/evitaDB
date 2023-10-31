@@ -46,6 +46,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
@@ -183,12 +184,12 @@ public class ObjectJsonSerializer {
 
 	@Nonnull
 	private String serialize(@Nonnull OffsetDateTime offsetDateTime) {
-		return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime);
+		return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime.truncatedTo(ChronoUnit.MILLIS));
 	}
 
 	@Nonnull
 	private String serialize(@Nonnull LocalDateTime localDateTime) {
-		return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime);
+		return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime.truncatedTo(ChronoUnit.MILLIS));
 	}
 
 	@Nonnull
@@ -198,7 +199,7 @@ public class ObjectJsonSerializer {
 
 	@Nonnull
 	private String serialize(@Nonnull LocalTime localTime) {
-		return DateTimeFormatter.ISO_LOCAL_TIME.format(localTime);
+		return DateTimeFormatter.ISO_LOCAL_TIME.format(localTime.truncatedTo(ChronoUnit.MILLIS));
 	}
 
 	@Nonnull

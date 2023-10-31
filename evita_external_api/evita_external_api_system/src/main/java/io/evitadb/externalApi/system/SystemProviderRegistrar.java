@@ -126,24 +126,24 @@ public class SystemProviderRegistrar implements ExternalApiProviderRegistrar<Sys
 						systemConfig.getAllowedOrigins()
 					)
 				),
-				Arrays.stream(systemConfig.getBaseUrls())
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 					.map(it -> it + ENDPOINT_SERVER_NAME)
 					.toArray(String[]::new),
-				Arrays.stream(systemConfig.getBaseUrls())
+				Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 					.map(it -> it + fileName)
 					.toArray(String[]::new),
 				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls())
+					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 						.map(it -> it + CertificateUtils.getGeneratedServerCertificateFileName())
 						.toArray(String[]::new) :
 					new String[0],
 				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls())
+					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 						.map(it -> it + CertificateUtils.getGeneratedClientCertificateFileName())
 						.toArray(String[]::new) :
 					new String[0],
 				certificateSettings.generateAndUseSelfSigned() ?
-					Arrays.stream(systemConfig.getBaseUrls())
+					Arrays.stream(systemConfig.getBaseUrls(apiOptions.exposedOn()))
 						.map(it -> it + CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName())
 						.toArray(String[]::new) :
 					new String[0]

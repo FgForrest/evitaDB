@@ -153,9 +153,9 @@ public class GuiHandler extends ResourceHandler {
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			null,
 			serverName,
-			labConfig.getBaseUrls()[0] + LabManager.LAB_API_URL_PREFIX,
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
+			labConfig.getBaseUrls(apiOptions.exposedOn())[0] + LabManager.LAB_API_URL_PREFIX,
+			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null),
+			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
 		);
 		return List.of(selfConnection);
 	}

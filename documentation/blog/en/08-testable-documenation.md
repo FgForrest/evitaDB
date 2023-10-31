@@ -4,7 +4,7 @@ perex: |
   This article is a continuation of a series of articles about the documentation portal of our database. This time we 
   will look at it from a different point of view - from the perspective of the developer who creates the documentation, 
   and whose interest is that the documentation written is correct and does not become outdated over time.
-date: '20.20.2023'
+date: '20.10.2023'
 author: 'Jan Novotný'
 motive: assets/images/08-testable-documentation.png
 proofreading: 'done'

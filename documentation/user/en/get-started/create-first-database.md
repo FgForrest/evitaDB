@@ -32,8 +32,9 @@ index.docker.io/evitadb/evitadb:latest
 
 # Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
 # and you need to open ports manually
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \ 
-index.docker.io/evitadb/evitadb:latest
+docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
+       -e "api.exposedOn=localhost" \ 
+       index.docker.io/evitadb/evitadb:latest
 ```
 
 So the web API server is now up and running and ready to communicate.
