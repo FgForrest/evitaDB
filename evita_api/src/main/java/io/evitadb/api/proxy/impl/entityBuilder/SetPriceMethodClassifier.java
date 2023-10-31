@@ -298,7 +298,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				} else if (boolean.class.equals(parameter.getType()) || Boolean.class.equals(parameter.getType())) {
 					recognizedParameters.add(new RecognizedParameter(8, args -> EvitaDataTypes.toTargetType((Serializable) args[argumentIndex], boolean.class)));
 				} else if (String.class.isAssignableFrom(parameter.getType())) {
-					if (parameter.getName().equals("currency")) {
+					if (parameter.getName().equals("currency") || parameter.getName().equals("currencyCode")) {
 						recognizedParameters.add(new RecognizedParameter(2, args -> Currency.getInstance((String) args[argumentIndex])));
 					} else if (fixedPriceList.isBlank()) {
 						recognizedParameters.add(new RecognizedParameter(1, args -> args[argumentIndex]));
@@ -405,7 +405,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 				try {
 					// and now create the Price
-					return (PriceContract) PRICE_CONSTRUCTOR_HANDLE.invokeExact(constructorArgs);
+					return (PriceContract) PRICE_CONSTRUCTOR_HANDLE.invokeWithArguments(constructorArgs);
 				} catch (Throwable e) {
 					throw new EntityClassInvalidException(
 						proxyClass,
@@ -648,7 +648,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 				try {
 					// and now create the PriceKey
-					return (PriceKey) PRICE_KEY_CONSTRUCTOR_HANDLE.invokeExact(constructorArgs);
+					return (PriceKey) PRICE_KEY_CONSTRUCTOR_HANDLE.invokeWithArguments(constructorArgs);
 				} catch (Throwable e) {
 					throw new EntityClassInvalidException(
 						proxyClass,

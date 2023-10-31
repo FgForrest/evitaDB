@@ -27,6 +27,7 @@ import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DateTimeRange;
@@ -123,8 +124,10 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setMarketsAttributeAsList(List<String> marketsAttributeAsList);
 
+	@Price(priceList = "basic")
 	ProductInterfaceEditor setBasicPrice(PriceContract basicPrice);
 
+	@Price(priceList = "basic")
 	ProductInterfaceEditor setBasicPrice(
 		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
 		String currencyCode, int priceId,
@@ -132,13 +135,16 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 		Integer innerRecordId
 	);
 
+	@Price(priceList = "basic")
 	ProductInterfaceEditor setBasicPrice(
 		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
 		Currency currency, int priceId
 	);
 
+	@Price
 	ProductInterfaceEditor setPrice(PriceContract price);
 
+	@Price
 	ProductInterfaceEditor setPrice(
 		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
 		String priceList, String currencyCode, int priceId,
@@ -146,17 +152,19 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 		Integer innerRecordId
 	);
 
+	@Price
 	ProductInterfaceEditor setPrice(
 		BigDecimal priceWithoutTax, BigDecimal priceWithTax, BigDecimal taxRate,
 		String priceList, Currency currency, int priceId
 	);
 
-	ProductInterfaceEditor setAllPrices(Collection<PriceContract> allPrices);
-
+	@Price
 	ProductInterfaceEditor setAllPricesAsList(List<PriceContract> allPricesAsList);
 
+	@Price
 	ProductInterfaceEditor setAllPricesAsSet(Set<PriceContract> allPricesAsSet);
 
+	@Price
 	ProductInterfaceEditor setAllPricesAsArray(PriceContract[] allPricesAsArray);
 
 }

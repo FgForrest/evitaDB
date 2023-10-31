@@ -32,7 +32,9 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
+import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.UseDataSet;
@@ -48,6 +50,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,6 +74,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(OrderAnnotation.class)
 @Slf4j
 public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
+	private final static DateTimeRange VALIDITY = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
 
 	private static void assertCategory(SealedEntity category, String code, String name, long priority, DateTimeRange validity, int parentId) {
 		assertCategory(category, code, name, priority, validity);
@@ -92,7 +96,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		SealedEntity product,
 		String code, String name, TestEnum theEnum,
 		BigDecimal quantity, boolean optionallyAvailable, Long priority,
-		String[] markets
+		String[] markets,
+		DateTimeRange validity
 	) {
 		assertEquals(code, product.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, product.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
@@ -105,12 +110,148 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			assertFalse(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class));
 		}
 		assertArrayEquals(markets, product.getAttribute(ATTRIBUTE_MARKETS));
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+				.differsFrom(
+					product.getPrice(1, "reference", CURRENCY_CZK).orElseThrow()
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(2, "vip", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+				.differsFrom(
+					product.getPrice(2, "vip", CURRENCY_CZK).orElseThrow()
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(3, "vip", CURRENCY_CZK), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+				.differsFrom(
+					product.getPrice(3, "vip", CURRENCY_CZK).orElseThrow()
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(4, "vip", CURRENCY_USD), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+				.differsFrom(
+					product.getPrice(4, "vip", CURRENCY_USD).orElseThrow()
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(5, "basic", CURRENCY_CZK), 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+				.differsFrom(
+					product.getPrice(5, "basic", CURRENCY_CZK).orElseThrow()
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(6, "basic", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+				.differsFrom(
+					product.getPrice(6, "basic", CURRENCY_CZK).orElseThrow()
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(7, "basic", CURRENCY_CZK), 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+				.differsFrom(
+					product.getPrice(7, "basic", CURRENCY_CZK).orElseThrow()
+				)
+		);
 	}
 
 	private static void assertUnknownEntity(SealedEntity unknownEntity, String code, String name, long priority) {
 		assertEquals(code, unknownEntity.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, unknownEntity.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
 		assertEquals(priority, unknownEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class));
+	}
+
+	private static void assertModifiedInstance(ProductInterface modifiedInstance, int parameterId, DateTimeRange validity) {
+		assertEquals("product-1", modifiedInstance.getCode());
+		assertEquals("Produkt 1", modifiedInstance.getName(CZECH_LOCALE));
+		assertEquals(TestEnum.ONE, modifiedInstance.getEnum());
+		assertEquals(BigDecimal.TEN, modifiedInstance.getQuantity());
+		assertTrue(modifiedInstance.isOptionallyAvailable());
+		assertArrayEquals(new String[]{"market-1", "market-2"}, modifiedInstance.getMarketsAttribute());
+		assertArrayEquals(new String[]{"market-3", "market-4"}, modifiedInstance.getMarkets());
+		assertNotNull(modifiedInstance.getParameterById(parameterId));
+		assertEquals(parameterId, modifiedInstance.getParameterById(parameterId).getPrimaryKey());
+		assertEquals(1L, modifiedInstance.getParameterById(parameterId).getCategoryPriority());
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+				.differsFrom(
+					modifiedInstance.getPrice("reference", CURRENCY_CZK, 1)
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(2, "vip", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+				.differsFrom(
+					modifiedInstance.getPrice("vip", CURRENCY_CZK, 2)
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(3, "vip", CURRENCY_CZK), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+				.differsFrom(
+					modifiedInstance.getPrice("vip", CURRENCY_CZK, 3)
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(4, "vip", CURRENCY_USD), 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+				.differsFrom(
+					modifiedInstance.getPrice("vip", CURRENCY_USD, 4)
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(5, "basic", CURRENCY_CZK), 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
+				.differsFrom(
+					modifiedInstance.getPrice("basic", CURRENCY_CZK, 5)
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(6, "basic", CURRENCY_CZK), null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true)
+				.differsFrom(
+					modifiedInstance.getPrice("basic", CURRENCY_CZK, 6)
+				)
+		);
+
+		assertFalse(
+			new Price(1, new Price.PriceKey(7, "basic", CURRENCY_CZK), 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, validity, true)
+				.differsFrom(
+					modifiedInstance.getPrice("basic", CURRENCY_CZK, 7)
+				)
+		);
+	}
+
+	private static int createParameterEntityIfMissing(EvitaContract evita) {
+		final int parameterId = evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+					query(
+						collection(Entities.PARAMETER),
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "parameter-1")
+						)
+					)
+				);
+				return parameterReference
+					.orElseGet(
+						() -> evitaSession.createNewEntity(Entities.PARAMETER)
+							.setAttribute(ATTRIBUTE_CODE, "parameter-1")
+							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
+							.upsertVia(evitaSession)
+					)
+					.getPrimaryKey();
+			}
+		);
+		return parameterId;
 	}
 
 	@DisplayName("Should create new entity of custom type")
@@ -402,28 +543,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldCreateNewCustomProductWithPricesAndReferences(EvitaContract evita) {
-		final int parameterId = evita.updateCatalog(
-			TEST_CATALOG,
-			evitaSession -> {
-				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
-					query(
-						collection(Entities.PARAMETER),
-						filterBy(
-							attributeEquals(ATTRIBUTE_CODE, "parameter-1")
-						)
-					)
-				);
-				return parameterReference
-					.orElseGet(
-						() -> evitaSession.createNewEntity(Entities.PARAMETER)
-							.setAttribute(ATTRIBUTE_CODE, "parameter-1")
-							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
-							.upsertVia(evitaSession)
-					)
-					.getPrimaryKey();
-			}
-		);
-
+		final int parameterId = createParameterEntityIfMissing(evita);
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
@@ -436,28 +556,37 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setPriority(78L)
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
+					.setPrice(new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true))
+					.setPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "vip", CURRENCY_CZK, 2)
+					.setPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "vip", "CZK", 3, VALIDITY, 7)
+					.setPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "vip", "USD", 4, null, 7)
+					.setBasicPrice(new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true))
+					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, CURRENCY_CZK, 6)
+					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "CZK", 7, VALIDITY, 8)
 					// TODO JNO - tohle vyzkoušet na něco, co nemá povinné atributy
 					// .addParameter(parameterId);
 					.addParameter(parameterId, that -> that.setCategoryPriority(1L));
+
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> newProduct.setBasicPrice(
+						new Price(
+							5, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+						)
+					),
+					"Should refuse to set different price via basic price setter."
+				);
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
 				newProduct.setReferencedFileSet(new ReferencedFileSet());
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(12, mutation.get().getLocalMutations().size());
+				assertEquals(19, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertEquals("product-1", modifiedInstance.getCode());
-				assertEquals("Produkt 1", modifiedInstance.getName(CZECH_LOCALE));
-				assertEquals(TestEnum.ONE, modifiedInstance.getEnum());
-				assertEquals(BigDecimal.TEN, modifiedInstance.getQuantity());
-				assertTrue(modifiedInstance.isOptionallyAvailable());
-				assertArrayEquals(new String[]{"market-1", "market-2"}, modifiedInstance.getMarketsAttribute());
-				assertArrayEquals(new String[]{"market-3", "market-4"}, modifiedInstance.getMarkets());
-				assertNotNull(modifiedInstance.getParameterById(parameterId));
-				assertEquals(parameterId, modifiedInstance.getParameterById(parameterId).getPrimaryKey());
-				assertEquals(1L, modifiedInstance.getParameterById(parameterId).getCategoryPriority());
+				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY);
 
 				newProduct.upsertVia(evitaSession);
 
@@ -465,7 +594,73 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertProduct(
 					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
 					"product-1", "Produkt 1", TestEnum.ONE, BigDecimal.TEN, true, 78L,
-					new String[]{"market-1", "market-2"}
+					new String[]{"market-1", "market-2"},
+					VALIDITY
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should create new entity with prices and references of custom type as list")
+	@Order(8)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithPricesAndReferencesAsList(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-1")
+					.setName(CZECH_LOCALE, "Produkt 1")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttributeAsList(Arrays.asList("market-1", "market-2"))
+					.setMarketsAsList(Arrays.asList("market-3", "market-4"))
+					.setAllPricesAsList(
+						Arrays.asList(
+							new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+							new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+							new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+							new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+							new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+							new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+							new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+						)
+					)
+					.addParameter(parameterId, that -> that.setCategoryPriority(1L));
+
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> newProduct.setBasicPrice(
+						new Price(
+							5, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+						)
+					),
+					"Should refuse to set different price via basic price setter."
+				);
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(19, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY);
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				assertProduct(
+					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
+					"product-1", "Produkt 1", TestEnum.ONE, BigDecimal.TEN, true, 78L,
+					new String[]{"market-1", "market-2"},
+					VALIDITY
 				);
 			}
 		);

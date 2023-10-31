@@ -37,17 +37,21 @@ import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.CollectorUtils;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.time.OffsetDateTime;
@@ -179,10 +183,11 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 	 * particular type which matches the key in the index
 	 */
 	@Nonnull
-	private static Map<Class<?>, Function<Object[], Object>> collectArgumentFetchers(
+	private static Map<Class<?>, Function<Object[], Object>> collectPriceArgumentFetchers(
 		@Nonnull Class<?> proxyClass,
-		@Nonnull Method method
-	) {
+		@Nonnull Method method,
+		@Nonnull Class<? extends Annotation> annotation
+		) {
 		final Class<?>[] parameterTypes = method.getParameterTypes();
 		final Map<Class<?>, Function<Object[], Object>> argumentFetchers = CollectionUtils.createHashMap(parameterTypes.length);
 		for (int i = 0; i < parameterTypes.length; i++) {
@@ -198,7 +203,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							throw new EntityClassInvalidException(
 								proxyClass,
 								"Entity class type `" + proxyClass + "` method `" + method + "` is annotated " +
-									"with @PriceForSale annotation, and contains multiple price lists (String) arguments! " +
+									"with @" + annotation.getSimpleName() + " annotation, and contains multiple price lists (String) arguments! " +
 									"You need to provide either a String array argument or a single String " +
 									"argument representing price list! "
 							);
@@ -215,7 +220,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							throw new EntityClassInvalidException(
 								proxyClass,
 								"Entity class type `" + proxyClass + "` method `" + method + "` is annotated " +
-									"with @PriceForSale annotation, and contains multiple price lists (String[]) arguments! " +
+									"with @" + annotation.getSimpleName() + " annotation, and contains multiple price lists (String[]) arguments! " +
 									"You need to provide only a single String array argument representing price list " +
 									"in a prioritized order!"
 							);
@@ -232,7 +237,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							throw new EntityClassInvalidException(
 								proxyClass,
 								"Entity class type `" + proxyClass + "` method `" + method + "` is annotated " +
-									"with @PriceForSale annotation, and contains multiple date and time " +
+									"with @" + annotation.getSimpleName() + " annotation, and contains multiple date and time " +
 									"(OffsetDateTime) arguments! You need to provide only a single temporal " +
 									" argument representing a date and time the price for sale must be valid for!"
 							);
@@ -249,7 +254,24 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 							throw new EntityClassInvalidException(
 								proxyClass,
 								"Entity class type `" + proxyClass + "` method `" + method + "` is annotated " +
-									"with @PriceForSale annotation, and contains multiple currency " +
+									"with @" + annotation.getSimpleName() + " annotation, and contains multiple currency " +
+									"(Currency) arguments! You need to provide only a single currency you require " +
+									"price for sale to be in!"
+							);
+						}
+					}
+				);
+			} else if (NumberUtils.isIntConvertibleNumber(parameterType)) {
+				argumentFetchers.compute(
+					int.class,
+					(theType, existingSupplier) -> {
+						if (existingSupplier == null) {
+							return args -> EvitaDataTypes.toTargetType((Serializable) args[argumentIndex], int.class);
+						} else {
+							throw new EntityClassInvalidException(
+								proxyClass,
+								"Entity class type `" + proxyClass + "` method `" + method + "` is annotated " +
+									"with @" + annotation.getSimpleName() + " annotation, and contains multiple currency " +
 									"(Currency) arguments! You need to provide only a single currency you require " +
 									"price for sale to be in!"
 							);
@@ -260,7 +282,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				throw new EntityClassInvalidException(
 					proxyClass,
 					"Entity class type `" + proxyClass + "` method `" + method + "` is annotated " +
-						"with @PriceForSale annotation, and contains unsupported argument type `" + parameterType +
+						"with @" + annotation.getSimpleName() + " annotation, and contains unsupported argument type `" + parameterType +
 						"`!"
 				);
 			}
@@ -278,6 +300,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Object[] args
 	) {
 		final List<Predicate<PriceContract>> pricePredicates = new LinkedList<>();
+		ofNullable(argumentFetchers.get(int.class))
+			.map(it -> (int) it.apply(args))
+			.map(it -> (Predicate<PriceContract>) priceContract -> it.equals(priceContract.priceId()))
+			.ifPresent(pricePredicates::add);
 		ofNullable(argumentFetchers.get(String[].class))
 			.map(it -> (String[]) it.apply(args))
 			.filter(it -> !ArrayUtils.isEmpty(it))
@@ -286,6 +312,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				Collections.addAll(allowedPriceLists, it);
 				return (Predicate<PriceContract>) priceContract -> allowedPriceLists.contains(priceContract.priceList());
 			})
+			.ifPresent(pricePredicates::add);
+		ofNullable(argumentFetchers.get(String.class))
+			.map(it -> (String) it.apply(args))
+			.map(it -> (Predicate<PriceContract>) priceContract -> it.equals(priceContract.priceList()))
 			.ifPresent(pricePredicates::add);
 		ofNullable(argumentFetchers.get(Currency.class))
 			.map(it -> (Currency) it.apply(args))
@@ -318,7 +348,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				priceForSaleSupplier.apply(theState.getEntity())
 			);
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, PriceForSale.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final String[] priceLists = ofNullable(argumentFetchers.get(String[].class))
 					.map(it -> (String[]) it.apply(args))
@@ -353,7 +383,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.apply(theState.getEntity().getAllPricesForSale());
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, PriceForSale.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> pricePredicate = getPriceContractPredicate(argumentFetchers, args);
 
@@ -387,7 +417,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
 				);
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, PriceForSale.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> pricePredicate = getPriceContractPredicate(argumentFetchers, args);
 
@@ -420,7 +450,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 						.toArray(PriceContract[]::new)
 				);
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, PriceForSale.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> pricePredicate = getPriceContractPredicate(argumentFetchers, args);
 
@@ -467,7 +497,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 			};
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, Price.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
@@ -520,7 +550,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				);
 			}
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, Price.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
@@ -566,7 +596,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				);
 			}
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, Price.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
@@ -612,7 +642,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				);
 			}
 		} else {
-			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectArgumentFetchers(proxyClass, method);
+			final Map<Class<?>, Function<Object[], Object>> argumentFetchers = collectPriceArgumentFetchers(proxyClass, method, Price.class);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 				final Predicate<PriceContract> argumentPredicate = getPriceContractPredicate(argumentFetchers, args);
 				final Predicate<PriceContract> pricePredicate = ofNullable(priceList)
@@ -667,15 +697,20 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 
 				// and verify that the return type is valid
-				Assert.isTrue(
-					PriceContract.class.isAssignableFrom(itemType),
-					() -> new EntityClassInvalidException(
-						proxyState.getProxyClass(),
-						"Entity class type `" + proxyState.getProxyClass() + "` method `" + method + "` is annotated " +
-							"with price annotation, but the return class `" + returnType + "`. Only PriceContract return " +
-							"type is supported!"
-					)
-				);
+				if (proxyState.getProxyClass().equals(itemType)) {
+					// the method probably represents a mutation (setter)
+					return null;
+				} else {
+					Assert.isTrue(
+						PriceContract.class.isAssignableFrom(itemType),
+						() -> new EntityClassInvalidException(
+							proxyState.getProxyClass(),
+							"Entity class type `" + proxyState.getProxyClass() + "` method `" + method + "` is annotated " +
+								"with price annotation, but the return class `" + returnType + "`. Only PriceContract return " +
+								"type is supported!"
+						)
+					);
+				}
 
 				if (priceForSale != null || priceForSaleRef != null) {
 

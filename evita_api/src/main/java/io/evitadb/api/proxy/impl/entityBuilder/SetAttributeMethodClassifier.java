@@ -62,12 +62,15 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				// We only want to handle methods with exactly one parameter, or two parameters of which one is Locale
 				final Class<?>[] parameterTypes = method.getParameterTypes();
 				if (method.getParameterCount() == 1 &&
-					(EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(parameterTypes[0])) &&
+					((EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(parameterTypes[0])) || Collection.class.isAssignableFrom(parameterTypes[0])) &&
 					!Locale.class.isAssignableFrom(parameterTypes[0])
 				) {
 					valueParameterPosition = 0;
 					localeParameterPosition = OptionalInt.empty();
-				} else if ((method.getParameterCount() == 2 && Arrays.stream(parameterTypes).allMatch(EvitaDataTypes::isSupportedTypeOrItsArrayOrEnum))) {
+				} else if ((method.getParameterCount() == 2 &&
+					Arrays.stream(parameterTypes)
+						.allMatch(it -> Locale.class.isAssignableFrom(it) || Collection.class.isAssignableFrom(it) || EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(it)))
+				) {
 					int lp = -1;
 					for (int i = 0; i < parameterTypes.length; i++) {
 						 if (Locale.class.isAssignableFrom(parameterTypes[i])) {

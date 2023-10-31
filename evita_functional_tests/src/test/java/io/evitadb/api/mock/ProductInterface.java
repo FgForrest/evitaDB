@@ -35,6 +35,7 @@ import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -233,4 +234,7 @@ public interface ProductInterface extends EntityClassifier {
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
 	List<String> getMarketsAttributeAsList();
 
+	@Price
+	@Nullable
+	PriceContract getPrice(String priceListName, Currency currency, int priceId);
 }

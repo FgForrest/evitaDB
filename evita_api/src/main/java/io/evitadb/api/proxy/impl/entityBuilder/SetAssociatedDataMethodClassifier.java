@@ -62,13 +62,29 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				final int valueParameterPosition;
 				final OptionalInt localeParameterPosition;
 				// We only want to handle methods with exactly one parameter, or two parameters of which one is Locale
-				if (method.getParameterCount() == 1 && Serializable.class.isAssignableFrom(method.getParameterTypes()[0]) && !Locale.class.isAssignableFrom(method.getParameterTypes()[0])) {
+				final Class<?>[] pTypes = method.getParameterTypes();
+				if (method.getParameterCount() == 1 &&
+					(Serializable.class.isAssignableFrom(pTypes[0]) ||
+						Collection.class.isAssignableFrom(pTypes[0]) ||
+						(pTypes[0].isArray() && Serializable.class.isAssignableFrom(pTypes[0].getComponentType()))
+					) &&
+					!Locale.class.isAssignableFrom(pTypes[0])
+				) {
 					valueParameterPosition = 0;
 					localeParameterPosition = OptionalInt.empty();
-				} else if ((method.getParameterCount() == 2 && Arrays.stream(method.getParameterTypes()).allMatch(Serializable.class::isAssignableFrom))) {
+				} else if (
+					(method.getParameterCount() == 2 &&
+						Arrays.stream(pTypes)
+							.allMatch(
+								it -> Serializable.class.isAssignableFrom(it) ||
+									Collection.class.isAssignableFrom(it) ||
+									(it.isArray() && Serializable.class.isAssignableFrom(it.getComponentType()))
+							)
+					)
+				) {
 					int lp = -1;
-					for (int i = 0; i < method.getParameterTypes().length; i++) {
-						 if (Locale.class.isAssignableFrom(method.getParameterTypes()[i])) {
+					for (int i = 0; i < pTypes.length; i++) {
+						 if (Locale.class.isAssignableFrom(pTypes[i])) {
 							 lp = i;
 							 break;
 						 }
