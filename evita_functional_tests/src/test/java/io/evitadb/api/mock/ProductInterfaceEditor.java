@@ -31,7 +31,6 @@ import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
@@ -44,7 +43,6 @@ import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -75,42 +73,13 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setReferencedFileSet(ReferencedFileSet referencedFileSet);
 
-	ProductInterfaceEditor setReferencedFileSetAsDifferentProperty(ReferencedFileSet referencedFileSetAsDifferentProperty);
-
-	ProductInterfaceEditor setCategoryIds(Collection<Integer> categoryIds);
-
-	ProductInterfaceEditor setCategoryIdsAsList(List<Integer> categoryIdsAsList);
-
-	ProductInterfaceEditor setCategoryIdsAsSet(Set<Integer> categoryIdsAsSet);
-
-	ProductInterfaceEditor setCategoryIdsAsArray(int[] categoryIdsAsArray);
-
-	ProductInterfaceEditor setCategoryReferences(Collection<EntityReference> categoryReferences);
-
-	ProductInterfaceEditor setCategoryReferencesAsList(List<EntityReference> categoryReferencesAsList);
-
-	ProductInterfaceEditor setCategoryReferencesAsSet(Set<EntityReference> categoryReferencesAsSet);
-
-	ProductInterfaceEditor setCategoryReferencesAsArray(EntityReference[] categoryReferencesAsArray);
-
 	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
 
-	ProductInterfaceEditor setProductCategoriesAsList(List<ProductCategoryInterface> productCategoriesAsList);
+	@ReferenceRef(Entities.CATEGORY)
+	ProductInterfaceEditor setProductCategoriesAsVarArg(ProductCategoryInterface... productCategoriesAsArray);
 
-	ProductInterfaceEditor setProductCategoriesAsSet(Set<ProductCategoryInterface> productCategoriesAsSet);
-
-	ProductInterfaceEditor setProductCategoriesAsArray(ProductCategoryInterface[] productCategoriesAsArray);
-
-	ProductInterfaceEditor setCategories(Collection<CategoryInterface> categories);
-
-	ProductInterfaceEditor setCategoriesAsList(List<CategoryInterface> categoriesAsList);
-
-	ProductInterfaceEditor setCategoriesAsSet(Set<CategoryInterface> categoriesAsSet);
-
-	ProductInterfaceEditor setCategoriesAsArray(CategoryInterface[] categoriesAsArray);
-
-	@ReferenceRef(Entities.PARAMETER)
-	ProductInterfaceEditor addParameter(int parameterId, Consumer<ParameterReferenceInterfaceEditor> parameterEditor);
+	@ReferenceRef(Entities.CATEGORY)
+	ProductInterfaceEditor addProductCategory(int categoryId, Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
