@@ -29,10 +29,13 @@ import io.evitadb.api.mock.CategoryInterfaceSealed;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
@@ -70,6 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @TestMethodOrder(OrderAnnotation.class)
 @Slf4j
 public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
+	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_IsolatedEntityEditorProxyingFunctionalTest";
 	private static final DateTimeRange VALIDITY = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
 
 	private static void assertCategory(SealedEntity category, String code, String name, long priority, DateTimeRange validity) {
@@ -81,6 +85,12 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 		} else {
 			assertEquals(validity, category.getAttribute(ATTRIBUTE_VALIDITY));
 		}
+	}
+
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
+	@Override
+	DataCarrier setUp(Evita evita) {
+		return super.setUp(evita);
 	}
 
 	@DisplayName("Should create new entity of custom type")

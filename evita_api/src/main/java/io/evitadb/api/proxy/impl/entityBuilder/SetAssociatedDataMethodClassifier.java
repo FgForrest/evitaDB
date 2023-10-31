@@ -261,7 +261,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				entityBuilder.setAssociatedData(
 					associatedDataName,
 					((Collection) value).stream()
-						.map(it -> valueConverter.apply((Serializable) value))
+						.map(it -> valueConverter.apply((Serializable) it))
 						.toArray(cnt -> Array.newInstance(plainType, cnt))
 				);
 			}
@@ -296,7 +296,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				entityBuilder.setAssociatedData(
 					associatedDataName,
 					((Collection) value).stream()
-						.map(it -> valueConverter.apply((Serializable) value))
+						.map(it -> valueConverter.apply((Serializable) it))
 						.toArray(cnt -> Array.newInstance(plainType, cnt))
 				);
 			}

@@ -33,11 +33,14 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.Price;
+import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
@@ -74,6 +77,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(OrderAnnotation.class)
 @Slf4j
 public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFunctionalTest implements EvitaTestSupport {
+	protected static final String HUNDRED_PRODUCTS = "HundredProxyProducts_EntityEditorProxyingFunctionalTest";
 	private final static DateTimeRange VALIDITY = DateTimeRange.between(OffsetDateTime.now().minusDays(1), OffsetDateTime.now().plusDays(1));
 
 	private static void assertCategory(SealedEntity category, String code, String name, long priority, DateTimeRange validity, int parentId) {
@@ -167,9 +171,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(priority, unknownEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class));
 	}
 
-	private static void assertModifiedInstance(ProductInterface modifiedInstance, int parameterId, DateTimeRange validity) {
-		assertEquals("product-1", modifiedInstance.getCode());
-		assertEquals("Produkt 1", modifiedInstance.getName(CZECH_LOCALE));
+	private static void assertModifiedInstance(ProductInterface modifiedInstance, int parameterId, DateTimeRange validity, String entityCode, String entityName) {
+		assertEquals(entityCode, modifiedInstance.getCode());
+		assertEquals(entityName, modifiedInstance.getName(CZECH_LOCALE));
 		assertEquals(TestEnum.ONE, modifiedInstance.getEnum());
 		assertEquals(BigDecimal.TEN, modifiedInstance.getQuantity());
 		assertTrue(modifiedInstance.isOptionallyAvailable());
@@ -252,6 +256,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			}
 		);
 		return parameterId;
+	}
+
+	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
+	@Override
+	DataCarrier setUp(Evita evita) {
+		return super.setUp(evita);
 	}
 
 	@DisplayName("Should create new entity of custom type")
@@ -586,7 +596,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(19, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY);
+				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-1", "Produkt 1");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -602,7 +612,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	@DisplayName("Should create new entity with prices and references of custom type as list")
-	@Order(8)
+	@Order(9)
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldCreateNewCustomProductWithPricesAndReferencesAsList(EvitaContract evita) {
@@ -611,8 +621,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
-					.setCode("product-1")
-					.setName(CZECH_LOCALE, "Produkt 1")
+					.setCode("product-2")
+					.setName(CZECH_LOCALE, "Produkt 2")
 					.setEnum(TestEnum.ONE)
 					.setOptionallyAvailable(true)
 					.setQuantity(BigDecimal.TEN)
@@ -651,14 +661,77 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(19, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY);
+				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-2", "Produkt 2");
 
 				newProduct.upsertVia(evitaSession);
 
 				assertTrue(newProduct.getId() > 0);
 				assertProduct(
 					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
-					"product-1", "Produkt 1", TestEnum.ONE, BigDecimal.TEN, true, 78L,
+					"product-2", "Produkt 2", TestEnum.ONE, BigDecimal.TEN, true, 78L,
+					new String[]{"market-1", "market-2"},
+					VALIDITY
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should create new entity with prices and references of custom type as array")
+	@Order(10)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithPricesAndReferencesAsArray(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-3")
+					.setName(CZECH_LOCALE, "Produkt 3")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttributeAsVarArg("market-1", "market-2")
+					.setMarketsAsVarArg("market-3", "market-4")
+					.setAllPricesAsArray(
+						new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+						new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+						new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+						new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+						new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+						new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+					)
+					.addParameter(parameterId, that -> that.setCategoryPriority(1L));
+
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> newProduct.setBasicPrice(
+						new Price(
+							5, "reference", CURRENCY_CZK, null,
+							BigDecimal.ONE, BigDecimal.TEN, new BigDecimal("1.1"), null, true
+						)
+					),
+					"Should refuse to set different price via basic price setter."
+				);
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(19, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-3", "Produkt 3");
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				assertProduct(
+					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
+					"product-3", "Produkt 3", TestEnum.ONE, BigDecimal.TEN, true, 78L,
 					new String[]{"market-1", "market-2"},
 					VALIDITY
 				);

@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.annotation.Price;
+import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -180,21 +181,33 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 			if (returnType.equals(proxyClass)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
+					if (initialBuilder) {
+						entityBuilder.removeAllPrices();
+					}
 					final Object[] thePrices = (Object[]) args[0];
 					for (Object thePrice : thePrices) {
 						entityBuilder.setPrice((PriceContract) thePrice);
 					}
-					entityBuilder.removeAllNonTouchedPrices();
+					if (!initialBuilder) {
+						entityBuilder.removeAllNonTouchedPrices();
+					}
 					return proxy;
 				};
 			} else {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
+					if (initialBuilder) {
+						entityBuilder.removeAllPrices();
+					}
 					final Object[] thePrices = (Object[]) args[0];
 					for (Object thePrice : thePrices) {
 						entityBuilder.setPrice((PriceContract) thePrice);
 					}
-					entityBuilder.removeAllNonTouchedPrices();
+					if (!initialBuilder) {
+						entityBuilder.removeAllNonTouchedPrices();
+					}
 					return null;
 				};
 			}
@@ -231,11 +244,17 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 			if (returnType.equals(proxyClass)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
 					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
+					if (initialBuilder) {
+						entityBuilder.removeAllPrices();
+					}
 					final Collection thePrices = (Collection) args[0];
 					for (Object thePrice : thePrices) {
 						entityBuilder.setPrice((PriceContract) thePrice);
 					}
-					entityBuilder.removeAllNonTouchedPrices();
+					if (!initialBuilder) {
+						entityBuilder.removeAllNonTouchedPrices();
+					}
 					return proxy;
 				};
 			} else {

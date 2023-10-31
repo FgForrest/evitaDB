@@ -23,9 +23,11 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
@@ -114,13 +116,15 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setMarkets(String[] markets);
 
-	ProductInterfaceEditor setMarketsAsSet(Set<String> marketsAsSet);
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	ProductInterfaceEditor setMarketsAsVarArg(String... markets);
 
 	ProductInterfaceEditor setMarketsAsList(List<String> marketsAsList);
 
 	ProductInterfaceEditor setMarketsAttribute(String[] marketsAttribute);
 
-	ProductInterfaceEditor setMarketsAttributeAsSet(Set<String> marketsAttributeAsSet);
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	ProductInterfaceEditor setMarketsAttributeAsVarArg(String... marketsAttribute);
 
 	ProductInterfaceEditor setMarketsAttributeAsList(List<String> marketsAttributeAsList);
 
@@ -162,9 +166,6 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	ProductInterfaceEditor setAllPricesAsList(List<PriceContract> allPricesAsList);
 
 	@Price
-	ProductInterfaceEditor setAllPricesAsSet(Set<PriceContract> allPricesAsSet);
-
-	@Price
-	ProductInterfaceEditor setAllPricesAsArray(PriceContract[] allPricesAsArray);
+	ProductInterfaceEditor setAllPricesAsArray(PriceContract... allPricesAsArray);
 
 }

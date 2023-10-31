@@ -162,6 +162,10 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					method, reflectionLookup, entitySchema
 				);
 
+				if (referenceSchema == null) {
+					return null;
+				}
+
 				final ResolvedParameter firstParameter;
 				if (method.getParameterCount() > 0) {
 					if (Collection.class.isAssignableFrom(method.getParameterTypes()[0])) {
