@@ -98,8 +98,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 	private static void assertProduct(
 		SealedEntity product,
-		String code, String name, TestEnum theEnum,
-		BigDecimal quantity, boolean optionallyAvailable, Long priority,
+		String code, String name,
+		TestEnum theEnum,
+		BigDecimal quantity,
+		boolean optionallyAvailable,
+		Long priority,
 		String[] markets,
 		DateTimeRange validity
 	) {
@@ -108,6 +111,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(theEnum, TestEnum.valueOf(product.getAttribute(ATTRIBUTE_ENUM)));
 		assertEquals(quantity, product.getAttribute(ATTRIBUTE_QUANTITY));
 		assertEquals(priority, product.getAttribute(ATTRIBUTE_PRIORITY));
+		assertTrue(product.getAttribute(ATTRIBUTE_ALIAS, Boolean.class));
 		if (optionallyAvailable) {
 			assertTrue(product.getAttribute(ATTRIBUTE_OPTIONAL_AVAILABILITY, Boolean.class));
 		} else {
@@ -562,6 +566,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 1")
 					.setEnum(TestEnum.ONE)
 					.setOptionallyAvailable(true)
+					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
@@ -593,7 +598,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(19, mutation.get().getLocalMutations().size());
+				assertEquals(20, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-1", "Produkt 1");
@@ -625,6 +630,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 2")
 					.setEnum(TestEnum.ONE)
 					.setOptionallyAvailable(true)
+					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
 					.setMarketsAttributeAsList(Arrays.asList("market-1", "market-2"))
@@ -658,7 +664,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(19, mutation.get().getLocalMutations().size());
+				assertEquals(20, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-2", "Produkt 2");
@@ -690,6 +696,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setName(CZECH_LOCALE, "Produkt 3")
 					.setEnum(TestEnum.ONE)
 					.setOptionallyAvailable(true)
+					.setAlias(true)
 					.setQuantity(BigDecimal.TEN)
 					.setPriority(78L)
 					.setMarketsAttributeAsVarArg("market-1", "market-2")
@@ -721,7 +728,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(19, mutation.get().getLocalMutations().size());
+				assertEquals(20, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-3", "Produkt 3");
