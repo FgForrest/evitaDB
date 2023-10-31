@@ -68,6 +68,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -99,6 +100,11 @@ public class ClassSchemaAnalyzer {
 	 */
 	private final Class<?> modelClass;
 	/**
+	 * This function allows to resolve the subclass of the passed class for particular reference name. This is used to
+	 * resolve the proper type of the subclass when the main class returns only a supertype.
+	 */
+	private final BiFunction<String, Class<?>, Class<?>> subClassResolver;
+	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
 	private final ReflectionLookup reflectionLookup;
@@ -122,10 +128,6 @@ public class ClassSchemaAnalyzer {
 	 * Temporary flag - true when annotation PrimaryKey is used in the entity class.
 	 */
 	private boolean primaryKeyDefined = false;
-	/**
-	 * Temporary flag - true when annotation Parent is used in the entity class.
-	 */
-	private boolean hierarchyDefined = false;
 	/**
 	 * Temporary flag - true when annotation PriceForSale is used in the entity class.
 	 */
@@ -427,9 +429,7 @@ public class ClassSchemaAnalyzer {
 	}
 
 	public ClassSchemaAnalyzer(@Nonnull Class<?> modelClass, @Nonnull ReflectionLookup reflectionLookup) {
-		this.modelClass = modelClass;
-		this.reflectionLookup = reflectionLookup;
-		this.postProcessor = null;
+		this(modelClass, (referenceName, aClass) -> aClass, reflectionLookup, null);
 	}
 
 	public ClassSchemaAnalyzer(
@@ -437,7 +437,17 @@ public class ClassSchemaAnalyzer {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull SchemaPostProcessor postProcessor
 	) {
+		this(modelClass, (referenceName, aClass) -> aClass, reflectionLookup, postProcessor);
+	}
+
+	public ClassSchemaAnalyzer(
+		@Nonnull Class<?> modelClass,
+		@Nonnull BiFunction<String, Class<?>, Class<?>> subClassResolver,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull SchemaPostProcessor postProcessor
+	) {
 		this.modelClass = modelClass;
+		this.subClassResolver = subClassResolver;
 		this.reflectionLookup = reflectionLookup;
 		this.postProcessor = postProcessor;
 	}
@@ -573,7 +583,7 @@ public class ClassSchemaAnalyzer {
 				final Class<?> referenceType = extractReturnType(modelClass, getter);
 				defineReference(
 					catalogBuilder, entityBuilder, referenceAnnotation, referenceName, getter.toGenericString(),
-					referenceType
+					subClassResolver.apply(referenceName, referenceType)
 				);
 			}
 			ofNullable(reflectionLookup.getAnnotationInstance(getter, ParentEntity.class))
@@ -681,7 +691,7 @@ public class ClassSchemaAnalyzer {
 						catalogBuilder, entityBuilder,
 						referenceAnnotation, referenceName,
 						fieldEntry.getKey().toGenericString(),
-						referenceType
+						subClassResolver.apply(referenceName, referenceType)
 					);
 				}
 				if (annotation instanceof ParentEntity) {
@@ -719,7 +729,6 @@ public class ClassSchemaAnalyzer {
 	 */
 	private void defineHierarchy(@Nonnull EntitySchemaBuilder entityBuilder) {
 		entityBuilder.withHierarchy();
-		hierarchyDefined = true;
 	}
 
 	/**
