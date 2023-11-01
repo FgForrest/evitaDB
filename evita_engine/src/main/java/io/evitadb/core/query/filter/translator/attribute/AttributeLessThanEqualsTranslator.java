@@ -41,6 +41,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -61,13 +62,29 @@ public class AttributeLessThanEqualsTranslator implements FilteringConstraintTra
 
 		if (filterByVisitor.isEntityTypeKnown()) {
 			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
-			final Comparable comparableValue = (Comparable) EvitaDataTypes.toTargetType(attributeValue, attributeDefinition.getPlainType());
+			final Class<? extends Serializable> attributeType = attributeDefinition.getPlainType();
+			final Comparable comparableValue = (Comparable) EvitaDataTypes.toTargetType(attributeValue, attributeType);
+
+			final Predicate<BigDecimal> requestedPredicate;
+			if (Number.class.isAssignableFrom(attributeType)) {
+				final BigDecimal toBigDecimal = EvitaDataTypes.toTargetType((Serializable) comparableValue, BigDecimal.class);
+				requestedPredicate = threshold -> {
+					if (toBigDecimal != null && threshold.compareTo(toBigDecimal) > 0) {
+						return false;
+					}
+					return true;
+				};
+			} else {
+				requestedPredicate = null;
+			}
+
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeDefinition.isLocalized() ?
 					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 				filterByVisitor.applyOnFilterIndexes(
 					attributeDefinition, index -> index.getRecordsLesserThanEqFormula(comparableValue)
-				)
+				),
+				requestedPredicate
 			);
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(

@@ -298,6 +298,7 @@ public class Hierarchy implements EvitaResponseExtraResult {
 	 * @param entity             Hierarchical entity identification - it may be {@link Integer} representing primary key of the entity if no
 	 *                           {@link EntityContentRequire} requirements were passed within {@link HierarchyOfSelf}
 	 *                           query, or it may be rich {@link SealedEntity} object if the richer requirements were specified.
+	 * @param requested          true in case the entity was filtered by {@link HierarchyWithin}
 	 * @param queriedEntityCount Contains the number of queried entities that refer directly to this {@link #entity} or to any of its children
 	 *                           entities.
 	 * @param childrenCount      Contains number of hierarchical entities that are referring to this {@link #entity} as its parent.
@@ -309,13 +310,14 @@ public class Hierarchy implements EvitaResponseExtraResult {
 
 	public record LevelInfo(
 		@Nonnull EntityClassifier entity,
+		boolean requested,
 		@Nullable Integer queriedEntityCount,
 		@Nullable Integer childrenCount,
 		@Nonnull List<LevelInfo> children
 	) {
 
-		public LevelInfo(LevelInfo levelInfo, List<LevelInfo> children) {
-			this(levelInfo.entity, levelInfo.queriedEntityCount, levelInfo.childrenCount, children);
+		public LevelInfo(@Nonnull LevelInfo levelInfo, @Nonnull List<LevelInfo> children) {
+			this(levelInfo.entity, levelInfo.requested, levelInfo.queriedEntityCount, levelInfo.childrenCount, children);
 		}
 
 		/**
@@ -335,9 +337,9 @@ public class Hierarchy implements EvitaResponseExtraResult {
 		@Override
 		public String toString() {
 			if (queriedEntityCount == null && childrenCount == null) {
-				return entity.toString();
+				return entity + (requested ? " (requested)" : "");
 			} else {
-				return "[" + queriedEntityCount + ":" + childrenCount + "] " + entity;
+				return "[" + queriedEntityCount + ":" + childrenCount + "] " + entity + (requested ? " (requested)" : "");
 			}
 		}
 

@@ -21,18 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.extraResult;
+package io.evitadb.core.query.extraResult.translator.histogram.cache;
 
-import io.evitadb.api.query.filter.AttributeBetween;
-import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.function.Predicate;
 
 /**
  * A histogram is an approximate representation of the distribution of numerical data. For detailed description please
@@ -49,12 +49,12 @@ import java.math.BigDecimal;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface HistogramContract extends Serializable {
+public interface CacheableHistogramContract extends Serializable {
 
 	/**
 	 * Constant for empty histogram.
 	 */
-	HistogramContract EMPTY = new HistogramContract() {
+	CacheableHistogramContract EMPTY = new CacheableHistogramContract() {
 		@Serial private static final long serialVersionUID = 1796245817858964020L;
 
 		@Nonnull
@@ -76,8 +76,14 @@ public interface HistogramContract extends Serializable {
 
 		@Nonnull
 		@Override
-		public Bucket[] getBuckets() {
-			return new Bucket[0];
+		public CacheableBucket[] getBuckets() {
+			return new CacheableBucket[0];
+		}
+
+		@Nonnull
+		@Override
+		public HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate) {
+			return HistogramContract.EMPTY;
 		}
 
 		@Override
@@ -117,13 +123,25 @@ public interface HistogramContract extends Serializable {
 	 * values.
 	 */
 	@Nonnull
-	Bucket[] getBuckets();
+	CacheableBucket[] getBuckets();
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */
 	int estimateSize();
+
+	/**
+	 * Converts this cacheable form of histogram to the final {@link HistogramContract} that takes runtime information
+	 * about what has been requested in current request into account.
+	 *
+	 * @param requestedPredicate predicate that was requested in the query. It's used to determine which buckets
+	 *                           should be marked as requested in the final histogram.
+	 * @return final histogram that takes runtime information about what has been requested in current request into
+	 * account.
+	 */
+	@Nonnull
+	HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate);
 
 	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
@@ -133,25 +151,13 @@ public interface HistogramContract extends Serializable {
 	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
 	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
 	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
-	 * @param requested   contains true if the query contained {@link AttributeBetween} or {@link PriceBetween}
-	 *                    constraint for particular attribute / price and the bucket threshold lies within the range
-	 *                    (inclusive) of the constraint. False otherwise.
 	 */
-	record Bucket(
+	record CacheableBucket(
 		int index,
 		@Nonnull BigDecimal threshold,
-		int occurrences,
-		boolean requested
+		int occurrences
 	) implements Serializable {
 		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
 		@Serial private static final long serialVersionUID = 4216355542992506073L;
-
-		@Override
-		public String toString() {
-			return '[' +
-				(requested ? "^" : "") + threshold +
-				": " + occurrences +
-				')';
-		}
 	}
 }

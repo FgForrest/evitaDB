@@ -24,7 +24,6 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
-import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.Formula;
@@ -37,6 +36,7 @@ import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.utils.Assert;
@@ -45,9 +45,14 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This class contains logic that creates single {@link PriceHistogram} DTO requested
@@ -93,6 +98,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	public <T extends Serializable> EvitaResponseExtraResult fabricate(@Nonnull List<T> entities) {
 		// contains flag whether there was at least one formula with price predicate that filtered out some entity pks
 		final AtomicBoolean filteredRecordsFound = new AtomicBoolean();
+		final AtomicReference<Predicate<BigDecimal>> requestedPricePredicate = new AtomicReference<>();
 		// create clone of the current formula in a such way that all price termination formulas within user filter
 		// that filtered out entity primary keys based on price predicate (price between query) produce just
 		// the excluded records - this way we can compute remainder to the current filtering result and get all data
@@ -102,6 +108,8 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 				if (formula instanceof PriceTerminationFormula) {
 					if (formulaCloner.isWithin(UserFilterFormula.class)) {
 						final PriceTerminationFormula priceTerminationFormula = (PriceTerminationFormula) formula;
+						ofNullable(priceTerminationFormula.getRequestedPredicate())
+							.ifPresent(requestedPricePredicate::set);
 						final Bitmap filteredOutRecords = priceTerminationFormula.getRecordsFilteredOutByPredicate();
 						Assert.isPremiseValid(
 							filteredOutRecords != null,
@@ -122,7 +130,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 			}
 		);
 
-		final HistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
+		final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
 			queryContext.getSchema().getName(),
 			new PriceHistogramComputer(
 				bucketCount,
@@ -133,11 +141,16 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 				filteredPriceRecordAccessors, priceRecordsLookupResult
 			)
 		).compute();
-		if (optimalHistogram == HistogramContract.EMPTY) {
+		if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 			return null;
 		} else {
 			// create histogram DTO for the output
-			return new PriceHistogram(optimalHistogram);
+			return new PriceHistogram(
+				optimalHistogram.convertToHistogram(
+					ofNullable(requestedPricePredicate.get())
+						.orElseGet(() -> threshold -> false)
+				)
+			);
 		}
 	}
 

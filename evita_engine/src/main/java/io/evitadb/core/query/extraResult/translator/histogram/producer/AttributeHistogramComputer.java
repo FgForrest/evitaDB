@@ -23,12 +23,12 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
-import io.evitadb.api.requestResponse.extraResult.Histogram;
-import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogram;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.FlattenedHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramProducer.AttributeHistogramRequest;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -57,7 +57,7 @@ import static java.util.Optional.ofNullable;
  * DTO that aggregates all data necessary for computing histogram for single attribute.
  */
 @RequiredArgsConstructor
-public class AttributeHistogramComputer implements CacheableEvitaResponseExtraResultComputer<HistogramContract> {
+public class AttributeHistogramComputer implements CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> {
 	/**
 	 * Contains the name of the reference attribute.
 	 */
@@ -66,7 +66,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Contains reference to the lambda that needs to be executed THE FIRST time the histogram produced by this computer
 	 * instance is really computed (and memoized).
 	 */
-	private final Consumer<CacheableEvitaResponseExtraResultComputer<HistogramContract>> onComputationCallback;
+	private final Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> onComputationCallback;
 	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
@@ -102,9 +102,14 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 * Contains result - computed histogram. The value is initialized during {@link #compute()} method, and it is
 	 * memoized, so it's ensured it's computed only once.
 	 */
-	private HistogramContract memoizedResult;
+	private CacheableHistogramContract memoizedResult;
 
-	public AttributeHistogramComputer(@Nonnull String attributeName, @Nonnull Formula filterFormula, int bucketCount, @Nonnull AttributeHistogramRequest request) {
+	public AttributeHistogramComputer(
+		@Nonnull String attributeName,
+		@Nonnull Formula filterFormula,
+		int bucketCount,
+		@Nonnull AttributeHistogramRequest request
+	) {
 		this.attributeName = attributeName;
 		this.filterFormula = filterFormula;
 		this.bucketCount = bucketCount;
@@ -135,8 +140,10 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Nonnull
 	@Override
-	public CacheableEvitaResponseExtraResultComputer<HistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<HistogramContract>> selfOperator) {
-		return new AttributeHistogramComputer(attributeName, selfOperator, filterFormula, bucketCount, request);
+	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
+		return new AttributeHistogramComputer(
+			attributeName, selfOperator, filterFormula, bucketCount, request
+		);
 	}
 
 	/**
@@ -145,8 +152,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Nullable
 	private static <T extends Comparable<T>> HistogramDataCruncher<T> createHistogramDataCruncher(
 		@Nonnull AttributeHistogramComputer histogramComputer,
-		int bucketCount, ValueToRecordBitmap<T>[] buckets
-	) {
+		int bucketCount,
+		@Nonnull ValueToRecordBitmap<T>[] buckets
+		) {
 		if (ArrayUtils.isEmpty(buckets)) {
 			return null;
 		} else {
@@ -323,7 +331,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Nonnull
 	@Override
-	public HistogramContract compute() {
+	public CacheableHistogramContract compute() {
 		if (memoizedResult == null) {
 			// create cruncher that will compute the histogram
 			@SuppressWarnings("rawtypes")
@@ -336,12 +344,12 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 
 			if (optimalHistogram != null) {
-				memoizedResult = new Histogram(
+				memoizedResult = new CacheableHistogram(
 					optimalHistogram.getHistogram(),
 					optimalHistogram.getMaxValue()
 				);
 			} else {
-				memoizedResult = HistogramContract.EMPTY;
+				memoizedResult = CacheableHistogramContract.EMPTY;
 			}
 
 			ofNullable(onComputationCallback).ifPresent(it -> it.accept(this));

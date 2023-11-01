@@ -78,6 +78,7 @@ import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -233,7 +234,6 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
 	 * the query result to be reused in other query evaluation phases (require).
 	 */
-	@Getter
 	private Formula rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
@@ -1064,6 +1064,13 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 	public void returnBuffer(@Nonnull int[] borrowedBuffer) {
 		this.buffers.push(borrowedBuffer);
+	}
+
+	@Nonnull
+	public Bitmap getRootHierarchyNodes() {
+		return ofNullable(rootHierarchyNodesFormula)
+			.map(Formula::compute)
+			.orElse(EmptyBitmap.INSTANCE);
 	}
 
 	/**

@@ -46,6 +46,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -55,6 +56,11 @@ import java.util.stream.Stream;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
+	/**
+	 * Predicate that will mark the produced {@link LevelInfo} as requested.
+	 */
+	@Nonnull
+	private final IntPredicate requestedPredicate;
 	/**
 	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
@@ -91,6 +97,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 	private final boolean omitSiblings;
 
 	public ParentStatisticsHierarchyVisitor(
+		@Nonnull IntPredicate requestedPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nonnull IntFunction<Formula> queriedEntityComputer,
@@ -98,6 +105,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer,
 		boolean omitSiblings
 	) {
+		this.requestedPredicate = requestedPredicate;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
 		this.entityFetcher = entityFetcher;
@@ -162,6 +170,7 @@ public class ParentStatisticsHierarchyVisitor implements HierarchyVisitor {
 				// and create element in accumulator that will be filled in
 				accumulator.push(
 					new Accumulator(
+						requestedPredicate.test(entityPrimaryKey),
 						entityFetcher.apply(entityPrimaryKey),
 						() -> queriedEntityComputer.apply(node.entityPrimaryKey())
 					)

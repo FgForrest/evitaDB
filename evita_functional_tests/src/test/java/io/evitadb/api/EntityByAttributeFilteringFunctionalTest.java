@@ -120,7 +120,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Verifies histogram integrity against source entities.
 	 */
-	private static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts, String attributeName) {
+	private static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts, String attributeName, BigDecimal from, BigDecimal to) {
 		final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
 		assertNotNull(histogramPacket);
 		final HistogramContract histogram = histogramPacket.getHistogram(attributeName);
@@ -163,9 +163,17 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = histogram.getBuckets()[i];
+			if (
+				(from != null || to != null) &&
+					(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+				assertTrue(bucket.requested());
+			} else {
+				assertFalse(bucket.requested());
+			}
 			assertEquals(
-				ofNullable(expectedOccurrences.get(i)).orElse(0), bucket.getOccurrences(),
-				"Expected " + expectedOccurrences.get(i) + " occurrences in bucket " + i + ", but got " + bucket.getOccurrences() + "!"
+				ofNullable(expectedOccurrences.get(i)).orElse(0), bucket.occurrences(),
+				"Expected " + expectedOccurrences.get(i) + " occurrences in bucket " + i + ", but got " + bucket.occurrences() + "!"
 			);
 		}
 	}
@@ -193,7 +201,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = buckets.length - 1; i >= 0; i--) {
 			final Bucket bucket = buckets[i];
-			final int valueCompared = attributeValue.compareTo(bucket.getThreshold());
+			final int valueCompared = attributeValue.compareTo(bucket.threshold());
 			if (valueCompared >= 0) {
 				return i;
 			}
@@ -3584,8 +3592,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null)
 					.collect(Collectors.toList());
 
-				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY);
-				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY);
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, null, null);
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY, null, null);
 
 				return null;
 			}
@@ -3643,14 +3651,14 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertHistogramIntegrity(
 					result,
 					filteredProducts.stream().filter(priorityAttributePredicate).collect(Collectors.toList()),
-					ATTRIBUTE_QUANTITY
+					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
 				);
 
 				// the attribute `between(ATTRIBUTE_PRIORITY, 15000, 90000)` query must be ignored while computing its histogram
 				assertHistogramIntegrity(
 					result,
 					filteredProducts.stream().filter(quantityAttributePredicate).collect(Collectors.toList()),
-					ATTRIBUTE_PRIORITY
+					ATTRIBUTE_PRIORITY, new BigDecimal("15000"), new BigDecimal("90000")
 				);
 
 				return null;
