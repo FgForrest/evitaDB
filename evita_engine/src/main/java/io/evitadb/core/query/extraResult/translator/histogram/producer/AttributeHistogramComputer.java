@@ -224,7 +224,9 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				return converted;
 			};
 		} else if (BigDecimal.class.isAssignableFrom(histogramRequest.attributeSchema().getType())) {
-			converter = value -> ((BigDecimal) value).stripTrailingZeros().scaleByPowerOfTen(histogramRequest.getDecimalPlaces()).intValueExact();
+			converter = value -> ((BigDecimal) value).stripTrailingZeros()
+				.scaleByPowerOfTen(histogramRequest.getDecimalPlaces())
+				.intValue();
 		} else {
 			throw new EvitaInternalError(
 				"Unsupported histogram number type: " + histogramRequest.attributeSchema().getType() +
