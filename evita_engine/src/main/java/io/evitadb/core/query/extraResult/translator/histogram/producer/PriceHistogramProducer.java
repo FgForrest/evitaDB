@@ -104,28 +104,39 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 		// the excluded records - this way we can compute remainder to the current filtering result and get all data
 		// for price histogram ignoring the price between filtering query
 		final Formula formulaWithFilteredOutResults = FormulaCloner.clone(
-			filteringFormula, (formulaCloner, formula) -> {
-				if (formula instanceof PriceTerminationFormula) {
-					if (formulaCloner.isWithin(UserFilterFormula.class)) {
-						final PriceTerminationFormula priceTerminationFormula = (PriceTerminationFormula) formula;
-						ofNullable(priceTerminationFormula.getRequestedPredicate())
-							.ifPresent(requestedPricePredicate::set);
-						final Bitmap filteredOutRecords = priceTerminationFormula.getRecordsFilteredOutByPredicate();
-						Assert.isPremiseValid(
-							filteredOutRecords != null,
-							"Compute was not yet called on price termination formula, this is not expected!"
-						);
-						if (filteredOutRecords.isEmpty()) {
-							return EmptyFormula.INSTANCE;
-						} else {
-							filteredRecordsFound.set(true);
-							return priceTerminationFormula.getCloneWithPricePredicateFilteredOutResults();
+			filteringFormula, (formulaCloner, theFormula) -> {
+				if (theFormula instanceof UserFilterFormula) {
+					// we need to reconstruct the user filter formula
+					final Formula updatedUserFilterFormula = FormulaCloner.clone(
+						theFormula,
+						innerFormula -> {
+							if (innerFormula instanceof PriceTerminationFormula priceTerminationFormula) {
+								ofNullable(priceTerminationFormula.getRequestedPredicate())
+									.ifPresent(requestedPricePredicate::set);
+								final Bitmap filteredOutRecords = priceTerminationFormula.getRecordsFilteredOutByPredicate();
+								Assert.isPremiseValid(
+									filteredOutRecords != null,
+									"Compute was not yet called on price termination formula, this is not expected!"
+								);
+								if (filteredOutRecords.isEmpty()) {
+									return EmptyFormula.INSTANCE;
+								} else {
+									filteredRecordsFound.set(true);
+									return priceTerminationFormula.getCloneWithPricePredicateFilteredOutResults();
+								}
+							} else {
+								return innerFormula;
+							}
 						}
+					);
+					if (updatedUserFilterFormula.getInnerFormulas().length == 0) {
+						// if there is no formula left in tue user filter container, leave it out entirely
+						return null;
 					} else {
-						return formula;
+						return updatedUserFilterFormula;
 					}
 				} else {
-					return formula;
+					return theFormula;
 				}
 			}
 		);

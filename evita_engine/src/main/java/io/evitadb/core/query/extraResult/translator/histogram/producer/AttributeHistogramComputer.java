@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
@@ -184,11 +185,27 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		if (this.memoizedNarrowedBuckets == null) {
 			// create formula clone without formula targeting current attribute
 			final Formula optimizedFormula = FormulaCloner.clone(
-				filterFormula, theFormula -> {
-					if (theFormula instanceof SelectionFormula) {
-						return shouldBeExcluded(((SelectionFormula)theFormula).getDelegate()) ? null : theFormula;
+				filterFormula, (visitor, theFormula) -> {
+					if (theFormula instanceof UserFilterFormula) {
+						// we need to reconstruct the user filter formula
+						final Formula updatedUserFilterFormula = FormulaCloner.clone(
+							theFormula,
+							innerFormula -> {
+								if (innerFormula instanceof SelectionFormula) {
+									return shouldBeExcluded(((SelectionFormula) innerFormula).getDelegate()) ? null : innerFormula;
+								} else {
+									return shouldBeExcluded(innerFormula) ? null : innerFormula;
+								}
+							}
+						);
+						if (updatedUserFilterFormula.getInnerFormulas().length == 0) {
+							// if there is no formula left in tue user filter container, leave it out entirely
+							return null;
+						} else {
+							return updatedUserFilterFormula;
+						}
 					} else {
-						return shouldBeExcluded(theFormula) ? null : theFormula;
+						return theFormula;
 					}
 				}
 			);
