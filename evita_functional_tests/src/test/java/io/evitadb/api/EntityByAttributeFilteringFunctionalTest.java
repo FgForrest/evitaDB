@@ -3603,6 +3603,61 @@ public class EntityByAttributeFilteringFunctionalTest {
 	@DisplayName("Should return attribute histogram for returned products excluding constraints targeting that attribute")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
+	void shouldReturnSingleAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Predicate<SealedEntity> quantityAttributePredicate = it -> ofNullable((BigDecimal) it.getAttribute(ATTRIBUTE_QUANTITY))
+			.map(attr -> attr.compareTo(new BigDecimal("100")) >= 0 && attr.compareTo(new BigDecimal("900")) <= 0)
+			.orElse(false);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeIsNotNull(ATTRIBUTE_ALIAS),
+								userFilter(
+									attributeBetween(ATTRIBUTE_QUANTITY, 100, 900)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null).toList();
+
+				// verify our test works
+				final Predicate<SealedEntity> attributePredicate = quantityAttributePredicate;
+				assertTrue(
+					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
+					"Price between query didn't filter out any products. Test is not testing anything!"
+				);
+
+				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
+				assertHistogramIntegrity(
+					result,
+					filteredProducts,
+					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
+				);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return attribute histogram for returned products excluding constraints targeting that attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
 	void shouldReturnAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, List<SealedEntity> originalProductEntities) {
 		final Predicate<SealedEntity> priorityAttributePredicate = it -> ofNullable((Long) it.getAttribute(ATTRIBUTE_PRIORITY))
 			.map(attr -> attr >= 15000L && attr <= 90000L)
