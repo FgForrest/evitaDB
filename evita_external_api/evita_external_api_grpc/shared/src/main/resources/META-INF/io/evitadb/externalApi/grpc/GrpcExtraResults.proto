@@ -40,6 +40,8 @@ message GrpcHistogram {
     // Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
     // between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
     int32 occurrences = 3;
+    // Contains true if the `bucket` is overlapping the attribute between filtering constraint
+    bool requested = 4;
   }
   // Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
   // values.
@@ -106,6 +108,8 @@ message GrpcLevelInfo {
   google.protobuf.Int32Value childrenCount = 4;
   // Contains hierarchy info of the entities that are subordinate (children) of this `entity`.
   repeated GrpcLevelInfo items = 5;
+  // Contains true if the `entity` was filtered by hierarchy within constraint
+  bool requested = 6;
 }
 
 // This DTO contains detailed information about query processing time and its decomposition to single operations.

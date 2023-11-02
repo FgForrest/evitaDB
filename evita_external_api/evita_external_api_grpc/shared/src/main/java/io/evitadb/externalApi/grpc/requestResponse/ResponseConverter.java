@@ -364,6 +364,7 @@ public class ResponseConverter {
 					SealedEntity.class
 				) :
 				toEntityReference(grpcLevelInfo.getEntityReference()),
+			grpcLevelInfo.getRequested(),
 			grpcLevelInfo.getQueriedEntityCount().isInitialized() ? grpcLevelInfo.getQueriedEntityCount().getValue() : null,
 			grpcLevelInfo.getChildrenCount().isInitialized() ? grpcLevelInfo.getChildrenCount().getValue() : null,
 			grpcLevelInfo.getItemsList().stream().map(it -> toLevelInfo(entitySchemaFetcher, evitaRequest, entityFetch, it)).collect(Collectors.toList())
@@ -407,7 +408,8 @@ public class ResponseConverter {
 		return new Bucket(
 			grpcBucket.getIndex(),
 			toBigDecimal(grpcBucket.getThreshold()),
-			grpcBucket.getOccurrences()
+			grpcBucket.getOccurrences(),
+			grpcBucket.getRequested()
 		);
 	}
 }

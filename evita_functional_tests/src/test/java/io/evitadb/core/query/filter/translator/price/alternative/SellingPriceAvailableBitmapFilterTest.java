@@ -164,7 +164,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilter() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
-			PriceBetweenTranslator.createPredicate(90, 130, QueryPriceMode.WITH_TAX, 0)
+			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
 		);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
@@ -196,7 +196,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilterBasicFirst() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
-			PriceBetweenTranslator.createPredicate(90, 130, QueryPriceMode.WITH_TAX, 0)
+			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
 		);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(

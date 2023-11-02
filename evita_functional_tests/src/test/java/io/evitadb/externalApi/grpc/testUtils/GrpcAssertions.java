@@ -340,6 +340,7 @@ public class GrpcAssertions {
 			assertEquals(expectedChild.childrenCount(), actualChild.getChildrenCount().getValue());
 		}
 		assertEquals(expectedChild.children().size(), actualChild.getItemsCount());
+		assertEquals(expectedChild.requested(), actualChild.getRequested());
 
 		final EntityClassifier expectedEntity = expectedChild.entity();
 		if (expectedEntity instanceof EntityReference entityReference) {
@@ -619,10 +620,11 @@ public class GrpcAssertions {
 		for (int i = 0; i < expectedHistogram.getBuckets().length; i++) {
 			final HistogramContract.Bucket expectedBucket = expectedHistogram.getBuckets()[i];
 			final GrpcHistogram.GrpcBucket actualBucket = actualHistogram.getBucketsList().get(i);
-			assertEquals(expectedBucket.getIndex(), actualBucket.getIndex());
+			assertEquals(expectedBucket.index(), actualBucket.getIndex());
 			final GrpcBigDecimal bucketThreshold = actualBucket.getThreshold();
-			assertEquals(expectedBucket.getThreshold(), EvitaDataTypesConverter.toBigDecimal(bucketThreshold));
-			assertEquals(expectedBucket.getOccurrences(), actualBucket.getOccurrences());
+			assertEquals(expectedBucket.threshold(), EvitaDataTypesConverter.toBigDecimal(bucketThreshold));
+			assertEquals(expectedBucket.occurrences(), actualBucket.getOccurrences());
+			assertEquals(expectedBucket.requested(), actualBucket.getRequested());
 		}
 	}
 

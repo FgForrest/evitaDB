@@ -60,7 +60,7 @@ public class GrpcHierarchyBuilderTest {
 			Map.of(
 				"megaMenu",
 				List.of(
-					new LevelInfo(createHierachyEntityReference(2), 0, 0, new ArrayList<>(0))
+					new LevelInfo(createHierachyEntityReference(2), false, 0, 0, new ArrayList<>(0))
 				)
 			),
 			Map.of(
@@ -68,9 +68,9 @@ public class GrpcHierarchyBuilderTest {
 				Map.of(
 					"megaMenu",
 					List.of(
-						new LevelInfo(createHierachyEntityReference(1), 1, 0,
+						new LevelInfo(createHierachyEntityReference(1), false, 1, 0,
 							List.of(
-								new LevelInfo(createHierachyEntityReference(1), 1, 0, new ArrayList<>(0))
+								new LevelInfo(createHierachyEntityReference(1), true, 1, 0, new ArrayList<>(0))
 							)
 						)
 					)
@@ -80,15 +80,15 @@ public class GrpcHierarchyBuilderTest {
 					"megaMenu",
 					List.of(
 						new LevelInfo(
-							createHierachyEntityReference(3), 2, 0,
+							createHierachyEntityReference(3), false, 2, 0,
 							List.of(
 								new LevelInfo(
-									createHierachyEntityReference(1), 1, 0,
+									createHierachyEntityReference(1), true, 1, 0,
 									List.of(
 										new LevelInfo(
-											createHierachyEntityReference(2), 4, 0,
+											createHierachyEntityReference(2), false, 4, 0,
 											List.of(
-												new LevelInfo(createHierachyEntityReference(5), 0, 0, new ArrayList<>(0))
+												new LevelInfo(createHierachyEntityReference(5), false, 0, 0, new ArrayList<>(0))
 											)
 										)
 									)
@@ -118,16 +118,16 @@ public class GrpcHierarchyBuilderTest {
 		final Hierarchy entityHierarchy = new Hierarchy(
 			Map.of(
 				"megaMenu",
-				List.of(new LevelInfo(createHierarchyEntity(2), 0, 0, new ArrayList<>(0)))
+				List.of(new LevelInfo(createHierarchyEntity(2), false, 0, 0, new ArrayList<>(0)))
 			),
 			Map.of(
 				Entities.CATEGORY,
 				Map.of(
 					"megaMenu",
 					List.of(
-						new LevelInfo(createHierarchyEntity(1), 1, 0,
+						new LevelInfo(createHierarchyEntity(1), true, 1, 0,
 							List.of(
-								new LevelInfo(createHierarchyEntity(6), 1, 0, new ArrayList<>(0))
+								new LevelInfo(createHierarchyEntity(6), false, 1, 0, new ArrayList<>(0))
 							)
 						)
 					)
@@ -137,15 +137,15 @@ public class GrpcHierarchyBuilderTest {
 					"megaMenu",
 					List.of(
 						new LevelInfo(
-							createHierarchyEntity(3), 2, 0,
+							createHierarchyEntity(3), false, 2, 0,
 							List.of(
 								new LevelInfo(
-									createHierarchyEntity(9), 1, 0,
+									createHierarchyEntity(9), false, 1, 0,
 									List.of(
 										new LevelInfo(
-											createHierarchyEntity(4), 4, 0,
+											createHierarchyEntity(4), true, 4, 0,
 											List.of(
-												new LevelInfo(createHierarchyEntity(7), 0, 0, new ArrayList<>(0))
+												new LevelInfo(createHierarchyEntity(7), false, 0, 0, new ArrayList<>(0))
 											)
 										)
 									)

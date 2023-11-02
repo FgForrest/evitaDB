@@ -130,6 +130,7 @@ public class GrpcHierarchyStatisticsBuilder {
 			.ifPresent(it -> grpcLevelInfoBuilder.setQueriedEntityCount(Int32Value.of(it)));
 		ofNullable(levelInfo.childrenCount())
 			.ifPresent(it -> grpcLevelInfoBuilder.setChildrenCount(Int32Value.of(it)));
+		grpcLevelInfoBuilder.setRequested(levelInfo.requested());
 		grpcLevelInfoBuilder.addAllItems(children);
 
 		if (levelInfo.entity() instanceof SealedEntity entity) {
