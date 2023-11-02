@@ -35,17 +35,18 @@ import java.util.Locale;
  */
 public interface ProductCategoryInterfaceEditor extends ProductCategoryInterface {
 
-	void setOrderInCategory(@Nonnull Long orderInCategory);
+	ProductCategoryInterfaceEditor setOrderInCategory(@Nonnull Long orderInCategory);
 
-	void setLabel(@Nonnull String label);
+	ProductCategoryInterfaceEditor setLabel(@Nonnull String label);
+	ProductCategoryInterfaceEditor setShadow(boolean shadow);
 
-	void setLabel(Locale locale, @Nonnull String label);
+	ProductCategoryInterfaceEditor setLabel(Locale locale, @Nonnull String label);
 
-	void setCategory(@Nonnull CategoryInterface category);
+	ProductCategoryInterfaceEditor setCategory(@Nonnull CategoryInterface category);
 
-	void setCategoryReference(@Nonnull EntityReference categoryReference);
+	ProductCategoryInterfaceEditor setCategoryReference(@Nonnull EntityReference categoryReference);
 
-	void setCategoryReferencePrimaryKey(int categoryReferencePrimaryKey);
+	ProductCategoryInterfaceEditor setCategoryReferencePrimaryKey(int categoryReferencePrimaryKey);
 
 }
 

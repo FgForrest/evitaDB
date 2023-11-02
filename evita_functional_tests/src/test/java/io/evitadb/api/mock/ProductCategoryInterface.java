@@ -48,6 +48,9 @@ public interface ProductCategoryInterface {
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	Long getOrderInCategory();
 
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_SHADOW)
+	boolean isShadow();
+
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	OptionalLong getOrderInCategoryIfPresent();
 

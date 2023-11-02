@@ -168,6 +168,9 @@ public interface ProductInterface extends EntityClassifier {
 	@ReferenceRef(Entities.CATEGORY)
 	ProductCategoryInterface getCategoryById(int parameterId);
 
+	@ReferenceRef(Entities.PARAMETER)
+	ProductParameterInterface getParameterById(int parameterId);
+
 	@PriceForSale
 	PriceContract getPriceForSale();
 

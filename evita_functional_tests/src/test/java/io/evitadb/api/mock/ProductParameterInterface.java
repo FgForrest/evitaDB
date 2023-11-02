@@ -24,9 +24,7 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 
 /**
@@ -34,13 +32,12 @@ import io.evitadb.test.generator.DataGenerator;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@Entity(name = Entities.PARAMETER)
-public interface ParameterReferenceInterface {
+public interface ProductParameterInterface {
 
 	@ReferencedEntity
 	int getPrimaryKey();
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
-	Long getCategoryPriority();
+	Long getPriority();
 
 }

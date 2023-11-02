@@ -81,6 +81,9 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@ReferenceRef(Entities.CATEGORY)
 	ProductInterfaceEditor addProductCategory(int categoryId, Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
 
+	@ReferenceRef(Entities.PARAMETER)
+	ProductInterfaceEditor addParameter(int parameterId, Consumer<ProductParameterInterfaceEditor> parameterEditor);
+
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
 	ProductInterfaceEditor setMarkets(String[] markets);

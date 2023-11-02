@@ -43,10 +43,12 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
+import io.evitadb.function.TriFunction;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.CollectorUtils;
 import io.evitadb.utils.NamingConvention;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
@@ -69,6 +71,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -861,9 +864,36 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				} else {
 					final ReferenceContract theReference = firstReference.get();
 					return resultWrapper.apply(
-						theState.createEntityReferenceProxy(itemType, entity, references.iterator().next())
+						theState.createEntityReferenceProxy(itemType, entity, theReference)
 					);
 				}
+			}
+		};
+	}
+
+	/**
+	 * Creates an implementation of the method returning a single reference by matching its primary key wrapped into
+	 * a custom proxy instance.
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleReferenceResultById(
+		@Nonnull String referenceName,
+		@Nonnull Class<?> itemType,
+		@Nonnull TriFunction<EntityContract, String, Integer, Optional<ReferenceContract>> referenceExtractor,
+		@Nonnull UnaryOperator<Object> resultWrapper
+	) {
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
+			final EntityContract entity = theState.getEntity();
+			final Integer referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
+			final Optional<ReferenceContract> reference = referenceExtractor.apply(entity, referenceName, referencedId);
+
+			if (reference.isEmpty()) {
+				return resultWrapper.apply(null);
+			} else {
+				final ReferenceContract theReference = reference.get();
+				return resultWrapper.apply(
+					theState.createEntityReferenceProxy(itemType, entity, theReference)
+				);
 			}
 		};
 	}
@@ -1267,10 +1297,13 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		super(
 			"getReference",
 			(method, proxyState) -> {
+				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+
 				// we are interested only in abstract methods without parameters
-				if (method.getParameterCount() > 0) {
+				if (returnType.equals(proxyState.getProxyClass()) || void.class.equals(returnType)) {
 					return null;
 				}
+
 				// now we need to identify reference schema that is being requested
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final EntitySchemaContract entitySchema = proxyState.getEntitySchema();
@@ -1284,7 +1317,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					// finally provide implementation that will retrieve the reference or reference entity from the entity
 					final String referenceName = referenceSchema.getName();
 					// now we need to identify the return type
-					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 					final Class<?>[] resolvedTypes = getResolvedTypes(method, proxyState.getProxyClass());
 					final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
 					final int index = Optional.class.isAssignableFrom(resolvedTypes[0]) ? 1 : 0;
@@ -1302,7 +1334,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						itemType = resolvedTypes[index];
 					}
 
-					@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor =
+					@Nonnull final BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor =
 						resultWrapper instanceof OptionalProducingOperator ?
 							(entity, theReferenceName) -> entity.referencesAvailable(theReferenceName) ?
 								entity.getReferences(theReferenceName).stream().filter(Droppable::exists) : null :
@@ -1324,6 +1356,14 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						return getReferencedEntity(
 							entitySchema, referenceSchema, entityRefInstance.value(), collectionType, itemType, referenceExtractor, resultWrapper
 						);
+					} else if (method.getParameterCount() == 1 && NumberUtils.isIntConvertibleNumber(method.getParameterTypes()[0]) && collectionType == null) {
+						@Nonnull final TriFunction<EntityContract, String, Integer, Optional<ReferenceContract>> referenceByIdExtractor =
+							resultWrapper instanceof OptionalProducingOperator ?
+								(entity, theReferenceName, referencedEPK) -> entity.referencesAvailable(theReferenceName) ?
+									entity.getReference(theReferenceName, referencedEPK).filter(Droppable::exists) : empty() :
+								(theEntity, theRefName, referencedEPK) -> theEntity.getReference(theRefName, referencedEPK).filter(Droppable::exists);
+
+						return singleReferenceResultById(referenceName, itemType, referenceByIdExtractor, resultWrapper);
 					} else {
 						return getReference(referenceName, collectionType, referenceExtractor, itemType, resultWrapper);
 					}

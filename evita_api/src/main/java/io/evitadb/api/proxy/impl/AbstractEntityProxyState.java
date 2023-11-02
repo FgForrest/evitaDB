@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
@@ -178,6 +179,44 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 				)
 			)
 		)
+			.proxy(expectedType)
+			.orElseThrow();
+	}
+
+	/**
+	 * Creates proxy instance of entity builder that implements `expectedType` contract and creates new entity builder.
+	 *
+	 * @param entitySchema schema of the entity to be created
+	 * @param expectedType contract that the proxy should implement
+	 * @param callback callback that will be called when the entity is upserted
+	 * @return proxy instance of sealed entity
+	 * @param <T> type of contract that the proxy should implement
+	 * @throws EntityClassInvalidException if the proxy contract is not valid
+	 */
+	@Nonnull
+	public <T> T createEntityBuilderProxyWithCallback(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Class<T> expectedType,
+		@Nonnull ProxyType proxyType,
+		@Nonnull Consumer<EntityReference> callback
+	) throws EntityClassInvalidException {
+		return generatedProxyObjects.computeIfAbsent(
+				new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
+				key -> {
+					final InitialEntityBuilder entityBuilder = new InitialEntityBuilder(
+						entitySchema,
+						Integer.MIN_VALUE
+					);
+					return new ProxyWithUpsertCallback(
+						ProxycianFactory.createEntityBuilderProxy(
+							expectedType, recipes, collectedRecipes,
+							entityBuilder,
+							getReflectionLookup()
+						),
+						callback
+					);
+				}
+			)
 			.proxy(expectedType)
 			.orElseThrow();
 	}

@@ -706,6 +706,7 @@ public class ProxycianFactory implements ProxyFactory {
 		public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
 			return ProxycianFactory.createEntityBuilderProxy(expectedType, recipes, collectedRecipes, entity, reflectionLookup);
 		}
+
 	}
 
 	/**

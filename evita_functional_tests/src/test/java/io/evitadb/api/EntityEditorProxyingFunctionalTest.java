@@ -25,9 +25,12 @@ package io.evitadb.api;
 
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.CategoryInterfaceEditor;
+import io.evitadb.api.mock.ProductCategoryInterface;
 import io.evitadb.api.mock.ProductInterface;
 import io.evitadb.api.mock.ProductInterfaceEditor;
+import io.evitadb.api.mock.ProductParameterInterface;
 import io.evitadb.api.mock.UnknownEntityEditorInterface;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -104,7 +107,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		boolean optionallyAvailable,
 		Long priority,
 		String[] markets,
-		DateTimeRange validity
+		DateTimeRange validity,
+		int parameterId,
+		int categoryId1,
+		int categoryId2
 	) {
 		assertEquals(code, product.getAttribute(ATTRIBUTE_CODE));
 		assertEquals(name, product.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE));
@@ -167,6 +173,20 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					product.getPrice(7, "basic", CURRENCY_CZK).orElseThrow()
 				)
 		);
+
+		final ReferenceContract parameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+		assertNotNull(parameter);
+		assertEquals(10L, parameter.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
+
+		final ReferenceContract category1 = product.getReference(Entities.CATEGORY, categoryId1).orElseThrow();
+		assertEquals(1L, category1.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
+		assertTrue(category1.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, boolean.class));
+		assertEquals("Kategorie 1", category1.getAttribute(ATTRIBUTE_CATEGORY_LABEL, CZECH_LOCALE, String.class));
+
+		final ReferenceContract category2 = product.getReference(Entities.CATEGORY, categoryId2).orElseThrow();
+		assertEquals(2L, category2.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
+		assertFalse(category2.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, boolean.class));
+		assertEquals("Kategorie 2", category2.getAttribute(ATTRIBUTE_CATEGORY_LABEL, CZECH_LOCALE, String.class));
 	}
 
 	private static void assertUnknownEntity(SealedEntity unknownEntity, String code, String name, long priority) {
@@ -175,7 +195,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(priority, unknownEntity.getAttribute(ATTRIBUTE_PRIORITY, Long.class));
 	}
 
-	private static void assertModifiedInstance(ProductInterface modifiedInstance, int categoryId1, int categoryId2, DateTimeRange validity, String entityCode, String entityName) {
+	private static void assertModifiedInstance(
+		ProductInterface modifiedInstance,
+		int parameterId, int categoryId1, int categoryId2,
+		DateTimeRange validity, String entityCode, String entityName
+	) {
 		assertEquals(entityCode, modifiedInstance.getCode());
 		assertEquals(entityName, modifiedInstance.getName(CZECH_LOCALE));
 		assertEquals(TestEnum.ONE, modifiedInstance.getEnum());
@@ -183,9 +207,25 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertTrue(modifiedInstance.isOptionallyAvailable());
 		assertArrayEquals(new String[]{"market-1", "market-2"}, modifiedInstance.getMarketsAttribute());
 		assertArrayEquals(new String[]{"market-3", "market-4"}, modifiedInstance.getMarkets());
-		assertNotNull(modifiedInstance.getCategoryById(categoryId1));
-		assertEquals(categoryId1, modifiedInstance.getCategoryById(categoryId1).getPrimaryKey());
-		assertEquals(1L, modifiedInstance.getCategoryById(categoryId1).getCategoryPriority());
+
+		final ProductParameterInterface parameter = modifiedInstance.getParameterById(parameterId);
+		assertNotNull(parameter);
+		assertEquals(parameterId, parameter.getPrimaryKey());
+		assertEquals(10L, parameter.getPriority());
+
+		final ProductCategoryInterface category1 = modifiedInstance.getCategoryById(categoryId1);
+		assertNotNull(category1);
+		assertEquals(categoryId1, category1.getPrimaryKey());
+		assertEquals(1L, category1.getOrderInCategory());
+		assertEquals("Kategorie 1", category1.getLabel(CZECH_LOCALE));
+		assertTrue(category1.isShadow());
+
+		final ProductCategoryInterface category2 = modifiedInstance.getCategoryById(categoryId2);
+		assertNotNull(category2);
+		assertEquals(categoryId2, category2.getPrimaryKey());
+		assertEquals(2L, category2.getOrderInCategory());
+		assertEquals("Kategorie 2", category2.getLabel(CZECH_LOCALE));
+		assertFalse(category2.isShadow());
 
 		assertFalse(
 			new Price(1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
@@ -237,6 +277,31 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	private static int createParameterEntityIfMissing(EvitaContract evita) {
+		final int parameterId = evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+					query(
+						collection(Entities.PARAMETER),
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "parameter-1")
+						)
+					)
+				);
+				return parameterReference
+					.orElseGet(
+						() -> evitaSession.createNewEntity(Entities.PARAMETER)
+							.setAttribute(ATTRIBUTE_CODE, "parameter-1")
+							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
+							.upsertVia(evitaSession)
+					)
+					.getPrimaryKey();
+			}
+		);
+		return parameterId;
+	}
+
 	private static int createCategoryEntityIfMissing(EvitaContract evita, int number) {
 		return evita.updateCatalog(
 			TEST_CATALOG,
@@ -251,9 +316,11 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				);
 				return categoryReference
 					.orElseGet(
-						() -> evitaSession.createNewEntity(Entities.CATEGORY)
+						() -> evitaSession.createNewEntity(Entities.CATEGORY, 2000 + number)
 							.setAttribute(ATTRIBUTE_CODE, "category-" + number)
 							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
+							.setAssociatedData(ASSOCIATED_DATA_LABELS, new Labels())
+							.setAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES, new ReferencedFileSet())
 							.upsertVia(evitaSession)
 					)
 					.getPrimaryKey();
@@ -556,6 +623,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldCreateNewCustomProductWithPricesAndReferences(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
 		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
 		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
 		evita.updateCatalog(
@@ -578,8 +646,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setBasicPrice(new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true))
 					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, CURRENCY_CZK, 6)
 					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "CZK", 7, VALIDITY, 8)
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L));
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -597,10 +666,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(20, mutation.get().getLocalMutations().size());
+				assertEquals(22, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, categoryId1, VALIDITY, "product-1", "Produkt 1");
+				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-1", "Produkt 1");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -609,7 +678,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
 					"product-1", "Produkt 1", TestEnum.ONE, BigDecimal.TEN, true, 78L,
 					new String[]{"market-1", "market-2"},
-					VALIDITY
+					VALIDITY, parameterId, categoryId1, categoryId2
 				);
 			}
 		);
@@ -620,7 +689,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldCreateNewCustomProductWithPricesAndReferencesAsList(EvitaContract evita) {
-		final int parameterId = createCategoryEntityIfMissing(evita);
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
@@ -645,7 +716,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 						)
 					)
-					.addParameter(parameterId, that -> that.setCategoryPriority(1L));
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -663,10 +736,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(20, mutation.get().getLocalMutations().size());
+				assertEquals(22, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-2", "Produkt 2");
+				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-2", "Produkt 2");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -675,7 +748,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
 					"product-2", "Produkt 2", TestEnum.ONE, BigDecimal.TEN, true, 78L,
 					new String[]{"market-1", "market-2"},
-					VALIDITY
+					VALIDITY, parameterId, categoryId1, categoryId2
 				);
 			}
 		);
@@ -686,7 +759,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldCreateNewCustomProductWithPricesAndReferencesAsArray(EvitaContract evita) {
-		final int parameterId = createCategoryEntityIfMissing(evita);
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
@@ -709,7 +784,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
 						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 					)
-					.addParameter(parameterId, that -> that.setCategoryPriority(1L));
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -727,10 +804,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(20, mutation.get().getLocalMutations().size());
+				assertEquals(22, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
-				assertModifiedInstance(modifiedInstance, parameterId, VALIDITY, "product-3", "Produkt 3");
+				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-3", "Produkt 3");
 
 				newProduct.upsertVia(evitaSession);
 
@@ -739,7 +816,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
 					"product-3", "Produkt 3", TestEnum.ONE, BigDecimal.TEN, true, 78L,
 					new String[]{"market-1", "market-2"},
-					VALIDITY
+					VALIDITY, parameterId, categoryId1, categoryId2
 				);
 			}
 		);

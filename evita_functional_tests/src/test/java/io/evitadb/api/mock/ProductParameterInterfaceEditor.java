@@ -28,8 +28,8 @@ package io.evitadb.api.mock;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ParameterReferenceInterfaceEditor extends ParameterReferenceInterface {
+public interface ProductParameterInterfaceEditor extends ProductParameterInterface {
 
-	void setCategoryPriority(Long priority);
+	void setPriority(Long priority);
 
 }
