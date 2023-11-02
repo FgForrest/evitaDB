@@ -37,6 +37,7 @@ import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -72,15 +73,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor.HierarchyParentsSiblingsSpecification;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordPageDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordStripDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.ExtraResultsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetGroupStatisticsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetSummaryDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.PriceHistogramDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.QueryTelemetryDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.SpecificHierarchyDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.*;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
@@ -321,16 +314,32 @@ public class FullResponseObjectBuilder {
 			return Optional.empty();
 		}
 
+		final String objectName = AttributeHistogramDescriptor.THIS.name(entitySchema);
 		final GraphQLObjectType.Builder attributeHistogramsObjectBuilder = AttributeHistogramDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(AttributeHistogramDescriptor.THIS.name(entitySchema));
-		attributeSchemas.forEach(attributeSchema ->
-			attributeHistogramsObjectBuilder.field(f -> f
-				.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-				.type(typeRef(HistogramDescriptor.THIS.name())))
-		);
+			.name(objectName);
+		attributeSchemas.forEach(attributeSchema -> {
+			final BuiltFieldDescriptor fieldForSingleAttribute = buildAttributeHistogramForSingleAttributeField(attributeSchema);
+			buildingContext.registerFieldToObject(
+				objectName,
+				attributeHistogramsObjectBuilder,
+				fieldForSingleAttribute
+			);
+		});
 
 		return Optional.of(attributeHistogramsObjectBuilder.build());
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildAttributeHistogramForSingleAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
+		final GraphQLFieldDefinition attributeFieldForSingleAttribute = newFieldDefinition()
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+			.type(typeRef(HistogramDescriptor.THIS.name()))
+			.build();
+		return new BuiltFieldDescriptor(
+			attributeFieldForSingleAttribute,
+			new AttributeHistogramForSingleAttributeDataFetcher(attributeSchema)
+		);
 	}
 
 	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented

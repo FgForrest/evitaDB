@@ -62,11 +62,16 @@ public class SiblingsStatisticsTravelingComputer extends AbstractSiblingsStatist
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nullable HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(
+			context, entityFetcher,
+			hierarchyFilterPredicateProducer,
+			exclusionPredicate, scopePredicate,
+			statisticsBase, statisticsType
+		);
 	}
 
 	@Override

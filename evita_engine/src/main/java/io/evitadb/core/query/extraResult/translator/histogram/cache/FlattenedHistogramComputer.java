@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.cache;
 
-import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.core.cache.payload.CachePayloadHeader;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
@@ -38,30 +37,30 @@ import java.io.Serial;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class FlattenedHistogramComputer extends CachePayloadHeader implements TransactionalDataRelatedStructure, EvitaResponseExtraResultComputer<HistogramContract> {
+public class FlattenedHistogramComputer extends CachePayloadHeader implements TransactionalDataRelatedStructure, EvitaResponseExtraResultComputer<CacheableHistogramContract> {
 	@Serial private static final long serialVersionUID = 4049228240087093145L;
 	/**
 	 * Contains originally computed histogram.
 	 */
-	private final HistogramContract histogram;
+	private final CacheableHistogramContract histogram;
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
 	 * a precise one. Please use constants from {@link MemoryMeasuringConstants} for size computation.
 	 */
-	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull HistogramContract histogram) {
+	public static int estimateSize(@Nonnull long[] transactionalIds, @Nonnull CacheableHistogramContract histogram) {
 		return CachePayloadHeader.estimateSize(transactionalIds) +
 			histogram.estimateSize();
 	}
 
-	public FlattenedHistogramComputer(long recordHash, long transactionalIdHash, @Nonnull long[] transactionalIds, @Nonnull HistogramContract histogram) {
+	public FlattenedHistogramComputer(long recordHash, long transactionalIdHash, @Nonnull long[] transactionalIds, @Nonnull CacheableHistogramContract histogram) {
 		super(recordHash, transactionalIdHash, transactionalIds);
 		this.histogram = histogram;
 	}
 
 	@Nonnull
 	@Override
-	public HistogramContract compute() {
+	public CacheableHistogramContract compute() {
 		return histogram;
 	}
 

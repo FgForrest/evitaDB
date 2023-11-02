@@ -56,17 +56,19 @@ import org.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * PlainPriceTerminationFormulaWithPriceFilter translates price ids produced by delegate formula to entity ids. It may
- * also filter out entity ids which don't pass {@link #priceFilter} predicate test.
+ * also filter out entity ids which don't pass {@link #pricePredicate} predicate test.
  *
  * This formula consumes and produces {@link Formula} of reduced {@link PriceRecord#entityPrimaryKey() entity ids}
- * which price passes the {@link #priceFilter} predicate. It uses  information from underlying formulas that implement
+ * which price passes the {@link #pricePredicate} predicate. It uses  information from underlying formulas that implement
  * {@link FilteredPriceRecordAccessor#getFilteredPriceRecords()} to access the appropriate price for filtering purposes.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -82,7 +84,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	/**
 	 * Price filter is used to filter out entities which price doesn't match the predicate.
 	 */
-	@Getter private final PricePredicate priceFilter;
+	@Getter private final PricePredicate pricePredicate;
 	/**
 	 * Contains array of price records that links to the price ids produced by {@link #compute()} method. This array
 	 * is available once the {@link #compute()} method has been called.
@@ -90,29 +92,35 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	private ResolvedFilteredPriceRecords filteredPriceRecords;
 	/**
 	 * Bitmap is initialized (non-null) after {@link #compute()} method is called and contains set of entity primary
-	 * keys that were excluded due to {@link #priceFilter} query. This information is reused in
+	 * keys that were excluded due to {@link #pricePredicate} query. This information is reused in
 	 * {@link PriceHistogramProducer} to avoid duplicate computation - price histogram must not take price predicate
 	 * into an account.
 	 */
 	@Getter private Bitmap recordsFilteredOutByPredicate;
 
-	public PlainPriceTerminationFormulaWithPriceFilter(@Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate priceFilter) {
+	public PlainPriceTerminationFormulaWithPriceFilter(@Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate pricePredicate) {
 		super(null, containerFormula);
 		this.priceEvaluationContext = priceEvaluationContext;
-		this.priceFilter = priceFilter;
+		this.pricePredicate = pricePredicate;
 	}
 
-	private PlainPriceTerminationFormulaWithPriceFilter(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate priceFilter) {
+	private PlainPriceTerminationFormulaWithPriceFilter(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate pricePredicate) {
 		super(computationCallback, containerFormula);
-		this.priceFilter = priceFilter;
+		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 	}
 
-	private PlainPriceTerminationFormulaWithPriceFilter(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate priceFilter, @Nonnull Bitmap recordsFilteredOutByPredicate) {
+	private PlainPriceTerminationFormulaWithPriceFilter(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull PriceHandlingContainerFormula containerFormula, @Nonnull PriceEvaluationContext priceEvaluationContext, @Nonnull PricePredicate pricePredicate, @Nonnull Bitmap recordsFilteredOutByPredicate) {
 		super(recordsFilteredOutByPredicate, computationCallback, containerFormula);
-		this.priceFilter = priceFilter;
+		this.pricePredicate = pricePredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
+	}
+
+	@Nullable
+	@Override
+	public Predicate<BigDecimal> getRequestedPredicate() {
+		return pricePredicate.getRequestedPredicate();
 	}
 
 	/**
@@ -127,7 +135,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isPremiseValid(innerFormulas.length == 1, "Expected exactly single delegate inner formula!");
 		return new PlainPriceTerminationFormulaWithPriceFilter(
-			computationCallback, (PriceHandlingContainerFormula) innerFormulas[0], priceEvaluationContext, priceFilter
+			computationCallback, (PriceHandlingContainerFormula) innerFormulas[0], priceEvaluationContext, pricePredicate
 		);
 	}
 
@@ -155,7 +163,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		return new PlainPriceTerminationFormulaWithPriceFilter(
 			selfOperator,
 			(PriceHandlingContainerFormula) innerFormulas[0],
-			priceEvaluationContext, priceFilter
+			priceEvaluationContext, pricePredicate
 		);
 	}
 
@@ -168,7 +176,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 
 	@Override
 	public String toString() {
-		return priceFilter.toString();
+		return pricePredicate.toString();
 	}
 
 	@Override
@@ -183,7 +191,9 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 			compute(),
 			getFilteredPriceRecords(),
 			Objects.requireNonNull(getRecordsFilteredOutByPredicate()),
-			getPriceEvaluationContext()
+			getPriceEvaluationContext(),
+			pricePredicate.getFrom(),
+			pricePredicate.getTo()
 		);
 	}
 
@@ -242,7 +252,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 								lastExpectedEntity,
 								foundPrice -> {
 									// write entity primary key for the price located on found index if it passes predicate
-									if (priceFilter.test(foundPrice)) {
+									if (pricePredicate.test(foundPrice)) {
 										writer.add(entityId);
 										priceRecordsFunnel.add(foundPrice);
 									} else {
@@ -291,7 +301,7 @@ public class PlainPriceTerminationFormulaWithPriceFilter extends AbstractCacheab
 		return hashFunction.hashLongs(
 			new long[]{
 				priceEvaluationContext.computeHash(hashFunction),
-				priceFilter.computeHash(hashFunction)
+				pricePredicate.computeHash(hashFunction)
 			}
 		);
 	}

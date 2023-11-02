@@ -21,8 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.extraResult;
+package io.evitadb.core.query.extraResult.translator.histogram.cache;
 
+import io.evitadb.api.requestResponse.extraResult.Histogram;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -33,24 +36,25 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.function.Predicate;
 
 /**
  * Default implementation of {@link HistogramContract}
  *
- * @see HistogramContract
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @see HistogramContract
  */
 @EqualsAndHashCode
-public class Histogram implements HistogramContract {
-	@Serial private static final long serialVersionUID = 7702878167079284412L;
+public class CacheableHistogram implements CacheableHistogramContract {
+	@Serial private static final long serialVersionUID = 6790616758491107665L;
 	private final BigDecimal max;
-	@Getter private final Bucket[] buckets;
+	@Getter private final CacheableBucket[] buckets;
 
-	public Histogram(@Nonnull Bucket[] buckets, @Nonnull BigDecimal max) {
+	public CacheableHistogram(@Nonnull CacheableBucket[] buckets, @Nonnull BigDecimal max) {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
-		Bucket lastBucket = null;
-		for (Bucket bucket : buckets) {
+		CacheableBucket lastBucket = null;
+		for (CacheableBucket bucket : buckets) {
 			Assert.isTrue(
 				lastBucket == null || lastBucket.threshold().compareTo(bucket.threshold()) < 0,
 				"Buckets must have monotonic row of thresholds!"
@@ -59,13 +63,6 @@ public class Histogram implements HistogramContract {
 		}
 		this.buckets = buckets;
 		this.max = max;
-	}
-
-	@Override
-	public int estimateSize() {
-		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
-			MemoryMeasuringConstants.BIG_DECIMAL_SIZE +
-			buckets.length * Bucket.BUCKET_MEMORY_SIZE;
 	}
 
 	@Nonnull
@@ -82,14 +79,39 @@ public class Histogram implements HistogramContract {
 
 	@Override
 	public int getOverallCount() {
-		return Arrays.stream(buckets).mapToInt(Bucket::occurrences).sum();
+		return Arrays.stream(buckets).mapToInt(CacheableBucket::occurrences).sum();
+	}
+
+	@Override
+	public int estimateSize() {
+		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
+			MemoryMeasuringConstants.BIG_DECIMAL_SIZE +
+			buckets.length * CacheableBucket.BUCKET_MEMORY_SIZE;
+	}
+
+	@Nonnull
+	@Override
+	public HistogramContract convertToHistogram(@Nonnull Predicate<BigDecimal> requestedPredicate) {
+		return new Histogram(
+			Arrays.stream(buckets)
+				.map(
+					bucket -> new Bucket(
+						bucket.index(),
+						bucket.threshold(),
+						bucket.occurrences(),
+						requestedPredicate.test(bucket.threshold())
+					)
+				)
+				.toArray(Bucket[]::new),
+			max
+		);
 	}
 
 	@Override
 	public String toString() {
 		final StringBuilder sb = new StringBuilder();
 		for (int i = 0; i < buckets.length; i++) {
-			final Bucket bucket = buckets[i];
+			final CacheableBucket bucket = buckets[i];
 			final boolean hasNext = i + 1 < buckets.length;
 			sb.append("[")
 				.append(bucket.threshold())

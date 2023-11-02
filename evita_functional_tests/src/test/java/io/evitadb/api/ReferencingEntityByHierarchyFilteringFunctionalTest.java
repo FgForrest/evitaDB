@@ -733,17 +733,15 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 					entity -> entity.getLocales().contains(CZECH_LOCALE),
 					languagePredicate,
 					languagePredicate,
-					categoryCardinalities -> {
-						return new HierarchyStatisticsTuple(
-							"megaMenu",
-							computeChildren(
-								session, null, categoryHierarchy, categoryCardinalities,
-								false,
-								false, false,
-								null
-							)
-						);
-					}
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy, categoryCardinalities,
+							false,
+							false, false,
+							selectedCategoryId
+						)
+					)
 				);
 
 				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);
@@ -937,7 +935,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							categoryHierarchy, categoryCardinalities,
 							false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							2
 						)
 					)
 				);
@@ -1008,7 +1007,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1159,7 +1159,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, null, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							2
 						)
 					)
 				);
@@ -1237,7 +1238,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -1315,7 +1317,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1393,7 +1396,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1689,7 +1693,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -1766,7 +1771,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1921,7 +1927,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -1999,7 +2006,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 16, categoryHierarchy,
 							categoryCardinalities,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							16
 						)
 					)
 				);
@@ -2081,7 +2089,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							16
 						)
 					)
 				);
@@ -2228,7 +2237,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -2305,7 +2315,8 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);

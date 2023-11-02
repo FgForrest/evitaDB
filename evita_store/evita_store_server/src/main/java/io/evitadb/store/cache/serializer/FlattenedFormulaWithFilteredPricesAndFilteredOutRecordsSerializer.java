@@ -34,6 +34,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.RequiredArgsConstructor;
 
+import java.math.BigDecimal;
 import java.util.function.Supplier;
 
 /**
@@ -49,6 +50,8 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer e
 	public void write(Kryo kryo, Output output, FlattenedFormulaWithFilteredPricesAndFilteredOutRecords object) {
 		output.writeLong(object.getRecordHash());
 		output.writeLong(object.getTransactionalIdHash());
+		kryo.writeObjectOrNull(output, object.getFrom(), BigDecimal.class);
+		kryo.writeObjectOrNull(output, object.getTo(), BigDecimal.class);
 		writeBitmapIds(output, object.getTransactionalDataIds());
 		writeIntegerBitmap(output, object.compute());
 		writePriceEvaluationContext(kryo, output, object.getPriceEvaluationContext());
@@ -60,6 +63,8 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer e
 	public FlattenedFormulaWithFilteredPricesAndFilteredOutRecords read(Kryo kryo, Input input, Class<? extends FlattenedFormulaWithFilteredPricesAndFilteredOutRecords> type) {
 		final long originalHash = input.readLong();
 		final long transactionalIdHash = input.readLong();
+		final BigDecimal from = kryo.readObjectOrNull(input, BigDecimal.class);
+		final BigDecimal to = kryo.readObjectOrNull(input, BigDecimal.class);
 		final long[] bitmapIds = readBitmapIds(input);
 		final Bitmap computedResult = readIntegerBitmap(input);
 		final PriceEvaluationContext priceEvaluationContext = readPriceEvaluationContext(kryo, input);
@@ -68,7 +73,7 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecordsSerializer e
 
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			originalHash, transactionalIdHash, bitmapIds, computedResult,
-			filteredPriceRecords, recordsFilteredOutByPredicate, priceEvaluationContext
+			filteredPriceRecords, recordsFilteredOutByPredicate, priceEvaluationContext, from, to
 		);
 	}
 
