@@ -14,6 +14,7 @@
         }
       }
     },
+    "requested": false,
     "queriedEntityCount": 501,
     "childrenCount": 6,
     "children": [
@@ -31,6 +32,7 @@
             }
           }
         },
+        "requested": false,
         "queriedEntityCount": 116,
         "childrenCount": 4,
         "children": [
@@ -48,6 +50,7 @@
                 }
               }
             },
+            "requested": false,
             "queriedEntityCount": 73,
             "childrenCount": 4,
             "children": [
@@ -65,6 +68,7 @@
                     }
                   }
                 },
+                "requested": true,
                 "queriedEntityCount": 38,
                 "childrenCount": 0
               }

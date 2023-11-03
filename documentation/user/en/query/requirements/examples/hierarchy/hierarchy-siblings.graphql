@@ -15,11 +15,11 @@
             level
             entity {
               primaryKey
-              parentPrimaryKey
               attributes {
                 code
               }
             }
+            requested
             queriedEntityCount
             childrenCount
           }

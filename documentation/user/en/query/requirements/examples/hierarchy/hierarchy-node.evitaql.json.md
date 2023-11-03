@@ -126,7 +126,8 @@
       "attributes": {
         "code": "accessories"
       }
-    }
+    },
+    "requested": true
   }
 ]
 ```
