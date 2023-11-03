@@ -161,10 +161,10 @@ public class FacetSummaryConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
+					offset,
 					convertFilterConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
-						facetSummaryOfReference.getFilterGroupBy().get(),
-						offset
+						facetSummaryOfReference.getFilterGroupBy().get()
 					)
 						.orElseThrow()
 				)
@@ -176,10 +176,10 @@ public class FacetSummaryConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY,
+					offset,
 					convertOrderConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
-						facetSummaryOfReference.getOrderGroupBy().get(),
-						offset
+						facetSummaryOfReference.getOrderGroupBy().get()
 					)
 						.orElseThrow()
 				)
@@ -230,10 +230,10 @@ public class FacetSummaryConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					FacetStatisticsHeaderDescriptor.FILTER_BY,
+					offset,
 					convertFilterConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
-						facetSummaryOfReference.getFilterBy().get(),
-						offset
+						facetSummaryOfReference.getFilterBy().get()
 					)
 						.orElseThrow()
 				)
@@ -244,10 +244,10 @@ public class FacetSummaryConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					FacetStatisticsHeaderDescriptor.ORDER_BY,
+					offset,
 					convertOrderConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
-						facetSummaryOfReference.getOrderBy().get(),
-						offset
+						facetSummaryOfReference.getOrderBy().get()
 					)
 						.orElseThrow()
 				)

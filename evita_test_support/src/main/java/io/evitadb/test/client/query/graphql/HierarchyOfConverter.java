@@ -81,7 +81,8 @@ public class HierarchyOfConverter extends RequireConverter {
 					.map(orderBy -> new ArgumentSupplier[] {
 						offset -> new Argument(
 							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
-							convertOrderConstraint(new EntityDataLocator(entityType), orderBy, offset).orElse(null)
+							offset,
+							convertOrderConstraint(new EntityDataLocator(entityType), orderBy).orElse(null)
 						)
 					})
 					.orElse(new ArgumentSupplier[0]);
@@ -114,10 +115,10 @@ public class HierarchyOfConverter extends RequireConverter {
 							arguments.add(
 								offset -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
+									offset,
 									convertOrderConstraint(
 										new EntityDataLocator(referencedEntityType),
-										hierarchyOfReference.getOrderBy().get(),
-										offset
+										hierarchyOfReference.getOrderBy().get()
 									)
 										.orElse(null)
 								)
@@ -126,8 +127,9 @@ public class HierarchyOfConverter extends RequireConverter {
 
 						if (hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
 							arguments.add(
-								__ -> new Argument(
+								offset -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR,
+									offset,
 									hierarchyOfReference.getEmptyHierarchicalEntityBehaviour().name()
 								)
 							);
@@ -208,7 +210,8 @@ public class HierarchyOfConverter extends RequireConverter {
 		arguments.add(
 			offset -> new Argument(
 				HierarchyFromNodeHeaderDescriptor.NODE,
-				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode(), offset)
+				offset,
+				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode())
 					.orElseThrow(() -> new IllegalStateException("Missing required node constraint"))
 			)
 		);
@@ -282,7 +285,8 @@ public class HierarchyOfConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					HierarchyParentsHeaderDescriptor.SIBLINGS,
-					inputJsonPrinter.print(offset, siblingsArgument).stripLeading()
+					offset,
+					inputJsonPrinter.print(siblingsArgument).stripLeading()
 				)
 			);
 		}
@@ -339,14 +343,16 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                           @Nonnull HierarchyDataLocator hierarchyDataLocator) {
 		return offset -> new Argument(
 			HierarchyRequireHeaderDescriptor.STOP_AT,
-			convertRequireConstraint(hierarchyDataLocator, stopAt, offset).orElse(null)
+			offset,
+			convertRequireConstraint(hierarchyDataLocator, stopAt).orElse(null)
 		);
 	}
 
 	@Nonnull
 	private ArgumentSupplier getStatisticsArgument(@Nonnull HierarchyStatistics statistics) {
-		return __ -> new Argument(
+		return offset -> new Argument(
 			HierarchyRequireHeaderDescriptor.STATISTICS_BASE,
+			offset,
 			statistics.getStatisticsBase().name()
 		);
 	}
@@ -359,7 +365,8 @@ public class HierarchyOfConverter extends RequireConverter {
 		levelInfoBuilder
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch));
+				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch))
+			.addPrimitiveField(LevelInfoDescriptor.REQUESTED);
 
 		if (statistics != null) {
 			if (statistics.getStatisticsType().contains(StatisticsType.QUERIED_ENTITY_COUNT)) {
