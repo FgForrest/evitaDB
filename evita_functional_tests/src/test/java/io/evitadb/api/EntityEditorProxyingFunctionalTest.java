@@ -24,15 +24,8 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.ContextMissingException;
-import io.evitadb.api.mock.BrandInterface;
-import io.evitadb.api.mock.BrandInterfaceEditor;
-import io.evitadb.api.mock.CategoryInterface;
-import io.evitadb.api.mock.CategoryInterfaceEditor;
-import io.evitadb.api.mock.ProductCategoryInterface;
-import io.evitadb.api.mock.ProductInterface;
-import io.evitadb.api.mock.ProductInterfaceEditor;
-import io.evitadb.api.mock.ProductParameterInterface;
-import io.evitadb.api.mock.UnknownEntityEditorInterface;
+import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.mock.*;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -671,7 +664,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setBasicPrice(new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true))
 					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, CURRENCY_CZK, 6)
 					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "CZK", 7, VALIDITY, 8)
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
 					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
@@ -741,7 +734,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 							new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 						)
 					)
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
 					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
@@ -809,7 +802,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
 						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 					)
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
 					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
@@ -866,7 +859,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brandId)
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -911,7 +904,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setBrand(brand)
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -952,7 +945,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setNewBrand(brand -> brand.setCode("consumer-created-brand").setStore(1))
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
 
 				newProduct.setLabels(new Labels(), CZECH_LOCALE);
@@ -1014,7 +1007,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setPriority(78L)
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.addParameter(parameterId, that -> that.setPriority(10L))
+					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
 
 				assertNull(newProduct.getBrand());
@@ -1041,6 +1034,88 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertTrue(newProduct.getId() > 0);
 				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
 				assertTrue(createdProduct.getReference(Entities.BRAND, createdBrand.getPrimaryKey()).isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Should fail to update non-existing parameter in consumer")
+	@Order(16)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldFailToUpdateNonExistingParameterInConsumer(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				assertThrows(
+					ReferenceNotFoundException.class,
+					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
+						.setCode("product-8")
+						.setName(CZECH_LOCALE, "Produkt 8")
+						.updateParameter(7, brand -> fail("Should not be called."))
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should set parameter by get or create method with id")
+	@Order(17)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-8")
+					.setName(CZECH_LOCALE, "Produkt 8")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttributeAsVarArg("market-1", "market-2")
+					.setMarketsAsVarArg("market-3", "market-4")
+					.setAllPricesAsArray(
+						new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+						new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+						new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+						new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+						new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+						new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+					)
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
+
+				assertNull(newProduct.getParameter());
+				final ProductParameterInterfaceEditor newParameter = newProduct.getOrCreateParameter(parameterId);
+				newParameter.setPriority(10L);
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(29, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals(parameterId, newProduct.getParameter().getPrimaryKey());
+				assertEquals(10L, newProduct.getParameter().getPriority());
+				assertEquals(parameterId, modifiedInstance.getParameter().getPrimaryKey());
+				assertEquals(10L, modifiedInstance.getParameter().getPriority());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				assertProduct(
+					evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow(),
+					"product-8", "Produkt 8", TestEnum.ONE, BigDecimal.TEN, true, 78L,
+					new String[]{"market-1", "market-2"},
+					VALIDITY, parameterId, categoryId1, categoryId2
+				);
 			}
 		);
 	}

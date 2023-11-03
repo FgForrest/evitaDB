@@ -59,6 +59,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 	/**
 	 * Contains set of method keywords which signalize the start of the removal operation.
 	 */
+	/* todo jno - toto odstranit a předělat na anotaci */
 	public static final Set<String> REMOVAL_KEYWORDS = Set.of(
 		"remove", "delete", "drop"
 	);

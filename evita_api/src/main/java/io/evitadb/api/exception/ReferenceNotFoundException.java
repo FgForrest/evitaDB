@@ -23,11 +23,14 @@
 
 package io.evitadb.api.exception;
 
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Exception is thrown when there is attempt to filter by a non-existing reference.
@@ -37,8 +40,17 @@ import java.io.Serial;
 public class ReferenceNotFoundException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -8969284548331815445L;
 
-	public ReferenceNotFoundException(@Nonnull String referenceName, EntitySchemaContract entitySchema) {
+	public ReferenceNotFoundException(@Nonnull String referenceName, @Nonnull EntitySchemaContract entitySchema) {
 		super("Reference with name `" + referenceName + "` is not present in schema of `" + entitySchema.getName() + "` entity.");
+	}
+
+	public ReferenceNotFoundException(@Nonnull String referenceName, int referencedEntityId, @Nonnull EntityContract entity) {
+		super("Reference with name `" + referenceName + "` to entity with id `" + referencedEntityId + "` " +
+			"is not present in the entity `" + entity.getType() + "` with " +
+			ofNullable(entity.getPrimaryKey())
+				.map(it -> "primary key `" + entity.getPrimaryKey() + "`")
+				.orElse("not yet assigned primary key") + "."
+		);
 	}
 
 }

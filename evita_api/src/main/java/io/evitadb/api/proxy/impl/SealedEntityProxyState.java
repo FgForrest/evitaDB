@@ -346,7 +346,8 @@ public class SealedEntityProxyState
 
 	@Override
 	public String toString() {
-		return entity.toString();
+		return entity instanceof EntityBuilder eb ?
+			eb.toInstance().toString() : entity.toString();
 	}
 
 }

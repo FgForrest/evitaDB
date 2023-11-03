@@ -657,61 +657,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	/**
 	 * Creates an implementation of the method returning a single referenced entity wrapped into a custom proxy instance.
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
-	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleGetOrCreateEntityResult(
-		@Nonnull String entityName,
-		@Nonnull String referenceName,
-		@Nonnull String referencedEntityType,
-		@Nonnull Class itemType,
-		@Nonnull BiFunction<EntityContract, String, Stream<ReferenceContract>> referenceExtractor,
-		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
-		@Nonnull UnaryOperator<Object> resultWrapper
-	) {
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
-			if (references == null) {
-				return resultWrapper.apply(null);
-			} else {
-				final Optional<ReferenceContract> firstReference = references.findFirst();
-				if (firstReference.isEmpty()) {
-					return resultWrapper.apply(
-						theState.getReferencedEntityObject(
-							referencedEntityType, Integer.MIN_VALUE, itemType, ProxyType.REFERENCED_ENTITY_BUILDER, ProxyType.ENTITY
-						).orElseGet(
-							() -> theState.createReferencedEntityBuilderProxyWithCallback(
-								theState.getEntitySchemaOrThrow(referencedEntityType), itemType, ProxyType.REFERENCED_ENTITY_BUILDER,
-								entityReference -> theState.getEntityBuilder().setReference(referenceName, entityReference.primaryKey())
-							)
-						)
-					);
-				} else {
-					final ReferenceContract theReference = firstReference.get();
-					final Optional<?> referencedInstance = theState.getReferencedEntityObject(
-						referencedEntityType, theReference.getReferencedPrimaryKey(), itemType, ProxyType.REFERENCED_ENTITY_BUILDER, ProxyType.ENTITY
-					);
-					if (referencedInstance.isPresent()) {
-						return resultWrapper.apply(referencedInstance.get());
-					} else {
-						Assert.isTrue(
-							theReference.getReferencedEntity().isPresent(),
-							() -> ContextMissingException.referencedEntityContextMissing(entityName, referenceName)
-						);
-						return resultWrapper.apply(
-							entityExtractor
-								.apply((ReferenceDecorator) theReference)
-								.map(it -> theState.createEntityProxy(itemType, it, theState.getReferencedEntitySchemas()))
-								.orElse(null)
-						);
-					}
-				}
-			}
-		};
-	}
-
-	/**
-	 * Creates an implementation of the method returning a single referenced entity wrapped into a custom proxy instance.
-	 */
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> singleEntityResult(
 		@Nonnull String entityName,
@@ -1158,11 +1103,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				)
 			);
 			if (collectionType == null) {
-				if (method.getAnnotation(CreateWhenNull.class) != null) {
-					return singleGetOrCreateEntityResult(entityName, referenceName, referencedEntityType, itemType, referenceExtractor, ReferenceDecorator::getReferencedEntity, resultWrapper);
-				} else {
-					return singleEntityResult(entityName, referenceName, referencedEntityType, itemType, referenceExtractor, ReferenceDecorator::getReferencedEntity, resultWrapper);
-				}
+				return singleEntityResult(entityName, referenceName, referencedEntityType, itemType, referenceExtractor, ReferenceDecorator::getReferencedEntity, resultWrapper);
 			} else if (collectionType.isArray()) {
 				return arrayOfEntityResult(entityName, referenceName, itemType, referenceExtractor, ReferenceDecorator::getReferencedEntity, resultWrapper);
 			} else if (Set.class.isAssignableFrom(collectionType)) {
@@ -1181,11 +1122,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				)
 			);
 			if (collectionType == null) {
-				if (method.getAnnotation(CreateWhenNull.class) != null) {
-					return singleGetOrCreateEntityResult(entityName, referenceName, referencedEntityType, itemType, referenceExtractor, ReferenceDecorator::getGroupEntity, resultWrapper);
-				} else {
-					return singleEntityResult(entityName, referenceName, referencedEntityType, itemType, referenceExtractor, ReferenceDecorator::getGroupEntity, resultWrapper);
-				}
+				return singleEntityResult(entityName, referenceName, referencedGroupType, itemType, referenceExtractor, ReferenceDecorator::getGroupEntity, resultWrapper);
 			} else if (collectionType.isArray()) {
 				return arrayOfEntityResult(entityName, referenceName, itemType, referenceExtractor, ReferenceDecorator::getGroupEntity, resultWrapper);
 			} else if (Set.class.isAssignableFrom(collectionType)) {
@@ -1405,7 +1342,10 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 
 				// we are interested only in abstract methods without parameters
-				if (returnType.equals(proxyState.getProxyClass()) || void.class.equals(returnType)) {
+				if (returnType.equals(proxyState.getProxyClass()) ||
+					void.class.equals(returnType) ||
+					method.isAnnotationPresent(CreateWhenNull.class)
+				) {
 					return null;
 				}
 

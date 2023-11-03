@@ -88,7 +88,19 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@CreateWhenNull
 	BrandInterfaceEditor getOrCreateBrand();
 
-	BrandInterface getBrand();
+	@ReferenceRef(Entities.PARAMETER)
+	ProductInterfaceEditor setParameter(int parameterId, @CreateWhenNull Consumer<ProductParameterInterfaceEditor> parameterEditor);
+
+	@ReferenceRef(Entities.PARAMETER)
+	ProductInterfaceEditor updateParameter(int parameterId, Consumer<ProductParameterInterfaceEditor> parameterEditor);
+
+	@ReferenceRef(Entities.PARAMETER)
+	@CreateWhenNull
+	ProductParameterInterfaceEditor getOrCreateParameter();
+
+	@ReferenceRef(Entities.PARAMETER)
+	@CreateWhenNull
+	ProductParameterInterfaceEditor getOrCreateParameter(int parameterId);
 
 	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
 
@@ -96,10 +108,7 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	ProductInterfaceEditor setProductCategoriesAsVarArg(ProductCategoryInterface... productCategoriesAsArray);
 
 	@ReferenceRef(Entities.CATEGORY)
-	ProductInterfaceEditor addProductCategory(int categoryId, Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
-
-	@ReferenceRef(Entities.PARAMETER)
-	ProductInterfaceEditor addParameter(int parameterId, Consumer<ProductParameterInterfaceEditor> parameterEditor);
+	ProductInterfaceEditor addProductCategory(int categoryId, @CreateWhenNull Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 

@@ -126,6 +126,7 @@ public class SealedEntityReferenceProxyState
 
 	@Override
 	public String toString() {
-		return reference.toString();
+		return reference instanceof ReferenceBuilder rb ?
+			rb.build().toString() : reference.toString();
 	}
 }

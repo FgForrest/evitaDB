@@ -120,6 +120,9 @@ public interface ProductInterface extends EntityClassifier {
 	@ReferenceRef(Entities.BRAND)
 	Integer getBrandId();
 
+	@ReferenceRef(Entities.PARAMETER)
+	ProductParameterInterface getParameter();
+
 	@ReferenceRef(Entities.CATEGORY)
 	Collection<Integer> getCategoryIds();
 
