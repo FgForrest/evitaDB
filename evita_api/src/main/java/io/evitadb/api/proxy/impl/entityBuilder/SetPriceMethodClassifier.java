@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.annotation.Price;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
@@ -59,7 +60,6 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static io.evitadb.api.proxy.impl.entityBuilder.EntityBuilderAdvice.REMOVAL_KEYWORDS;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -752,8 +752,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 					return null;
 				}
 
-				final String methodName = method.getName();
-				if (REMOVAL_KEYWORDS.stream().anyMatch(methodName::startsWith)) {
+				if (method.isAnnotationPresent(RemoveWhenExists.class)) {
 					if (parameterCount == 0) {
 						return removeAllPrices(returnType, proxyClass, price);
 					} else {

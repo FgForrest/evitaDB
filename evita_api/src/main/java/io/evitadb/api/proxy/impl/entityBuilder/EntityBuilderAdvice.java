@@ -43,7 +43,6 @@ import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Advice allowing to implement all supported abstract methods on proxy wrapping {@link InstanceEditor}.
@@ -56,13 +55,6 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final EntityBuilderAdvice INSTANCE = new EntityBuilderAdvice();
-	/**
-	 * Contains set of method keywords which signalize the start of the removal operation.
-	 */
-	/* todo jno - toto odstranit a předělat na anotaci */
-	public static final Set<String> REMOVAL_KEYWORDS = Set.of(
-		"remove", "delete", "drop"
-	);
 	/**
 	 * List of all method classifications supported by this advice.
 	 */

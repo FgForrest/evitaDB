@@ -346,6 +346,28 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	private static Optional<EntityReference> getProductByCode(EvitaContract evita, String code) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneEntityReference(
+					query(collection(Entities.PRODUCT), filterBy(attributeEquals("code", code)))
+				);
+			}
+		);
+	}
+
+	private static Optional<EntityReference> getCategoryByCode(EvitaContract evita, String code) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneEntityReference(
+					query(collection(Entities.CATEGORY), filterBy(attributeEquals("code", code)))
+				);
+			}
+		);
+	}
+
 	@DataSet(value = HUNDRED_PRODUCTS, destroyAfterClass = true, readOnly = false)
 	@Override
 	DataCarrier setUp(Evita evita) {
@@ -997,6 +1019,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	void shouldCreateNewCustomProductWithNewBrandViaGetOrCreateMethod(EvitaContract evita) {
 		final int parameterId = createParameterEntityIfMissing(evita);
 		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
 		evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
@@ -1008,7 +1031,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
 					.setParameter(parameterId, that -> that.setPriority(10L))
-					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 2"));
 
 				assertNull(newProduct.getBrand());
 				final BrandInterfaceEditor newBrand = newProduct.getOrCreateBrand();
@@ -1019,7 +1043,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(15, mutation.get().getLocalMutations().size());
+				assertEquals(19, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals("getorcreate-created-brand", newProduct.getBrand().getCode());
@@ -1116,6 +1140,147 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					new String[]{"market-1", "market-2"},
 					VALIDITY, parameterId, categoryId1, categoryId2
 				);
+			}
+		);
+	}
+
+	@DisplayName("Should remove references by id")
+	@Order(18)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveReferences(EvitaContract evita) {
+		final int brandId = createBrandEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
+
+		final EntityReference product7Ref = getProductByCode(evita, "product-7")
+			.orElseGet(() -> {
+				shouldCreateNewCustomProductWithNewBrandViaGetOrCreateMethod(evita);
+				return getProductByCode(evita, "product-7").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor product7 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product7Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				product7.removeBrand();
+				product7.removeProductCategoryById(categoryId2);
+
+				final Optional<EntityMutation> mutation = product7.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(2, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product7.toInstance();
+				assertNull(modifiedInstance.getBrand());
+				assertEquals(1, modifiedInstance.getProductCategories().size());
+				assertNotNull(modifiedInstance.getCategoryById(categoryId1));
+				assertNull(modifiedInstance.getCategoryById(categoryId2));
+
+				product7.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product7Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertNull(product8SE.getReference(Entities.BRAND, brandId).orElse(null));
+				assertNull(product8SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
+				assertNotNull(product8SE.getReference(Entities.CATEGORY, categoryId1).orElse(null));
+			}
+		);
+	}
+
+	@DisplayName("Should remove price")
+	@Order(19)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemovePrice(EvitaContract evita) {
+		final EntityReference product7Ref = getProductByCode(evita, "product-8")
+			.orElseGet(() -> {
+				shouldCreateNewCustomProductWithNewBrandViaGetOrCreateMethod(evita);
+				return getProductByCode(evita, "product-8").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product7Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				/*
+				new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+				new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+				 */
+
+				product8.removePricesById(2);
+				product8.removePricesByCurrency(CURRENCY_USD);
+				product8.removePrice(product8.getPrice("basic", CURRENCY_CZK, 5));
+				product8.removePrice(6, "basic", CURRENCY_CZK);
+				product8.removePricesById("reference");
+				product8.removeBasicPrice(3, CURRENCY_CZK);
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(6, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertNull(modifiedInstance.getBrand());
+				assertEquals(1, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product7Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(1, product8SE.getPrices().size());
+				assertEquals(4, product8SE.getPrices().iterator().next().priceId());
+			}
+		);
+	}
+
+	@DisplayName("Should remove parent")
+	@Order(20)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveParent(EvitaContract evita) {
+		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1")
+			.orElseGet(() -> {
+				shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
+				return getCategoryByCode(evita, "child-category-1").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
+					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				childCategory.removeParent();
+
+				final Optional<EntityMutation> mutation = childCategory.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(1, mutation.get().getLocalMutations().size());
+
+				final CategoryInterface modifiedInstance = childCategory.toInstance();
+				assertNull(modifiedInstance.getParentId());
+
+				childCategory.upsertVia(evitaSession);
+
+				final SealedEntity childCategorySE = evitaSession.getEntity(
+					Entities.PRODUCT, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertTrue(childCategorySE.getParentEntity().isEmpty());
 			}
 		);
 	}

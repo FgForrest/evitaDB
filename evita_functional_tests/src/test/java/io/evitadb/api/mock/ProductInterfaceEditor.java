@@ -29,9 +29,10 @@ import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenNull;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
@@ -79,28 +80,36 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	ProductInterfaceEditor setBrand(BrandInterface brand);
 
 	@ReferenceRef(Entities.BRAND)
-	ProductInterfaceEditor setNewBrand(@CreateWhenNull Consumer<BrandInterfaceEditor> brandConsumer);
+	ProductInterfaceEditor setNewBrand(@CreateWhenMissing Consumer<BrandInterfaceEditor> brandConsumer);
 
 	@ReferenceRef(Entities.BRAND)
 	ProductInterfaceEditor updateBrand(Consumer<BrandInterfaceEditor> brandConsumer);
 
 	@ReferenceRef(Entities.BRAND)
-	@CreateWhenNull
+	@CreateWhenMissing
 	BrandInterfaceEditor getOrCreateBrand();
 
+	@ReferenceRef(Entities.BRAND)
+	@RemoveWhenExists
+	ProductInterfaceEditor removeBrand();
+
 	@ReferenceRef(Entities.PARAMETER)
-	ProductInterfaceEditor setParameter(int parameterId, @CreateWhenNull Consumer<ProductParameterInterfaceEditor> parameterEditor);
+	ProductInterfaceEditor setParameter(int parameterId, @CreateWhenMissing Consumer<ProductParameterInterfaceEditor> parameterEditor);
 
 	@ReferenceRef(Entities.PARAMETER)
 	ProductInterfaceEditor updateParameter(int parameterId, Consumer<ProductParameterInterfaceEditor> parameterEditor);
 
 	@ReferenceRef(Entities.PARAMETER)
-	@CreateWhenNull
+	@CreateWhenMissing
 	ProductParameterInterfaceEditor getOrCreateParameter();
 
 	@ReferenceRef(Entities.PARAMETER)
-	@CreateWhenNull
+	@CreateWhenMissing
 	ProductParameterInterfaceEditor getOrCreateParameter(int parameterId);
+
+	@ReferenceRef(Entities.PARAMETER)
+	@RemoveWhenExists
+	ProductParameterInterfaceEditor removeParameterById(int parameterId);
 
 	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
 
@@ -108,7 +117,11 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	ProductInterfaceEditor setProductCategoriesAsVarArg(ProductCategoryInterface... productCategoriesAsArray);
 
 	@ReferenceRef(Entities.CATEGORY)
-	ProductInterfaceEditor addProductCategory(int categoryId, @CreateWhenNull Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
+	ProductInterfaceEditor addProductCategory(int categoryId, @CreateWhenMissing Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
+
+	@ReferenceRef(Entities.CATEGORY)
+	@RemoveWhenExists
+	ProductInterfaceEditor removeProductCategoryById(int categoryId);
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
@@ -165,5 +178,29 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@Price
 	ProductInterfaceEditor setAllPricesAsArray(PriceContract... allPricesAsArray);
+
+	@Price
+	@RemoveWhenExists
+	ProductInterfaceEditor removePricesById(int priceId);
+
+	@Price
+	@RemoveWhenExists
+	ProductInterfaceEditor removePricesById(String priceList);
+
+	@Price
+	@RemoveWhenExists
+	ProductInterfaceEditor removePricesByCurrency(Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	ProductInterfaceEditor removePrice(int priceId, String priceList, Currency currency);
+
+	@Price(priceList = "basic")
+	@RemoveWhenExists
+	ProductInterfaceEditor removeBasicPrice(int priceId, Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	ProductInterfaceEditor removePrice(PriceContract price);
 
 }

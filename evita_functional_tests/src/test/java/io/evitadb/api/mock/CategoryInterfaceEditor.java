@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.generator.DataGenerator;
@@ -64,6 +65,10 @@ public interface CategoryInterfaceEditor extends CategoryInterface, InstanceEdit
 	@ParentEntity
 	CategoryInterfaceEditor withParent(int parentPrimaryKey, @Nonnull Consumer<CategoryInterfaceEditor> setupLogic);
 
+	@ParentEntity
+	@RemoveWhenExists
+	void removeParent();
+
 	CategoryInterfaceEditor setCode(@Nonnull String code);
 
 	CategoryInterfaceEditor setName(@Nonnull String name);
@@ -79,4 +84,5 @@ public interface CategoryInterfaceEditor extends CategoryInterface, InstanceEdit
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	void setReferencedFiles(ReferencedFileSet referencedFiles);
+
 }

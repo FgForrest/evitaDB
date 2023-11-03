@@ -35,11 +35,12 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenNull;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -1344,7 +1345,8 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				// we are interested only in abstract methods without parameters
 				if (returnType.equals(proxyState.getProxyClass()) ||
 					void.class.equals(returnType) ||
-					method.isAnnotationPresent(CreateWhenNull.class)
+					method.isAnnotationPresent(CreateWhenMissing.class) ||
+					method.isAnnotationPresent(RemoveWhenExists.class)
 				) {
 					return null;
 				}
