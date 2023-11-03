@@ -2834,7 +2834,8 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		final Map<String, Object> entityDto = createEntityDto(entity);
 
 		final MapBuilder currentLevelInfoDto = map()
-			.e(LevelInfoDescriptor.ENTITY.name(), entityDto);
+			.e(LevelInfoDescriptor.ENTITY.name(), entityDto)
+			.e(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
 
 		if (levelInfo.queriedEntityCount() != null) {
 			currentLevelInfoDto.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount());
