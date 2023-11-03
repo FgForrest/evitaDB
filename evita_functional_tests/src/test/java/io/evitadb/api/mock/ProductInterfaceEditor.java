@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenNull;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.dataType.DateTimeRange;
@@ -77,10 +78,17 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setBrand(BrandInterface brand);
 
-	ProductInterfaceEditor setBrand(Consumer<BrandInterfaceEditor> brandConsumer);
+	@ReferenceRef(Entities.BRAND)
+	ProductInterfaceEditor setNewBrand(@CreateWhenNull Consumer<BrandInterfaceEditor> brandConsumer);
 
 	@ReferenceRef(Entities.BRAND)
-	BrandInterface getOrCreateBrand();
+	ProductInterfaceEditor updateBrand(Consumer<BrandInterfaceEditor> brandConsumer);
+
+	@ReferenceRef(Entities.BRAND)
+	@CreateWhenNull
+	BrandInterfaceEditor getOrCreateBrand();
+
+	BrandInterface getBrand();
 
 	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
 

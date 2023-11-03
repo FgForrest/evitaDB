@@ -23,7 +23,9 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.BrandInterface;
+import io.evitadb.api.mock.BrandInterfaceEditor;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.CategoryInterfaceEditor;
 import io.evitadb.api.mock.ProductCategoryInterface;
@@ -949,7 +951,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setPriority(78L)
 					.setMarketsAttribute(new String[]{"market-1", "market-2"})
 					.setMarkets(new String[]{"market-3", "market-4"})
-					.setBrand(brand -> brand.setCode("consumer-created-brand").setStore(1))
+					.setNewBrand(brand -> brand.setCode("consumer-created-brand").setStore(1))
 					.addParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
 
@@ -967,6 +969,73 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final EntityReference createdBrand = evitaSession.queryOneEntityReference(
 					query(collection(Entities.BRAND), filterBy(attributeEquals("code", "consumer-created-brand")))
+				).orElseThrow();
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				assertTrue(createdProduct.getReference(Entities.BRAND, createdBrand.getPrimaryKey()).isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Should fail to update non-existing brand in consumer")
+	@Order(13)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldFailToUpdateNonExistingBrandInConsumer(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				assertThrows(
+					ContextMissingException.class,
+					() -> evitaSession.createNewEntity(ProductInterfaceEditor.class)
+						.setCode("product-7")
+						.setName(CZECH_LOCALE, "Produkt 7")
+						.updateBrand(brand -> fail("Should not be called."))
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should set brand by get or create method")
+	@Order(15)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithNewBrandViaGetOrCreateMethod(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-7")
+					.setName(CZECH_LOCALE, "Produkt 7")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+
+				assertNull(newProduct.getBrand());
+				final BrandInterfaceEditor newBrand = newProduct.getOrCreateBrand();
+				newBrand.setCode("getorcreate-created-brand").setStore(1);
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(15, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals("getorcreate-created-brand", newProduct.getBrand().getCode());
+				assertEquals("getorcreate-created-brand", modifiedInstance.getBrand().getCode());
+
+				newProduct.upsertDeeplyVia(evitaSession);
+
+				final EntityReference createdBrand = evitaSession.queryOneEntityReference(
+					query(collection(Entities.BRAND), filterBy(attributeEquals("code", "getorcreate-created-brand")))
 				).orElseThrow();
 
 				assertTrue(newProduct.getId() > 0);

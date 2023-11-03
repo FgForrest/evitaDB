@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl.reference;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.impl.ProxyUtils;
@@ -214,9 +215,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			final ReferenceContract reference = theState.getReference();
 			Assert.isTrue(
 				reference instanceof ReferenceDecorator,
-				() -> "Entity `" + theState.getEntity().getType() + "` references of type `" +
-					referenceName + "` were not fetched with `entityFetch` requirement. " +
-					"Related entity body is not available."
+				() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)
 			);
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return resultWrapper.apply(
@@ -241,9 +240,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 		return (sealedEntity, reference) -> {
 			Assert.isTrue(
 				reference instanceof ReferenceDecorator,
-				() -> "Entity `" + sealedEntity.getType() + "` references of type `" +
-					referenceName + "` were not fetched with `entityFetch` requirement. " +
-					"Related entity body is not available."
+				() -> ContextMissingException.referencedEntityContextMissing(sealedEntity.getType(), referenceName)
 			);
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return entityExtractor.apply(referenceDecorator)

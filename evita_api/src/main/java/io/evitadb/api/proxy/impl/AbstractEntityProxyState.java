@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.ProxyReferenceFactory;
@@ -43,7 +44,6 @@ import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreProvider;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
@@ -136,9 +136,20 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 * @param entityType name of the entity type
 	 * @return entity schema for the passed entity type or empty result
 	 */
-	@Nullable
+	@Nonnull
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
 		return ofNullable(referencedEntitySchemas.get(entityType));
+	}
+
+	/**
+	 * Returns entity schema for the passed entity type.
+	 * @param entityType name of the entity type
+	 * @return entity schema for the passed entity type or empty result
+	 */
+	@Nonnull
+	public EntitySchemaContract getEntitySchemaOrThrow(@Nonnull String entityType) throws CollectionNotFoundException {
+		return ofNullable(referencedEntitySchemas.get(entityType))
+			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 	}
 
 	@Override

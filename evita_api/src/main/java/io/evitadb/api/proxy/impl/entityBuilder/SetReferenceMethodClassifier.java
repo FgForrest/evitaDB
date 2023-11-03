@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl.entityBuilder;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
@@ -30,6 +31,8 @@ import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenNull;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -46,6 +49,7 @@ import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -289,22 +293,39 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						}
 					}
 				} else if (parameterCount == 1 && entityRecognizedIn.map(RecognizedContext::recognizedIn).map(EntityRecognizedIn.CONSUMER::equals).orElse(false)) {
+					final int consumerParameterIndex = consumerIndex.getAsInt();
 					return proxyState.getEntitySchema(referenceSchema.getReferencedEntityType())
 						.map(referencedEntitySchema -> {
-							if (returnType.equals(proxyState.getProxyClass())) {
-								return createReferencedEntityWithEntityBuilderResult(
-									referencedEntitySchema,
-									referenceSchema,
-									entityRecognizedIn.get().entityContract().resolvedType()
-								);
-							} else if (void.class.equals(returnType)) {
-								return createReferencedEntityWithVoidResult(
-									referencedEntitySchema,
-									referenceSchema,
-									entityRecognizedIn.get().entityContract().resolvedType()
-								);
+							if (Arrays.stream(method.getParameterAnnotations()[consumerParameterIndex]).anyMatch(CreateWhenNull.class::isInstance)) {
+								if (returnType.equals(proxyState.getProxyClass())) {
+									return createReferencedEntityWithEntityBuilderResult(
+										referencedEntitySchema,
+										referenceSchema,
+										entityRecognizedIn.get().entityContract().resolvedType()
+									);
+								} else if (void.class.equals(returnType)) {
+									return createReferencedEntityWithVoidResult(
+										referencedEntitySchema,
+										referenceSchema,
+										entityRecognizedIn.get().entityContract().resolvedType()
+									);
+								} else {
+									return null;
+								}
 							} else {
-								return null;
+								if (returnType.equals(proxyState.getProxyClass())) {
+									return updateReferencedEntityWithEntityBuilderResult(
+										referenceSchema,
+										entityRecognizedIn.get().entityContract().resolvedType()
+									);
+								} else if (void.class.equals(returnType)) {
+									return updateReferencedEntityWithVoidResult(
+										referenceSchema,
+										entityRecognizedIn.get().entityContract().resolvedType()
+									);
+								} else {
+									return null;
+								}
 							}
 						})
 						.orElse(null);
@@ -578,6 +599,73 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final Consumer<Object> consumer = (Consumer<Object>) args[0];
 			consumer.accept(referencedEntityInstance);
 			return null;
+		};
+	}
+
+	/**
+	 * Return a method implementation that creates new proxy object representing a reference to and external entity
+	 * (without knowing its primary key since it hasn't been assigned yet) and returns the reference to the entity proxy
+	 * to allow chaining (builder pattern).
+	 *
+	 * @param referenceSchema the reference schema to use
+	 * @param expectedType   the expected type of the referenced entity proxy
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> updateReferencedEntityWithEntityBuilderResult(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<?> expectedType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
+			if (references.isEmpty()) {
+				throw ContextMissingException.referenceContextMissing(referenceSchema.getName());
+			} else {
+				final Object referencedEntityInstance = theState.createEntityBuilderProxy(
+					expectedType,
+					references.iterator().next().getReferencedEntity()
+						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(entityBuilder.getType(), referenceSchema.getName())),
+					theState.getReferencedEntitySchemas()
+				);
+				//noinspection unchecked
+				final Consumer<Object> consumer = (Consumer<Object>) args[0];
+				consumer.accept(referencedEntityInstance);
+				return proxy;
+			}
+		};
+	}
+
+	/**
+	 * Return a method implementation that creates new proxy object representing a reference to and external entity
+	 * (without knowing its primary key since it hasn't been assigned yet) and returns no result.
+	 *
+	 * @param referenceSchema the reference schema to use
+	 * @param expectedType   the expected type of the referenced entity proxy
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> updateReferencedEntityWithVoidResult(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<?> expectedType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
+			if (references.isEmpty()) {
+				throw ContextMissingException.referenceContextMissing(referenceSchema.getName());
+			} else {
+				final Object referencedEntityInstance = theState.createEntityBuilderProxy(
+					expectedType,
+					references.iterator().next().getReferencedEntity()
+						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(entityBuilder.getType(), referenceSchema.getName())),
+					theState.getReferencedEntitySchemas()
+				);
+				//noinspection unchecked
+				final Consumer<Object> consumer = (Consumer<Object>) args[0];
+				consumer.accept(referencedEntityInstance);
+				return null;
+			}
 		};
 	}
 
