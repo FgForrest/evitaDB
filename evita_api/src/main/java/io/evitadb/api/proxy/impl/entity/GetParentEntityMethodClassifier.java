@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.utils.Assert;
@@ -50,6 +51,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Parameter;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -80,6 +82,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nullable
 	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -97,7 +100,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				return sealedEntity -> sealedEntity.getParentEntity().orElse(null);
 			} else {
 				return sealedEntity -> sealedEntity.getParentEntity()
-					.map(it -> proxyFactory.createEntityProxy(parameterType, (SealedEntity) it))
+					.map(it -> proxyFactory.createEntityProxy(parameterType, (SealedEntity) it, referencedEntitySchemas))
 					.orElse(null);
 			}
 		}
@@ -168,6 +171,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleParentEntityResult(
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull Class<?> itemType,
 		@Nonnull BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> parentEntityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -178,7 +182,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					if (itemType.isInstance(it)) {
 						return it;
 					} else if (it instanceof SealedEntity sealedEntity) {
-						return theState.createEntityProxy(itemType, sealedEntity);
+						return theState.createEntityProxy(itemType, sealedEntity, referencedEntitySchemas);
 					} else {
 						throw ContextMissingException.hierarchyEntityContextMissing();
 					}
@@ -250,7 +254,10 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					if (valueType.equals(EntityClassifier.class) || valueType.equals(EntityClassifierWithParent.class)) {
 						return singleParentClassifierResult(cachedParentEntityExtractor, resultWrapper);
 					} else {
-						return singleParentEntityResult(valueType, cachedParentEntityExtractor, resultWrapper);
+						return singleParentEntityResult(
+							proxyState.getReferencedEntitySchemas(), valueType,
+							cachedParentEntityExtractor, resultWrapper
+						);
 					}
 				}
 			}

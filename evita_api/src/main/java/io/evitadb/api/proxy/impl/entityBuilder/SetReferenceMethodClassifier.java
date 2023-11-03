@@ -28,8 +28,8 @@ import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -289,17 +289,26 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						}
 					}
 				} else if (parameterCount == 1 && entityRecognizedIn.map(RecognizedContext::recognizedIn).map(EntityRecognizedIn.CONSUMER::equals).orElse(false)) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return createReferencedEntityWithEntityBuilderResult(
-							referenceSchema,
-							entityRecognizedIn.get().entityContract().resolvedType()
-						);
-					} else if (void.class.equals(returnType)) {
-						return createReferencedEntityWithVoidResult(
-							referenceSchema,
-							entityRecognizedIn.get().entityContract().resolvedType()
-						);
-					}
+					return proxyState.getEntitySchema(referenceSchema.getReferencedEntityType())
+						.map(referencedEntitySchema -> {
+							if (returnType.equals(proxyState.getProxyClass())) {
+								return createReferencedEntityWithEntityBuilderResult(
+									referencedEntitySchema,
+									referenceSchema,
+									entityRecognizedIn.get().entityContract().resolvedType()
+								);
+							} else if (void.class.equals(returnType)) {
+								return createReferencedEntityWithVoidResult(
+									referencedEntitySchema,
+									referenceSchema,
+									entityRecognizedIn.get().entityContract().resolvedType()
+								);
+							} else {
+								return null;
+							}
+						})
+						.orElse(null);
+
 				} else if (parameterCount == 2 && entityRecognizedIn.isEmpty() && consumerIndex.isPresent() && referencedIdIndex.isPresent()) {
 					if (returnType.equals(proxyState.getProxyClass())) {
 						return createReferenceWithIdAndEntityBuilderResult(
@@ -522,15 +531,17 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createReferencedEntityWithEntityBuilderResult(
+		@Nonnull EntitySchemaContract referencedEntitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object referencedEntityInstance = theState.createEntityBuilderProxyWithCallback(
-				theState.getEntitySchema(),
+				referencedEntitySchema,
+				theState.getReferencedEntitySchemas(),
 				expectedType,
-				ProxyType.ENTITY_BUILDER,
+				ProxyType.REFERENCED_ENTITY_BUILDER,
 				entityReference -> entityBuilder.setReference(referenceSchema.getName(), entityReference.getPrimaryKey())
 			);
 			//noinspection unchecked
@@ -550,15 +561,17 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createReferencedEntityWithVoidResult(
+		@Nonnull EntitySchemaContract referencedEntitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object referencedEntityInstance = theState.createEntityBuilderProxyWithCallback(
-				theState.getEntitySchema(),
+				referencedEntitySchema,
+				theState.getReferencedEntitySchemas(),
 				expectedType,
-				ProxyType.ENTITY_BUILDER,
+				ProxyType.REFERENCED_ENTITY_BUILDER,
 				entityReference -> entityBuilder.setReference(referenceSchema.getName(), entityReference.getPrimaryKey())
 			);
 			//noinspection unchecked
@@ -778,7 +791,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-			final SealedEntity sealedEntity = referencedEntity.getSealedEntity();
+			final EntityContract sealedEntity = referencedEntity.getEntity();
 			Assert.isTrue(
 				expectedEntityType.equals(sealedEntity.getType()),
 				"Entity type `" + sealedEntity.getType() + "` in passed argument " +
@@ -805,13 +818,15 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-			final SealedEntity sealedEntity = referencedEntity.getSealedEntity();
+			final EntityContract sealedEntity = referencedEntity.getEntity();
 			Assert.isTrue(
 				expectedEntityType.equals(sealedEntity.getType()),
 				"Entity type `" + sealedEntity.getType() + "` in passed argument " +
 					"doesn't match the referencedEntity entity type: `" + expectedEntityType + "`!"
 			);
-			entityBuilder.setReference(referenceName, sealedEntity.getPrimaryKey());
+			final Integer primaryKey = sealedEntity.getPrimaryKey();
+			entityBuilder.setReference(referenceName, primaryKey);
+			theState.registerReferencedEntityObject(expectedEntityType, primaryKey, referencedEntity, ProxyType.ENTITY);
 			return proxy;
 		};
 	}
@@ -833,7 +848,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object[] referencedArray = (Object[]) args[0];
 			for (Object referencedEntity : referencedArray) {
-				final SealedEntity sealedEntity = ((SealedEntityProxy)referencedEntity).getSealedEntity();
+				final EntityContract sealedEntity = ((SealedEntityProxy)referencedEntity).getEntity();
 				Assert.isTrue(
 					expectedEntityType.equals(sealedEntity.getType()),
 					"Entity type `" + sealedEntity.getType() + "` in passed argument " +
@@ -862,7 +877,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object[] referencedArray = (Object[]) args[0];
 			for (Object referencedEntity : referencedArray) {
-				final SealedEntity sealedEntity = ((SealedEntityProxy)referencedEntity).getSealedEntity();
+				final EntityContract sealedEntity = ((SealedEntityProxy)referencedEntity).getEntity();
 				Assert.isTrue(
 					expectedEntityType.equals(sealedEntity.getType()),
 					"Entity type `" + sealedEntity.getType() + "` in passed argument " +
@@ -892,7 +907,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			//noinspection DataFlowIssue,unchecked
 			final Collection<SealedEntityProxy> referencedArray = (Collection<SealedEntityProxy>) args[0];
 			for (SealedEntityProxy referencedEntity : referencedArray) {
-				final SealedEntity sealedEntity = referencedEntity.getSealedEntity();
+				final EntityContract sealedEntity = referencedEntity.getEntity();
 				Assert.isTrue(
 					expectedEntityType.equals(sealedEntity.getType()),
 					"Entity type `" + sealedEntity.getType() + "` in passed argument " +
@@ -922,7 +937,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			//noinspection DataFlowIssue,unchecked
 			final Collection<SealedEntityProxy> referencedArray = (Collection<SealedEntityProxy>) args[0];
 			for (SealedEntityProxy referencedEntity : referencedArray) {
-				final SealedEntity sealedEntity = referencedEntity.getSealedEntity();
+				final EntityContract sealedEntity = referencedEntity.getEntity();
 				Assert.isTrue(
 					expectedEntityType.equals(sealedEntity.getType()),
 					"Entity type `" + sealedEntity.getType() + "` in passed argument " +
@@ -1034,9 +1049,9 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param mainType
-	 * @param resolvedType
+	 * Record containing information about the resolved generic parameter type along with the original class.
+	 * @param mainType common parameter type (generic wrapper)
+	 * @param resolvedType resolved generic parameter type
 	 */
 	private record ResolvedParameter(
 		@Nonnull Class<?> mainType,
@@ -1044,7 +1059,12 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {}
 
 	/**
-	 * TODO JNO - document me
+	 * Record containing information about the context recognized from the method signature.
+	 *
+	 * @param recognizedIn the place where the entity type has been recognized
+	 * @param entityContract the resolved entity contract
+	 * @param entityType the resolved entity type
+	 * @param isGroup whether the entity is a reference group or referenced entity itself
 	 */
 	private record RecognizedContext(
 		@Nonnull EntityRecognizedIn recognizedIn,

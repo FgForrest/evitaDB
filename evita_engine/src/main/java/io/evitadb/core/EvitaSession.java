@@ -63,6 +63,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -86,6 +87,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -229,7 +231,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
 			entityType = entityClassifier.getType();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.getSealedEntity().getType();
+			entityType = sealedEntityProxy.getEntity().getType();
 		} else {
 			final String lazyEvaluatedEntityType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, partiallyLoadedEntity.getClass());
 			if (lazyEvaluatedEntityType == null) {
@@ -419,7 +421,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				OffsetDateTime.now(),
 				expectedType,
 				ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-				this.proxyFactory::createEntityProxy
+				this::createEntityProxy
 			)
 		);
 	}
@@ -439,7 +441,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			expectedType,
 			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 
 		return query(request);
@@ -474,7 +476,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			EntityReference.class,
 			null,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		final EntityCollectionContract entityCollection = getCatalog().getCollectionForEntityOrThrowException(entityType);
 		return entityCollection.getEntity(
@@ -500,13 +502,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			expectedType,
 			entityType,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		return entityCollection.getEntity(
 			primaryKey,
 			evitaRequest,
 			this
-		).map(it -> this.proxyFactory.createEntityProxy(expectedType, it));
+		).map(it -> this.createEntityProxy(expectedType, it));
 	}
 
 	@Nonnull
@@ -525,14 +527,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			EntityReference.class,
 			entityType,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			//noinspection unchecked
-			return (T) this.proxyFactory.createEntityProxy(
+			return (T) this.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
 				entityCollection.enrichEntity(
-					sealedEntityProxy.getSealedEntity(),
+					sealedEntityProxy.getEntity(),
 					evitaRequest,
 					this
 				)
@@ -567,15 +569,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy ?
 				sealedEntityProxy.getProxyClass() : partiallyLoadedEntity.getClass(),
 			entityType,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			//noinspection unchecked
-			return (T) this.proxyFactory.createEntityProxy(
+			return (T) this.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
 				entityCollection.limitEntity(
 					entityCollection.enrichEntity(
-						sealedEntityProxy.getSealedEntity(),
+						sealedEntityProxy.getEntity(),
 						evitaRequest,
 						this
 					),
@@ -682,7 +684,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
 		return proxyFactory.createEntityBuilderProxy(
 			expectedType,
-			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType))
+			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)),
+			getEntitySchemaIndex()
 		);
 	}
 
@@ -701,7 +704,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
 		return proxyFactory.createEntityBuilderProxy(
 			expectedType,
-			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType), primaryKey)
+			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType), primaryKey),
+			getEntitySchemaIndex()
 		);
 	}
 
@@ -718,16 +722,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					return new EntityReference(entity.getType(), entity.getPrimaryKey());
 				});
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			return sealedEntityProxy.getEntityMutation()
+			return sealedEntityProxy.getEntityBuilderWithCallback()
 				.map(entityMutation -> {
-					final EntityReference entityReference = upsertEntity(entityMutation.theMutation());
+					final EntityReference entityReference = upsertEntity(entityMutation.builder());
 					entityMutation.updateEntityReference(entityReference);
 					return entityReference;
 				})
 				.orElseGet(() -> {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
-					final SealedEntity entity = sealedEntityProxy.getSealedEntity();
+					final EntityContract entity = sealedEntityProxy.getEntity();
 					return new EntityReference(entity.getType(), entity.getPrimaryKey());
 				});
 		} else {
@@ -743,19 +747,19 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
 		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
-			return ((InstanceEditor<?>)customEntity).toMutation()
+			return ((InstanceEditor<?>) customEntity).toMutation()
 				.map(this::upsertEntity)
 				.map(List::of)
 				.orElse(Collections.emptyList());
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
-					sealedEntityProxy.getReferencedEntityMutations(),
+					sealedEntityProxy.getReferencedEntityBuildersWithCallback(),
 					// then the entity itself
-					sealedEntityProxy.getEntityMutation().stream()
+					sealedEntityProxy.getEntityBuilderWithCallback().stream()
 				)
 				.map(entityMutation -> {
-					final EntityReference entityReference = upsertEntity(entityMutation.theMutation());
+					final EntityReference entityReference = upsertEntity(entityMutation.builder());
 					entityMutation.updateEntityReference(entityReference);
 					return entityReference;
 				})
@@ -811,7 +815,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					OffsetDateTime.now(),
 					SealedEntity.class,
 					null,
-					this.proxyFactory::createEntityProxy
+					this::createEntityProxy
 				),
 				this
 			);
@@ -877,7 +881,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			EntityReference.class,
 			null,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog()
@@ -895,7 +899,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			OffsetDateTime.now(),
 			SealedEntity.class,
 			null,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		return executeInTransactionIfPossible(session -> {
 			final EntityCollectionContract collection = getCatalog()
@@ -1034,6 +1038,29 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	/**
+	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
+	 * 
+	 * @param contract contract of the entity to be created
+	 * @param sealedEntity sealed entity to be used as a source of data
+	 * @return new instance of the entity proxy
+	 * @param <S>
+	 */
+	@Nonnull
+	private <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
+		return this.proxyFactory.createEntityProxy(contract, sealedEntity, getEntitySchemaIndex());
+	}
+
+	/**
+	 * Returns map with current {@link Catalog#getSchema() catalog} {@link EntitySchemaContract entity schema} instances
+	 * indexed by their {@link EntitySchemaContract#getName() name}.
+	 * @return map with current {@link Catalog#getSchema() catalog} {@link EntitySchemaContract entity schema} instances
+	 */
+	@Nonnull
+	private Map<String, EntitySchemaContract> getEntitySchemaIndex() {
+		return catalog.get().getEntitySchemaIndex();
+	}
+
+	/**
 	 * Internal implementation for deleting the entity.
 	 *
 	 * @see #deleteEntity(String, int)
@@ -1062,7 +1089,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					OffsetDateTime.now(),
 					expectedType,
 					ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-					this.proxyFactory::createEntityProxy
+					this::createEntityProxy
 				),
 				this
 			);
@@ -1102,7 +1129,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					OffsetDateTime.now(),
 					expectedType,
 					ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-					this.proxyFactory::createEntityProxy
+					this::createEntityProxy
 				),
 				this
 			);

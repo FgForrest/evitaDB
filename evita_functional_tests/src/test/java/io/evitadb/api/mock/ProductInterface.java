@@ -114,6 +114,12 @@ public interface ProductInterface extends EntityClassifier {
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	ReferencedFileSet getReferencedFileSetAsDifferentProperty();
 
+	@ReferenceRef(Entities.BRAND)
+	BrandInterface getBrand();
+
+	@ReferenceRef(Entities.BRAND)
+	Integer getBrandId();
+
 	@ReferenceRef(Entities.CATEGORY)
 	Collection<Integer> getCategoryIds();
 

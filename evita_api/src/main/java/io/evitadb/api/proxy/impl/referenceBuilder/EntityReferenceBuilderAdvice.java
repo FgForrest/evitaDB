@@ -90,7 +90,9 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityReferenceBuilderProxy(methodContext, proxyState.getEntity(), proxyState.getReference())
+				proxyState.createEntityReferenceBuilderProxy(
+					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), proxyState.getReference()
+				)
 		);
 	}
 
@@ -123,7 +125,9 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getReferenceBuilderIfPresent()
 				.map(BuilderContract::build)
 				.map(ReferenceContract.class::cast)
-				.map(it -> (Object) proxyState.createNewNonCachedEntityReferenceProxy(proxyState.getProxyClass(), proxyState.getEntity(), it))
+				.map(it -> (Object) proxyState.createNewNonCachedEntityReferenceProxy(
+					proxyState.getProxyClass(), proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), it)
+				)
 				.orElse(proxy)
 		);
 	}

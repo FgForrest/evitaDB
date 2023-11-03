@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.utils.Assert;
@@ -48,6 +49,7 @@ import one.edee.oss.proxycian.DirectMethodClassification;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -77,6 +79,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	 */
 	@Nullable
 	public static <T> ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> getExtractorIfPossible(
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull Class<T> expectedType,
 		@Nonnull Parameter parameter,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -135,11 +138,9 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 							entityType.orElse("N/A") + "` entity type!"
 					)
 				);
-				return (sealedEntity, reference) -> {
-					return reference.getReferencedEntity()
-						.map(it -> proxyFactory.createEntityProxy(parameter.getType(), it))
-						.orElse(null);
-				};
+				return (sealedEntity, reference) -> reference.getReferencedEntity()
+					.map(it -> proxyFactory.createEntityProxy(parameter.getType(), it, referencedEntitySchemas))
+					.orElse(null);
 			} else if (referencedEntityGroup != null) {
 				// or return complex type of the referenced entity group
 				Assert.isTrue(
@@ -153,13 +154,13 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 							entityType.orElse("N/A") + "` entity type!"
 					)
 				);
-				return singleEntityResult(referenceName, valueType, ReferenceDecorator::getGroupEntity, proxyFactory);
+				return singleEntityResult(referencedEntitySchemas, referenceName, valueType, ReferenceDecorator::getGroupEntity, proxyFactory);
 			} else if (entityType.isPresent()) {
 				// otherwise return entity or group based on entity type matching result
 				if (entityIsReferencedEntity) {
-					return singleEntityResult(referenceName, valueType, ReferenceDecorator::getReferencedEntity, proxyFactory);
+					return singleEntityResult(referencedEntitySchemas, referenceName, valueType, ReferenceDecorator::getReferencedEntity, proxyFactory);
 				} else if (entityIsReferencedGroup) {
-					return singleEntityResult(referenceName, valueType, ReferenceDecorator::getGroupEntity, proxyFactory);
+					return singleEntityResult(referencedEntitySchemas, referenceName, valueType, ReferenceDecorator::getGroupEntity, proxyFactory);
 				} else {
 					return null;
 				}
@@ -204,7 +205,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> singleEntityResult(
-		@Nonnull String cleanReferenceName,
+		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
@@ -214,13 +215,13 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			Assert.isTrue(
 				reference instanceof ReferenceDecorator,
 				() -> "Entity `" + theState.getEntity().getType() + "` references of type `" +
-					cleanReferenceName + "` were not fetched with `entityFetch` requirement. " +
+					referenceName + "` were not fetched with `entityFetch` requirement. " +
 					"Related entity body is not available."
 			);
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return resultWrapper.apply(
 				entityExtractor.apply(referenceDecorator)
-					.map(it -> theState.createEntityProxy(itemType, it))
+					.map(it -> theState.createEntityProxy(itemType, it, theState.getReferencedEntitySchemas()))
 					.orElse(null)
 			);
 		};
@@ -231,7 +232,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	 */
 	@Nonnull
 	private static ExceptionRethrowingBiFunction<EntityContract, ReferenceContract, Object> singleEntityResult(
-		@Nonnull String cleanReferenceName,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull ProxyFactory proxyFactory
@@ -240,12 +242,12 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			Assert.isTrue(
 				reference instanceof ReferenceDecorator,
 				() -> "Entity `" + sealedEntity.getType() + "` references of type `" +
-					cleanReferenceName + "` were not fetched with `entityFetch` requirement. " +
+					referenceName + "` were not fetched with `entityFetch` requirement. " +
 					"Related entity body is not available."
 			);
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return entityExtractor.apply(referenceDecorator)
-				.map(it -> proxyFactory.createEntityProxy(itemType, it))
+				.map(it -> proxyFactory.createEntityProxy(itemType, it, referencedEntitySchemas))
 				.orElse(null);
 		};
 	}
@@ -311,7 +313,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ReferenceSchemaContract referenceSchema = proxyState.getReferenceSchema();
-				final String cleanReferenceName = referenceSchema.getName();
+				final String referenceName = referenceSchema.getName();
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
 				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
@@ -362,7 +364,10 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 									entityType.orElse("N/A") + "` entity type!"
 							)
 						);
-						return singleEntityResult(cleanReferenceName, valueType, ReferenceDecorator::getReferencedEntity, resultWrapper);
+						return singleEntityResult(
+							referenceName, valueType,
+							ReferenceDecorator::getReferencedEntity, resultWrapper
+						);
 					} else if (referencedEntityGroup != null) {
 						// or return complex type of the referenced entity group
 						Assert.isTrue(
@@ -376,13 +381,19 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 									entityType.orElse("N/A") + "` entity type!"
 							)
 						);
-						return singleEntityResult(cleanReferenceName, valueType, ReferenceDecorator::getGroupEntity, resultWrapper);
+						return singleEntityResult(
+							referenceName, valueType, ReferenceDecorator::getGroupEntity, resultWrapper
+						);
 					} else if (entityType.isPresent()) {
 						// otherwise return entity or group based on entity type matching result
 						if (entityIsReferencedEntity) {
-							return singleEntityResult(cleanReferenceName, valueType, ReferenceDecorator::getReferencedEntity, resultWrapper);
+							return singleEntityResult(
+								referenceName, valueType, ReferenceDecorator::getReferencedEntity, resultWrapper
+							);
 						} else if (entityIsReferencedGroup) {
-							return singleEntityResult(cleanReferenceName, valueType, ReferenceDecorator::getGroupEntity,resultWrapper);
+							return singleEntityResult(
+								referenceName, valueType, ReferenceDecorator::getGroupEntity,resultWrapper
+							);
 						} else {
 							return null;
 						}

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -87,6 +88,19 @@ public interface InstanceEditor<T extends Serializable> extends Serializable {
 	@Nonnull
 	default EntityReference upsertVia(@Nonnull EvitaSessionContract session) {
 		return session.upsertEntity(this);
+	}
+
+	/**
+	 * The method is a shortcut for calling {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} the other
+	 * way around. Method simplifies the statements, makes them more readable and in combination with builder
+	 * pattern usage it's also easier to use.
+	 *
+	 * @param session to use for upserting the modified (built) entity
+	 * @return the reference to the updated / created entity
+	 */
+	@Nonnull
+	default List<EntityReference> upsertDeeplyVia(@Nonnull EvitaSessionContract session) {
+		return session.upsertEntityDeeply(this);
 	}
 
 }

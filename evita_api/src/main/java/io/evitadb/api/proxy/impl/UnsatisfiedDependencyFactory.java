@@ -30,8 +30,10 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * This {@link ProxyFactory} implementation throws an {@link UnsatisfiedDependencyException} when
@@ -54,14 +56,19 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	@Override
 	public <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException {
 		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
 	}
 
 	@Nonnull
 	@Override
-	public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
+	public <T> T createEntityBuilderProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
+	) throws EntityClassInvalidException {
 		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
 	}
 }

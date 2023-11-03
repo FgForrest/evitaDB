@@ -308,7 +308,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		if (locale == null) {
-			if (!((SealedEntityProxy)product).getSealedEntity().getLocales().isEmpty()) {
+			if (!((SealedEntityProxy)product).getEntity().getLocales().isEmpty()) {
 				assertArrayEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
 			}
 		} else {

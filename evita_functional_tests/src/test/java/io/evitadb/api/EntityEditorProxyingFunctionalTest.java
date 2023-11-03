@@ -23,6 +23,7 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.mock.BrandInterface;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.CategoryInterfaceEditor;
 import io.evitadb.api.mock.ProductCategoryInterface;
@@ -61,16 +62,15 @@ import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.attributeEquals;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
+ *
+ * TODO JNO - otestovat odstranění reference, otestovat úpravu atributu na referenci
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -278,7 +278,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	private static int createParameterEntityIfMissing(EvitaContract evita) {
-		final int parameterId = evita.updateCatalog(
+		return evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
 				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
@@ -299,7 +299,30 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.getPrimaryKey();
 			}
 		);
-		return parameterId;
+	}
+
+	private static int createBrandEntityIfMissing(EvitaContract evita) {
+		return evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+					query(
+						collection(Entities.BRAND),
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "brand-1")
+						)
+					)
+				);
+				return parameterReference
+					.orElseGet(
+						() -> evitaSession.createNewEntity(Entities.BRAND)
+							.setAttribute(ATTRIBUTE_CODE, "brand-1")
+							.setReference(Entities.STORE, 1)
+							.upsertVia(evitaSession)
+					)
+					.getPrimaryKey();
+			}
+		);
 	}
 
 	private static int createCategoryEntityIfMissing(EvitaContract evita, int number) {
@@ -666,7 +689,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(22, mutation.get().getLocalMutations().size());
+				assertEquals(29, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-1", "Produkt 1");
@@ -736,7 +759,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(22, mutation.get().getLocalMutations().size());
+				assertEquals(29, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-2", "Produkt 2");
@@ -804,7 +827,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(22, mutation.get().getLocalMutations().size());
+				assertEquals(29, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-3", "Produkt 3");
@@ -818,6 +841,137 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					new String[]{"market-1", "market-2"},
 					VALIDITY, parameterId, categoryId1, categoryId2
 				);
+			}
+		);
+	}
+
+	@DisplayName("Should set brand by primary key")
+	@Order(11)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithBrandSetAsPrimaryKey(EvitaContract evita) {
+		final int brandId = createBrandEntityIfMissing(evita);
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-4")
+					.setName(CZECH_LOCALE, "Produkt 4")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setBrand(brandId)
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(16, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals(brandId, modifiedInstance.getBrandId());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				assertTrue(createdProduct.getReference(Entities.BRAND, brandId).isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Should set brand by passing entity object")
+	@Order(12)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithBrandSetAsEntity(EvitaContract evita) {
+		final int brandId = createBrandEntityIfMissing(evita);
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final BrandInterface brand = evitaSession.getEntity(
+					BrandInterface.class, brandId, attributeContentAll()
+				).orElseThrow();
+
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-5")
+					.setName(CZECH_LOCALE, "Produkt 5")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setBrand(brand)
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(16, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals(brandId, modifiedInstance.getBrandId());
+				assertSame(brand, modifiedInstance.getBrand());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				assertTrue(createdProduct.getReference(Entities.BRAND, brandId).isPresent());
+			}
+		);
+	}
+
+	@DisplayName("Should set brand by creating new in consumer")
+	@Order(13)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithNewBrandViaConsumer(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-6")
+					.setName(CZECH_LOCALE, "Produkt 6")
+					.setEnum(TestEnum.ONE)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setBrand(brand -> brand.setCode("consumer-created-brand").setStore(1))
+					.addParameter(parameterId, that -> that.setPriority(10L))
+					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(15, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals("consumer-created-brand", modifiedInstance.getBrand().getCode());
+
+				newProduct.upsertDeeplyVia(evitaSession);
+
+				final EntityReference createdBrand = evitaSession.queryOneEntityReference(
+					query(collection(Entities.BRAND), filterBy(attributeEquals("code", "consumer-created-brand")))
+				).orElseThrow();
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity createdProduct = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				assertTrue(createdProduct.getReference(Entities.BRAND, createdBrand.getPrimaryKey()).isPresent());
 			}
 		);
 	}

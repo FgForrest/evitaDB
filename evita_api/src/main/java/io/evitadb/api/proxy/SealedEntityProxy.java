@@ -25,8 +25,8 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -61,28 +61,28 @@ public interface SealedEntityProxy extends EvitaProxy {
 	 * @return the underlying sealed entity
 	 */
 	@Nonnull
-	SealedEntity getSealedEntity();
+	EntityContract getEntity();
 
 	/**
 	 * Returns the entity mutation that contains all the {@link LocalMutation} related to the wrapped
-	 * {@link #getSealedEntity()} opened for write.
+	 * {@link #getEntity()} opened for write.
 	 *
 	 * @return the entity mutation or empty value if no mutations were performed
 	 */
 	@Nonnull
-	Optional<EntityMutationWithCallback> getEntityMutation();
+	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback();
 
 	/**
-	 * Returns stream of entity mutations that related not to internal wrapped {@link #getSealedEntity()} but to
+	 * Returns stream of entity mutations that related not to internal wrapped {@link #getEntity()} but to
 	 * entities that are referenced from this internal entity. This stream is used in method
 	 * {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} to store all changes that were made to the object
 	 * tree originating from this proxy.
 	 *
 	 * @return stream of all mutations that were made to the object tree originating from this proxy, empty stream if
-	 * no mutations were made or mutations were made only to the internally wrapped {@link #getSealedEntity()}
+	 * no mutations were made or mutations were made only to the internally wrapped {@link #getEntity()}
 	 */
 	@Nonnull
-	Stream<EntityMutationWithCallback> getReferencedEntityMutations();
+	Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback();
 
 	/**
 	 * Returns the registered proxy, matching the registration context in creation methods method.
@@ -93,7 +93,7 @@ public interface SealedEntityProxy extends EvitaProxy {
 	 * @param proxyType            set of logical types to be searched for the proxy instance
 	 */
 	@Nonnull
-	<T extends Serializable> Optional<T> getReferencedEntityObject(
+	<T> Optional<T> getReferencedEntityObject(
 		@Nonnull String referencedEntityType,
 		int referencedPrimaryKey,
 		@Nonnull Class<T> expectedType,
@@ -114,11 +114,11 @@ public interface SealedEntityProxy extends EvitaProxy {
 	}
 
 	/**
-	 * Record wrapping {@link EntityMutation} and callback that is called when the mutation is applied via
-	 * {@link EvitaSessionContract#upsertEntity(EntityMutation)} method.
+	 * Record wrapping {@link EntityBuilder} and callback that is called when the builder mutations is applied via
+	 * {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} method.
 	 */
-	record EntityMutationWithCallback(
-		@Nonnull EntityMutation theMutation,
+	record EntityBuilderWithCallback(
+		@Nonnull EntityBuilder builder,
 		@Nullable Consumer<EntityReference> upsertCallback
 	) {
 

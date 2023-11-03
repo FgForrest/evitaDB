@@ -31,7 +31,6 @@ import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
@@ -52,7 +51,6 @@ import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -73,7 +71,7 @@ public class SealedEntityProxyState
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	/**
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
-	 * from internally wrapped entity {@link #getSealedEntity()}.
+	 * from internally wrapped entity {@link #getEntity()}.
 	 */
 	@Nullable protected EntityBuilder entityBuilder;
 	/**
@@ -84,12 +82,13 @@ public class SealedEntityProxyState
 
 	public SealedEntityProxyState(
 		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		super(entity, proxyClass, recipes, collectedRecipes, reflectionLookup);
+		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup);
 	}
 
 	@Nonnull
@@ -110,44 +109,42 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public SealedEntity getSealedEntity() {
-		if (entity instanceof SealedEntity sealedEntity) {
-			return sealedEntity;
-		} else {
-			throw new IllegalStateException("Proxy state does not wrap a sealed entity.");
-		}
+	public EntityContract getEntity() {
+		return getEntityBuilderIfPresent()
+			.map(EntityContract.class::cast)
+			.orElse(this.entity);
 	}
 
 	@Nonnull
 	@Override
-	public Optional<EntityMutationWithCallback> getEntityMutation() {
+	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback() {
 		propagateReferenceMutations();
 		return Optional.ofNullable(this.entityBuilder)
-			.map(InstanceEditor::toMutation)
-			.filter(Optional::isPresent)
-			.map(Optional::get)
-			.map(it -> new EntityMutationWithCallback(it, entityReference -> this.entityReference = entityReference));
+			.map(it -> new EntityBuilderWithCallback(it, entityReference -> this.entityReference = entityReference));
 	}
 
 	@Override
 	@Nonnull
-	public Stream<EntityMutationWithCallback> getReferencedEntityMutations() {
+	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback() {
 		return this.generatedProxyObjects.entrySet().stream()
-			.filter(it -> it.getKey().proxyType() == ProxyType.PARENT_BUILDER || it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY_BUILDER)
+			.filter(
+				it -> it.getKey().proxyType() == ProxyType.PARENT_BUILDER ||
+				it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY_BUILDER
+			)
 			.flatMap(
 				it -> Stream.concat(
 					// we need first store the referenced entities of referenced entity (depth wise)
-					((SealedEntityProxy) it.getValue().proxyOfAnyType()).getReferencedEntityMutations(),
+					((SealedEntityProxy) it.getValue().proxyOfAnyType()).getReferencedEntityBuildersWithCallback(),
 					// and then the referenced entity itself
-					((SealedEntityProxy) it.getValue().proxyOfAnyType()).getEntityMutation()
+					((SealedEntityProxy) it.getValue().proxyOfAnyType()).getEntityBuilderWithCallback()
 						.stream()
 						.map(
 							mutation -> {
-								final EntityMutation theMutation = mutation.theMutation();
+								final EntityBuilder theBuilder = mutation.builder();
 								final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
 								final Consumer<EntityReference> externalCallback = it.getValue().callback();
-								return new EntityMutationWithCallback(
-									theMutation,
+								return new EntityBuilderWithCallback(
+									theBuilder,
 									mutationCallback == null ?
 										externalCallback :
 										entityReference -> {
@@ -163,7 +160,7 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public <T extends Serializable> Optional<T> getReferencedEntityObject(
+	public <T> Optional<T> getReferencedEntityObject(
 		@Nonnull String referencedEntityType,
 		int referencedPrimaryKey,
 		@Nonnull Class<T> expectedType,
@@ -214,6 +211,7 @@ public class SealedEntityProxyState
 					ProxycianFactory.createEntityBuilderProxy(
 						expectedType, recipes, collectedRecipes,
 						new InitialEntityBuilder(entitySchema, primaryKey),
+						referencedEntitySchemas,
 						getReflectionLookup()
 					)
 				)
@@ -235,6 +233,7 @@ public class SealedEntityProxyState
 					ProxycianFactory.createEntityBuilderProxy(
 						expectedType, recipes, collectedRecipes,
 						new InitialEntityBuilder(entitySchema),
+						referencedEntitySchemas,
 						getReflectionLookup()
 					),
 					callback
@@ -257,13 +256,14 @@ public class SealedEntityProxyState
 				key -> {
 					final EntityContract entity = getEntityBuilderIfPresent()
 						.map(EntityContract.class::cast)
-						.orElseGet(this::getSealedEntity);
+						.orElseGet(this::getEntity);
 					return entity.getReference(referenceSchema.getName(), primaryKey)
 						.map(
 							existingReference -> new ProxyWithUpsertCallback(
 								ProxycianFactory.createEntityBuilderReferenceProxy(
 									expectedType, recipes, collectedRecipes,
 									this.entity,
+									referencedEntitySchemas,
 									new ExistingReferenceBuilder(existingReference, getEntitySchema()),
 									getReflectionLookup()
 								)
@@ -273,6 +273,7 @@ public class SealedEntityProxyState
 								ProxycianFactory.createEntityBuilderReferenceProxy(
 									expectedType, recipes, collectedRecipes,
 									this.entity,
+									getReferencedEntitySchemas(),
 									new InitialReferenceBuilder(
 										entitySchema,
 										referenceSchema.getName(),
@@ -312,6 +313,7 @@ public class SealedEntityProxyState
 						ProxycianFactory.createEntityBuilderReferenceProxy(
 							expectedType, recipes, collectedRecipes,
 							this.entity,
+							getReferencedEntitySchemas(),
 							referenceBuilder,
 							getReflectionLookup()
 						),

@@ -37,11 +37,13 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreProvider;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
@@ -66,6 +68,11 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 * The sealed entity that is being proxied.
 	 */
 	@Nonnull protected final EntityContract entity;
+	/**
+	 * The index of referenced entity schemas by their type at the time the proxy was built.
+	 */
+	@Getter
+	@Nonnull protected final Map<String, EntitySchemaContract> referencedEntitySchemas;
 	/**
 	 * The class of the proxy was built upon.
 	 */
@@ -124,6 +131,16 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		return entity.getSchema();
 	}
 
+	/**
+	 * Returns entity schema for the passed entity type.
+	 * @param entityType name of the entity type
+	 * @return entity schema for the passed entity type or empty result
+	 */
+	@Nullable
+	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+		return ofNullable(referencedEntitySchemas.get(entityType));
+	}
+
 	@Override
 	public Map<String, Serializable> getOrCreateLocalDataStore() {
 		if (localDataStore == null) {
@@ -139,48 +156,76 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 
 	@Nonnull
 	@Override
-	public <T> T createEntityProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) {
+	public <T> T createEntityProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
+	) {
 		return generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY),
-			key -> new ProxyWithUpsertCallback(
-				createNewNonCachedEntityProxy(expectedType, entity)
+				new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY),
+				key -> new ProxyWithUpsertCallback(
+					createNewNonCachedEntityProxy(expectedType, entity, referencedEntitySchemas)
+				)
 			)
-		)
 			.proxy(expectedType)
 			.orElseThrow();
-	}
-
-	@Nonnull
-	public <T> T createNewNonCachedEntityProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) {
-		return ProxycianFactory.createEntityProxy(
-			expectedType, recipes, collectedRecipes, entity, getReflectionLookup()
-		);
-	}
-
-	@Nonnull
-	public <T> T createNewNonCachedEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
-		return ProxycianFactory.createEntityReferenceProxy(
-			expectedType, recipes, collectedRecipes, entity, reference, getReflectionLookup()
-		);
 	}
 
 	@Nonnull
 	@Override
-	public <T> T createEntityBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity) throws EntityClassInvalidException {
+	public <T> T createEntityBuilderProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
+	) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(
-				entity.getType(),
-				ofNullable(entity.getPrimaryKey()).orElse(Integer.MIN_VALUE),
-				ProxyType.ENTITY_BUILDER
-			),
-			key -> new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityBuilderProxy(
-					expectedType, recipes, collectedRecipes, entity, getReflectionLookup()
+				new ProxyInstanceCacheKey(
+					entity.getType(),
+					ofNullable(entity.getPrimaryKey()).orElse(Integer.MIN_VALUE),
+					ProxyType.ENTITY_BUILDER
+				),
+				key -> new ProxyWithUpsertCallback(
+					ProxycianFactory.createEntityBuilderProxy(
+						expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup()
+					)
 				)
 			)
-		)
 			.proxy(expectedType)
 			.orElseThrow();
+	}
+
+	@Nonnull
+	public <T> T createNewNonCachedEntityProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
+	) {
+		return ProxycianFactory.createEntityProxy(
+			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup()
+		);
+	}
+
+	@Nonnull
+	public <T> T createNewNonCachedClone(
+		@Nonnull EntityContract entity
+	) {
+		//noinspection DataFlowIssue,unchecked
+		return (T) ProxycianFactory.createEntityProxy(
+			getProxyClass(), recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup(),
+			stateClone -> stateClone.registerReferencedEntityObjects(this.generatedProxyObjects)
+		);
+	}
+
+	@Nonnull
+	public <T> T createNewNonCachedEntityReferenceProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull ReferenceContract reference
+	) {
+		return ProxycianFactory.createEntityReferenceProxy(
+			expectedType, recipes, collectedRecipes, entity,referencedEntitySchemas, reference, getReflectionLookup()
+		);
 	}
 
 	/**
@@ -188,14 +233,15 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 *
 	 * @param entitySchema schema of the entity to be created
 	 * @param expectedType contract that the proxy should implement
-	 * @param callback callback that will be called when the entity is upserted
+	 * @param callback     callback that will be called when the entity is upserted
+	 * @param <T>          type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
-	 * @param <T> type of contract that the proxy should implement
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
 	@Nonnull
 	public <T> T createEntityBuilderProxyWithCallback(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull Class<T> expectedType,
 		@Nonnull ProxyType proxyType,
 		@Nonnull Consumer<EntityReference> callback
@@ -203,14 +249,11 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		return generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
 				key -> {
-					final InitialEntityBuilder entityBuilder = new InitialEntityBuilder(
-						entitySchema,
-						Integer.MIN_VALUE
-					);
+					final InitialEntityBuilder entityBuilder = new InitialEntityBuilder(entitySchema);
 					return new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityBuilderProxy(
 							expectedType, recipes, collectedRecipes,
-							entityBuilder,
+							entityBuilder, referencedEntitySchemas,
 							getReflectionLookup()
 						),
 						callback
@@ -223,30 +266,40 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 
 	@Override
 	@Nonnull
-	public <T> T createEntityReferenceProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) {
+	public <T> T createEntityReferenceProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull ReferenceContract reference
+	) {
 		return generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
-			key -> new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityReferenceProxy(
-					expectedType, recipes, collectedRecipes, entity, reference, getReflectionLookup()
+				new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
+				key -> new ProxyWithUpsertCallback(
+					ProxycianFactory.createEntityReferenceProxy(
+						expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup()
+					)
 				)
 			)
-		)
 			.proxy(expectedType)
 			.orElseThrow();
 	}
 
 	@Nonnull
 	@Override
-	public <T> T createEntityReferenceBuilderProxy(@Nonnull Class<T> expectedType, @Nonnull EntityContract entity, @Nonnull ReferenceContract reference) throws EntityClassInvalidException {
+	public <T> T createEntityReferenceBuilderProxy(
+		@Nonnull Class<T> expectedType,
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull ReferenceContract reference
+	) throws EntityClassInvalidException {
 		return generatedProxyObjects.computeIfAbsent(
-			new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE_BUILDER),
-			key -> new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityBuilderReferenceProxy(
-					expectedType, recipes, collectedRecipes, entity, reference, getReflectionLookup()
+				new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE_BUILDER),
+				key -> new ProxyWithUpsertCallback(
+					ProxycianFactory.createEntityBuilderReferenceProxy(
+						expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup()
+					)
 				)
 			)
-		)
 			.proxy(expectedType)
 			.orElseThrow();
 	}
@@ -271,6 +324,10 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType),
 			new ProxyWithUpsertCallback(proxy)
 		);
+	}
+
+	void registerReferencedEntityObjects(@Nonnull Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> generatedProxyObjects) {
+		this.generatedProxyObjects.putAll(generatedProxyObjects);
 	}
 
 	/**
@@ -309,7 +366,8 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		@Nonnull Consumer<EntityReference> callback
 	) {
 
-		private static final Consumer<EntityReference> DO_NOTHING_CALLBACK = entityReference -> {};
+		private static final Consumer<EntityReference> DO_NOTHING_CALLBACK = entityReference -> {
+		};
 
 		public ProxyWithUpsertCallback(@Nonnull Object proxy) {
 			this(proxy, DO_NOTHING_CALLBACK);

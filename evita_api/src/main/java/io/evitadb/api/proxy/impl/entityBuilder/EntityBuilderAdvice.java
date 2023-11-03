@@ -39,6 +39,7 @@ import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
@@ -71,6 +72,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			toMutationMethodClassification(),
 			toInstanceMethodClassification(),
 			upsertViaMethodClassification(),
+			upsertDeeplyViaMethodClassification(),
 			openForWriteMethodClassification(),
 			SetAttributeMethodClassifier.INSTANCE,
 			SetAssociatedDataMethodClassifier.INSTANCE,
@@ -94,7 +96,9 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityBuilderProxy(methodContext, proxyState.getEntity())
+				proxyState.createEntityBuilderProxy(
+					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
+				)
 		);
 	}
 
@@ -105,12 +109,26 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "upsertVia".equals(method.getName()),
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
+				proxyState.propagateReferenceMutations();
 				final EntityReference entityReference = proxyState.getEntityBuilderIfPresent()
 					.flatMap(InstanceEditor::toMutation)
 					.map(it -> ((EvitaSessionContract) args[0]).upsertEntity(it))
 					.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()));
 				proxyState.setEntityReference(entityReference);
 				return entityReference;
+			}
+		);
+	}
+
+	@Nonnull
+	private static PredicateMethodClassification<Object, Method, SealedEntityProxyState> upsertDeeplyViaMethodClassification() {
+		return new PredicateMethodClassification<>(
+			"upsertDeeplyVia",
+			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "upsertDeeplyVia".equals(method.getName()),
+			(method, proxyState) -> method,
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
+				proxyState.propagateReferenceMutations();
+				return ((EvitaSessionContract)args[0]).upsertEntityDeeply((Serializable) proxy);
 			}
 		);
 	}
@@ -126,7 +144,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				return proxyState.getEntityBuilderIfPresent()
 					.map(InstanceEditor::toInstance)
 					.map(EntityContract.class::cast)
-					.map(it -> (Object) proxyState.createNewNonCachedEntityProxy(proxyState.getProxyClass(), it))
+					.map(proxyState::createNewNonCachedClone)
 					.orElse(proxy);
 			}
 		);
@@ -138,8 +156,11 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			"toMutation",
 			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, InstanceEditor.class) && "toMutation".equals(method.getName()),
 			(method, proxyState) -> method,
-			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getEntityBuilderIfPresent()
-				.flatMap(InstanceEditor::toMutation)
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
+				proxyState.propagateReferenceMutations();
+				return proxyState.getEntityBuilderIfPresent()
+					.flatMap(InstanceEditor::toMutation);
+			}
 		);
 	}
 

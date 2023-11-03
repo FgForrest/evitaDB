@@ -39,16 +39,19 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.utils.ClassUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -83,6 +86,10 @@ class EvitaEntitySchemaCache {
 	 * Contains the references to entity schemas indexed by their {@link EntitySchema#getName()}.
 	 */
 	private final Map<SchemaCacheKey, SchemaWrapper> cachedSchemas = new ConcurrentHashMap<>(64);
+	/**
+	 * Contains the latest entity schema index.
+	 */
+	private final AtomicReference<SchemaIndexWrapper> schemaIndex = new AtomicReference<SchemaIndexWrapper>();
 	/**
 	 * Contains the timestamp of the last check for entity schemas in {@link #cachedSchemas} being obsolete.
 	 */
@@ -129,13 +136,8 @@ class EvitaEntitySchemaCache {
 		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
 	) {
 		final long now = System.currentTimeMillis();
-		// each minute apply obsolete check
-		final long lastCheck = lastObsoleteCheck.get();
-		if (now < lastCheck + 60 * 1000) {
-			if (lastObsoleteCheck.compareAndSet(lastCheck, now)) {
-				cachedSchemas.values().removeIf(entitySchemaWrapper -> entitySchemaWrapper.isObsolete(now));
-			}
-		}
+		// frequently apply obsolete check
+		executeObsoleteCheck(now);
 		// attempt to retrieve schema from the client side cache
 		final SchemaWrapper schemaWrapper = this.cachedSchemas.get(LatestCatalogSchema.INSTANCE);
 		if (schemaWrapper == null) {
@@ -170,6 +172,7 @@ class EvitaEntitySchemaCache {
 	 * the server side next time, it's asked for it.
 	 */
 	public void removeLatestCatalogSchema() {
+		this.schemaIndex.set(null);
 		this.cachedSchemas.remove(LatestCatalogSchema.INSTANCE);
 	}
 
@@ -240,7 +243,32 @@ class EvitaEntitySchemaCache {
 	 * the server side next time, it's asked for it.
 	 */
 	public void removeLatestEntitySchema(@Nonnull String entityType) {
+		this.schemaIndex.set(null);
 		this.cachedSchemas.remove(new LatestEntitySchema(entityType));
+	}
+
+	@Nonnull
+	public Map<String, EntitySchemaContract> getLatestEntitySchemaIndex(
+		@Nonnull Supplier<Collection<String>> entitySchemaNamesAccessor,
+		@Nonnull Function<String, Optional<EntitySchema>> schemaAccessor,
+		@Nonnull Supplier<CatalogSchemaContract> catalogSchemaSupplier
+	) {
+		final long now = System.currentTimeMillis();
+		// frequently apply obsolete check
+		executeObsoleteCheck(now);
+		SchemaIndexWrapper schemaIndexWrapper = schemaIndex.get();
+		if (schemaIndexWrapper == null || schemaIndexWrapper.isObsolete(now)) {
+			final Collection<String> entitySchemaNames = entitySchemaNamesAccessor.get();
+			final Map<String, EntitySchemaContract> newIndex = CollectionUtils.createHashMap(entitySchemaNames.size());
+			for (String entitySchemaName : entitySchemaNames) {
+				getLatestEntitySchema(
+					entitySchemaName, schemaAccessor, catalogSchemaSupplier
+				).ifPresent(it -> newIndex.put(it.getName(), it));
+			}
+			schemaIndexWrapper = new SchemaIndexWrapper(newIndex, now);
+			this.schemaIndex.set(schemaIndexWrapper);
+		}
+		return schemaIndexWrapper.getIndex();
 	}
 
 	@Nonnull
@@ -250,13 +278,8 @@ class EvitaEntitySchemaCache {
 		@Nonnull Function<String, Optional<EntitySchema>> schemaAccessor
 	) {
 		final long now = System.currentTimeMillis();
-		// each minute apply obsolete check
-		final long lastCheck = lastObsoleteCheck.get();
-		if (now < lastCheck + 60 * 1000) {
-			if (lastObsoleteCheck.compareAndSet(lastCheck, now)) {
-				cachedSchemas.values().removeIf(entitySchemaWrapper -> entitySchemaWrapper.isObsolete(now));
-			}
-		}
+		// frequently apply obsolete check
+		executeObsoleteCheck(now);
 		// attempt to retrieve schema from the client side cache
 		final SchemaWrapper schemaWrapper = this.cachedSchemas.get(cacheKey);
 		if (shouldReFetch.test(schemaWrapper)) {
@@ -281,6 +304,21 @@ class EvitaEntitySchemaCache {
 			// if found in cache, update last used timestamp
 			schemaWrapper.used();
 			return of(schemaWrapper.getEntitySchema());
+		}
+	}
+
+	/**
+	 * Entity schemas that hasn't been used for a long time are considered obsolete and are removed from
+	 * the cache.
+	 *
+	 * @param now current date and time
+	 */
+	private void executeObsoleteCheck(long now) {
+		final long lastCheck = lastObsoleteCheck.get();
+		if (now < lastCheck + 60 * 1000) {
+			if (lastObsoleteCheck.compareAndSet(lastCheck, now)) {
+				cachedSchemas.values().removeIf(entitySchemaWrapper -> entitySchemaWrapper.isObsolete(now));
+			}
 		}
 	}
 
@@ -376,6 +414,38 @@ class EvitaEntitySchemaCache {
 		 */
 		boolean isObsolete(long now) {
 			return now - OBSOLETE_INTERVAL > this.lastUsed;
+		}
+
+	}
+
+	/**
+	 * Contains information about all latest entity schemas together with the fetch timestamp.
+	 */
+	static class SchemaIndexWrapper {
+		/**
+		 * The entity schema index is considered obsolete after 4 hours since last usage.
+		 */
+		private static final long OBSOLETE_INTERVAL = 4L * 60L * 60L * 100L;
+		/**
+		 * The entity schema index fetched from the server.
+		 */
+		@Getter private final @Nullable Map<String, EntitySchemaContract> index;
+		/**
+		 * Date and time ({@link System#currentTimeMillis()} of the moment when the entity schema was fetched from
+		 * the server side.
+		 */
+		@Getter private final long fetched;
+
+		SchemaIndexWrapper(@Nonnull Map<String, EntitySchemaContract> index, long fetched) {
+			this.index = index;
+			this.fetched = fetched;
+		}
+
+		/**
+		 * Returns TRUE if the entity schema was used long ago (defined by the {@link #OBSOLETE_INTERVAL}.
+		 */
+		boolean isObsolete(long now) {
+			return now - OBSOLETE_INTERVAL > this.fetched;
 		}
 
 	}

@@ -73,6 +73,15 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setReferencedFileSet(ReferencedFileSet referencedFileSet);
 
+	ProductInterfaceEditor setBrand(int brandId);
+
+	ProductInterfaceEditor setBrand(BrandInterface brand);
+
+	ProductInterfaceEditor setBrand(Consumer<BrandInterfaceEditor> brandConsumer);
+
+	@ReferenceRef(Entities.BRAND)
+	BrandInterface getOrCreateBrand();
+
 	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
 
 	@ReferenceRef(Entities.CATEGORY)
