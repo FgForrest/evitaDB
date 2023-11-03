@@ -14,6 +14,7 @@
         }
       }
     },
+    "requested": true,
     "children": [
       {
         "entity": {
@@ -28,7 +29,8 @@
               "code": "christmas-electronics"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -44,6 +46,7 @@
             }
           }
         },
+        "requested": false,
         "children": [
           {
             "entity": {
@@ -58,7 +61,8 @@
                   "code": "smartwatches"
                 }
               }
-            }
+            },
+            "requested": false
           },
           {
             "entity": {
@@ -73,7 +77,8 @@
                   "code": "smartglasses"
                 }
               }
-            }
+            },
+            "requested": false
           },
           {
             "entity": {
@@ -88,7 +93,8 @@
                   "code": "bands"
                 }
               }
-            }
+            },
+            "requested": false
           }
         ]
       },
@@ -106,6 +112,7 @@
             }
           }
         },
+        "requested": false,
         "children": [
           {
             "entity": {
@@ -120,7 +127,8 @@
                   "code": "wireless-headphones"
                 }
               }
-            }
+            },
+            "requested": false
           },
           {
             "entity": {
@@ -135,7 +143,8 @@
                   "code": "wired-heaphones"
                 }
               }
-            }
+            },
+            "requested": false
           },
           {
             "entity": {
@@ -150,7 +159,8 @@
                   "code": "microphones"
                 }
               }
-            }
+            },
+            "requested": false
           },
           {
             "entity": {
@@ -165,7 +175,8 @@
                   "code": "repro"
                 }
               }
-            }
+            },
+            "requested": false
           }
         ]
       },
@@ -182,7 +193,8 @@
               "code": "monitors"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -198,6 +210,7 @@
             }
           }
         },
+        "requested": false,
         "children": [
           {
             "entity": {
@@ -212,7 +225,8 @@
                   "code": "cz-keyboards"
                 }
               }
-            }
+            },
+            "requested": false
           }
         ]
       },
@@ -229,7 +243,8 @@
               "code": "mouses"
             }
           }
-        }
+        },
+        "requested": false
       }
     ]
   }

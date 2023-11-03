@@ -14,6 +14,7 @@
         }
       }
     },
+    "requested": false,
     "children": [
       {
         "entity": {
@@ -28,7 +29,8 @@
               "code": "phones"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -43,7 +45,8 @@
               "code": "tablets"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -58,7 +61,8 @@
               "code": "e-readers"
             }
           }
-        }
+        },
+        "requested": false
       }
     ]
   },
@@ -76,6 +80,7 @@
         }
       }
     },
+    "requested": false,
     "children": [
       {
         "entity": {
@@ -90,7 +95,8 @@
               "code": "netbooks"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -105,7 +111,8 @@
               "code": "ultrabooks"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -120,7 +127,8 @@
               "code": "gaming"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -135,7 +143,8 @@
               "code": "workstations"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -150,7 +159,8 @@
               "code": "touch"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -165,7 +175,8 @@
               "code": "macbooks"
             }
           }
-        }
+        },
+        "requested": false
       }
     ]
   },
@@ -183,6 +194,7 @@
         }
       }
     },
+    "requested": false,
     "children": [
       {
         "entity": {
@@ -197,7 +209,8 @@
               "code": "christmas-electronics"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -212,7 +225,8 @@
               "code": "smart-wearable"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -227,7 +241,8 @@
               "code": "audio"
             }
           }
-        }
+        },
+        "requested": true
       },
       {
         "entity": {
@@ -242,7 +257,8 @@
               "code": "monitors"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -257,7 +273,8 @@
               "code": "keyboards"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -272,7 +289,8 @@
               "code": "mouses"
             }
           }
-        }
+        },
+        "requested": false
       }
     ]
   },
@@ -290,6 +308,7 @@
         }
       }
     },
+    "requested": false,
     "children": [
       {
         "entity": {
@@ -304,7 +323,8 @@
               "code": "vouchers-for-shareholders"
             }
           }
-        }
+        },
+        "requested": false
       }
     ]
   },
@@ -321,7 +341,8 @@
           "code": "prepared-products"
         }
       }
-    }
+    },
+    "requested": false
   }
 ]
 ```

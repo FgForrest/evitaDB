@@ -55,8 +55,9 @@ public abstract class HistogramConverter extends RequireConverter {
 				bucketsBuilder -> bucketsBuilder
 					.addPrimitiveField(BucketDescriptor.INDEX)
 					.addPrimitiveField(BucketDescriptor.THRESHOLD)
-					.addPrimitiveField(BucketDescriptor.OCCURRENCES),
-				__ -> new Argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT, requestedBucketCount)
+					.addPrimitiveField(BucketDescriptor.OCCURRENCES)
+					.addPrimitiveField(BucketDescriptor.REQUESTED),
+				offset -> new Argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT, offset, requestedBucketCount)
 			);
 	}
 }
