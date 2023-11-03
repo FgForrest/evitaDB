@@ -5261,7 +5261,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
 				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParentEntity().isPresent() ? entity.getParentEntity().get().getPrimaryKey() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
+					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
+			.e(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
 
 		if (levelInfo.queriedEntityCount() != null) {
 			currentLevelInfoDto.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount());
@@ -5383,6 +5384,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						code
 					}
 				}
+				requested
 				%s
 				%s
 				""",

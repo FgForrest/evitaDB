@@ -46,6 +46,13 @@ public interface LevelInfoDescriptor {
 			""")
 		// type is expected to be a `Entity` object
 		.build();
+	PropertyDescriptor REQUESTED = PropertyDescriptor.builder()
+		.name("requested")
+		.description("""
+   			True in case the entity was filtered by `hierarchyWithin`.
+			""")
+		.type(nonNull(Boolean.class))
+		.build();
 	PropertyDescriptor QUERIED_ENTITY_COUNT = PropertyDescriptor.builder()
 		.name("queriedEntityCount")
 		.description("""
@@ -78,6 +85,6 @@ public interface LevelInfoDescriptor {
 			This DTO represents single hierarchical entity in the hierarchy tree. It contains identification of the entity,
 			the cardinality of queried entities that refer to it and information about children level.
 			""")
-		.staticFields(List.of(QUERIED_ENTITY_COUNT, CHILDREN_COUNT))
+		.staticFields(List.of(REQUESTED, QUERIED_ENTITY_COUNT, CHILDREN_COUNT))
 		.build();
 }
