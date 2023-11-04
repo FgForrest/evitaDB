@@ -53,6 +53,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -65,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
  *
- * TODO JNO - otestovat odstranění reference, otestovat úpravu atributu na referenci
+ * TODO JNO - otestovat úpravu atributu na referenci
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -182,6 +183,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(2L, category2.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
 		assertFalse(category2.getAttribute(ATTRIBUTE_CATEGORY_SHADOW, boolean.class));
 		assertEquals("Kategorie 2", category2.getAttribute(ATTRIBUTE_CATEGORY_LABEL, CZECH_LOCALE, String.class));
+
+		final Collection<ReferenceContract> storeReferences = product.getReferences(Entities.STORE);
+		assertEquals(3, storeReferences.size());
+		assertArrayEquals(new int[]{1, 2, 3}, storeReferences.stream().mapToInt(ReferenceContract::getReferencedPrimaryKey).sorted().toArray());
 	}
 
 	private static void assertUnknownEntity(SealedEntity unknownEntity, String code, String name, long priority) {
@@ -221,6 +226,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		assertEquals(2L, category2.getOrderInCategory());
 		assertEquals("Kategorie 2", category2.getLabel(CZECH_LOCALE));
 		assertFalse(category2.isShadow());
+
+		assertArrayEquals(new int[]{1, 2, 3}, modifiedInstance.getStores());
 
 		assertFalse(
 			new Price(1, new Price.PriceKey(1, "reference", CURRENCY_CZK), null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true)
@@ -692,7 +699,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					.setBasicPrice(BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO, "CZK", 7, VALIDITY, 8)
 					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.addStore(1)
+					.addStore(2)
+					.addStore(3);
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -710,7 +720,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(29, mutation.get().getLocalMutations().size());
+				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-1", "Produkt 1");
@@ -762,7 +772,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					)
 					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.setStoresByIds(Arrays.asList(1, 2, 3))
+					.setStores(List.of(evitaSession.getEntity(StoreInterface.class, 3, entityFetchAllContent()).orElseThrow()));
+				;
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -780,7 +793,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(29, mutation.get().getLocalMutations().size());
+				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-2", "Produkt 2");
@@ -830,7 +843,9 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					)
 					.setParameter(parameterId, that -> that.setPriority(10L))
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.setStoresByIds(1, 2)
+					.setStores(evitaSession.getEntity(StoreInterface.class, 3, entityFetchAllContent()).orElseThrow());
 
 				assertThrows(
 					EvitaInvalidUsageException.class,
@@ -848,7 +863,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(29, mutation.get().getLocalMutations().size());
+				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertModifiedInstance(modifiedInstance, parameterId, categoryId1, categoryId2, VALIDITY, "product-3", "Produkt 3");
@@ -1116,7 +1131,8 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 						new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 					)
 					.addProductCategory(categoryId1, that -> that.setOrderInCategory(1L).setShadow(true).setLabel(CZECH_LOCALE, "Kategorie 1"))
-					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"));
+					.addProductCategory(categoryId2, that -> that.setOrderInCategory(2L).setShadow(false).setLabel(CZECH_LOCALE, "Kategorie 2"))
+					.setStoresByIds(1, 2, 3);
 
 				assertNull(newProduct.getParameter());
 				final ProductParameterInterfaceEditor newParameter = newProduct.getOrCreateParameter(parameterId);
@@ -1127,7 +1143,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				final Optional<EntityMutation> mutation = newProduct.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(29, mutation.get().getLocalMutations().size());
+				assertEquals(32, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = newProduct.toInstance();
 				assertEquals(parameterId, newProduct.getParameter().getPrimaryKey());

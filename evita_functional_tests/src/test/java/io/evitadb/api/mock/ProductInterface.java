@@ -246,4 +246,7 @@ public interface ProductInterface extends EntityClassifier {
 	@Price
 	@Nullable
 	PriceContract getPrice(String priceListName, Currency currency, int priceId);
+
+	@ReferenceRef(Entities.STORE)
+	int[] getStores();
 }

@@ -53,6 +53,7 @@ import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Collection;
@@ -179,6 +180,22 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<?> aClass
 	) {
 		return referencedType.map(ResolvedParameter::resolvedType).map(aClass::isAssignableFrom).orElse(false);
+	}
+
+	/**
+	 * Returns true if referenced type is assignable from the given class.
+	 *
+	 * @param referencedType the referenced type
+	 * @param aClass         the class to check
+	 * @return true if referenced type is assignable from the given class
+	 */
+	@Nonnull
+	private static Boolean resolvedTypeIsNumber(
+		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+		@Nonnull Optional<ResolvedParameter> referencedType,
+		@Nonnull Class<?> aClass
+	) {
+		return referencedType.map(ResolvedParameter::resolvedType).map(NumberUtils::isIntConvertibleNumber).orElse(false);
 	}
 
 	/**
@@ -961,6 +978,140 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Returns method implementation that sets the referenced entity by primary key and return no result.
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferencedEntityPrimaryKeyWithVoidResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Serializable referencedClassifier = (Serializable) args[0];
+			entityBuilder.setReference(referenceName, EvitaDataTypes.toTargetType(referencedClassifier, int.class));
+			return null;
+		};
+	}
+
+	/**
+	 * Returns method implementation that sets the referenced entity primary key and return the reference to the proxy
+	 * to allow chaining (builder pattern).
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferencedEntityPrimaryKeyWithBuilderResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Serializable referencedClassifier = (Serializable) args[0];
+			entityBuilder.setReference(referenceName, EvitaDataTypes.toTargetType(referencedClassifier, int.class));
+			return proxy;
+		};
+	}
+
+	/**
+	 * Returns method implementation that sets the referenced entity primary key and return no result.
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferencedEntityPrimaryKeyAsArrayWithBuilderResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final int length = Array.getLength(args[0]);
+			for (int i = 0; i < length; i++) {
+				final Serializable primaryKey = (Serializable) Array.get(args[0], i);
+				entityBuilder.setReference(
+					referenceName, EvitaDataTypes.toTargetType(primaryKey, int.class)
+				);
+			}
+			return proxy;
+		};
+	}
+
+	/**
+	 * Returns method implementation that sets the referenced entity primary key and return the reference to the proxy
+	 * to allow chaining (builder pattern).
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferencedEntityPrimaryKeyAsArrayWithVoidResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Object[] primaryKeys = (Object[]) args[0];
+			for (Object primaryKey : primaryKeys) {
+				entityBuilder.setReference(
+					referenceName, EvitaDataTypes.toTargetType((Serializable) primaryKey, int.class)
+				);
+			}
+			return proxy;
+		};
+	}
+
+	/**
+	 * Returns method implementation that sets the referenced entity by extracting it from {@link EntityClassifier}
+	 * and return no result.
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferencedEntityPrimaryKeyAsCollectionWithBuilderResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			//noinspection DataFlowIssue,unchecked
+			final Collection<Serializable> primaryKeys = (Collection<Serializable>) args[0];
+			for (Serializable primaryKey : primaryKeys) {
+				entityBuilder.setReference(referenceName, EvitaDataTypes.toTargetType(primaryKey, int.class));
+			}
+			return proxy;
+		};
+	}
+
+	/**
+	 * Returns method implementation that sets the referenced entity primary key and return the reference to the proxy
+	 * to allow chaining (builder pattern).
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferencedEntityPrimaryKeyAsCollectionWithVoidResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			//noinspection DataFlowIssue,unchecked
+			final Collection<Serializable> primaryKeys = (Collection<Serializable>) args[0];
+			for (Serializable primaryKey : primaryKeys) {
+				entityBuilder.setReference(referenceName, EvitaDataTypes.toTargetType(primaryKey, int.class));
+			}
+			return proxy;
+		};
+	}
+
+	/**
 	 * Returns method implementation that sets the referenced entity by extracting it from {@link SealedEntityProxy}
 	 * and return no result.
 	 *
@@ -1523,6 +1674,44 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Returns method implementation that creates or updates reference by passing primary keys
+	 * to the method parameter. This implementation doesn't allow to set attributes on the reference.
+	 *
+	 * @param proxyState         the proxy state
+	 * @param referencedParameter the entity recognized in
+	 * @param returnType         the return type
+	 * @param referenceSchema    the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setReferenceById(
+		@Nonnull SealedEntityProxyState proxyState,
+		@Nonnull ResolvedParameter referencedParameter,
+		@Nonnull Class<?> returnType,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		if (referencedParameter.mainType().isArray()) {
+			if (returnType.equals(proxyState.getProxyClass())) {
+				return setReferencedEntityPrimaryKeyAsArrayWithBuilderResult(referenceSchema);
+			} else {
+				return setReferencedEntityPrimaryKeyAsArrayWithVoidResult(referenceSchema);
+			}
+		} else if (Collection.class.isAssignableFrom(referencedParameter.mainType)) {
+			if (returnType.equals(proxyState.getProxyClass())) {
+				return setReferencedEntityPrimaryKeyAsCollectionWithBuilderResult(referenceSchema);
+			} else {
+				return setReferencedEntityPrimaryKeyAsCollectionWithVoidResult(referenceSchema);
+			}
+		} else {
+			if (returnType.equals(proxyState.getProxyClass())) {
+				return setReferencedEntityPrimaryKeyWithBuilderResult(referenceSchema);
+			} else {
+				return setReferencedEntityPrimaryKeyWithVoidResult(referenceSchema);
+			}
+		}
+	}
+
+	/**
 	 * Returns method implementation that creates, updates or removes reference by passing referenced entity ids.
 	 * This implementation doesn't allow to set attributes on the reference.
 	 *
@@ -1661,6 +1850,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						return setOrRemoveReferenceById(proxyState, method, returnType, referenceSchema);
 					} else if (resolvedTypeIs(referencedType, EntityClassifier.class) && noDirectlyReferencedEntityRecognized) {
 						return setReferenceByEntityClassifier(proxyState, entityRecognizedIn.orElseThrow(), returnType, referenceSchema);
+					} else if (resolvedTypeIsNumber(referencedType, Number.class) && noDirectlyReferencedEntityRecognized) {
+						return setReferenceById(proxyState, referencedType.orElseThrow(), returnType, referenceSchema);
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.PARAMETER)) {
 						return setReferenceByEntity(proxyState, entityRecognizedIn.orElseThrow(), returnType, referenceSchema);
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.CONSUMER)) {

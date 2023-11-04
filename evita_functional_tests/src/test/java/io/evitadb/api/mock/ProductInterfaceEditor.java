@@ -41,7 +41,6 @@ import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
-import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -101,20 +100,7 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@ReferenceRef(Entities.PARAMETER)
 	@CreateWhenMissing
-	ProductParameterInterfaceEditor getOrCreateParameter();
-
-	@ReferenceRef(Entities.PARAMETER)
-	@CreateWhenMissing
 	ProductParameterInterfaceEditor getOrCreateParameter(int parameterId);
-
-	@ReferenceRef(Entities.PARAMETER)
-	@RemoveWhenExists
-	ProductParameterInterfaceEditor removeParameterById(int parameterId);
-
-	ProductInterfaceEditor setProductCategories(Collection<ProductCategoryInterface> productCategories);
-
-	@ReferenceRef(Entities.CATEGORY)
-	ProductInterfaceEditor setProductCategoriesAsVarArg(ProductCategoryInterface... productCategoriesAsArray);
 
 	@ReferenceRef(Entities.CATEGORY)
 	ProductInterfaceEditor addProductCategory(int categoryId, @CreateWhenMissing Consumer<ProductCategoryInterfaceEditor> productCategoryEditor);
@@ -202,5 +188,20 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@Price
 	@RemoveWhenExists
 	ProductInterfaceEditor removePrice(PriceContract price);
+
+	@ReferenceRef(Entities.STORE)
+	ProductInterfaceEditor addStore(int storeId);
+
+	@ReferenceRef(Entities.STORE)
+	ProductInterfaceEditor setStoresByIds(List<Integer> storeIds);
+
+	@ReferenceRef(Entities.STORE)
+	ProductInterfaceEditor setStores(List<StoreInterface> storeIds);
+
+	@ReferenceRef(Entities.STORE)
+	ProductInterfaceEditor setStoresByIds(int... storeId);
+
+	@ReferenceRef(Entities.STORE)
+	ProductInterfaceEditor setStores(StoreInterface... store);
 
 }
