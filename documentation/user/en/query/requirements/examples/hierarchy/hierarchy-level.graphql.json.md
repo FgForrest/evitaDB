@@ -4,211 +4,211 @@
     "level": 1,
     "entity": {
       "primaryKey": 66466,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "portables"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66471,
-      "parentPrimaryKey": 66466,
       "attributes": {
         "code": "phones"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66472,
-      "parentPrimaryKey": 66466,
       "attributes": {
         "code": "tablets"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66473,
-      "parentPrimaryKey": 66466,
       "attributes": {
         "code": "e-readers"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 1,
     "entity": {
       "primaryKey": 66467,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "laptops"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66474,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "netbooks"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66475,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "ultrabooks"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66476,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "gaming"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66477,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "workstations"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66478,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "touch"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66479,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "macbooks"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 1,
     "entity": {
       "primaryKey": 66468,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "accessories"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66480,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "christmas-electronics"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66481,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "smart-wearable"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66482,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "audio"
       }
-    }
+    },
+    "requested": true
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66483,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "monitors"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66484,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "keyboards"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66537,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "mouses"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 1,
     "entity": {
       "primaryKey": 66469,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "vouchers"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 2,
     "entity": {
       "primaryKey": 66493,
-      "parentPrimaryKey": 66469,
       "attributes": {
         "code": "vouchers-for-shareholders"
       }
-    }
+    },
+    "requested": false
   },
   {
     "level": 1,
     "entity": {
       "primaryKey": 66470,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "prepared-products"
       }
-    }
+    },
+    "requested": false
   }
 ]
 ```

@@ -52,7 +52,8 @@
                     "code": "true-wireless"
                   }
                 },
-                "queriedEntityCount": 38
+                "queriedEntityCount": 38,
+                "requested": true
               },
               {
                 "entity": {

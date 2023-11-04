@@ -14,6 +14,7 @@
         }
       }
     },
+    "requested": false,
     "children": [
       {
         "entity": {
@@ -29,6 +30,7 @@
             }
           }
         },
+        "requested": false,
         "children": [
           {
             "entity": {
@@ -43,7 +45,8 @@
                   "code": "true-wireless"
                 }
               }
-            }
+            },
+            "requested": true
           }
         ]
       }

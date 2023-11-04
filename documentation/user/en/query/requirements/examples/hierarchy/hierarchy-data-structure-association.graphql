@@ -19,11 +19,11 @@
             level
             entity {
               primaryKey
-              parentPrimaryKey
               attributes {
                 code
               }
             }
+            requested
           }
           directParent: parents(
             stopAt: {
@@ -33,11 +33,11 @@
             level
             entity {
               primaryKey
-              parentPrimaryKey
               attributes {
                 code
               }
             }
+            requested
           }
         }
       }
