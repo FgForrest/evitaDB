@@ -131,6 +131,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 					filterByVisitor,
 					filteringFormula,
 					new SellingPriceAvailableBitmapFilter(
+						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
 						createPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
 					)
 				);
@@ -142,6 +143,7 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 				"price between filter",
 				filterByVisitor,
 				new SellingPriceAvailableBitmapFilter(
+					filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists(),
 					createPredicate(priceBetween.getFrom(), priceBetween.getTo(), queryPriceMode, indexedPricePlaces)
 				)
 			);
