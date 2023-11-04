@@ -1199,7 +1199,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	void shouldRemovePrice(EvitaContract evita) {
 		final EntityReference product7Ref = getProductByCode(evita, "product-8")
 			.orElseGet(() -> {
-				shouldCreateNewCustomProductWithNewBrandViaGetOrCreateMethod(evita);
+				shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
 				return getProductByCode(evita, "product-8").orElseThrow();
 			});
 
@@ -1225,7 +1225,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.removePrice(product8.getPrice("basic", CURRENCY_CZK, 5));
 				product8.removePrice(6, "basic", CURRENCY_CZK);
 				product8.removePricesById("reference");
-				product8.removeBasicPrice(3, CURRENCY_CZK);
+				product8.removeBasicPrice(7, CURRENCY_CZK);
 
 				final Optional<EntityMutation> mutation = product8.toMutation();
 				assertTrue(mutation.isPresent());
@@ -1242,7 +1242,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertEquals(1, product8SE.getPrices().size());
-				assertEquals(4, product8SE.getPrices().iterator().next().priceId());
+				assertEquals(3, product8SE.getPrices().iterator().next().priceId());
 			}
 		);
 	}
@@ -1277,7 +1277,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				childCategory.upsertVia(evitaSession);
 
 				final SealedEntity childCategorySE = evitaSession.getEntity(
-					Entities.PRODUCT, childCategoryRef.primaryKey(), entityFetchAllContent()
+					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());

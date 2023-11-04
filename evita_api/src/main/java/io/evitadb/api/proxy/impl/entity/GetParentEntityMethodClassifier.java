@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -203,11 +204,11 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				// first we need to identify whether the method returns a parent entity
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ParentEntity.class);
-				if (parentEntity == null) {
+				if (parentEntity == null || method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 
-				// it must also return an class that is annotated with entity annotation and its entity name must exactly
+				// it must also return a class that is annotated with entity annotation and its entity name must exactly
 				// match the parent entity name derived from actual schema
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());

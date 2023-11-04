@@ -60,6 +60,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -592,6 +593,8 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		final int parameterCount = method.getParameterCount();
 		if (parameterCount == 1 && PriceKey.class.isAssignableFrom(method.getParameterTypes()[0])) {
 			priceKeyExtractor = args -> (PriceKey) args[0];
+		} else if (parameterCount == 1 && PriceContract.class.isAssignableFrom(method.getParameterTypes()[0])) {
+			priceKeyExtractor = args -> ((PriceContract) args[0]).priceKey();
 		} else if (parameterCount > 0) {
 			final List<RecognizedParameter> recognizedParameters = new ArrayList<>(9);
 			final Parameter[] methodParameters = method.getParameters();
@@ -631,17 +634,11 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				.map(RecognizedParameter::position)
 				.collect(Collectors.toSet());
 			if (!recognizedParameterLocations.contains(0)) {
-				throw new EntityClassInvalidException(
-					proxyClass,
-					"Unable to create price record via. method `" + method.toGenericString() + "` because it doesn't contain price id."
-				);
+				return empty();
 			}
 			if (!recognizedParameterLocations.contains(1)) {
 				if (fixedPriceList.isBlank()) {
-					throw new EntityClassInvalidException(
-						proxyClass,
-						"Unable to create price record via. method `" + method.toGenericString() + "` because it doesn't contain price list."
-					);
+					return empty();
 				} else {
 					// by default price list is fixed
 					recognizedParameters.add(
@@ -650,10 +647,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 			}
 			if (!recognizedParameterLocations.contains(2)) {
-				throw new EntityClassInvalidException(
-					proxyClass,
-					"Unable to create price record via. method `" + method.toGenericString() + "` because it doesn't contain currency."
-				);
+				return empty();
 			}
 
 			final String methodSignature = method.toGenericString();
@@ -740,7 +734,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final Class<?> proxyClass = proxyState.getProxyClass();
 				final Class<?>[] parameterTypes = method.getParameterTypes();
 
-				// if the method has only one parameter and it is PriceInnerRecordHandling, we handle it separately
+				// if the method has only one parameter, and it is PriceInnerRecordHandling, we handle it separately
 				if (parameterCount == 1 && PriceInnerRecordHandling.class.isAssignableFrom(parameterTypes[0])) {
 					return setPriceInnerRecordHandling(returnType, proxyClass);
 				}
@@ -752,21 +746,22 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 					return null;
 				}
 
-				if (method.isAnnotationPresent(RemoveWhenExists.class)) {
-					if (parameterCount == 0) {
-						return removeAllPrices(returnType, proxyClass, price);
-					} else {
-						return ofNullable(removePrice(method, returnType, proxyClass, price))
-							.orElseGet(() -> removeMultiplePrices(method, returnType, proxyClass, price));
-					}
-				} else {
-					if (parameterCount == 1 && parameterTypes[0].isArray()) {
+				final boolean removePrice = method.isAnnotationPresent(RemoveWhenExists.class);
+				if (parameterCount == 0 && removePrice) {
+					return removeAllPrices(returnType, proxyClass, price);
+				} else if (parameterCount == 1 && !removePrice) {
+					if (parameterTypes[0].isArray()) {
 						return setPricesAsArray(method, returnType, proxyClass, price);
-					} else if (parameterCount == 1 && Collection.class.isAssignableFrom(parameterTypes[0])) {
+					} else if (Collection.class.isAssignableFrom(parameterTypes[0])) {
 						return setPricesAsCollection(method, returnType, proxyClass, price);
 					} else {
 						return upsertPrice(method, returnType, proxyClass, price);
 					}
+				} else if (removePrice) {
+					return ofNullable(removePrice(method, returnType, proxyClass, price))
+						.orElseGet(() -> removeMultiplePrices(method, returnType, proxyClass, price));
+				} else {
+					return upsertPrice(method, returnType, proxyClass, price);
 				}
 			}
 		);

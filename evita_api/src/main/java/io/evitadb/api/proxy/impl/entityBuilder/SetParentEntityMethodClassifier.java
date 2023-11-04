@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -72,7 +73,16 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 					return null;
 				}
 
+				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final int parameterCount = method.getParameterCount();
+				if (parameterCount == 0 && method.isAnnotationPresent(RemoveWhenExists.class)) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						return removeParentEntityWithEntityBuilderResult();
+					} else {
+						return removeParentEntityWithVoidResult();
+					}
+				}
+
 				OptionalInt parentIdIndex = OptionalInt.empty();
 				OptionalInt consumerIndex = OptionalInt.empty();
 				@SuppressWarnings("rawtypes")
@@ -90,7 +100,6 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 
 				final String entityType = proxyState.getEntitySchema().getName();
 				@SuppressWarnings("rawtypes") final Class parameterType = method.getParameterTypes()[0];
-				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 
 				final Optional<EntityRecognizedIn> entityRecognizedIn = assertEntityAnnotationOnReferencedClassIsConsistent(
 					reflectionLookup, entityType,
@@ -127,13 +136,13 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				} else if (parameterCount == 2 && entityRecognizedIn.map(EntityRecognizedIn.CONSUMER::equals).orElse(false) && parentIdIndex.isPresent()) {
 					if (returnType.equals(proxyState.getProxyClass())) {
 						//noinspection unchecked,OptionalGetWithoutIsPresent
-						return createParentEntityWithIdAndEntityBuilderResult(
+						return createParentEntityByIdWithEntityBuilderResult(
 							consumerType.orElse(null),
 							parentIdIndex.getAsInt(), consumerIndex.getAsInt()
 						);
 					} else {
 						//noinspection unchecked,OptionalGetWithoutIsPresent
-						return createParentEntityWithIdAndVoidResult(
+						return createParentEntityByIdWithVoidResult(
 							consumerType.orElse(null),
 							parentIdIndex.getAsInt(), consumerIndex.getAsInt()
 						);
@@ -304,7 +313,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 * @return the method implementation
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityWithIdAndEntityBuilderResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityByIdWithEntityBuilderResult(
 		@Nonnull Class<? extends Serializable> expectedType,
 		int parentIdLocation,
 		int consumerLocation
@@ -331,7 +340,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 * @return the method implementation
 	 */
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityWithIdAndVoidResult(
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityByIdWithVoidResult(
 		@Nonnull Class<? extends Serializable> expectedType,
 		int parentIdLocation,
 		int consumerLocation
@@ -346,6 +355,35 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 			//noinspection unchecked
 			final Consumer<Serializable> consumer = (Consumer<Serializable>) args[consumerLocation];
 			consumer.accept(referencedEntityInstance);
+			return null;
+		};
+	}
+
+	/**
+	 * Returns method implementation that removes the parent entity and return the reference to the proxy to allow
+	 * chaining (builder pattern).
+	 *
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithEntityBuilderResult() {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			entityBuilder.removeParent();
+			return proxy;
+		};
+	}
+
+	/**
+	 * Returns method implementation that removes the parent entity and return no result.
+	 *
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithVoidResult() {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			entityBuilder.removeParent();
 			return null;
 		};
 	}
