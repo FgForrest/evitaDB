@@ -234,7 +234,7 @@ public class EvitaRequest {
 		this.entityReference = null;
 		this.entityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
-		this.entityPrices = evitaRequest.entityPrices;
+		this.entityPrices = null;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
 		this.requiresPriceLists = evitaRequest.requiresPriceLists;
