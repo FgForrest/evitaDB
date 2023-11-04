@@ -28,7 +28,9 @@ import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -90,7 +92,11 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 			"getReferencedEntityGroupPrimaryKey",
 			(method, proxyState) -> {
 				// we are interested only in abstract methods without parameters
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (
+					!ClassUtils.isAbstractOrDefault(method) ||
+						method.getParameterCount() > 0 ||
+						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 

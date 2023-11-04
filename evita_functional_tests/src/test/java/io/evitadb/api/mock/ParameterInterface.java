@@ -23,20 +23,29 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.test.Entities;
+import io.evitadb.test.generator.DataGenerator;
+
+import java.io.Serializable;
 
 /**
- * Example interface mapping a product parameter reference.
+ * Example interface mapping a parameter entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductParameterInterfaceEditor extends ProductParameterInterface {
+@EntityRef(Entities.PARAMETER)
+public interface ParameterInterface extends Serializable {
 
-	void setPriority(Long priority);
+	@PrimaryKeyRef
+	int getId();
 
-	@ReferencedEntity
-	@CreateWhenMissing
-	ParameterInterfaceEditor getOrCreateParameter();
+	@AttributeRef(DataGenerator.ATTRIBUTE_CODE)
+	String getCode();
+
+	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
+	Long getPriority();
 
 }

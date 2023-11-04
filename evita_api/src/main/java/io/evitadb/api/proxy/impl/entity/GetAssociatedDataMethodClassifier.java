@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -700,7 +702,9 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			(method, proxyState) -> {
 				// we only want to handle methods that are not abstract and have at most one parameter of type Locale.
 				if (method.getParameterCount() > 1 ||
-					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
+					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class)) ||
+					method.isAnnotationPresent(CreateWhenMissing.class) ||
+					method.isAnnotationPresent(RemoveWhenExists.class)
 				) {
 					return null;
 				}

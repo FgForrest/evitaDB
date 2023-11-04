@@ -27,8 +27,10 @@ import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -58,8 +60,8 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 	/**
 	 * Tries to identify referenced entity primary key request from the class field related to the constructor parameter.
 	 *
-	 * @param expectedType class the constructor belongs to
-	 * @param parameter constructor parameter
+	 * @param expectedType     class the constructor belongs to
+	 * @param parameter        constructor parameter
 	 * @param reflectionLookup reflection lookup
 	 * @return attribute name derived from the annotation if found
 	 */
@@ -76,7 +78,7 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 		if (Number.class.isAssignableFrom(toWrappedForm(parameterType)) && referencedEntity != null || (
 			PrimaryKeyRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName))) {
 			//noinspection unchecked,rawtypes
-			return (sealedEntity, reference) -> toTargetType(reference.getReferencedPrimaryKey(), (Class)parameterType);
+			return (sealedEntity, reference) -> toTargetType(reference.getReferencedPrimaryKey(), (Class) parameterType);
 		} else {
 			return null;
 		}
@@ -87,7 +89,11 @@ public class GetReferencedEntityPrimaryKeyMethodClassifier extends DirectMethodC
 			"getReferencedEntityPrimaryKey",
 			(method, proxyState) -> {
 				// we are interested only in abstract methods with no arguments.
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (
+					!ClassUtils.isAbstractOrDefault(method) ||
+						method.getParameterCount() > 0 ||
+						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 

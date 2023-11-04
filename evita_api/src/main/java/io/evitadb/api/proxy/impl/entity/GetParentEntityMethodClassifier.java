@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
@@ -204,7 +205,9 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				// first we need to identify whether the method returns a parent entity
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ParentEntity.class);
-				if (parentEntity == null || method.isAnnotationPresent(RemoveWhenExists.class)) {
+				if (parentEntity == null ||
+					method.isAnnotationPresent(CreateWhenMissing.class) ||
+					method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 

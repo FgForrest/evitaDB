@@ -273,6 +273,10 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	}
 
 	private static int createParameterEntityIfMissing(EvitaContract evita) {
+		return createParameterEntityIfMissing(evita, 1);
+	}
+
+	private static int createParameterEntityIfMissing(EvitaContract evita, int number) {
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			evitaSession -> {
@@ -280,14 +284,14 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 					query(
 						collection(Entities.PARAMETER),
 						filterBy(
-							attributeEquals(ATTRIBUTE_CODE, "parameter-1")
+							attributeEquals(ATTRIBUTE_CODE, "parameter-" + number)
 						)
 					)
 				);
 				return parameterReference
 					.orElseGet(
 						() -> evitaSession.createNewEntity(Entities.PARAMETER)
-							.setAttribute(ATTRIBUTE_CODE, "parameter-1")
+							.setAttribute(ATTRIBUTE_CODE, "parameter-" + number)
 							.setAttribute(ATTRIBUTE_PRIORITY, 178L)
 							.upsertVia(evitaSession)
 					)

@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -684,6 +686,8 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 				if (
 					!ClassUtils.isAbstractOrDefault(method) ||
 						method.getParameterCount() > 1 ||
+						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						method.isAnnotationPresent(RemoveWhenExists.class) ||
 						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
 				) {
 					return null;

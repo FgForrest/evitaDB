@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PricesContract;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
@@ -674,7 +675,10 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final PriceForSaleRef priceForSaleRef = reflectionLookup.getAnnotationInstanceForProperty(method, PriceForSaleRef.class);
 				final Price price = reflectionLookup.getAnnotationInstanceForProperty(method, Price.class);
 
-				if (priceForSale == null && priceForSaleRef == null && price == null || method.isAnnotationPresent(RemoveWhenExists.class)) {
+				if (
+					priceForSale == null && priceForSaleRef == null && price == null ||
+						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 

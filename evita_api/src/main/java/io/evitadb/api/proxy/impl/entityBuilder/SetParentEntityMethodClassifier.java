@@ -23,10 +23,13 @@
 
 package io.evitadb.api.proxy.impl.entityBuilder;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
@@ -78,8 +81,17 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				if (parameterCount == 0 && method.isAnnotationPresent(RemoveWhenExists.class)) {
 					if (returnType.equals(proxyState.getProxyClass())) {
 						return removeParentEntityWithEntityBuilderResult();
-					} else {
+					} else if (Boolean.class.isAssignableFrom(returnType)) {
+						/* TODO JNO - write test for this */
+						return removeParentEntityWithBooleanResult(returnType);
+					} else if (Number.class.isAssignableFrom(returnType)) {
+						/* TODO JNO - write test for this */
+						return removeParentEntityWithParentIdResult(returnType);
+					} else if (void.class.isAssignableFrom(returnType)) {
 						return removeParentEntityWithVoidResult();
+					} else {
+						/* TODO JNO - write test for this */
+						return removeParentEntityWithParentEntityResult(returnType);
 					}
 				}
 
@@ -375,6 +387,50 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	}
 
 	/**
+	 * Returns method implementation that removes the parent entity and returns the primary key of removed parent.
+	 *
+	 * @return the method implementation
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithParentIdResult(
+		@Nonnull Class returnType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
+			if (parentEntity.isPresent()) {
+				entityBuilder.removeParent();
+				return EvitaDataTypes.toTargetType(parentEntity.get().getPrimaryKey(), returnType);
+			} else {
+				return null;
+			}
+		};
+	}
+
+	/**
+	 * Returns method implementation that removes the parent entity and returns the TRUE if parent was removed.
+	 *
+	 * @return the method implementation
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithBooleanResult(
+		@Nonnull Class returnType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
+			if (parentEntity.isPresent()) {
+				entityBuilder.removeParent();
+				return true;
+			} else {
+				return false;
+			}
+		};
+	}
+
+	/**
 	 * Returns method implementation that removes the parent entity and return no result.
 	 *
 	 * @return the method implementation
@@ -385,6 +441,46 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			entityBuilder.removeParent();
 			return null;
+		};
+	}
+
+	/**
+	 * Returns method implementation that removes the parent entity and returns the entity proxy of this parent.
+	 *
+	 * @return the method implementation
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithParentEntityResult(
+		@Nonnull Class expectedType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
+			if (parentEntity.isPresent()) {
+				final Optional<EntityClassifierWithParent> theParentEntity = parentEntity.get().getParentEntity();
+				entityBuilder.removeParent();
+				final Optional<Object> referencedEntityObject = theState.getReferencedEntityObject(
+					theState.getType(),
+					parentEntity.get().getPrimaryKey(),
+					expectedType,
+					ProxyType.PARENT_BUILDER, ProxyType.PARENT
+				);
+				return referencedEntityObject
+					.orElseGet(() -> {
+						if (theParentEntity.isPresent() && theParentEntity.get() instanceof EntityContract entityContract) {
+							return theState.createNewNonCachedEntityProxy(
+								expectedType,
+								entityContract,
+								theState.getReferencedEntitySchemas()
+							);
+						} else {
+							throw ContextMissingException.hierarchyEntityContextMissing();
+						}
+					});
+			} else {
+				return null;
+			}
 		};
 	}
 

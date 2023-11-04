@@ -32,10 +32,12 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -304,7 +306,10 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			"getReferencedEntity",
 			(method, proxyState) -> {
 				// we are interested only in abstract methods with no arguments
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (!ClassUtils.isAbstractOrDefault(method) ||
+					method.getParameterCount() > 0 ||
+					method.isAnnotationPresent(CreateWhenMissing.class) ||
+					method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 

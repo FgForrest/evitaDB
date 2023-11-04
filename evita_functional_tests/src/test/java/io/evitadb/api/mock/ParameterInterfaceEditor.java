@@ -23,20 +23,15 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-
 /**
- * Example interface mapping a product parameter reference.
+ * Example interface mapping a parameter entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductParameterInterfaceEditor extends ProductParameterInterface {
+public interface ParameterInterfaceEditor extends ParameterInterface {
+
+	void setCode(String code);
 
 	void setPriority(Long priority);
-
-	@ReferencedEntity
-	@CreateWhenMissing
-	ParameterInterfaceEditor getOrCreateParameter();
 
 }
