@@ -91,7 +91,9 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 					return new SelectionFormula(
 						filterByVisitor,
 						filteringFormula,
-						new SellingPriceAvailableBitmapFilter()
+						new SellingPriceAvailableBitmapFilter(
+							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+						)
 					);
 				} else {
 					return filteringFormula;
@@ -100,7 +102,9 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 				return new EntityFilteringFormula(
 					"price in price lists filter",
 					filterByVisitor,
-					new SellingPriceAvailableBitmapFilter()
+					new SellingPriceAvailableBitmapFilter(
+						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+					)
 				);
 			}
 		}
