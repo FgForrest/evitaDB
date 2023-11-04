@@ -105,7 +105,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceList() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(null);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -134,7 +134,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListWithDifferentPriceLists() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -144,7 +144,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_REFERENCE)
+							priceInPriceLists(PRICE_LIST_VIP)
 						)
 					),
 					require(
@@ -164,6 +164,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilter() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
+			new String[] {PRICE_LIST_REFERENCE},
 			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
 		);
 		final Bitmap result = filter.filter(
@@ -175,7 +176,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
 							priceBetween(new BigDecimal("90"), new BigDecimal("130"))
 						)
 					),
@@ -196,6 +197,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilterBasicFirst() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
+			new String[] {PRICE_LIST_REFERENCE},
 			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
 		);
 		final Bitmap result = filter.filter(
@@ -207,7 +209,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP),
 							priceBetween(new BigDecimal("90"), new BigDecimal("130"))
 						)
 					),
@@ -227,7 +229,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidity() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -237,7 +239,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP),
 							priceValidIn(OffsetDateTime.now())
 						)
 					),
@@ -257,7 +259,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidityInFarFuture() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -267,7 +269,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP),
 							priceValidIn(OffsetDateTime.now().plusYears(101))
 						)
 					),

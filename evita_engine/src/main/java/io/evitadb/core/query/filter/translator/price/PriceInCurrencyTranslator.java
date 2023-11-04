@@ -79,7 +79,9 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 					return new SelectionFormula(
 						filterByVisitor,
 						filteringFormula,
-						new SellingPriceAvailableBitmapFilter()
+						new SellingPriceAvailableBitmapFilter(
+							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+						)
 					);
 				} else {
 					return filteringFormula;
@@ -88,7 +90,9 @@ public class PriceInCurrencyTranslator extends AbstractPriceRelatedConstraintTra
 				return new EntityFilteringFormula(
 					"price in currency filter",
 					filterByVisitor,
-					new SellingPriceAvailableBitmapFilter()
+					new SellingPriceAvailableBitmapFilter(
+						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+					)
 				);
 			}
 		}
