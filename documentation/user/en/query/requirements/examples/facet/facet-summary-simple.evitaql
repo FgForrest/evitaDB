@@ -1,0 +1,22 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'accessories')
+        ),
+        attributeEquals('status', 'ACTIVE'),
+        entityLocaleEquals('en')
+    ),
+    require(
+        facetSummary(
+            COUNTS,
+            entityFetch(
+                attributeContent('name')
+            ),
+            entityGroupFetch(
+                attributeContent('name')
+            )
+        )
+    )
+)

@@ -1,0 +1,13 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'accessories')
+        ),
+        attributeEquals('status', 'ACTIVE')
+    ),
+    require(
+        facetSummary(COUNTS)
+    )
+)
