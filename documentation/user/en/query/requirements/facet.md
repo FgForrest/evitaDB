@@ -198,19 +198,15 @@ affects the visualization tab you can find in our [evitaLab](https://demo.evitad
 
 ![Facet summary visualization in evitaLab console](assets/facet-visualization.png)
 
-The visualization is organized the same as the facet summary itself. At the top level you see the references that are
-marked by icon ![link-variant-custom.png](assets/link-variant-custom.png). Under them there are groups discovered 
-inside those reference types, which are marked with icon ![format-list-group-custom.png](assets/format-list-group-custom.png),
-and finally under the groups there are facet options themselves. If you move your mouse cursor over the tag next to
-facet, you will see the description of the calculated numbers, but let's explain it here as well:
+The visualization is organized the same as the facet summary itself:
 
-- ![counter-custom.png](assets/counter-custom.png): shows the count of the returned entities that match this facet option
-  if the user has no other facets selected (i.e. has empty [`userFilter`](../filtering/behavioral.md#user-filter) constraint)
-- ![set-right-custom.png](assets/set-right-custom.png): shows the current count of the returned entities that match
-  filtering constraints, next to slash there is a difference in the result count should this facet option be added to
-  the user filter
-- ![set-all-custom.png](assets/set-all-custom.png): shows the total number of entities that will be displayed in the
-  result if this facet option is selected (i.e. the number of entities that match the facet option in the entire dataset)
+| Icon                                                                  | Meaning                                                                                                                                                                                                         |
+|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ![ link-variant-custom.png](assets/link-variant-custom.png)           | At the top level you see the references that are marked by chain icon.                                                                                                                                          |
+| ![ format-list-group-custom.png](assets/format-list-group-custom.png) | Under them there are groups discovered inside those reference types, which are marked with the group icon, and finally under the groups there are facet options themselves.                                     |
+| ![ counter-custom.png](assets/counter-custom.png)                     | shows the count of the returned entities that match this facet option   if the user has no other facets selected  ( i.e. has empty  [ ` userFilter ` ] ( ../filtering/behavioral.md#user-filter )  constraint ) |
+| ![ set-right-custom.png](assets/set-right-custom.png)                 | shows the current count of the returned entities that match   filtering constraints, next to slash there is a difference in the result count should this facet option be added to   the user filter             |
+| ![ set-all-custom.png](assets/set-all-custom.png)                     | shows the total number of entities that will be displayed in the   result if this facet option is selected  ( i.e. the number of entities that match the facet option in the entire dataset )                   |
 
 <Note type="info">
 
