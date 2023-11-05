@@ -178,53 +178,6 @@ calculation that contains following data:
 The facet summary is always computed as a side result of main entity query and respects all filtering constraints placed
 upon the queried entities. To demonstrate the facet summary calculation we will use the following example:
 
-<SourceCodeTabs langSpecificTabOnly>
-
-[Facet summary calculation for products in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-simple.evitaql)
-
-</SourceCodeTabs>
-
-To better understand the data in the facet calculation let's extend the query a little bit and fetch additional data
-using [`entityFetch`](#entity-fetch) and [`entityGroupFetch`](#entity-group-fetch) requirement. To make the example more
-realistic, let's fetch for each entity the localized name in English localization:
-
-<SourceCodeTabs langSpecificTabOnly>
-
-[Facet summary calculation for products in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
-
-</SourceCodeTabs>
-
-If you want to get more familiar with the facet summary calculation, you can try to play with the query and see how it
-affects the visualization tab you can find in our [evitaLab](https://evita.ai/lab) console:
-
-![Facet summary visualization in evitaLab console](assets/facet_visualization.png)
-
-The visualization is organized the same as the facet summary itself. At the top level you see the references that are
-marked by icon <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>link-variant</title><path d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z" /></svg>. Under them there are groups discovered inside those reference types, which are marked with icon
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>format-list-group</title><path d="M5 5V19H7V21H3V3H7V5H5M20 7H7V9H20V7M20 11H7V13H20V11M20 15H7V17H20V15Z" /></svg>, and finally under the groups there are facet options themselves. If you move your mouse 
-cursor over the tag next to facet, you will see the description of the calculated numbers, but let's explain it here 
-as well:
-
-- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>set-all</title><path d="M9,5C10.04,5 11.06,5.24 12,5.68C12.94,5.24 13.96,5 15,5A7,7 0 0,1 22,12A7,7 0 0,1 15,19C13.96,19 12.94,18.76 12,18.32C11.06,18.76 10.04,19 9,19A7,7 0 0,1 2,12A7,7 0 0,1 9,5M8.5,12C8.5,13.87 9.29,15.56 10.56,16.75L11.56,16.29C10.31,15.29 9.5,13.74 9.5,12C9.5,10.26 10.31,8.71 11.56,7.71L10.56,7.25C9.29,8.44 8.5,10.13 8.5,12M15.5,12C15.5,10.13 14.71,8.44 13.44,7.25L12.44,7.71C13.69,8.71 14.5,10.26 14.5,12C14.5,13.74 13.69,15.29 12.44,16.29L13.44,16.75C14.71,15.56 15.5,13.87 15.5,12Z" /></svg> 
-- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>set-right</title><path d="M15,19C13.96,19 12.94,18.76 12,18.32C11.06,18.76 10.04,19 9,19A7,7 0 0,1 2,12A7,7 0 0,1 9,5C10.04,5 11.06,5.24 12,5.68C12.94,5.24 13.96,5 15,5A7,7 0 0,1 22,12A7,7 0 0,1 15,19M9,17L10,16.89C8.72,15.59 8,13.83 8,12C8,10.17 8.72,8.41 10,7.1L9,7A5,5 0 0,0 4,12A5,5 0 0,0 9,17M12,16C13.26,15.05 14,13.57 14,12C14,10.43 13.26,8.95 12,8C10.74,8.95 10,10.43 10,12C10,13.57 10.74,15.05 12,16Z" /></svg>
-- <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><title>counter</title><path d="M4,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M4,6V18H11V6H4M20,18V6H18.76C19,6.54 18.95,7.07 18.95,7.13C18.88,7.8 18.41,8.5 18.24,8.75L15.91,11.3L19.23,11.28L19.24,12.5L14.04,12.47L14,11.47C14,11.47 17.05,8.24 17.2,7.95C17.34,7.67 17.91,6 16.5,6C15.27,6.05 15.41,7.3 15.41,7.3L13.87,7.31C13.87,7.31 13.88,6.65 14.25,6H13V18H15.58L15.57,17.14L16.54,17.13C16.54,17.13 17.45,16.97 17.46,16.08C17.5,15.08 16.65,15.08 16.5,15.08C16.37,15.08 15.43,15.13 15.43,15.95H13.91C13.91,15.95 13.95,13.89 16.5,13.89C19.1,13.89 18.96,15.91 18.96,15.91C18.96,15.91 19,17.16 17.85,17.63L18.37,18H20M8.92,16H7.42V10.2L5.62,10.76V9.53L8.76,8.41H8.92V16Z" /></svg>
-- 
-
-<Note type="info">
-
-<NoteTitle toggles="true">
-
-##### The result of facet summary in "accessories" category
-
-</NoteTitle>
-
-The query returns list of "active" products in "accessories" category and in the extra results index it also contains
-the facet summary calculation:
-
-<MDInclude sourceVariable="data.extraResults.facetSummary">[The result of facet summary in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.json.md)</MDInclude>
-
-</Note>
-
 ### Filtering facet summary
 ### Ordering facet summary
 
