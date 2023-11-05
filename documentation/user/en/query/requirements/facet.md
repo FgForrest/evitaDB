@@ -12,7 +12,12 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-<div style="float: right">![Facet filter example](assets/facet-filtering.png)</div>
+<div style="float: right">
+
+![Facet filter example](assets/facet-filtering.png)
+
+</div>
+
 The key success factor of faceted search is to help users to avoid situation when their filter combination returns no
 results. It works the best if we gradually limit the facet options that doesn't make sense with already selected ones
 and also provide accurate, in-place and real-time feedback about the number of results that will extend or limit
