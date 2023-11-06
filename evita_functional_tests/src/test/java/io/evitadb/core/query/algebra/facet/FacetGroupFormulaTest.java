@@ -111,23 +111,6 @@ class FacetGroupFormulaTest {
 		);
 	}
 
-	@Test
-	void shouldFailToMergeTwoFacetGroupFormulasTogetherWhenFormulaTypeDiffers() {
-		assertThrows(
-			EvitaInternalError.class,
-			() -> FacetGroupFormula.mergeWith(
-				new FacetGroupAndFormula(
-					"product", 1,
-					EmptyBitmap.INSTANCE
-				), new FacetGroupOrFormula(
-					"product", 1,
-					EmptyBitmap.INSTANCE
-				),
-				(facetIds, bitmaps) -> new FacetGroupAndFormula("product", 1, facetIds, bitmaps)
-			)
-		);
-	}
-
 	private static void assertFacetGroupFormulaIs(int[] facetIds, Bitmap[] bitmaps, FacetGroupAndFormula actualFormula) {
 		final Bitmap actualFacetIds = actualFormula.getFacetIds();
 		final Bitmap[] actualBitmaps = actualFormula.getBitmaps();

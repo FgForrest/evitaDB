@@ -2361,10 +2361,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			this.conjugatedGroups = findRequires(query, FacetGroupsConjunction.class)
 				.stream()
 				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups()))) {
+					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
 						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
 					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups()))
+						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
 							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
 					}
 				})
@@ -2372,10 +2372,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			this.disjugatedGroups = findRequires(query, FacetGroupsDisjunction.class)
 				.stream()
 				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups()))) {
+					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
 						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
 					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups()))
+						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
 							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
 					}
 				})
@@ -2383,10 +2383,10 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			this.negatedGroups = findRequires(query, FacetGroupsNegation.class)
 				.stream()
 				.flatMap(it -> {
-					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups()))) {
+					if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
 						return Stream.of(new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), null));
 					} else {
-						return Arrays.stream(extractFacetIds(it.getFacetGroups()))
+						return Arrays.stream(extractFacetIds(it.getFacetGroups().orElseThrow()))
 							.mapToObj(x -> new GroupReference(entitySchema.getReferenceOrThrowException(it.getReferenceName()), x));
 					}
 				})

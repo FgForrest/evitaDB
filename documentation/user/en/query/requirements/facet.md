@@ -20,8 +20,8 @@ and also provide accurate, in-place and real-time feedback about the number of r
 the current selection if other facet is selected.
 
 Facets are usually displayed as a list of checkboxes, radio buttons, dropdowns or sliders and are organized in groups.
-The options within a group usually extend current selection (logical conjunction) and the groups are usually combined
-with logical disjunction. Some of the facets can be negated (logical negation) to exclude the results that match the
+The options within a group usually extend current selection (logical disjunction) and the groups are usually combined
+with logical conjunction. Some of the facets can be negated (logical negation) to exclude the results that match the
 facet option.
 
 Facets with high cardinality are sometimes displayed in the form of a search box or interval slider (sometime with
@@ -30,6 +30,31 @@ values they are looking for.
 
 evitaDB supports all the above-mentioned forms of facet search using operators documented in this and 
 [histogram](histogram.md) chapter.
+
+## evitaLab visualization
+
+If you want to get more familiar with the facet summary calculation, you can try to play with the query and see how it
+affects the visualization tab you can find in our [evitaLab](https://demo.evitadb.io) console:
+
+![Facet summary visualization in evitaLab console](assets/facet-visualization.png "Facet summary visualization in evitaLab console")
+
+The visualization is organized the same as the facet summary itself:
+
+| Icon                                                                  | Meaning                                                                                                                                                                                                         |
+|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ![ link-variant-custom.png](assets/link-variant-custom.png)           | At the top level you see the references that are marked by chain icon.                                                                                                                                          |
+| ![ format-list-group-custom.png](assets/format-list-group-custom.png) | Under them there are groups discovered inside those reference types, which are marked with the group icon, and finally under the groups there are facet options themselves.                                     |
+| ![ counter-custom.png](assets/counter-custom.png)                     | shows the count of the returned entities that match this facet option   if the user has no other facets selected  ( i.e. has empty  [`userFilter`](../filtering/behavioral.md#user-filter)  constraint ) |
+| ![ set-right-custom.png](assets/set-right-custom.png)                 | shows the current count of the returned entities that match   filtering constraints, next to slash there is a difference in the result count should this facet option be added to   the user filter             |
+| ![ set-all-custom.png](assets/set-all-custom.png)                     | shows the total number of entities that will be displayed in the   result if this facet option is selected  ( i.e. the number of entities that match the facet option in the entire dataset )                   |
+
+### Facet calculation rules
+
+1. The facet summary is calculated only for entities that are returned in the current query result.
+2. The calculation respects all filtering constraints placed outside ['userFilter'](../filtering/behavioral.md#user-filter)
+   container
+3. default relation between facets inside a group is logical disjunction (logical OR)
+4. default relation between facets in different groups / references is logical conjunction (logical AND)
 
 ## Facet summary
 
@@ -48,14 +73,17 @@ facetSummary(
 <dl>
     <dt>argument:enum(COUNTS|IMPACT)</dt>
     <dd>
-        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
-        that allows you to specify the computation depth of the facet summary:
+        <p>**Default:** `COUNTS`</p>
+        <p>optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
+        that allows you to specify the computation depth of the facet summary:</p>
 
+        <p>
         - **COUNTS**: each facet contains the number of results that match the facet option only 
         - **IMPACT**: each non-selected facet contains the prediction of the number of results that would be returned 
           if the facet option was selected (the impact analysis), this calculation is affected by the require
-          constraints changing the default facet calculation behaviour: [conjunction](#facet-conjunction),
-          [disjunction](#facet-disjunction), [negation](#facet-negation)
+          constraints changing the default facet calculation behaviour: [conjunction](#facet-groups-conjunction),
+          [disjunction](#facet-groups-disjunction), [negation](#facet-groups-negation)
+        </p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -178,8 +206,11 @@ calculation that contains following data:
   </dd>
 </dl>
 
-The facet summary is always computed as a side result of main entity query and respects all filtering constraints placed
-upon the queried entities. To demonstrate the facet summary calculation we will use the following example:
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummary.java</SourceClass> requirement
+trigger calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
+extra result. Facet summary is always computed as a side result of main entity query and respects all filtering 
+constraints placed upon the queried entities. To demonstrate the facet summary calculation we will use the following 
+example:
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -196,21 +227,6 @@ realistic, let's fetch for each entity the localized name in English localizatio
 [Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
 
 </SourceCodeTabs>
-
-If you want to get more familiar with the facet summary calculation, you can try to play with the query and see how it
-affects the visualization tab you can find in our [evitaLab](https://demo.evitadb.io) console:
-
-![Facet summary visualization in evitaLab console](assets/facet-visualization.png "Facet summary visualization in evitaLab console")
-
-The visualization is organized the same as the facet summary itself:
-
-| Icon                                                                  | Meaning                                                                                                                                                                                                         |
-|-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ![ link-variant-custom.png](assets/link-variant-custom.png)           | At the top level you see the references that are marked by chain icon.                                                                                                                                          |
-| ![ format-list-group-custom.png](assets/format-list-group-custom.png) | Under them there are groups discovered inside those reference types, which are marked with the group icon, and finally under the groups there are facet options themselves.                                     |
-| ![ counter-custom.png](assets/counter-custom.png)                     | shows the count of the returned entities that match this facet option   if the user has no other facets selected  ( i.e. has empty  [`userFilter`](../filtering/behavioral.md#user-filter)  constraint ) |
-| ![ set-right-custom.png](assets/set-right-custom.png)                 | shows the current count of the returned entities that match   filtering constraints, next to slash there is a difference in the result count should this facet option be added to   the user filter             |
-| ![ set-all-custom.png](assets/set-all-custom.png)                     | shows the total number of entities that will be displayed in the   result if this facet option is selected  ( i.e. the number of entities that match the facet option in the entire dataset )                   |
 
 <Note type="info">
 
@@ -373,21 +389,24 @@ facetSummaryOfReference(
 ```
 
 <dl>
-    <dt>argument:string</dt>
+    <dt>argument:string!</dt>
     <dd>
       mandatory argument specifying the name of the [reference](../../use/schema.md#reference) that is requested by this
       constraint, the reference must be marked as `faceted` in the [entity schema](../../use/schema.md)
     </dd>
     <dt>argument:enum(COUNTS|IMPACT)</dt>
     <dd>
-        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
-        that allows you to specify the computation depth of the facet summary:
+        <p>**Default:** `COUNTS`</p>
+        <p>optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
+        that allows you to specify the computation depth of the facet summary:</p>
 
+        <p>
         - **COUNTS**: each facet contains the number of results that match the facet option only 
         - **IMPACT**: each non-selected facet contains the prediction of the number of results that would be returned 
           if the facet option was selected (the impact analysis), this calculation is affected by the require
-          constraints changing the default facet calculation behaviour: [conjunction](#facet-conjunction),
-          [disjunction](#facet-disjunction), [negation](#facet-negation)
+          constraints changing the default facet calculation behaviour: [conjunction](#facet-groups-conjunction),
+          [disjunction](#facet-groups-disjunction), [negation](#facet-groups-negation)
+        </p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -420,7 +439,8 @@ facetSummaryOfReference(
     </dd>
 </dl>
 
-The requirement triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummaryOfReference.java</SourceClass>
+requirement triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
 for particular reference. When generic [`facetSummary`](#facet-summary) requirement is specified, this require constraint
 overrides default constraints from the generic requirement to constraints specific to this particular reference. By
 combining the generic [`facetSummary`](#facet-summary) and `facetSummaryOfReference` you define common requirements for
@@ -470,6 +490,76 @@ The constraint `entityFetch`, that is used inside [`facetSummary`](#facet-summar
 the `entityFetch` relates to the related entity schema specified by the faceted 
 [reference schema](../../use/schema.md#reference).
 
-## Facet conjunction
-## Facet disjunction
-## Facet negation
+## Facet groups conjunction
+
+```evitaql-syntax
+facetGroupsConjunction(
+    argument:string!,
+    filterConstraint:filterBy
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) this constraint relates 
+        to.
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        Mandatory filter constraint that selects one or more facet groups whose facets will be combined with logical
+        conjunction (logical AND) instead of default logical disjunction (logical OR).
+
+        If the filter is not defined, the behaviour applies to all groups of particular reference in the facet summary.
+    </dd>
+</dl>
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsConjunction.java</SourceClass>
+changes the default facet summary calculation behaviour for the facet groups specified in the `filterBy` constraint.
+Instead of logical disjunction (logical OR) the facet options in the facet groups will be combined with logical
+conjunction (logical AND).
+
+In order to understand the difference between the default behaviour and the behaviour of this requirement, let's
+compare the facet summary calculation for the same query with and without this requirement. We will need a query that
+targets some reference (let's say `groups`) and pretend that the user already requested (checked) some of the facets.
+Now if we want to calculate the `IMPACT` analysis for the rest of the facets in the group, we will see that changing
+the default behaviour changes the produced numbers:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet groups conjunction example](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+Note that the `facetGroupsConjunction` in the example doesn't contain a `filterBy` constraint, so it applies to all
+the facet groups in the facet summary, or in this particular case to facets in the reference `groups` that are not
+part of any group.
+
+</Note>
+
+| Default behaviour                                      | Altered behaviour                                    |
+|--------------------------------------------------------|------------------------------------------------------|
+| ![Before](assets/facet-conjunction-before.png "Before") | ![After](assets/facet-conjunction-after.png "After") |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary with inverted facet relation behaviour
+
+</NoteTitle>
+
+You can see that instead of extending the number of results in the final set, the impact analysis predicts their 
+reduction:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary of named references](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql.string.md)</MDInclude>
+
+</Note>
+
+## Facet groups disjunction
+
+
+## Facet groups negation
+

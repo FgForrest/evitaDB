@@ -2508,10 +2508,61 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		if (filterBy == null || !filterBy.isApplicable()) {
-			return null;
-		}
 		return new FacetGroupsConjunction(referenceName, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
+	 * First mandatory argument specifies entity type of the facet group, secondary argument allows to define one more facet
+	 * group ids which inner facets should be considered conjunctive.
+	 * 
+	 * This require constraint changes default behaviour stating that all facets inside same facet group are combined by OR
+	 * relation (eg. disjunction). Constraint has sense only when [facet](#facet) constraint is part of the query.
+	 * 
+	 * Example:
+	 * 
+	 * <pre>
+	 * query(
+	 *    entities('product'),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet('group', 1, 2),
+	 *          facet('parameterType', 11, 12, 22)
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsConjunction('parameterType', 1, 8, 15)
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * This statement means, that facets in `parameterType` groups `1`, `8`, `15` will be joined with boolean AND relation when
+	 * selected.
+	 * 
+	 * Let's have this facet/group situation:
+	 * 
+	 * Color `parameterType` (group id: 1):
+	 * 
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 * 
+	 * Size `parameterType` (group id: 2):
+	 * 
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 * 
+	 * Flags `tag` (group id: 3):
+	 * 
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 * 
+	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
+	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
+	 * be composed as: blue(11) AND red(12)
+	*/
+	@Nullable
+	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName) {
+		return new FacetGroupsConjunction(referenceName, null);
 	}
 
 	/**
@@ -2565,10 +2616,61 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		if (filterBy == null || !filterBy.isApplicable()) {
-			return null;
-		}
 		return new FacetGroupsDisjunction(referenceName, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
+	 * primary ids. First mandatory argument specifies entity type of the facet group, secondary argument allows to define one
+	 * more facet group ids that should be considered disjunctive.
+	 * 
+	 * This require constraint changes default behaviour stating that facets between two different facet groups are combined by
+	 * AND relation and changes it to the disjunction relation instead.
+	 * 
+	 * Example:
+	 * 
+	 * <pre>
+	 * query(
+	 *    entities('product'),
+	 *    filterBy(
+	 *       userFilter(
+	 *          facet('group', 1, 2),
+	 *          facet('parameterType', 11, 12, 22)
+	 *       )
+	 *    ),
+	 *    require(
+	 *       facetGroupsDisjunction('parameterType', 1, 2)
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * This statement means, that facets in `parameterType` facet groups `1`, `2` will be joined with the rest of the query by
+	 * boolean OR relation when selected.
+	 * 
+	 * Let's have this facet/group situation:
+	 * 
+	 * Color `parameterType` (group id: 1):
+	 * 
+	 * - blue (facet id: 11)
+	 * - red (facet id: 12)
+	 * 
+	 * Size `parameterType` (group id: 2):
+	 * 
+	 * - small (facet id: 21)
+	 * - large (facet id: 22)
+	 * 
+	 * Flags `tag` (group id: 3):
+	 * 
+	 * - action products (facet id: 31)
+	 * - new products (facet id: 32)
+	 * 
+	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
+	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
+	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	*/
+	@Nullable
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName) {
+		return new FacetGroupsDisjunction(referenceName, null);
 	}
 
 	/**
@@ -2588,10 +2690,27 @@ public interface QueryConstraints {
 	*/
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		if (filterBy == null || !filterBy.isApplicable()) {
-			return null;
-		}
 		return new FacetGroupsNegation(referenceName, filterBy);
+	}
+
+	/**
+	 * This `facetGroupsNegation` requirement allows specifying facet relation inside facet groups of certain primary ids. Negative facet
+	 * groups results in omitting all entities that have requested facet in query result. First mandatory argument specifies
+	 * entity type of the facet group, secondary argument allows to define one more facet group ids that should be considered
+	 * negative.
+	 * 
+	 * Example:
+	 * 
+	 * ```
+	 * facetGroupsNegation('parameterType', 1, 8, 15)
+	 * ```
+	 * 
+	 * This statement means, that facets in 'parameterType' groups `1`, `8`, `15` will be joined with boolean AND NOT relation
+	 * when selected.
+	*/
+	@Nullable
+	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName) {
+		return new FacetGroupsNegation(referenceName, null);
 	}
 
 	/**
