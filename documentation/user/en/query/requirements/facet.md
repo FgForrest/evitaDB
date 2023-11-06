@@ -455,7 +455,7 @@ on group and facet level. Only the facets inside facet groups (`parameter`) that
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[Calculating facet summary for selected references](/documentation/user/en/query/requirements/examples/facet/facet-summary-or-reference.evitaql)
+[Calculating facet summary for selected references](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql)
 
 </SourceCodeTabs>
 
@@ -469,7 +469,7 @@ on group and facet level. Only the facets inside facet groups (`parameter`) that
 
 As you can see it is a quite complex scenario that utilizes all key features of the facet summary calculation:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary of named references](/documentation/user/en/query/requirements/examples/facet/facet-summary-or-reference.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary of named references](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql.string.md)</MDInclude>
 
 </Note>
 
