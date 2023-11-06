@@ -4,7 +4,7 @@ POST /rest/evita/Product/query
   "filterBy" : {
     "hierarchyCategoriesWithin" : {
       "ofParent" : {
-        "attributeCodeEquals" : "accessories"
+        "attributeCodeEquals" : "e-readers"
       }
     },
     "attributeStatusEquals" : "ACTIVE"

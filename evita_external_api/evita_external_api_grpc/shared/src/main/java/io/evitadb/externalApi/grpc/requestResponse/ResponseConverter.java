@@ -264,7 +264,7 @@ public class ResponseConverter {
 					grpcFacetGroupStatistics.getGroupEntity(),
 					SealedEntity.class
 				) :
-				toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()),
+				(grpcFacetGroupStatistics.hasGroupEntityReference() ? toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()) : null),
 			grpcFacetGroupStatistics.getCount(),
 			grpcFacetGroupStatistics.getFacetStatisticsList()
 				.stream()

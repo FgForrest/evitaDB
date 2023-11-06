@@ -3,9 +3,8 @@ query(
     filterBy(
         hierarchyWithin(
             'categories',
-            attributeEquals('code', 'accessories')
-        ),
-        attributeEquals('status', 'ACTIVE'),
+            attributeEquals('code', 'e-readers')
+        )
         entityLocaleEquals('en')
     ),
     require(

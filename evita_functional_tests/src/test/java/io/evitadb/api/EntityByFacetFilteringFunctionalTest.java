@@ -2318,7 +2318,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 
 		@Override
 		public String toString() {
-			return facetSummary.toString(groupRenderer, facetRenderer);
+			return facetSummary.prettyPrint(groupRenderer, facetRenderer);
 		}
 
 	}

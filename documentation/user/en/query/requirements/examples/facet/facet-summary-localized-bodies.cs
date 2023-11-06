@@ -8,8 +8,8 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         			"categories",
         			AttributeEquals("code", "e-readers")
         		),
-        		AttributeEquals("status", "ACTIVE"),
-        		EntityLocaleEquals(CultureInfo.GetCultureInfo("en"))
+        		EntityLocaleEquals(CultureInfo.GetCultureInfo("en")),
+        		AttributeEquals("status", "ACTIVE")
         	),
         	Require(
         		FacetSummary(

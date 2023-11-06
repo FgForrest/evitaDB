@@ -7,7 +7,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				filterBy(
 					hierarchyWithin(
 						"categories",
-						attributeEquals("code", "accessories")
+						attributeEquals("code", "e-readers")
 					),
 					attributeEquals("status", "ACTIVE"),
 					entityLocaleEquals(Locale.forLanguageTag("en"))

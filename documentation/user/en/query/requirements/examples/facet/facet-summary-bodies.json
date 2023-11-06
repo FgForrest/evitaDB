@@ -111,17 +111,12 @@
                 "primaryKey": 66505,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Sale"
-                    }
+                  "global": {
+                    "code": "sale"
                   }
                 }
               }
@@ -133,17 +128,12 @@
                 "primaryKey": 112769,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Special offer"
-                    }
+                  "global": {
+                    "code": "special-offer-group"
                   }
                 }
               }
@@ -155,17 +145,12 @@
                 "primaryKey": 112770,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Sell-off"
-                    }
+                  "global": {
+                    "code": "sell-off-group"
                   }
                 }
               }
@@ -177,17 +162,12 @@
                 "primaryKey": 112771,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Recommended"
-                    }
+                  "global": {
+                    "code": "recommended-group"
                   }
                 }
               }
@@ -199,17 +179,12 @@
                 "primaryKey": 112772,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Valentine"
-                    }
+                  "global": {
+                    "code": "valentine-group"
                   }
                 }
               }
@@ -221,17 +196,12 @@
                 "primaryKey": 112774,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "For women"
-                    }
+                  "global": {
+                    "code": "for-women-group"
                   }
                 }
               }
@@ -243,17 +213,12 @@
                 "primaryKey": 112775,
                 "type": "Group",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "For men"
-                    }
+                  "global": {
+                    "code": "for-men-group"
                   }
                 }
               }
@@ -273,17 +238,12 @@
                 "primaryKey": 66473,
                 "type": "Category",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "E-readers"
-                    }
+                  "global": {
+                    "code": "e-readers"
                   }
                 }
               }
@@ -303,17 +263,12 @@
                 "primaryKey": 105140,
                 "type": "Brand",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Amazon"
-                    }
+                  "global": {
+                    "code": "amazon"
                   }
                 }
               }
@@ -325,17 +280,12 @@
                 "primaryKey": 105168,
                 "type": "Brand",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Onyx Boox"
-                    }
+                  "global": {
+                    "code": "onyx-boox"
                   }
                 }
               }
@@ -347,17 +297,12 @@
                 "primaryKey": 105239,
                 "type": "Brand",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "PocketBook"
-                    }
+                  "global": {
+                    "code": "pocketbook"
                   }
                 }
               }
@@ -369,17 +314,12 @@
                 "primaryKey": 105281,
                 "type": "Brand",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Kobo"
-                    }
+                  "global": {
+                    "code": "kobo"
                   }
                 }
               }
@@ -402,17 +342,12 @@
                 "primaryKey": 119334,
                 "type": "Stock",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Evita"
-                    }
+                  "global": {
+                    "code": "evita"
                   }
                 }
               }
@@ -435,19 +370,14 @@
                 "primaryKey": 9,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Sale"
-                    }
+                  "global": {
+                    "code": "sale"
                   }
                 }
               }
@@ -459,19 +389,14 @@
                 "primaryKey": 10,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "New"
-                    }
+                  "global": {
+                    "code": "new"
                   }
                 }
               }
@@ -483,19 +408,14 @@
                 "primaryKey": 11,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Special offer"
-                    }
+                  "global": {
+                    "code": "special-offer"
                   }
                 }
               }
@@ -507,19 +427,14 @@
                 "primaryKey": 12,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Sell-off"
-                    }
+                  "global": {
+                    "code": "sell-off"
                   }
                 }
               }
@@ -531,19 +446,14 @@
                 "primaryKey": 13,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Recommended"
-                    }
+                  "global": {
+                    "code": "recommended"
                   }
                 }
               }
@@ -555,19 +465,14 @@
                 "primaryKey": 14,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Valentine"
-                    }
+                  "global": {
+                    "code": "valentine"
                   }
                 }
               }
@@ -579,19 +484,14 @@
                 "primaryKey": 15,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Gift"
-                    }
+                  "global": {
+                    "code": "gift"
                   }
                 }
               }
@@ -603,19 +503,14 @@
                 "primaryKey": 16,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "For women"
-                    }
+                  "global": {
+                    "code": "for-women"
                   }
                 }
               }
@@ -627,19 +522,14 @@
                 "primaryKey": 17,
                 "type": "Tag",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "de",
                   "en",
                   "cs"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "For men"
-                    }
+                  "global": {
+                    "code": "for-men"
                   }
                 }
               }
@@ -654,17 +544,12 @@
             "primaryKey": 66514,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Operating system"
-                }
+              "global": {
+                "code": "operating-system"
               }
             }
           },
@@ -676,17 +561,12 @@
                 "primaryKey": 103880,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Google Android 10 (Q)"
-                    }
+                  "global": {
+                    "code": "operating-system-google-androi"
                   }
                 }
               }
@@ -698,17 +578,12 @@
                 "primaryKey": 104459,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Google Android 11 (R)"
-                    }
+                  "global": {
+                    "code": "operating-system-google-andr-1"
                   }
                 }
               }
@@ -720,17 +595,12 @@
                 "primaryKey": 105138,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Proprietal"
-                    }
+                  "global": {
+                    "code": "operating-system-proprietal"
                   }
                 }
               }
@@ -742,17 +612,12 @@
                 "primaryKey": 105180,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Google Android 4.4"
-                    }
+                  "global": {
+                    "code": "operating-system-google-andr-4"
                   }
                 }
               }
@@ -764,17 +629,12 @@
                 "primaryKey": 105237,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Linux"
-                    }
+                  "global": {
+                    "code": "operating-system-linux"
                   }
                 }
               }
@@ -787,17 +647,12 @@
             "primaryKey": 66515,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Rear camera resolution"
-                }
+              "global": {
+                "code": "rear-camera-resoluti"
               }
             }
           },
@@ -809,17 +664,12 @@
                 "primaryKey": 105163,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "16"
-                    }
+                  "global": {
+                    "code": "rear-camera-resoluti-16"
                   }
                 }
               }
@@ -832,17 +682,12 @@
             "primaryKey": 66518,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Display type"
-                }
+              "global": {
+                "code": "display-type"
               }
             }
           },
@@ -854,17 +699,12 @@
                 "primaryKey": 105133,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "e-Ink"
-                    }
+                  "global": {
+                    "code": "display-typee-e-ink"
                   }
                 }
               }
@@ -877,17 +717,12 @@
             "primaryKey": 66520,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Number of CPU cores"
-                }
+              "global": {
+                "code": "number-of-cpu-cores"
               }
             }
           },
@@ -899,17 +734,12 @@
                 "primaryKey": 103870,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "4"
-                    }
+                  "global": {
+                    "code": "number-of-cpu-cores-4"
                   }
                 }
               }
@@ -921,17 +751,12 @@
                 "primaryKey": 103998,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8"
-                    }
+                  "global": {
+                    "code": "number-of-cpu-cores-8"
                   }
                 }
               }
@@ -943,17 +768,12 @@
                 "primaryKey": 105134,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "2"
-                    }
+                  "global": {
+                    "code": "number-of-cpu-cores-2"
                   }
                 }
               }
@@ -966,17 +786,12 @@
             "primaryKey": 66533,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Connector"
-                }
+              "global": {
+                "code": "connector"
               }
             }
           },
@@ -988,17 +803,12 @@
                 "primaryKey": 103884,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Type C"
-                    }
+                  "global": {
+                    "code": "connector-typee-c"
                   }
                 }
               }
@@ -1011,17 +821,12 @@
             "primaryKey": 67913,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Height"
-                }
+              "global": {
+                "code": "height"
               }
             }
           },
@@ -1033,17 +838,12 @@
                 "primaryKey": 104493,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "159"
-                    }
+                  "global": {
+                    "code": "height-159"
                   }
                 }
               }
@@ -1055,17 +855,12 @@
                 "primaryKey": 105143,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "173"
-                    }
+                  "global": {
+                    "code": "height-173"
                   }
                 }
               }
@@ -1077,17 +872,12 @@
                 "primaryKey": 105164,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "225"
-                    }
+                  "global": {
+                    "code": "height-225"
                   }
                 }
               }
@@ -1099,17 +889,12 @@
                 "primaryKey": 105185,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "170"
-                    }
+                  "global": {
+                    "code": "height-170"
                   }
                 }
               }
@@ -1121,17 +906,12 @@
                 "primaryKey": 105198,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "229.4"
-                    }
+                  "global": {
+                    "code": "height-229-4"
                   }
                 }
               }
@@ -1143,17 +923,12 @@
                 "primaryKey": 105210,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "249"
-                    }
+                  "global": {
+                    "code": "height-249"
                   }
                 }
               }
@@ -1165,17 +940,12 @@
                 "primaryKey": 105219,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "310"
-                    }
+                  "global": {
+                    "code": "height-310"
                   }
                 }
               }
@@ -1187,17 +957,12 @@
                 "primaryKey": 105230,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "197.3"
-                    }
+                  "global": {
+                    "code": "height-197-3"
                   }
                 }
               }
@@ -1209,17 +974,12 @@
                 "primaryKey": 105250,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "249.2"
-                    }
+                  "global": {
+                    "code": "height-249-2"
                   }
                 }
               }
@@ -1231,17 +991,12 @@
                 "primaryKey": 105264,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "161"
-                    }
+                  "global": {
+                    "code": "height-161"
                   }
                 }
               }
@@ -1253,17 +1008,12 @@
                 "primaryKey": 105275,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "159.6"
-                    }
+                  "global": {
+                    "code": "height-159-6"
                   }
                 }
               }
@@ -1275,17 +1025,12 @@
                 "primaryKey": 105286,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "177.7"
-                    }
+                  "global": {
+                    "code": "height-177-7"
                   }
                 }
               }
@@ -1297,17 +1042,12 @@
                 "primaryKey": 105294,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "159.3"
-                    }
+                  "global": {
+                    "code": "height-159-3"
                   }
                 }
               }
@@ -1319,17 +1059,12 @@
                 "primaryKey": 105299,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "181.4"
-                    }
+                  "global": {
+                    "code": "height-181-4"
                   }
                 }
               }
@@ -1342,17 +1077,12 @@
             "primaryKey": 67914,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Width"
-                }
+              "global": {
+                "code": "width"
               }
             }
           },
@@ -1364,17 +1094,12 @@
                 "primaryKey": 105135,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "108"
-                    }
+                  "global": {
+                    "code": "width-108"
                   }
                 }
               }
@@ -1386,17 +1111,12 @@
                 "primaryKey": 105144,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "125"
-                    }
+                  "global": {
+                    "code": "width-125"
                   }
                 }
               }
@@ -1408,17 +1128,12 @@
                 "primaryKey": 105150,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "141"
-                    }
+                  "global": {
+                    "code": "width-141"
                   }
                 }
               }
@@ -1430,17 +1145,12 @@
                 "primaryKey": 105154,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "114.4"
-                    }
+                  "global": {
+                    "code": "width-114-4"
                   }
                 }
               }
@@ -1452,17 +1162,12 @@
                 "primaryKey": 105165,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "184.5"
-                    }
+                  "global": {
+                    "code": "width-184-5"
                   }
                 }
               }
@@ -1474,17 +1179,12 @@
                 "primaryKey": 105176,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "112.5"
-                    }
+                  "global": {
+                    "code": "width-112-5"
                   }
                 }
               }
@@ -1496,17 +1196,12 @@
                 "primaryKey": 105186,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "117"
-                    }
+                  "global": {
+                    "code": "width-117"
                   }
                 }
               }
@@ -1518,17 +1213,12 @@
                 "primaryKey": 105199,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "195.4"
-                    }
+                  "global": {
+                    "code": "width-195-4"
                   }
                 }
               }
@@ -1540,17 +1230,12 @@
                 "primaryKey": 105211,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "176.5"
-                    }
+                  "global": {
+                    "code": "width-176-5"
                   }
                 }
               }
@@ -1562,17 +1247,12 @@
                 "primaryKey": 105220,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "228"
-                    }
+                  "global": {
+                    "code": "width-228"
                   }
                 }
               }
@@ -1584,17 +1264,12 @@
                 "primaryKey": 105251,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "173.4"
-                    }
+                  "global": {
+                    "code": "width-173-4"
                   }
                 }
               }
@@ -1606,17 +1281,12 @@
                 "primaryKey": 105261,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "135.5"
-                    }
+                  "global": {
+                    "code": "width-135-5"
                   }
                 }
               }
@@ -1628,17 +1298,12 @@
                 "primaryKey": 105276,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "110"
-                    }
+                  "global": {
+                    "code": "width-110"
                   }
                 }
               }
@@ -1650,17 +1315,12 @@
                 "primaryKey": 105282,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "112"
-                    }
+                  "global": {
+                    "code": "width-112"
                   }
                 }
               }
@@ -1672,17 +1332,12 @@
                 "primaryKey": 105287,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "160"
-                    }
+                  "global": {
+                    "code": "width-160"
                   }
                 }
               }
@@ -1694,17 +1349,12 @@
                 "primaryKey": 105295,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "112.4"
-                    }
+                  "global": {
+                    "code": "width-112-4"
                   }
                 }
               }
@@ -1716,17 +1366,12 @@
                 "primaryKey": 105300,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "160.5"
-                    }
+                  "global": {
+                    "code": "width-160-5"
                   }
                 }
               }
@@ -1739,17 +1384,12 @@
             "primaryKey": 67915,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Thickness"
-                }
+              "global": {
+                "code": "thickness"
               }
             }
           },
@@ -1761,17 +1401,12 @@
                 "primaryKey": 104078,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "6.3"
-                    }
+                  "global": {
+                    "code": "thickness-6-3"
                   }
                 }
               }
@@ -1783,17 +1418,12 @@
                 "primaryKey": 104442,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "9"
-                    }
+                  "global": {
+                    "code": "thickness-9"
                   }
                 }
               }
@@ -1805,17 +1435,12 @@
                 "primaryKey": 104457,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.5"
-                    }
+                  "global": {
+                    "code": "thickness-8-5"
                   }
                 }
               }
@@ -1827,17 +1452,12 @@
                 "primaryKey": 104471,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.1"
-                    }
+                  "global": {
+                    "code": "thickness-8-1"
                   }
                 }
               }
@@ -1849,17 +1469,12 @@
                 "primaryKey": 104485,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "7.7"
-                    }
+                  "global": {
+                    "code": "thickness-7-7"
                   }
                 }
               }
@@ -1871,17 +1486,12 @@
                 "primaryKey": 104561,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "7.8"
-                    }
+                  "global": {
+                    "code": "thickness-7-8"
                   }
                 }
               }
@@ -1893,17 +1503,12 @@
                 "primaryKey": 104673,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "7.2"
-                    }
+                  "global": {
+                    "code": "thickness-7-2"
                   }
                 }
               }
@@ -1915,17 +1520,12 @@
                 "primaryKey": 104686,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "6.7"
-                    }
+                  "global": {
+                    "code": "thickness-6-7"
                   }
                 }
               }
@@ -1937,17 +1537,12 @@
                 "primaryKey": 104722,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "7.9"
-                    }
+                  "global": {
+                    "code": "thickness-7-9"
                   }
                 }
               }
@@ -1959,17 +1554,12 @@
                 "primaryKey": 104820,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "5.8"
-                    }
+                  "global": {
+                    "code": "thickness-5-8"
                   }
                 }
               }
@@ -1981,17 +1571,12 @@
                 "primaryKey": 104865,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8"
-                    }
+                  "global": {
+                    "code": "thickness-8"
                   }
                 }
               }
@@ -2003,17 +1588,12 @@
                 "primaryKey": 105151,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.4"
-                    }
+                  "global": {
+                    "code": "thickness-8-4"
                   }
                 }
               }
@@ -2025,17 +1605,12 @@
                 "primaryKey": 105155,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "13.6"
-                    }
+                  "global": {
+                    "code": "thickness-13-6"
                   }
                 }
               }
@@ -2047,17 +1622,12 @@
                 "primaryKey": 105160,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "13.5"
-                    }
+                  "global": {
+                    "code": "thickness-13-5"
                   }
                 }
               }
@@ -2069,17 +1639,12 @@
                 "primaryKey": 105171,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "6"
-                    }
+                  "global": {
+                    "code": "thickness-6"
                   }
                 }
               }
@@ -2091,17 +1656,12 @@
                 "primaryKey": 105177,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.8"
-                    }
+                  "global": {
+                    "code": "thickness-8-8"
                   }
                 }
               }
@@ -2113,17 +1673,12 @@
                 "primaryKey": 105187,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.7"
-                    }
+                  "global": {
+                    "code": "thickness-8-7"
                   }
                 }
               }
@@ -2135,17 +1690,12 @@
                 "primaryKey": 105192,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "7.1"
-                    }
+                  "global": {
+                    "code": "thickness-7-1"
                   }
                 }
               }
@@ -2157,17 +1707,12 @@
                 "primaryKey": 105196,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "6.8"
-                    }
+                  "global": {
+                    "code": "thickness-6-8"
                   }
                 }
               }
@@ -2179,17 +1724,12 @@
                 "primaryKey": 105216,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "5.95"
-                    }
+                  "global": {
+                    "code": "thickness-5-95"
                   }
                 }
               }
@@ -2201,17 +1741,12 @@
                 "primaryKey": 105277,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.35"
-                    }
+                  "global": {
+                    "code": "thickness-8-35"
                   }
                 }
               }
@@ -2223,17 +1758,12 @@
                 "primaryKey": 105283,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "8.66"
-                    }
+                  "global": {
+                    "code": "thickness-8-66"
                   }
                 }
               }
@@ -2245,17 +1775,12 @@
                 "primaryKey": 105296,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "9.2"
-                    }
+                  "global": {
+                    "code": "thickness-9-2"
                   }
                 }
               }
@@ -2267,17 +1792,12 @@
                 "primaryKey": 105301,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "7.6"
-                    }
+                  "global": {
+                    "code": "thickness-7-6"
                   }
                 }
               }
@@ -2290,17 +1810,12 @@
             "primaryKey": 67916,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Weight"
-                }
+              "global": {
+                "code": "weight"
               }
             }
           },
@@ -2312,17 +1827,12 @@
                 "primaryKey": 104562,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "480"
-                    }
+                  "global": {
+                    "code": "weight-480"
                   }
                 }
               }
@@ -2334,17 +1844,12 @@
                 "primaryKey": 105136,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "158"
-                    }
+                  "global": {
+                    "code": "weight-158"
                   }
                 }
               }
@@ -2356,17 +1861,12 @@
                 "primaryKey": 105145,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "205"
-                    }
+                  "global": {
+                    "code": "weight-205"
                   }
                 }
               }
@@ -2378,17 +1878,12 @@
                 "primaryKey": 105147,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "208"
-                    }
+                  "global": {
+                    "code": "weight-208"
                   }
                 }
               }
@@ -2400,17 +1895,12 @@
                 "primaryKey": 105152,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "188"
-                    }
+                  "global": {
+                    "code": "weight-188"
                   }
                 }
               }
@@ -2422,17 +1912,12 @@
                 "primaryKey": 105156,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "256"
-                    }
+                  "global": {
+                    "code": "weight-256"
                   }
                 }
               }
@@ -2444,17 +1929,12 @@
                 "primaryKey": 105161,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "321"
-                    }
+                  "global": {
+                    "code": "weight-321"
                   }
                 }
               }
@@ -2466,17 +1946,12 @@
                 "primaryKey": 105172,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "185"
-                    }
+                  "global": {
+                    "code": "weight-185"
                   }
                 }
               }
@@ -2488,17 +1963,12 @@
                 "primaryKey": 105178,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "160"
-                    }
+                  "global": {
+                    "code": "weight-160"
                   }
                 }
               }
@@ -2510,17 +1980,12 @@
                 "primaryKey": 105182,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "165"
-                    }
+                  "global": {
+                    "code": "weight-165"
                   }
                 }
               }
@@ -2532,17 +1997,12 @@
                 "primaryKey": 105188,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "182"
-                    }
+                  "global": {
+                    "code": "weight-182"
                   }
                 }
               }
@@ -2554,17 +2014,12 @@
                 "primaryKey": 105193,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "150"
-                    }
+                  "global": {
+                    "code": "weight-150"
                   }
                 }
               }
@@ -2576,17 +2031,12 @@
                 "primaryKey": 105200,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "445"
-                    }
+                  "global": {
+                    "code": "weight-445"
                   }
                 }
               }
@@ -2598,17 +2048,12 @@
                 "primaryKey": 105212,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "385"
-                    }
+                  "global": {
+                    "code": "weight-385"
                   }
                 }
               }
@@ -2620,17 +2065,12 @@
                 "primaryKey": 105221,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "570"
-                    }
+                  "global": {
+                    "code": "weight-570"
                   }
                 }
               }
@@ -2642,17 +2082,12 @@
                 "primaryKey": 105231,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "265"
-                    }
+                  "global": {
+                    "code": "weight-265"
                   }
                 }
               }
@@ -2664,17 +2099,12 @@
                 "primaryKey": 105235,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "155"
-                    }
+                  "global": {
+                    "code": "weight-155"
                   }
                 }
               }
@@ -2686,17 +2116,12 @@
                 "primaryKey": 105241,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "145"
-                    }
+                  "global": {
+                    "code": "weight-145"
                   }
                 }
               }
@@ -2708,17 +2133,12 @@
                 "primaryKey": 105247,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "228"
-                    }
+                  "global": {
+                    "code": "weight-228"
                   }
                 }
               }
@@ -2730,17 +2150,12 @@
                 "primaryKey": 105252,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "300"
-                    }
+                  "global": {
+                    "code": "weight-300"
                   }
                 }
               }
@@ -2752,17 +2167,12 @@
                 "primaryKey": 105258,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "210"
-                    }
+                  "global": {
+                    "code": "weight-210"
                   }
                 }
               }
@@ -2774,17 +2184,12 @@
                 "primaryKey": 105262,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "225"
-                    }
+                  "global": {
+                    "code": "weight-225"
                   }
                 }
               }
@@ -2796,17 +2201,12 @@
                 "primaryKey": 105269,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "369"
-                    }
+                  "global": {
+                    "code": "weight-369"
                   }
                 }
               }
@@ -2818,17 +2218,12 @@
                 "primaryKey": 105278,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "166"
-                    }
+                  "global": {
+                    "code": "weight-166"
                   }
                 }
               }
@@ -2840,17 +2235,12 @@
                 "primaryKey": 105284,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "171"
-                    }
+                  "global": {
+                    "code": "weight-171"
                   }
                 }
               }
@@ -2862,17 +2252,12 @@
                 "primaryKey": 105288,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "197"
-                    }
+                  "global": {
+                    "code": "weight-197"
                   }
                 }
               }
@@ -2884,17 +2269,12 @@
                 "primaryKey": 105292,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "215"
-                    }
+                  "global": {
+                    "code": "weight-215"
                   }
                 }
               }
@@ -2906,17 +2286,12 @@
                 "primaryKey": 105297,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "172"
-                    }
+                  "global": {
+                    "code": "weight-172"
                   }
                 }
               }
@@ -2928,17 +2303,12 @@
                 "primaryKey": 105302,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "240.8"
-                    }
+                  "global": {
+                    "code": "weight-240-8"
                   }
                 }
               }
@@ -2951,17 +2321,12 @@
             "primaryKey": 67917,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Battery capacity"
-                }
+              "global": {
+                "code": "battery-capacity"
               }
             }
           },
@@ -2973,17 +2338,12 @@
                 "primaryKey": 105137,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "2100"
-                    }
+                  "global": {
+                    "code": "battery-capacity-2100"
                   }
                 }
               }
@@ -2995,17 +2355,12 @@
                 "primaryKey": 105166,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "6300"
-                    }
+                  "global": {
+                    "code": "battery-capacity-6300"
                   }
                 }
               }
@@ -3017,17 +2372,12 @@
                 "primaryKey": 105173,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "2000"
-                    }
+                  "global": {
+                    "code": "battery-capacity-2000"
                   }
                 }
               }
@@ -3039,17 +2389,12 @@
                 "primaryKey": 105179,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "300"
-                    }
+                  "global": {
+                    "code": "battery-capacity-300"
                   }
                 }
               }
@@ -3061,17 +2406,12 @@
                 "primaryKey": 105183,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "3000"
-                    }
+                  "global": {
+                    "code": "battery-capacity-3000"
                   }
                 }
               }
@@ -3083,17 +2423,12 @@
                 "primaryKey": 105194,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "1500"
-                    }
+                  "global": {
+                    "code": "battery-capacity-1500"
                   }
                 }
               }
@@ -3105,17 +2440,12 @@
                 "primaryKey": 105201,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "3700"
-                    }
+                  "global": {
+                    "code": "battery-capacity-3700"
                   }
                 }
               }
@@ -3127,17 +2457,12 @@
                 "primaryKey": 105222,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "4300"
-                    }
+                  "global": {
+                    "code": "battery-capacity-4300"
                   }
                 }
               }
@@ -3149,17 +2474,12 @@
                 "primaryKey": 105232,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "3150"
-                    }
+                  "global": {
+                    "code": "battery-capacity-3150"
                   }
                 }
               }
@@ -3171,17 +2491,12 @@
                 "primaryKey": 105236,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "1300"
-                    }
+                  "global": {
+                    "code": "battery-capacity-1300"
                   }
                 }
               }
@@ -3193,17 +2508,12 @@
                 "primaryKey": 105242,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "800"
-                    }
+                  "global": {
+                    "code": "battery-capacity-800"
                   }
                 }
               }
@@ -3215,17 +2525,12 @@
                 "primaryKey": 105248,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "1700"
-                    }
+                  "global": {
+                    "code": "battery-capacity-1700"
                   }
                 }
               }
@@ -3237,17 +2542,12 @@
                 "primaryKey": 105259,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "1900"
-                    }
+                  "global": {
+                    "code": "battery-capacity-1900"
                   }
                 }
               }
@@ -3259,17 +2559,12 @@
                 "primaryKey": 105270,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "2200"
-                    }
+                  "global": {
+                    "code": "battery-capacity-2200"
                   }
                 }
               }
@@ -3281,17 +2576,12 @@
                 "primaryKey": 105273,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "2900"
-                    }
+                  "global": {
+                    "code": "battery-capacity-2900"
                   }
                 }
               }
@@ -3303,17 +2593,12 @@
                 "primaryKey": 105279,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "1000"
-                    }
+                  "global": {
+                    "code": "battery-capacity-1000"
                   }
                 }
               }
@@ -3326,17 +2611,12 @@
             "primaryKey": 114007,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Height"
-                }
+              "global": {
+                "code": "height-merge"
               }
             }
           },
@@ -3348,17 +2628,12 @@
                 "primaryKey": 104739,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "158"
-                    }
+                  "global": {
+                    "code": "height-158"
                   }
                 }
               }
@@ -3370,17 +2645,12 @@
                 "primaryKey": 105158,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "175.5"
-                    }
+                  "global": {
+                    "code": "height-175-5"
                   }
                 }
               }
@@ -3392,17 +2662,12 @@
                 "primaryKey": 105169,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "156"
-                    }
+                  "global": {
+                    "code": "height-156"
                   }
                 }
               }
@@ -3414,17 +2679,12 @@
                 "primaryKey": 105190,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "153"
-                    }
+                  "global": {
+                    "code": "height-153"
                   }
                 }
               }
@@ -3436,17 +2696,12 @@
                 "primaryKey": 105205,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "194"
-                    }
+                  "global": {
+                    "code": "height-194"
                   }
                 }
               }
@@ -3458,17 +2713,12 @@
                 "primaryKey": 105214,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "165.6"
-                    }
+                  "global": {
+                    "code": "height-165-6"
                   }
                 }
               }
@@ -3480,17 +2730,12 @@
                 "primaryKey": 105227,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "239"
-                    }
+                  "global": {
+                    "code": "height-239"
                   }
                 }
               }
@@ -3502,17 +2747,12 @@
                 "primaryKey": 105234,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "161.3"
-                    }
+                  "global": {
+                    "code": "height-161-3"
                   }
                 }
               }
@@ -3524,17 +2764,12 @@
                 "primaryKey": 105245,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "134.3"
-                    }
+                  "global": {
+                    "code": "height-134-3"
                   }
                 }
               }
@@ -3546,17 +2781,12 @@
                 "primaryKey": 105257,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "195"
-                    }
+                  "global": {
+                    "code": "height-195"
                   }
                 }
               }
@@ -3568,17 +2798,12 @@
                 "primaryKey": 105267,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "236"
-                    }
+                  "global": {
+                    "code": "height-236"
                   }
                 }
               }
@@ -3590,17 +2815,12 @@
                 "primaryKey": 105290,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "161.6"
-                    }
+                  "global": {
+                    "code": "height-161-6"
                   }
                 }
               }
@@ -3613,17 +2833,12 @@
             "primaryKey": 114008,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Width"
-                }
+              "global": {
+                "code": "width-merge"
               }
             }
           },
@@ -3635,17 +2850,12 @@
                 "primaryKey": 105159,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "129.2"
-                    }
+                  "global": {
+                    "code": "width-129-2"
                   }
                 }
               }
@@ -3657,17 +2867,12 @@
                 "primaryKey": 105170,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "137"
-                    }
+                  "global": {
+                    "code": "width-137"
                   }
                 }
               }
@@ -3679,17 +2884,12 @@
                 "primaryKey": 105191,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "107"
-                    }
+                  "global": {
+                    "code": "width-107"
                   }
                 }
               }
@@ -3701,17 +2901,12 @@
                 "primaryKey": 105206,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "136.5"
-                    }
+                  "global": {
+                    "code": "width-136-5"
                   }
                 }
               }
@@ -3723,17 +2918,12 @@
                 "primaryKey": 105215,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "130.8"
-                    }
+                  "global": {
+                    "code": "width-130-8"
                   }
                 }
               }
@@ -3745,17 +2935,12 @@
                 "primaryKey": 105225,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "121.5"
-                    }
+                  "global": {
+                    "code": "width-121-5"
                   }
                 }
               }
@@ -3767,17 +2952,12 @@
                 "primaryKey": 105228,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "168"
-                    }
+                  "global": {
+                    "code": "width-168"
                   }
                 }
               }
@@ -3789,17 +2969,12 @@
                 "primaryKey": 105246,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "155"
-                    }
+                  "global": {
+                    "code": "width-155"
                   }
                 }
               }
@@ -3811,17 +2986,12 @@
                 "primaryKey": 105268,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "173"
-                    }
+                  "global": {
+                    "code": "width-173"
                   }
                 }
               }
@@ -3833,17 +3003,12 @@
                 "primaryKey": 105291,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "144.6"
-                    }
+                  "global": {
+                    "code": "width-144-6"
                   }
                 }
               }
@@ -3856,17 +3021,12 @@
             "primaryKey": 114009,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Weigth"
-                }
+              "global": {
+                "code": "weight-merge"
               }
             }
           },
@@ -3878,17 +3038,12 @@
                 "primaryKey": 104736,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "420"
-                    }
+                  "global": {
+                    "code": "weight-420"
                   }
                 }
               }
@@ -3900,17 +3055,12 @@
                 "primaryKey": 105207,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "235"
-                    }
+                  "global": {
+                    "code": "weight-235"
                   }
                 }
               }
@@ -3922,17 +3072,12 @@
                 "primaryKey": 105217,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "170"
-                    }
+                  "global": {
+                    "code": "weight-170"
                   }
                 }
               }
@@ -3945,17 +3090,12 @@
             "primaryKey": 114010,
             "type": "Parameter",
             "version": 1,
-            "locales": [
-              "en"
-            ],
             "allLocales": [
               "en"
             ],
             "attributes": {
-              "localized": {
-                "en": {
-                  "name": "Connector"
-                }
+              "global": {
+                "code": "connector-merge"
               }
             }
           },
@@ -3967,17 +3107,12 @@
                 "primaryKey": 104525,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "Micro USB"
-                    }
+                  "global": {
+                    "code": "connector-micro-usb"
                   }
                 }
               }
@@ -3989,17 +3124,12 @@
                 "primaryKey": 114011,
                 "type": "ParameterValue",
                 "version": 1,
-                "locales": [
-                  "en"
-                ],
                 "allLocales": [
                   "en"
                 ],
                 "attributes": {
-                  "localized": {
-                    "en": {
-                      "name": "USB"
-                    }
+                  "global": {
+                    "code": "usb"
                   }
                 }
               }

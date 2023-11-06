@@ -12,7 +12,15 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 					attributeEquals("status", "ACTIVE")
 				),
 				require(
-					facetSummary(COUNTS)
+					facetSummary(
+						COUNTS,
+						entityFetch(
+							attributeContent("code")
+						),
+						entityGroupFetch(
+							attributeContent("code")
+						)
+					)
 				)
 			)
 		);

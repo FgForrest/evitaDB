@@ -6,7 +6,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         	FilterBy(
         		HierarchyWithin(
         			"categories",
-        			AttributeEquals("code", "accessories")
+        			AttributeEquals("code", "e-readers")
         		),
         		AttributeEquals("status", "ACTIVE")
         	),

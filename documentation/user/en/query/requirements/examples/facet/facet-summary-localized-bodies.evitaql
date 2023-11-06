@@ -5,9 +5,14 @@ query(
             'categories',
             attributeEquals('code', 'e-readers')
         ),
+        entityLocaleEquals('en'),
         attributeEquals('status', 'ACTIVE')
     ),
     require(
-        facetSummary(COUNTS)
+        facetSummary(
+            COUNTS,
+            entityFetch(attributeContent('name')),
+            entityGroupFetch(attributeContent('name'))
+        )
     )
 )

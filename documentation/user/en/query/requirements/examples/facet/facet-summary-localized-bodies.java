@@ -9,10 +9,19 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 						"categories",
 						attributeEquals("code", "e-readers")
 					),
+					entityLocaleEquals(Locale.forLanguageTag("en")),
 					attributeEquals("status", "ACTIVE")
 				),
 				require(
-					facetSummary(COUNTS)
+					facetSummary(
+						COUNTS,
+						entityFetch(
+							attributeContent("name")
+						),
+						entityGroupFetch(
+							attributeContent("name")
+						)
+					)
 				)
 			)
 		);

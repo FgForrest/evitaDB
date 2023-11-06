@@ -44,6 +44,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.extraResult.PrettyPrintable;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -276,6 +277,9 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("md");
 		if (outputFormat.equals("md")) {
 			return generateMarkDownTable(session, query, response);
+		} else if (outputFormat.equals("string")) {
+			final String sourceVariable = outputSnippet.sourceVariable();
+			return generateMarkDownStringBlock(response, sourceVariable);
 		} else if (outputFormat.equals("json")) {
 			final String sourceVariable = outputSnippet.sourceVariable();
 			return generateMarkDownJsonBlock(response, sourceVariable);
@@ -613,6 +617,33 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 					.map(it -> it + attributeName)
 					.orElse(attributeName)
 			);
+		}
+	}
+
+	/**
+	 * Transforms content that matches the sourceVariable into a String and puts it into the MarkDown code block.
+	 */
+	@Nonnull
+	private static String generateMarkDownStringBlock(
+		@Nonnull EvitaResponse<SealedEntity> response,
+		@Nullable String sourceVariable
+	) {
+		final Object theValue;
+		if (sourceVariable == null || sourceVariable.isBlank()) {
+			theValue = response;
+		} else {
+			final String[] sourceVariableParts = sourceVariable.split("\\.");
+			theValue = extractValueFrom(response, sourceVariableParts);
+		}
+		final String json = ofNullable(theValue)
+			.map(it -> it instanceof PrettyPrintable pp ? pp.prettyPrint() : it.toString())
+			.orElse("");
+
+		try {
+			return new CustomCodeBlock(json, "md").serialize();
+		} catch (MarkdownSerializationException e) {
+			fail(e);
+			return "";
 		}
 	}
 

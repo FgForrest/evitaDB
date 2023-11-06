@@ -131,6 +131,9 @@ combination. It also contains `count` of all the entities in current query resul
 group / reference. Optionally it can contain the body of the group entity if the [`entityGroupFetch`](#entity-group-fetch)
 requirement is specified.
 
+There might be also a special "group" for facets, that are has no relation to a group. This group is placed in
+the facet summary as a property `nonGroupedStatistics`. 
+
 #### 3rd tier: facet
 
 Facet contains the statistics of the particular facet option:
@@ -180,7 +183,7 @@ upon the queried entities. To demonstrate the facet summary calculation we will 
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[Facet summary calculation for products in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-simple.evitaql)
+[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-simple.evitaql)
 
 </SourceCodeTabs>
 
@@ -190,7 +193,7 @@ realistic, let's fetch for each entity the localized name in English localizatio
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[Facet summary calculation for products in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
+[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
 
 </SourceCodeTabs>
 
@@ -213,20 +216,59 @@ The visualization is organized the same as the facet summary itself:
 
 <NoteTitle toggles="true">
 
-##### The result of facet summary in "accessories" category
+##### The result of facet summary in "e-readers" category
 
 </NoteTitle>
 
-The query returns list of "active" products in "accessories" category and in the extra results index it also contains
+The query returns list of "active" products in "e-readers" category and in the extra results index it also contains
 the facet summary calculation:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
 
 The format has been simplified, because the raw JSON result would be too long and hard to read. This is the output 
 format of `toString` method of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass> 
 and you can see the summary organized in three tier structure, along with the information about the result entity count
 for each of the facet and facet group. No, facet is currently selected and therefore the lead `[ ]` is not checked 
-anywhere.
+anywhere. The listing contains no human comprehensible information except the primary keys of the references, facet
+groups and facets - in order to have them we'd have to add [their bodies](#fetching-facet-group-bodies).
+
+</Note>
+
+### Fetching facet (group) bodies
+
+The facet summary has a little sense without the bodies of the facet groups and facets. To fetch those bodies you need
+to add [`entityFetch`](#entity-fetch) or [`entityGroupFetch`](#entity-group-fetch) requirement to the query. Let's alter
+the example to fetch the facet summary along with codes of the facets and their groups:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet summary calculation with bodies for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary in "e-readers" category including the referenced entity bodies
+
+</NoteTitle>
+
+Now you can see the facet summary contains next to the primary keys also somewhat comprehensible codes of the facets
+and their respective groups:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary in "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.evitaql.string.md)</MDInclude>
+
+If you add the requested locale to the query and list also localized names, you'd get the result that is very close
+to the version you want to display in the user interface:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet summary calculation with localized names for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.evitaql)
+
+</SourceCodeTabs>
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary with localized names for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.evitaql.string.md)</MDInclude>
 
 </Note>
 
@@ -234,8 +276,24 @@ anywhere.
 ### Ordering facet summary
 
 ## Facet summary of reference
+
 ## Entity group fetch
+
+The constraint `entityGroupFetch`, that is used inside [`facetSummary`](#facet-summary) or
+[`facetSummaryOfReference`](#facet-summary-of-reference) requirement, is identical to
+[`entityFetch`](fetching.md#entity-fetch) requirement described in referenced chapter. The only difference is that
+the `entityGroupFetch` relates to the related group entity schema specified by the faceted 
+[reference schema](../../use/schema.md#reference) and that is named as `entityGroupFetch` instead of `entityFetch`
+to distinguish requirements for referenced (facet) entity and referenced entity (facet) group.
+
 ## Entity fetch
+
+The constraint `entityFetch`, that is used inside [`facetSummary`](#facet-summary) or 
+[`facetSummaryOfReference`](#facet-summary-of-reference) requirement, is identical to 
+[`entityFetch`](fetching.md#entity-fetch) requirement described in referenced chapter. The only difference is that
+the `entityFetch` relates to the related entity schema specified by the faceted 
+[reference schema](../../use/schema.md#reference).
+
 ## Facet conjunction
 ## Facet disjunction
 ## Facet negation
