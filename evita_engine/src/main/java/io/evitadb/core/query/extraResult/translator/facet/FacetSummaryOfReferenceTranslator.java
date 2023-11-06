@@ -80,8 +80,18 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	static IntPredicate createFacetGroupPredicate(
 		@Nullable FilterGroupBy filterGroupBy,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
 	) {
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedGroupTypeManaged(),
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+			return null;
+		}
 		return new FilteringFormulaPredicate(
 			extraResultPlanner.getQueryContext(),
 			new FilterBy(filterGroupBy.getChildren()),
@@ -94,8 +104,19 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	static IntPredicate createFacetPredicate(
 		@Nonnull FilterBy filterBy,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
 	) {
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedEntityTypeManaged(),
+				() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
+			return pk -> false;
+		}
+
 		return new FilteringFormulaPredicate(
 			extraResultPlanner.getQueryContext(),
 			filterBy,
@@ -109,13 +130,18 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		@Nonnull OrderBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
 	) {
-		Assert.isTrue(
-			referenceSchema.isReferencedEntityTypeManaged(),
-			() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
-				"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
-		);
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedEntityTypeManaged(),
+				() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
+			return null;
+		}
 		return extraResultPlanner.createSorter(
 			orderBy,
 			locale, extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedEntityType()),
@@ -129,13 +155,19 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		@Nullable OrderGroupBy orderBy,
 		@Nullable Locale locale,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
 	) {
-		Assert.isTrue(
-			referenceSchema.isReferencedGroupTypeManaged(),
-			() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
-				"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
-		);
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedGroupTypeManaged(),
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+			return null;
+		}
+
 		return extraResultPlanner.createSorter(
 			orderBy,
 			locale,
@@ -143,6 +175,21 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			referenceSchema.getReferencedGroupType(),
 			() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
 		);
+	}
+
+	@Nullable
+	static Locale findLocale(@Nullable GenericConstraint<FilterConstraint> filterBy) {
+		return filterBy == null ?
+			null :
+			ofNullable(
+				FinderVisitor.findConstraint(
+					filterBy,
+					it -> it instanceof EntityLocaleEquals,
+					it -> it instanceof SeparateEntityScopeContainer
+				)
+			)
+				.map(it -> ((EntityLocaleEquals) it).getLocale())
+				.orElse(null);
 	}
 
 	@Override
@@ -195,29 +242,14 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		facetSummaryProducer.requireReferenceFacetSummary(
 			referenceSchema,
 			facetSummaryOfReference.getFacetStatisticsDepth(),
-			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema)).orElse(null),
+			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getFacetEntityRequirement().orElse(null),
 			facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
 		);
 		return facetSummaryProducer;
-	}
-
-	@Nullable
-	static Locale findLocale(@Nullable GenericConstraint<FilterConstraint> filterBy) {
-		return filterBy == null ?
-			null :
-			ofNullable(
-				FinderVisitor.findConstraint(
-					filterBy,
-					it -> it instanceof EntityLocaleEquals,
-					it -> it instanceof SeparateEntityScopeContainer
-				)
-			)
-				.map(it -> ((EntityLocaleEquals) it).getLocale())
-				.orElse(null);
 	}
 
 }

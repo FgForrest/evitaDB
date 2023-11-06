@@ -273,7 +273,89 @@ to the version you want to display in the user interface:
 </Note>
 
 ### Filtering facet summary
+
+Facet summary sometimes gets very big and beside the fact that it is not very useful to display all the facet options
+in the user interface, it also takes a lot of time to calculate it. To limit the facet summary you can use the 
+[`filterBy`](../basics.md#filter-by) and `filterGroupBy` (which is the same as `filterBy` but it filters the entire
+facet group instead of individual facets) constraint.
+
+<Note type="warning">
+
+If you add the filtering constraints to the `facetSummary` requirement, you can refer only to filterable properties 
+shared among all the referenced entities. This may not be feasible in some cases, and you will have to split the generic 
+`facetSummary` requirement into multiple individual [`facetSummaryOfReference`](#facet-summary-of-reference)
+requirements with specific filters for each reference type.
+
+The filtering constraints can target only properties on the target entity and cannot target reference attributes in
+the source entity that are specific to a relation to the target entity.
+
+</Note>
+
+It's hard to come up with a good example for filtering generic facet summary even for our demo dataset, so the example
+will be a little bit artificial. Let's say we want to display only the facet options whose *code* attribute contains 
+substring *ar* only those that are within groups with *code* starting with letter *o*:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary filtering
+
+</NoteTitle>
+
+We don't limit the search to any particular hierarchy, because the filter is quite selective as you can see in the
+result:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.evitaql.string.md)</MDInclude>
+
+</Note>
+
 ### Ordering facet summary
+
+Usually the facet summary is ordered in some way to present the most relevant facet options first. The same applies
+for ordering facet groups. To sort the facet summary items the way you like, you can use the
+[`orderBy`](../basics.md#order-by) and `orderGroupBy` (which is the same as `orderBy` but it sorts the facet groups
+instead of individual facets) constraint.
+
+<Note type="warning">
+
+If you add the ordering constraints to the `facetSummary` requirement, you can refer only to sortable properties shared 
+among all the referenced entities. This may not be feasible in some cases, and you will have to split the generic 
+`facetSummary` requirement into multiple individual [`facetSummaryOfReference`](#facet-summary-of-reference) 
+requirements with specific ordering constraints for each reference type.
+
+The ordering constraints can target only properties on the target entity and cannot target reference attributes in 
+the source entity that are specific to a relation to the target entity.
+
+</Note>
+
+Let's sort both the facet groups and facets in alphabetical order by their English name:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Sorting facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary sorting
+
+</NoteTitle>
+
+You can see that the facet summary is now sorted where appropriate:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.evitaql.string.md)</MDInclude>
+
+</Note>
 
 ## Facet summary of reference
 
