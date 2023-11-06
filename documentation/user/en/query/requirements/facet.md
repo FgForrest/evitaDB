@@ -222,6 +222,12 @@ the facet summary calculation:
 
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
 
+The format has been simplified, because the raw JSON result would be too long and hard to read. This is the output 
+format of `toString` method of <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass> 
+and you can see the summary organized in three tier structure, along with the information about the result entity count
+for each of the facet and facet group. No, facet is currently selected and therefore the lead `[ ]` is not checked 
+anywhere.
+
 </Note>
 
 ### Filtering facet summary
