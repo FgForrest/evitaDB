@@ -205,7 +205,7 @@ The visualization is organized the same as the facet summary itself:
 |-----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ![ link-variant-custom.png](assets/link-variant-custom.png)           | At the top level you see the references that are marked by chain icon.                                                                                                                                          |
 | ![ format-list-group-custom.png](assets/format-list-group-custom.png) | Under them there are groups discovered inside those reference types, which are marked with the group icon, and finally under the groups there are facet options themselves.                                     |
-| ![ counter-custom.png](assets/counter-custom.png)                     | shows the count of the returned entities that match this facet option   if the user has no other facets selected  ( i.e. has empty  [ ` userFilter ` ] ( ../filtering/behavioral.md#user-filter )  constraint ) |
+| ![ counter-custom.png](assets/counter-custom.png)                     | shows the count of the returned entities that match this facet option   if the user has no other facets selected  ( i.e. has empty  [`userFilter`](../filtering/behavioral.md#user-filter)  constraint ) |
 | ![ set-right-custom.png](assets/set-right-custom.png)                 | shows the current count of the returned entities that match   filtering constraints, next to slash there is a difference in the result count should this facet option be added to   the user filter             |
 | ![ set-all-custom.png](assets/set-all-custom.png)                     | shows the total number of entities that will be displayed in the   result if this facet option is selected  ( i.e. the number of entities that match the facet option in the entire dataset )                   |
 
@@ -220,7 +220,7 @@ The visualization is organized the same as the facet summary itself:
 The query returns list of "active" products in "accessories" category and in the extra results index it also contains
 the facet summary calculation:
 
-<MDInclude sourceVariable="data.extraResults.facetSummary">[The result of facet summary in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary in "accessories" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
 
 </Note>
 
