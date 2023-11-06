@@ -12,7 +12,7 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-![Facet filter example](assets/facet-filtering.png)
+![Facet filter example](assets/facet-filtering.png "Facet filter example")
 
 The key success factor of faceted search is to help users to avoid situation when their filter combination returns no
 results. It works the best if we gradually limit the facet options that doesn't make sense with already selected ones
@@ -197,7 +197,7 @@ realistic, let's fetch for each entity the localized name in English localizatio
 If you want to get more familiar with the facet summary calculation, you can try to play with the query and see how it
 affects the visualization tab you can find in our [evitaLab](https://demo.evitadb.io) console:
 
-![Facet summary visualization in evitaLab console](assets/facet-visualization.png)
+![Facet summary visualization in evitaLab console](assets/facet-visualization.png "Facet summary visualization in evitaLab console")
 
 The visualization is organized the same as the facet summary itself:
 
