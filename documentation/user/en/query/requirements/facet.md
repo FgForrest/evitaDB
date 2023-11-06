@@ -359,6 +359,100 @@ You can see that the facet summary is now sorted where appropriate:
 
 ## Facet summary of reference
 
+```evitaql-syntax
+facetSummaryOfReference(
+    argument:string!,
+    argument:enum(COUNTS|IMPACT),
+    filterConstraint:filterBy,   
+    filterConstraint:filterGroupBy,   
+    orderConstraint:orderBy,   
+    orderConstraint:orderGroupBy,
+    requireConstraint:entityFetch,   
+    requireConstraint:entityGroupFetch   
+)
+```
+
+<dl>
+    <dt>argument:string</dt>
+    <dd>
+      mandatory argument specifying the name of the [reference](../../use/schema.md#reference) that is requested by this
+      constraint, the reference must be marked as `faceted` in the [entity schema](../../use/schema.md)
+    </dd>
+    <dt>argument:enum(COUNTS|IMPACT)</dt>
+    <dd>
+        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
+        that allows you to specify the computation depth of the facet summary:
+
+        - **COUNTS**: each facet contains the number of results that match the facet option only 
+        - **IMPACT**: each non-selected facet contains the prediction of the number of results that would be returned 
+          if the facet option was selected (the impact analysis), this calculation is affected by the require
+          constraints changing the default facet calculation behaviour: [conjunction](#facet-conjunction),
+          [disjunction](#facet-disjunction), [negation](#facet-negation)
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        optional filter constraint that narrows the facets displayed and calculated in the summary to the ones that
+        match the specified filter constraint
+    </dd>
+    <dt>filterConstraint:filterGroupBy</dt>
+    <dd>
+        optional filter constraint that narrows the entire facet groups whose facets are displayed and calculated in
+        the summary to the ones that belong tothe facet groups matching the filtering constraint
+    </dd>
+    <dt>orderConstraint:orderBy</dt>
+    <dd>
+        optional order constraint that specifies the order of the facet options within each facet group
+    </dd>
+    <dt>orderConstraint:orderGroupBy</dt>
+    <dd>
+        optional order constraint that specifies the order of the facet groups
+    </dd>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch` 
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+The requirement triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
+for particular reference. When generic [`facetSummary`](#facet-summary) requirement is specified, this require constraint
+overrides default constraints from the generic requirement to constraints specific to this particular reference. By
+combining the generic [`facetSummary`](#facet-summary) and `facetSummaryOfReference` you define common requirements for
+the facet summary calculation, and redefine them only for references where they are not sufficient. The `facetSummaryOfReference`
+requirements redefine all the constraints from the generic `facetSummary` requirement.
+
+Let's say we want to display the facet summary for products in "e-readers" category, but we want the summary calculated
+only for references `brand` and `parameterValues`. The facets inside `brand` reference should be ordered by name in
+alphabetical order and the facets inside `parameterValues` reference should be ordered by their `order` attribute, both
+on group and facet level. Only the facets inside facet groups (`parameter`) that have `isVisible` attribute equal to
+`TRUE` should be calculated for the summary:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Calculating facet summary for selected references](/documentation/user/en/query/requirements/examples/facet/facet-summary-or-reference.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary of named references
+
+</NoteTitle>
+
+As you can see it is a quite complex scenario that utilizes all key features of the facet summary calculation:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary of named references](/documentation/user/en/query/requirements/examples/facet/facet-summary-or-reference.evitaql.string.md)</MDInclude>
+
+</Note>
+
 ## Entity group fetch
 
 The constraint `entityGroupFetch`, that is used inside [`facetSummary`](#facet-summary) or
