@@ -620,3 +620,59 @@ extension:
 
 ## Facet groups negation
 
+```evitaql-syntax
+facetGroupsNegation(
+    argument:string!,
+    filterConstraint:filterBy
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) this constraint relates 
+        to.
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        Optional filter constraint that selects one or more facet groups whose facet options impact will be negated.
+        So instead of leaving only the items that have reference to that particular faceted entity, the query result
+        will contain only the items that don't have reference to it.
+
+        If the filter is not defined, the behaviour applies to all groups of particular reference in the facet summary.
+    </dd>
+</dl>
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsNegation.java</SourceClass>
+changes the facet option behaviour in all facet groups specified in the `filterBy` constraint. Instead of leaving
+only the items that have reference to that particular faceted entity, the query result will contain only the items
+that don't have reference to it.
+
+To demonstrate this effect we will need a query that targets some reference (let's say `parameterValues`) and make
+some of the listed group as negated.
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet groups disjunction example](/documentation/user/en/query/requirements/examples/facet/facet-groups-negation.evitaql)
+
+</SourceCodeTabs>
+
+| Default behaviour                                    | Altered behaviour                                    |
+|------------------------------------------------------|------------------------------------------------------|
+| ![Before](assets/facet-negation-before.png "Before") | ![After](assets/facet-negation-after.png "After") |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary with negated facet relation behaviour in the group
+
+</NoteTitle>
+
+The predicted results in the negated groups are vastly greater than the numbers produced by default behaviour. As you
+can see the selection of any option in RAM facet group predicts returning thousands of results, while the ROM facet
+group with default behaviour predicts only a dozens of them:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary with negated facet relation behaviour in the group](/documentation/user/en/query/requirements/examples/facet/facet-groups-negation.evitaql.string.md)</MDInclude>
+
+</Note>
