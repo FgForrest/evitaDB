@@ -507,7 +507,7 @@ facetGroupsConjunction(
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
-        Mandatory filter constraint that selects one or more facet groups whose facets will be combined with logical
+        Optional filter constraint that selects one or more facet groups whose facets will be combined with logical
         conjunction (logical AND) instead of default logical disjunction (logical OR).
 
         If the filter is not defined, the behaviour applies to all groups of particular reference in the facet summary.
@@ -554,12 +554,69 @@ part of any group.
 You can see that instead of extending the number of results in the final set, the impact analysis predicts their 
 reduction:
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary of named references](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary with inverted facet relation behaviour](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql.string.md)</MDInclude>
 
 </Note>
 
 ## Facet groups disjunction
 
+```evitaql-syntax
+facetGroupsDisjunction(
+    argument:string!,
+    filterConstraint:filterBy
+)
+```
+
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+        Mandatory argument specifying the name of the [reference](../../use/schema.md#reference) this constraint relates 
+        to.
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        Optional filter constraint that selects one or more facet groups whose facet options will combined with logical
+        disjunction (logical OR) with facets of different groups instead of default logical conjunction (logical AND). 
+
+        If the filter is not defined, the behaviour applies to all groups of particular reference in the facet summary.
+    </dd>
+</dl>
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsDisjunction.java</SourceClass>
+changes the default facet summary calculation behaviour for the facet groups specified in the `filterBy` constraint.
+Instead of logical conjunction (logicalANDR) the facet options in the facet groups will be combined with logical
+disjunction (logical OR) with facets of different facet groups.
+
+In order to understand the difference between the default behaviour and the behaviour of this requirement, let's
+compare the facet summary calculation for the same query with and without this requirement. We will need a query that
+targets some reference (let's say `parameterValues`) and pretend that the user already requested (checked) some of 
+the facets. Now if we want to calculate the `IMPACT` analysis for the other group in facet summary we will see that
+instead of numbers reduction, the impact analysis predicts their extension:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet groups disjunction example](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.evitaql)
+
+</SourceCodeTabs>
+
+| Default behaviour                                       | Altered behaviour                                    |
+|---------------------------------------------------------|------------------------------------------------------|
+| ![Before](assets/facet-disjunction-before.png "Before") | ![After](assets/facet-disjunction-after.png "After") |
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary with inverted facet group relation behaviour
+
+</NoteTitle>
+
+You can see that instead of reducing the number of results in the final set, the impact analysis predicts their
+extension:
+
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary with inverted facet group relation behaviour](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.evitaql.string.md)</MDInclude>
+
+</Note>
 
 ## Facet groups negation
 
