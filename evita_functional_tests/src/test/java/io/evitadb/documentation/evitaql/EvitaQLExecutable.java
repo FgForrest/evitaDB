@@ -30,6 +30,8 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.PriceInCurrency;
+import io.evitadb.api.query.filter.PriceInPriceLists;
+import io.evitadb.api.query.filter.PriceValidIn;
 import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.DataInLocales;
@@ -42,6 +44,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.PrettyPrintable;
@@ -82,6 +85,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.text.NumberFormat;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -129,6 +133,7 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		Locale.GERMAN, "\uD83C\uDDE9\uD83C\uDDEA"
 	);
 	private static final String PRICE_FOR_SALE = PRICE_LINK + "Price for sale";
+	private static final String PRICES = PRICE_LINK + "Prices found";
 
 	/**
 	 * Mandatory header column with entity primary key.
@@ -312,6 +317,16 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 				.map(require -> QueryUtils.findConstraint(require, DataInLocales.class))
 				.isPresent();
 
+		boolean allPriceForSaleConstraintsSet = ofNullable(query.getFilterBy())
+			.map(filterBy -> QueryUtils.findConstraint(filterBy, PriceInPriceLists.class))
+			.isPresent() &&
+			ofNullable(query.getFilterBy())
+				.map(filterBy -> QueryUtils.findConstraint(filterBy, PriceInCurrency.class))
+				.isPresent() &&
+			ofNullable(query.getFilterBy())
+				.map(filterBy -> QueryUtils.findConstraint(filterBy, PriceValidIn.class))
+				.isPresent();
+
 		// collect headers for the MarkDown table
 		final String entityType = query.getCollection().getEntityType();
 		final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrow(entityType);
@@ -370,11 +385,12 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 								it, PriceContent.class, SeparateEntityContentRequireContainer.class
 							)
 							.stream()
-							.map(priceCnt -> {
+							.flatMap(priceCnt -> {
 								if (priceCnt.getFetchMode() == PriceContentMode.RESPECTING_FILTER) {
-									return PRICE_FOR_SALE;
+									return allPriceForSaleConstraintsSet ?
+										Stream.of(PRICE_FOR_SALE) : Stream.of(PRICE_FOR_SALE, PRICES);
 								} else {
-									return null;
+									return Stream.empty();
 								}
 							})
 							.filter(Objects::nonNull)
@@ -460,9 +476,24 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							}),
 						Arrays.stream(headers)
 							.filter(PRICE_FOR_SALE::equals)
-							.map(it -> sealedEntity.getPriceForSale()
+							.map(it -> sealedEntity.getPriceForSaleIfAvailable()
 								.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()) + " (with " + percentFormatter.format(price.taxRate()) + "% tax) / " + priceFormatter.format(price.priceWithoutTax()))
-								.orElse("N/A"))
+								.orElse("N/A")),
+						Arrays.stream(headers)
+							.filter(PRICES::equals)
+							.map(it -> {
+								final Collection<PriceContract> prices = sealedEntity.getPrices();
+								if (prices.isEmpty()) {
+									return "N/A";
+								} else {
+									return prices
+										.stream()
+										.limit(3)
+										.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()))
+										.collect(Collectors.joining(", ")) +
+										(prices.size() > 3 ? " ... and " + (prices.size() - 3) + " other prices" : "");
+								}
+							})
 					)
 					.flatMap(Function.identity())
 					.toArray(String[]::new)
