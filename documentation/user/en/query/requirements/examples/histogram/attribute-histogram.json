@@ -1,0 +1,179 @@
+```json
+{
+  "recordPage": {
+    "data": [
+      {
+        "primaryKey": 63049,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66554,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66556,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66559,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66561,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66562,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66563,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66565,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66566,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66567,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66569,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66570,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66571,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66572,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66573,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66574,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66575,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66576,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66577,
+        "type": "Product"
+      },
+      {
+        "primaryKey": 66578,
+        "type": "Product"
+      }
+    ],
+    "type": "PAGE",
+    "totalRecordCount": 4223,
+    "first": true,
+    "last": false,
+    "hasPrevious": false,
+    "hasNext": true,
+    "singlePage": false,
+    "empty": false,
+    "pageSize": 20,
+    "pageNumber": 1,
+    "lastPageNumber": 212,
+    "firstPageItemNumber": 0,
+    "lastPageItemNumber": 19
+  },
+  "extraResults": {
+    "attributeHistogram": {
+      "width": {
+        "max": "508.00",
+        "buckets": [
+          {
+            "index": 0,
+            "threshold": "15.90",
+            "occurrences": 446,
+            "requested": false
+          },
+          {
+            "index": 1,
+            "threshold": "114.32",
+            "occurrences": 136,
+            "requested": false
+          },
+          {
+            "index": 2,
+            "threshold": "212.74",
+            "occurrences": 1488,
+            "requested": false
+          },
+          {
+            "index": 3,
+            "threshold": "311.16",
+            "occurrences": 25,
+            "requested": false
+          },
+          {
+            "index": 4,
+            "threshold": "409.58",
+            "occurrences": 1,
+            "requested": false
+          }
+        ],
+        "min": "15.90",
+        "overallCount": 2096
+      },
+      "height": {
+        "max": "293.00",
+        "buckets": [
+          {
+            "index": 0,
+            "threshold": "25.00",
+            "occurrences": 72,
+            "requested": false
+          },
+          {
+            "index": 1,
+            "threshold": "78.60",
+            "occurrences": 4,
+            "requested": false
+          },
+          {
+            "index": 2,
+            "threshold": "132.20",
+            "occurrences": 332,
+            "requested": false
+          },
+          {
+            "index": 3,
+            "threshold": "185.80",
+            "occurrences": 19,
+            "requested": false
+          },
+          {
+            "index": 4,
+            "threshold": "239.40",
+            "occurrences": 59,
+            "requested": false
+          }
+        ],
+        "min": "25.00",
+        "overallCount": 486
+      }
+    }
+  }
+}
+```

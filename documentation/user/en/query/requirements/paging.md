@@ -6,7 +6,7 @@ perex: |
   on the server. evitaDB supports several ways to paginate query results, which are described in this section.
 date: '23.7.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 ## Page

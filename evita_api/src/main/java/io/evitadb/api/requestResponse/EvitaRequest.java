@@ -45,6 +45,7 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -604,11 +605,17 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresPriceLists() {
 		if (this.requiresPriceLists == null) {
-			final PriceInPriceLists pricesInPriceList = QueryUtils.findFilter(query, PriceInPriceLists.class);
-			this.priceLists = ofNullable(pricesInPriceList)
+			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(query, PriceInPriceLists.class);
+			Assert.isTrue(
+				priceInPriceLists.size() <= 1,
+				"Query can not contain more than one price in price lists filter constraints!"
+			);
+			final Optional<PriceInPriceLists> pricesInPriceList = priceInPriceLists.isEmpty() ?
+				Optional.empty() : Optional.of(priceInPriceLists.get(0));
+			this.priceLists = pricesInPriceList
 				.map(PriceInPriceLists::getPriceLists)
 				.orElse(new String[0]);
-			this.requiresPriceLists = pricesInPriceList != null;
+			this.requiresPriceLists = pricesInPriceList.isPresent();
 		}
 		return this.requiresPriceLists;
 	}
@@ -632,9 +639,16 @@ public class EvitaRequest {
 	@Nullable
 	public Currency getRequiresCurrency() {
 		if (this.currencySet == null) {
-			this.currency = ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
+			final List<Currency> currenciesFound = QueryUtils.findFilters(query, PriceInCurrency.class)
+				.stream()
 				.map(PriceInCurrency::getCurrency)
-				.orElse(null);
+				.distinct()
+				.toList();
+			Assert.isTrue(
+				currenciesFound.size() <= 1,
+				"Query can not contain more than one currency filtering constraints!"
+			);
+			this.currency = currenciesFound.isEmpty() ? null : currenciesFound.get(0);
 			this.currencySet = true;
 		}
 		return this.currency;
@@ -647,9 +661,16 @@ public class EvitaRequest {
 	@Nullable
 	public OffsetDateTime getRequiresPriceValidIn() {
 		if (this.priceValidInTimeSet == null) {
-			this.priceValidInTime = ofNullable(QueryUtils.findFilter(query, PriceValidIn.class))
+			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(query, PriceValidIn.class)
+				.stream()
 				.map(it -> ofNullable(it.getTheMoment()).orElse(alignedNow))
-				.orElse(null);
+				.distinct()
+				.toList();
+			Assert.isTrue(
+				validitySpan.size() <= 1,
+				"Query can not contain more than one price validity constraints!"
+			);
+			this.priceValidInTime = validitySpan.isEmpty() ? null : validitySpan.get(0);
 			this.priceValidInTimeSet = true;
 		}
 		return this.priceValidInTime;
