@@ -1,11 +1,11 @@
 ---
 title: Reference filtering
-date: '4.10.2023'
+date: '7.11.2023'
 perex: |
   Reference filtering is used to filter entities based on their references to other entities in the catalog or
   attributes specified in those relations.
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 ## Reference having
