@@ -217,7 +217,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nullable Path[] requiredResources,
 		@Nonnull TestContextProvider contextAccessor,
 		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
-		@Nullable OutputSnippet outputSnippet,
+		@Nullable List<OutputSnippet> outputSnippet,
 		@Nonnull CreateSnippets... createSnippets
 	) {
 		switch (sourceFormat) {
@@ -265,7 +265,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					sourceContent,
 					rootPath,
 					resource,
-					Arrays.stream(requiredResources).filter(it -> it.endsWith(".cs")).toArray(Path[]::new),
+					ofNullable(requiredResources)
+						.map(it -> Arrays.stream(it).filter(x -> x.endsWith(".cs")).toArray(Path[]::new))
+						.orElse(null),
 					codeSnippetIndex,
 					outputSnippet
 				);
@@ -285,14 +287,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final String theFileName = theFile.getFileName().toString();
 			final String theFileExtension = getFileNameExtension(theFile);
 			return siblings.filter(it -> {
-				final String fileName = it.getFileName().toString();
-				final String fileNameExtension = getFileNameExtension(it);
-				return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
-					!theFileExtension.equals(fileNameExtension) &&
-					!alreadyUsedRelatedResources.contains(it) &&
-					fileName.substring(0, fileName.length() - fileNameExtension.length())
-						.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
-			})
+					final String fileName = it.getFileName().toString();
+					final String fileNameExtension = getFileNameExtension(it);
+					return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
+						!theFileExtension.equals(fileNameExtension) &&
+						!alreadyUsedRelatedResources.contains(it) &&
+						fileName.substring(0, fileName.length() - fileNameExtension.length())
+							.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
+				})
 				.peek(alreadyUsedRelatedResources::add)
 				.toList();
 		} catch (IOException e) {
@@ -358,7 +360,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/query/filtering/references.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();
 	}
@@ -405,7 +407,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 		}
 
-		final Map<Path, OutputSnippet> outputSnippetIndex = new HashMap<>();
+		final Map<Path, List<OutputSnippet>> outputSnippetIndex = new HashMap<>();
 		final Matcher mdIncludeMatcher = MD_INCLUDE_PATTERN.matcher(fileContent);
 		while (mdIncludeMatcher.find()) {
 			final String sourceVariable = mdIncludeMatcher.group(2);
@@ -414,13 +416,16 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final Optional<Path> sourceExampleFile = outputSnippetFormatBase.flatMap(UserDocumentationTest::stripFileNameOfExtension);
 			final boolean isSourceExampleFileUsable = sourceExampleFile.map(UserDocumentationTest::hasFileNameExtension).orElse(false);
 			outputSnippetFormatBase.ifPresent(
-				base -> outputSnippetIndex.put(
-					isSourceExampleFileUsable ? sourceExampleFile.get() : base,
-					new OutputSnippet(
-						isSourceExampleFileUsable ? getFileNameExtension(base) : "md",
-						outputSnippetFile, sourceVariable
+				base -> outputSnippetIndex
+					.computeIfAbsent(
+						isSourceExampleFileUsable ? sourceExampleFile.get() : base, thePath -> new LinkedList<>()
 					)
-				));
+					.add(
+						new OutputSnippet(
+							isSourceExampleFileUsable ? getFileNameExtension(base) : "md",
+							outputSnippetFile, sourceVariable
+						)
+					));
 		}
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
@@ -440,7 +445,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							.toArray(Path[]::new)
 					)
 					.orElse(null);
-				final OutputSnippet outputSnippet = outputSnippetIndex.get(referencedFile);
+				final List<OutputSnippet> outputSnippet = outputSnippetIndex.get(referencedFile);
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
