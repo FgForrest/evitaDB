@@ -11,7 +11,9 @@ proofreading: 'needed'
 ---
 
 This chapter contains the description of evitaDB constraints that help you to control the price for sale selection and 
-to filter products by price. It is strongly recommended to read the [price for sale calculation algorithm](/documentation/user/en/deep-dive/price-for-sale-calculation.md) first.
+to filter products by price.
+
+## Quick guide to filtering by price
 
 ### Typical usage of price constraints
 
@@ -56,6 +58,39 @@ The result set contains only products that have a valid price for sale in EUR cu
 
 </Note>
 
+### Price for sale selection in a nutshell
+
+<Note type="warning">
+
+If you find any statements in this chapter unclear, please read the [price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md), where you will find more examples and step-by-step 
+breakdown of the procedure.
+
+</Note>
+
+The price for sale selection depends on <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass>
+mode the [entity has set](../../use/data-model.md#entity), but for all of the modes there is a common denominator - 
+the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `sellable` that conform to
+the selected [currency](#price-in-currency) and [price lists](#price-in-price-lists) and are valid at the specified
+[time](#price-valid-in). The first price that matches all of these criteria in the order of the price lists in the
+[price list constraint argument](#price-in-price-lists) is selected as the price for sale.
+
+For non-default price inner record handling modes, the price is calculated this way:
+
+<dl>
+   <dt>FIRST_OCCURRENCE</dt>
+   <dd>
+      The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same 
+      inner record id. If the [price between](#price-between) constraint is specified, the price is the lowest selling
+      price valid for the specified price range.
+   </dd>
+   <dt>SUM</dt>
+   <dd>
+      The sales price is calculated as the sum of the sales prices calculated separately for blocks of prices with 
+      the same inner record ID. If the [price between](#price-between) constraint is specified, the sales price is 
+      valid only if the total is within the specified price range.
+   </dd>
+</dl>
+
 ## Price in currency
 
 ```evitaql-syntax
@@ -69,7 +104,7 @@ priceInCurrency(
     <dd>
         A mandatory specification of the currency to which all prices targeted by the query must conform.
 
-        The currency code must be [three-letter code according to ISO 4217] (https://en.wikipedia.org/wiki/ISO_4217).
+        The currency code must be [three-letter code according to ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
     </dd>
 </dl>
 
