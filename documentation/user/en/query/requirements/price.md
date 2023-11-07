@@ -1,9 +1,16 @@
 ---
 title: Price
 date: '7.11.2023'
+perex: |
+  In B2C scenarios, prices are generally displayed with tax included to give consumers the total purchase cost upfront, 
+  adhering to retail standards and regulations. For the B2B subset, displaying prices without tax is critical as it 
+  aligns with their financial processes and allows them to manage tax reclaim separately.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
+
+That's why we need to control what type of price we're working with in our queries, since it would produce different 
+results for different settings. The [`priceType`](../requirements/price.md#price-type) requirement allows us to do this.
 
 ## Price type
 
