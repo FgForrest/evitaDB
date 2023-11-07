@@ -1037,7 +1037,7 @@ statistics(
 
         - **COMPLETE_FILTER**: complete filtering query constraint
         - **WITHOUT_USER_FILTER**: filtering query constraint where the contents of optional 
-            [`userFilter`](../filtering/special.md#user-filter) are ignored
+            [`userFilter`](../filtering/behavioral.md#user-filter) are ignored
 
         The calculation always ignores `hierarchyWithin` because the focused part of the hierarchy tree is
         defined on the requirement constraint level, but including having/excluding constraints. The having/excluding 
