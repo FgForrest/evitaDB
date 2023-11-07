@@ -232,6 +232,10 @@
 		"path" : "/deep-dive/bulk-vs-incremental-indexing.md"
 	  },
 	  {
+		"title": "Price for sale calculation",
+		"path" : "/deep-dive/price-for-sale-calculation.md"
+	  },
+	  {
 		"title": "Transactions",
 		"path": "/deep-dive/transactions.md"
 	  },
