@@ -77,6 +77,7 @@ public class GrpcFacetSummaryBuilder {
 
 				if (facetStatistic.getImpact() != null) {
 					statisticsBuilder.setImpact(Int32Value.newBuilder().setValue(facetStatistic.getImpact().difference()).build());
+					statisticsBuilder.setMatchCount(Int32Value.newBuilder().setValue(facetStatistic.getImpact().matchCount()).build());
 				}
 
 				final GrpcFacetStatistics statistics = statisticsBuilder.build();
