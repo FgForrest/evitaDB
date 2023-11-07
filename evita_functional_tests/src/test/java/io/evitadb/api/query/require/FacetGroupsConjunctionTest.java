@@ -41,13 +41,13 @@ class FacetGroupsConjunctionTest {
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final FacetGroupsConjunction facetGroupsConjunction = facetGroupsConjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
 		assertEquals("brand", facetGroupsConjunction.getReferenceName());
-		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsConjunction.getFacetGroups());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsConjunction.getFacetGroups().orElseThrow());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new FacetGroupsConjunction(null, null).isApplicable());
-		assertFalse(new FacetGroupsConjunction("brand", null).isApplicable());
+		assertTrue(new FacetGroupsConjunction("brand", null).isApplicable());
 		assertTrue(facetGroupsConjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7))).isApplicable());
 	}
 

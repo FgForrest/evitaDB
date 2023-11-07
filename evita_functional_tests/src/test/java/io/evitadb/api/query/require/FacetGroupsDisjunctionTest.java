@@ -41,13 +41,13 @@ class FacetGroupsDisjunctionTest {
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final FacetGroupsDisjunction facetGroupsDisjunction = facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
 		assertEquals("brand", facetGroupsDisjunction.getReferenceName());
-		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsDisjunction.getFacetGroups());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsDisjunction.getFacetGroups().orElseThrow());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new FacetGroupsDisjunction(null, null).isApplicable());
-		assertFalse(new FacetGroupsDisjunction("brand", null).isApplicable());
+		assertTrue(new FacetGroupsDisjunction("brand", null).isApplicable());
 		assertTrue(facetGroupsDisjunction("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7))).isApplicable());
 	}
 

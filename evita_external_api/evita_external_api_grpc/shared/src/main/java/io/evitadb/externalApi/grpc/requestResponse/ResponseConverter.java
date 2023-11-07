@@ -60,6 +60,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -264,7 +265,7 @@ public class ResponseConverter {
 					grpcFacetGroupStatistics.getGroupEntity(),
 					SealedEntity.class
 				) :
-				toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()),
+				(grpcFacetGroupStatistics.hasGroupEntityReference() ? toEntityReference(grpcFacetGroupStatistics.getGroupEntityReference()) : null),
 			grpcFacetGroupStatistics.getCount(),
 			grpcFacetGroupStatistics.getFacetStatisticsList()
 				.stream()
@@ -274,7 +275,11 @@ public class ResponseConverter {
 				.collect(
 					Collectors.toMap(
 						it -> it.getFacetEntity().getPrimaryKey(),
-						Function.identity()
+						Function.identity(),
+						(o, o2) -> {
+							throw new EvitaInternalError("Duplicate facet statistics for entity " + o.getFacetEntity().getPrimaryKey());
+						},
+						LinkedHashMap::new
 					)
 				)
 		);

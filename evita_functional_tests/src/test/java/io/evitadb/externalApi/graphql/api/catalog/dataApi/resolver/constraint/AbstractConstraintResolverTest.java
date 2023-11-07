@@ -57,7 +57,7 @@ abstract class AbstractConstraintResolverTest {
 		)
 			.withPrice()
 			.withAttribute("CODE", String.class)
-			.withAttribute("AGE", Integer.class)
+			.withAttribute("AGE", Integer.class, thatIs -> thatIs.filterable())
 			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("CODE", String.class))
 			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
 			.toInstance();

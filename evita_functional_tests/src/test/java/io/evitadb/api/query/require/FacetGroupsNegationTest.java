@@ -41,13 +41,13 @@ class FacetGroupsNegationTest {
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final FacetGroupsNegation facetGroupsNegation = facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1, 5, 7)));
 		assertEquals("brand", facetGroupsNegation.getReferenceName());
-		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsNegation.getFacetGroups());
+		assertEquals(filterBy(entityPrimaryKeyInSet(1, 5, 7)), facetGroupsNegation.getFacetGroups().orElseThrow());
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new FacetGroupsNegation(null, null).isApplicable());
-		assertFalse(new FacetGroupsNegation("brand", null).isApplicable());
+		assertTrue(new FacetGroupsNegation("brand", null).isApplicable());
 		assertTrue(facetGroupsNegation("brand", filterBy(entityPrimaryKeyInSet(1))).isApplicable());
 	}
 
