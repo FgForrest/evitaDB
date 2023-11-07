@@ -144,7 +144,7 @@ The result set contains only products that have at least one price in EUR curren
 
 ```evitaql-syntax
 priceInPriceLists(
-    argument:string!
+    argument:string+
 )
 ```
 
@@ -189,5 +189,69 @@ The result set contains only products that have at least one price in one of the
 </Note>
 
 ## Price valid in
+
+```evitaql-syntax
+priceValidIn(
+    argument:offsetDateTime!
+)
+```
+
+<dl>
+    <dt>argument:offsetDateTime!</dt>
+    <dd>
+        A mandatory argument of date and time (with offset) in the format 'yyyy-MM-ddTHH:mm:ssXXX', for example
+        `2007-12-03T10:15:30+01:00`. In Java language you can use directly [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
+    </dd>
+</dl>
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass> excludes all 
+entities that don't have a valid price for sale at the specified date and time. If the price doesn't have a validity 
+property specified, it passes all validity checks.
+
+To demonstrate the effect of validity constraints, let's create a query that lists products in the *Christmas 
+Electronics* category and tries to access prices in their *Christmas Price List*, with a fallback to the *Basic Price 
+List*, using a spring holiday date and time as the reference point for the price validity check:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Listing products with Christmas prices in May](/documentation/user/en/query/filtering/examples/price/price-valid-in.evitaql)
+
+</SourceCodeTabs>
+
+Now let's update the query to use a date and time in December:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Listing products with Christmas prices in December](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.evitaql)
+
+</SourceCodeTabs>
+
+As you can see, you'll get a somewhat different sale price because the Christmas prices have now been applied:
+
+<MDInclude>[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.evitaql.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Compare December prices with May prices
+
+</NoteTitle>
+
+The prices for the sale in May were different, because the Christmas prices were not valid at that time:
+
+<MDInclude>[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in.evitaql.md)</MDInclude>
+
+</Note>
+
+## Price valid in now
+
+```evitaql-syntax
+priceValidInNow()
+```
+
+This is the variant of the [`priceValidIn`](#price-valid-in) constraint that uses the current date and time as the
+reference point for the price validity check. The [`priceValidIn`](#price-valid-in) constraint allows you to specify
+any date and time in the future or in the past as the reference point.
 
 ## Price between
