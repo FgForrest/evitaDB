@@ -255,3 +255,42 @@ reference point for the price validity check. The [`priceValidIn`](#price-valid-
 any date and time in the future or in the past as the reference point.
 
 ## Price between
+
+```evitaql-syntax
+priceBetween(
+    argument:bigDecimal!,
+    argument:bigDecimal!
+)
+```
+
+<dl>
+    <dt>argument:bigDecimal!</dt>
+    <dd>
+        A mandatory argument of the price range lower bound. The price range is inclusive, so the price must be greater
+        than or equal to the lower bound. In the Java language you can use directly [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) in plain text format, you must use the string representation of the number. 
+    </dd>
+    <dt>argument:bigDecimal!</dt>
+    <dd>
+        A mandatory argument of the price range upper bound. The price range is inclusive, so the price must be lesser
+        than or equal to the upper bound. In the Java language you can use directly [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) in plain text format, you must use the string representation of the number. 
+    </dd>
+</dl>
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceBetween.java</SourceClass> constraint 
+restricts the result set to items that have a price for sale within the specified price range. This constraint is 
+typically set by the user interface to allow the user to filter products by price, and should be nested inside 
+the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by 
+the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
+
+To demonstrate the price range constraint, let's create a query that lists products in the *E-readers* category and
+filters only those between `150€` and `170.5€`:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Listing E-readers with price between `150€` and `170.5€`](/documentation/user/en/query/filtering/examples/price/price-between.evitaql)
+
+</SourceCodeTabs>
+
+The range is quite narrow, so the result set contains only a single product:
+
+<MDInclude>[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-between.evitaql.md)</MDInclude>
