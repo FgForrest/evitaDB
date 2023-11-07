@@ -7,7 +7,7 @@ perex: |
   specific periods. Catering to these expectations with sophisticated database filtering not only enhances user 
   experience but also streamlines the shopping process, boosting satisfaction and sales.
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 This chapter contains the description of evitaDB constraints that help you to control the price for sale selection and 

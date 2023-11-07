@@ -5,7 +5,7 @@ perex: |
   multiple filter expressions into one unambiguous expression.
 date: '26.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 <Note type="warning">

@@ -7,7 +7,7 @@ perex: |
   the relationships in the data.
 date: '23.7.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 <LanguageSpecific to="evitaql,java,csharp,rest">

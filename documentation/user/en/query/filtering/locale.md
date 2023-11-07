@@ -7,7 +7,7 @@ perex: |
   localization in its data structures and query language.
 date: '27.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 ## Entity locale equals

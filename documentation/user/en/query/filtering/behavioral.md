@@ -5,7 +5,7 @@ perex: |
   Special behavioral filtering constraint containers are used only for the definition of a filter constraint scope, 
   which has a different treatment in calculations.
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 ## User filter
