@@ -212,7 +212,7 @@ in the price range predicate.
 
 ## Product variants extension
 
-<Term name="product-with-variants">Product with Variants</Term> must contain prices of all its variants. Variant prices
+<Term name="product with variants">Product with variants</Term> must contain prices of all its variants. Variant prices
 must be distinguished by the inner entity id property (see interface
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>). The product
 with variants must have a price inner entity reference handling mode
