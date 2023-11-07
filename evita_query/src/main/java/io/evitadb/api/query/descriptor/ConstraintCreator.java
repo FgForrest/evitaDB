@@ -279,17 +279,17 @@ public class ConstraintCreator {
 				valueStructure = ConstraintValueStructure.PRIMITIVE;
 			} else if (
 				valueParameters.size() == RANGE_PARAMETERS_COUNT &&
-					childParameters.isEmpty() &&
-					additionalChildParameters.isEmpty() &&
-					valueParameters.stream().filter(p -> p.name().equals(RANGE_FROM_VALUE_PARAMETER) || p.name().equals(RANGE_TO_VALUE_PARAMETER)).count() == RANGE_PARAMETERS_COUNT &&
-					valueParameters.get(0).type().equals(valueParameters.get(1).type())
+				childParameters.isEmpty() &&
+				additionalChildParameters.isEmpty() &&
+				valueParameters.stream().filter(p -> p.name().equals(RANGE_FROM_VALUE_PARAMETER) || p.name().equals(RANGE_TO_VALUE_PARAMETER)).count() == RANGE_PARAMETERS_COUNT &&
+				valueParameters.get(0).type().equals(valueParameters.get(1).type())
 			) {
 				valueStructure = ConstraintValueStructure.RANGE;
 			} else if (
 				valueParameters.isEmpty() &&
-					childParameters.size() == 1 &&
-					ClassUtils.isAbstract(childParameters.get(0).type()) &&
-					additionalChildParameters.isEmpty()
+				childParameters.size() == 1 &&
+				ClassUtils.isAbstract(childParameters.get(0).type()) &&
+				additionalChildParameters.isEmpty()
 			) {
 				valueStructure = ConstraintValueStructure.CONTAINER;
 			} else {
