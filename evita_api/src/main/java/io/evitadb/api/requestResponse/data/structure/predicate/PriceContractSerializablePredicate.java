@@ -160,7 +160,7 @@ public class PriceContractSerializablePredicate implements SerializablePredicate
 			case ALL -> priceContract.exists();
 			case RESPECTING_FILTER -> priceContract.exists() &&
 				(currency == null || Objects.equals(currency, priceContract.currency())) &&
-				(priceListsAsSet.isEmpty() || priceListsAsSet.contains(priceContract.priceList())) &&
+				(ArrayUtils.isEmpty(priceLists) || priceListsAsSet.contains(priceContract.priceList())) &&
 				(validIn == null || ofNullable(priceContract.validity()).map(it -> it.isValidFor(validIn)).orElse(true));
 		};
 	}
