@@ -26,7 +26,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>0.9.ALPHA</version>
+	<version>0.10-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -92,7 +92,7 @@
 		<connection>scm:git:ssh://git@github.com/FgForrest/evitaDB</connection>
 		<developerConnection>scm:git:ssh://git@github.com/FgForrest/evitaDB</developerConnection>
 		<url>https://evitadb.io/</url>
-		<tag>0.9.ALPHA</tag>
+		<tag>HEAD</tag>
 	</scm>
 
 	<organization>
