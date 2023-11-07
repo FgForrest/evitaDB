@@ -99,7 +99,7 @@ use-case](#typical-usage-of-price-constraints) you can also create query with th
 
 </NoteTitle>
 
-The result set contains only products that have a valid price for sale in EUR currency:
+The result set contains only products that have at least one price in EUR currency:
 
 <MDInclude>[The result of listing products with any price in EUR currency](/documentation/user/en/query/filtering/examples/price/price-in-currency.evitaql.md)</MDInclude>
 
@@ -107,9 +107,52 @@ The result set contains only products that have a valid price for sale in EUR cu
 
 ## Price in price lists
 
+```evitaql-syntax
+priceInPriceLists(
+    argument:string!
+)
+```
+
+<dl>
+    <dt>argument:string+</dt>
+    <dd>
+        A mandatory specification of one or more price list names in order of priority from most preferred to least 
+        preferred.
+    </dd>
+</dl>
+
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass> constraint
+defines the allowed set(s) of price lists that the entity must have to be included in the result set. The order of 
+the price lists in the argument is important for the final price for sale calculation - see the 
+[price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md). 
+Price list names are represented by plain [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+and are case-sensitive. Price lists don't have to be stored in the database as an entity, and if they are, they are not 
+currently associated with the price list code defined in the prices of other entities. The pricing structure is simple 
+and flat for now (but this may change in the future).
+
+Except for the [standard use-case](#typical-usage-of-price-constraints) you can also create query with this constraint 
+only:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Listing products with any ani VIP price lists](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of listing products with any price in one of the VIP price lists
+
+</NoteTitle>
+
+The result set contains only products that have at least one price in one of the VIP price lists mentioned:
+
+<MDInclude>[The result of listing products with any price in one of the VIP price lists](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql.md)</MDInclude>
+
+</Note>
+
 ## Price valid in
 
 ## Price between
-
-### Price for sale computation algorithm
-
