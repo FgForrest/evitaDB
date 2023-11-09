@@ -30,6 +30,7 @@ cache:
 api:
   exposedOn: ${api.exposedOn:null}
   ioThreads: ${api.ioThreads:4}
+  accessLog: ${api.accessLog:false}
   certificate:
     generateAndUseSelfSigned: ${api.certificate.generateAndUseSelfSigned:true}
     folderPath: ${api.certificate.folderPath:'./evita-server-certificates/'}

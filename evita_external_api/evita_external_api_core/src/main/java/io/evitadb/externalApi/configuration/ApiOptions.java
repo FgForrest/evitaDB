@@ -44,6 +44,7 @@ import static java.util.Optional.ofNullable;
  *
  * @param exposedOn   the name of the host the APIs will be exposed on when evitaDB is running inside a container
  * @param ioThreads   defines the number of IO thread will be used by Undertow for accept and send HTTP payload
+ * @param accessLog   defines whether the access logs will be enabled or not
  * @param endpoints   contains specific configuration for all the API endpoints
  * @param certificate defines the certificate settings that will be used to secure connections to the web servers providing APIs
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -51,6 +52,7 @@ import static java.util.Optional.ofNullable;
 public record ApiOptions(
 	@Nonnull String exposedOn,
 	@Nullable Integer ioThreads,
+	boolean accessLog,
 	@Nonnull CertificateSettings certificate,
 	@Nonnull Map<String, AbstractApiConfiguration> endpoints
 ) {
@@ -63,7 +65,7 @@ public record ApiOptions(
 	}
 
 	public ApiOptions() {
-		this(null, null, new CertificateSettings(), new HashMap<>(8));
+		this(null, null, false, new CertificateSettings(), new HashMap<>(8));
 	}
 
 	/**
@@ -94,6 +96,7 @@ public record ApiOptions(
 		private CertificateSettings certificate;
 		@Nullable private String exposedOn;
 		@Nullable private Integer ioThreads;
+		private boolean accessLog;
 
 		Builder() {
 			//noinspection unchecked
@@ -118,6 +121,12 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions.Builder ioThreads(int ioThreads) {
 			this.ioThreads = ioThreads;
+			return this;
+		}
+
+		@Nonnull
+		public ApiOptions.Builder accessLog(boolean accessLog) {
+			this.accessLog = accessLog;
 			return this;
 		}
 
@@ -161,7 +170,7 @@ public record ApiOptions(
 		@Nonnull
 		public ApiOptions build() {
 			return new ApiOptions(
-				exposedOn, ioThreads, certificate, enabledProviders
+				exposedOn, ioThreads, accessLog, certificate, enabledProviders
 			);
 		}
 	}

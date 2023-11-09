@@ -33,6 +33,8 @@ import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.log.NoopAccessLogReceiver;
+import io.evitadb.externalApi.log.Slf4JAccessLogReceiver;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -44,6 +46,9 @@ import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
+import io.undertow.server.handlers.accesslog.AccessLogHandler;
+import io.undertow.server.handlers.accesslog.AccessLogReceiver;
+import io.undertow.server.handlers.accesslog.DefaultAccessLogReceiver;
 import io.undertow.server.handlers.encoding.ContentEncodingRepository;
 import io.undertow.server.handlers.encoding.DeflateEncodingProvider;
 import io.undertow.server.handlers.encoding.EncodingHandler;
@@ -450,6 +455,8 @@ public class ExternalApiServer implements AutoCloseable {
 			 */
 			.setServerOption(UndertowOptions.MAX_ENTITY_SIZE, 2_097_152L);
 
+		final AccessLogReceiver accessLogReceiver = apiOptions.accessLog() ? new Slf4JAccessLogReceiver() : new NoopAccessLogReceiver();
+
 		final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
 		final Map<HostKey, PathHandler> undertowSetupHosts = createHashMap(10);
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
@@ -486,10 +493,18 @@ public class ExternalApiServer implements AutoCloseable {
 					)
 						.setNext(fallbackHandler);
 
+					// we want to log all requests coming into the Undertow server
+					final HttpHandler accessLogHandler = new AccessLogHandler(
+						compressionHandler,
+						accessLogReceiver,
+						"combined",
+						ExternalApiServer.class.getClassLoader()
+					);
+
 					if (configuration.isTlsEnabled()) {
-						undertowBuilder.addHttpsListener(host.port(), host.host().getHostAddress(), sslContext, compressionHandler);
+						undertowBuilder.addHttpsListener(host.port(), host.host().getHostAddress(), sslContext, accessLogHandler);
 					} else {
-						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), compressionHandler);
+						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), accessLogHandler);
 					}
 				}
 
