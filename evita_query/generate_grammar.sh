@@ -22,4 +22,4 @@
 #   limitations under the License.
 #
 
-mvn clean antlr4:antlr4
+mvn clean antlr4:antlr4 replacer:replace
