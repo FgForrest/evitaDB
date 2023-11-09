@@ -34,6 +34,7 @@ module evita.server {
 
 	opens io.evitadb.server.configuration to com.fasterxml.jackson.databind;
 	exports io.evitadb.server;
+	exports io.evitadb.server.log to ch.qos.logback.core;
 
 	requires static lombok;
 	requires static jsr305;
