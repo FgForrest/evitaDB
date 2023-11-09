@@ -1130,6 +1130,9 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("name", "a", "pk1", 1, "pk2", 2)
 		);
 		assertEquals(facetGroupsConjunction("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsConjunction('a')");
+		assertEquals(facetGroupsConjunction("a"), constraint10);
 	}
 
 	@Test
@@ -1139,7 +1142,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a','b','c')"));
 	}
 
@@ -1180,6 +1182,9 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("name", "a", "pk1", 1, "pk2", 2)
 		);
 		assertEquals(facetGroupsDisjunction("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsDisjunction('a')");
+		assertEquals(facetGroupsDisjunction("a"), constraint10);
 	}
 
 	@Test
@@ -1189,7 +1194,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a','b','c')"));
 	}
 
@@ -1230,6 +1234,9 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("name", "a", "pk1", 1, "pk2", 2)
 		);
 		assertEquals(facetGroupsNegation("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsNegation('a')");
+		assertEquals(facetGroupsNegation("a"), constraint10);
 	}
 
 	@Test
@@ -1239,7 +1246,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a','b','c')"));
 	}
 

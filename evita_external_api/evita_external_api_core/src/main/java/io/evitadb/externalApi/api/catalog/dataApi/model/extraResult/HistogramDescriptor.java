@@ -121,6 +121,15 @@ public interface HistogramDescriptor {
 				""")
 			.type(nonNull(Integer.class))
 			.build();
+		PropertyDescriptor REQUESTED = PropertyDescriptor.builder()
+			.name("requested")
+			.description("""
+				Contains true if the query contained `attributeBetween` or `priceBetween`
+				constraint for particular attribute / price and the bucket threshold lies within the range
+				(inclusive) of the constraint. False otherwise.
+				""")
+			.type(nonNull(Boolean.class))
+			.build();
 
 
 		ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -128,7 +137,7 @@ public interface HistogramDescriptor {
 			.description("""
 				Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 				""")
-			.staticFields(List.of(INDEX, THRESHOLD, OCCURRENCES))
+			.staticFields(List.of(INDEX, THRESHOLD, OCCURRENCES, REQUESTED))
 			.build();
 	}
 }

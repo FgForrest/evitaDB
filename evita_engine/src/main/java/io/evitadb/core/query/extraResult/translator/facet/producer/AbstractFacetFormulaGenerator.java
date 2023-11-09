@@ -38,6 +38,7 @@ import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
+import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -278,7 +279,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		// should we treat passed facet as negated one?
 		final boolean isNewFacetNegation = isFacetGroupNegation.test(referenceSchema, facetGroupId);
 		// should we treat passed facet as a part of disjuncted group formula?
-		final boolean isNewFacetDisjunction = facetGroupId != null && isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
+		final boolean isNewFacetDisjunction = isFacetGroupDisjunction.test(referenceSchema, facetGroupId);
 		// create facet group formula
 		final Formula newFormula = createNewFacetGroupFormula();
 		// if we're inside NotFormula
@@ -356,8 +357,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * {@link FacetGroupsConjunction} requirement in input {@link EvitaRequest}.
 	 */
 	@Nonnull
-	protected Formula createNewFacetGroupFormula() {
-		return facetGroupId != null && isFacetGroupConjunction.test(referenceSchema, facetGroupId) ?
+	protected FacetGroupFormula createNewFacetGroupFormula() {
+		return isFacetGroupConjunction.test(referenceSchema, facetGroupId) ?
 			new FacetGroupAndFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIds) :
 			new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIds);
 	}

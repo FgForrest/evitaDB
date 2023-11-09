@@ -31,6 +31,8 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.FacetGroupsNegation;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Optional;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link FacetGroupsNegation} from/to binary format.
  *
@@ -42,8 +44,8 @@ public class FacetGroupsNegationSerializer extends Serializer<FacetGroupsNegatio
 	@Override
 	public void write(Kryo kryo, Output output, FacetGroupsNegation object) {
 		output.writeString(object.getReferenceName());
-		final FilterBy facetGroups = object.getFacetGroups();
-		kryo.writeObjectOrNull(output, facetGroups, FilterBy.class);
+		final Optional<FilterBy> facetGroups = object.getFacetGroups();
+		kryo.writeObjectOrNull(output, facetGroups.orElse(null), FilterBy.class);
 	}
 
 	@Override

@@ -61,7 +61,12 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 		@Nonnull EnumSet<StatisticsType> statisticsType,
 		@Nonnull FilterBy parentId
 	) {
-		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(
+			context, entityFetcher,
+			hierarchyFilterPredicateProducer,
+			exclusionPredicate, scopePredicate,
+			statisticsBase, statisticsType
+		);
 		this.parentId = parentId;
 	}
 
@@ -85,10 +90,12 @@ public class NodeRelativeStatisticsComputer extends AbstractHierarchyStatisticsC
 				() -> "The filter by constraint: `" + parentIdPredicate.getFilterBy() + "` matches multiple (" + parentId.size() + ") hierarchy nodes! " +
 					"Hierarchy statistics computation expects only single node will be matched (due to performance reasons)."
 			);
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
 			// we always start at specific node, but we respect the excluded children
 			final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
 				0,
+				hierarchyNodes::contains,
 				scopePredicate,
 				filterPredicate,
 				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),

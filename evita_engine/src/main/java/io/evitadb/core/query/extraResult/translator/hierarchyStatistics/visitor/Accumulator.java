@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor;
 
+import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
@@ -50,6 +51,10 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class Accumulator {
+	/**
+	 * Flag signalizing the entity was requested in request by {@link HierarchyWithin}
+	 */
+	@Getter private final boolean requested;
 	/**
 	 * The hierarchical entity in proper form.
 	 */
@@ -101,6 +106,7 @@ public class Accumulator {
 	 */
 	public Accumulator(@Nonnull Supplier<Formula> directlyQueriedEntitiesFormulaProducer) {
 		this.entity = null;
+		this.requested = false;
 		this.directlyQueriedEntitiesFormulaProducer = directlyQueriedEntitiesFormulaProducer;
 	}
 
@@ -136,6 +142,7 @@ public class Accumulator {
 		// sort by their order in hierarchy
 		return new LevelInfo(
 			entity,
+			requested,
 			statisticsTypes.contains(StatisticsType.QUERIED_ENTITY_COUNT) ? getQueriedEntitiesFormula().compute().size() : null,
 			statisticsTypes.contains(StatisticsType.CHILDREN_COUNT) ? getChildrenCount() : null,
 			getChildrenAsLevelInfo(statisticsTypes)

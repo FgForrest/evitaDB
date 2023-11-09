@@ -65,10 +65,17 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		// if the output is same as input, it means the input didn't contain UserFilterFormula
 		if (result == baseFormula) {
 			// so we need to change it here adding new facet group formula
-			return FormulaFactory.and(
-				baseFormula,
-				createNewFacetGroupFormula()
-			);
+			if (isFacetGroupNegation.test(referenceSchema, facetGroupId)) {
+				return FormulaFactory.not(
+					createNewFacetGroupFormula(),
+					baseFormula
+				);
+			} else {
+				return FormulaFactory.and(
+					baseFormula,
+					createNewFacetGroupFormula()
+				);
+			}
 		} else {
 			// output changed - just propagate it
 			return result;

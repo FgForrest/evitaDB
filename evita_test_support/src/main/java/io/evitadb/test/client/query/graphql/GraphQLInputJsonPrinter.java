@@ -35,7 +35,6 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import javax.annotation.Nonnull;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Prints GraphQL input JSONs correctly formatted to spec.
@@ -44,7 +43,6 @@ import java.util.stream.Collectors;
  */
 public class GraphQLInputJsonPrinter {
 
-	private final static String INDENTATION = "  ";
 	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+(_[A-Z]+)*)\"");
 	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(-[A-Z]{2})?)\"");
 
@@ -59,11 +57,6 @@ public class GraphQLInputJsonPrinter {
 
 	@Nonnull
 	public String print(@Nonnull JsonNode node) {
-		return print(0, node);
-	}
-
-	@Nonnull
-	public String print(int offset, @Nonnull JsonNode node) {
 		String graphQLJson;
 		try {
 			graphQLJson = constraintWriter.writeValueAsString(node);
@@ -72,7 +65,6 @@ public class GraphQLInputJsonPrinter {
 		}
 		graphQLJson = correctEnumValues(graphQLJson);
 		graphQLJson = correctLocaleValues(graphQLJson);
-		graphQLJson = offsetJson(offset, graphQLJson);
 		return graphQLJson;
 	}
 
@@ -86,16 +78,6 @@ public class GraphQLInputJsonPrinter {
 	private String correctLocaleValues(@Nonnull String graphQLJson) {
 		final Matcher localeMatcher = LOCALE_PATTERN.matcher(graphQLJson);
 		return localeMatcher.replaceAll(mr -> mr.group(1).replace("-", "_"));
-	}
-
-	@Nonnull
-	private String offsetJson(int offset, @Nonnull String graphQLJson) {
-		if (offset > 0) {
-			return graphQLJson.lines()
-				.map(it -> INDENTATION.repeat(offset) + it)
-				.collect(Collectors.joining("\n"));
-		}
-		return graphQLJson;
 	}
 
 	private class CustomPrettyPrinter extends DefaultPrettyPrinter {

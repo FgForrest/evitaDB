@@ -1,0 +1,21 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'e-readers')
+        )
+        entityLocaleEquals('en')
+    ),
+    require(
+        facetSummary(
+            COUNTS,
+            entityFetch(
+                attributeContent('name')
+            ),
+            entityGroupFetch(
+                attributeContent('name')
+            )
+        )
+    )
+)

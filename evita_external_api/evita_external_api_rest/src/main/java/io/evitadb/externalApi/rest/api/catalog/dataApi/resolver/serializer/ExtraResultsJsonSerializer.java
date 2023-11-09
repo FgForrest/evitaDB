@@ -205,6 +205,7 @@ public class ExtraResultsJsonSerializer {
 			final ObjectNode levelInfoNode = objectJsonSerializer.objectNode();
 
 			levelInfoNode.putIfAbsent(LevelInfoDescriptor.ENTITY.name(), serializeEntity(levelInfo.entity()));
+			levelInfoNode.put(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
 			Optional.ofNullable(levelInfo.queriedEntityCount())
 				.ifPresent(queriedEntityCount -> levelInfoNode.put(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), queriedEntityCount));
 			Optional.ofNullable(levelInfo.childrenCount())

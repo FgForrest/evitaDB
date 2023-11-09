@@ -45,8 +45,9 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Implementation of {@link EvitaQLVisitor} for parsing all require type constraints
@@ -256,7 +257,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.accept(classifierTokenVisitor)
 					.asSingleClassifier();
 
-				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+				final EntityRequire requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, EntityRequire.class))
 					.orElse(null);
 
@@ -301,7 +302,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
-				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+				final EntityRequire requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, EntityRequire.class))
 					.orElse(null);
 
@@ -348,7 +349,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+				final EntityRequire requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, EntityRequire.class))
 					.orElse(null);
 
@@ -397,7 +398,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				final EntityRequire requirement = Optional.ofNullable(ctx.args.requirement)
+				final EntityRequire requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, EntityRequire.class))
 					.orElse(null);
 
@@ -443,7 +444,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					return new ReferenceContent((AttributeContent) null);
 				}
 
-				final RequireConstraint requirement = Optional.ofNullable(ctx.args.requirement)
+				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> visitChildConstraint(c, RequireConstraint.class))
 					.orElse(null);
 
@@ -510,7 +511,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					.accept(classifierTokenVisitor)
 					.asSingleClassifier();
 
-				final RequireConstraint requirement = Optional.ofNullable(ctx.args.requirement)
+				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class))
 					.orElse(null);
 
@@ -587,7 +588,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 
-				final RequireConstraint requirement = Optional.ofNullable(ctx.args.requirement)
+				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class))
 					.orElse(null);
 
@@ -668,7 +669,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				final RequireConstraint requirement = Optional.ofNullable(ctx.args.requirement)
+				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class))
 					.orElse(null);
 
@@ -750,7 +751,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final FilterBy filterBy = visitChildConstraint(filterConstraintVisitor, ctx.args.filterBy, FilterBy.class);
 				final OrderBy orderBy = visitChildConstraint(orderConstraintVisitor, ctx.args.orderBy, OrderBy.class);
 
-				final RequireConstraint requirement = Optional.ofNullable(ctx.args.requirement)
+				final RequireConstraint requirement = ofNullable(ctx.args.requirement)
 					.map(c -> (RequireConstraint) visitChildConstraint(c, AttributeContent.class, EntityFetch.class, EntityGroupFetch.class))
 					.orElse(null);
 
@@ -846,10 +847,10 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				} else {
 					return new ReferenceContent(
 						classifiers,
-						Optional.ofNullable(ctx.args.facetEntityRequirement)
+						ofNullable(ctx.args.facetEntityRequirement)
 							.map(c -> visitChildConstraint(c, EntityFetch.class))
 							.orElse(null),
-						Optional.ofNullable(ctx.args.groupEntityRequirement)
+						ofNullable(ctx.args.groupEntityRequirement)
 							.map(c -> visitChildConstraint(c, EntityGroupFetch.class))
 							.orElse(null)
 					);
@@ -941,12 +942,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			() -> {
 				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
 
-				final FilterConstraint filterBy1 = Optional.ofNullable(ctx.args.filter)
+				final FilterConstraint filterBy1 = ofNullable(ctx.args.filter)
 					.map(filter -> filter.filterBy)
 					.map(c -> (FilterConstraint) visitChildConstraint(filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
 					.orElse(null);
-				final FilterGroupBy filterBy2 = Optional.ofNullable(ctx.args.filter)
-					.flatMap(filter -> Optional.ofNullable(filter.filterGroupBy))
+				final FilterGroupBy filterBy2 = ofNullable(ctx.args.filter)
+					.flatMap(filter -> ofNullable(filter.filterGroupBy))
 					.map(c -> visitChildConstraint(filterConstraintVisitor, c, FilterGroupBy.class))
 					.orElse(null);
 				if (filterBy2 != null) {
@@ -956,12 +957,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					);
 				}
 
-				final OrderConstraint orderBy1 = Optional.ofNullable(ctx.args.order)
+				final OrderConstraint orderBy1 = ofNullable(ctx.args.order)
 					.map(order -> order.orderBy)
 					.map(c -> (OrderConstraint) visitChildConstraint(orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
 					.orElse(null);
-				final OrderGroupBy orderBy2 = Optional.ofNullable(ctx.args.order)
-					.flatMap(order -> Optional.ofNullable(order.orderGroupBy))
+				final OrderGroupBy orderBy2 = ofNullable(ctx.args.order)
+					.flatMap(order -> ofNullable(order.orderGroupBy))
 					.map(c -> visitChildConstraint(orderConstraintVisitor, c, OrderGroupBy.class))
 					.orElse(null);
 				if (orderBy2 != null) {
@@ -1001,12 +1002,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 				final String referenceName = ctx.args.referenceName.accept(classifierTokenVisitor).asSingleClassifier();
 				final FacetStatisticsDepth depth = ctx.args.depth.accept(facetStatisticsDepthValueTokenVisitor).asEnum(FacetStatisticsDepth.class);
 
-				final FilterConstraint filterBy1 = Optional.ofNullable(ctx.args.filter)
+				final FilterConstraint filterBy1 = ofNullable(ctx.args.filter)
 					.map(filter -> filter.filterBy)
 					.map(c -> (FilterConstraint) visitChildConstraint(filterConstraintVisitor, c, FilterBy.class, FilterGroupBy.class))
 					.orElse(null);
-				final FilterGroupBy filterBy2 = Optional.ofNullable(ctx.args.filter)
-					.flatMap(filter -> Optional.ofNullable(filter.filterGroupBy))
+				final FilterGroupBy filterBy2 = ofNullable(ctx.args.filter)
+					.flatMap(filter -> ofNullable(filter.filterGroupBy))
 					.map(c -> visitChildConstraint(filterConstraintVisitor, c, FilterGroupBy.class))
 					.orElse(null);
 				if (filterBy2 != null) {
@@ -1016,12 +1017,12 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 					);
 				}
 
-				final OrderConstraint orderBy1 = Optional.ofNullable(ctx.args.order)
+				final OrderConstraint orderBy1 = ofNullable(ctx.args.order)
 					.map(order -> order.orderBy)
 					.map(c -> (OrderConstraint) visitChildConstraint(orderConstraintVisitor, c, OrderBy.class, OrderGroupBy.class))
 					.orElse(null);
-				final OrderGroupBy orderBy2 = Optional.ofNullable(ctx.args.order)
-					.flatMap(order -> Optional.ofNullable(order.orderGroupBy))
+				final OrderGroupBy orderBy2 = ofNullable(ctx.args.order)
+					.flatMap(order -> ofNullable(order.orderGroupBy))
 					.map(c -> visitChildConstraint(orderConstraintVisitor, c, OrderGroupBy.class))
 					.orElse(null);
 				if (orderBy2 != null) {
@@ -1050,7 +1051,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new FacetGroupsConjunction(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
+				ctx.args.filterConstraint() == null ?
+					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
@@ -1061,7 +1063,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new FacetGroupsDisjunction(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
+				ctx.args.filterConstraint() == null ?
+					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}
@@ -1072,7 +1075,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 			ctx,
 			() -> new FacetGroupsNegation(
 				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				(FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
+				ctx.args.filterConstraint() == null ?
+					null : (FilterBy) ctx.args.filterConstraint().accept(filterConstraintVisitor)
 			)
 		);
 	}

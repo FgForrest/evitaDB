@@ -190,4 +190,14 @@ public interface GrpcLevelInfoOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcLevelInfoOrBuilder getItemsOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Contains true if the `entity` was filtered by hierarchy within constraint
+   * </pre>
+   *
+   * <code>bool requested = 6;</code>
+   * @return The requested.
+   */
+  boolean getRequested();
 }

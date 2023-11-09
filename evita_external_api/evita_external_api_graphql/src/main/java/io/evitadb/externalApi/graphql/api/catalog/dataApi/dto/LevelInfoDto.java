@@ -35,6 +35,7 @@ import javax.annotation.Nullable;
  */
 public record LevelInfoDto(int level,
                            @Nonnull EntityClassifier entity,
+						   boolean requested,
                            @Nullable Integer queriedEntityCount,
                            @Nullable Integer childrenCount) {
 }

@@ -68,10 +68,6 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 			Objects.equals(a.getReferenceName(), b.getReferenceName()),
 			"Both formulas must share facet type!"
 		);
-		Assert.isPremiseValid(
-			a.getClass().equals(b.getClass()),
-			"Both formulas must be of type FacetGroupAndFormula!"
-		);
 
 		final Bitmap thisFacetIds = a.getFacetIds();
 		final Bitmap[] thisFacetBitmaps = a.getBitmaps();
@@ -135,12 +131,6 @@ public interface FacetGroupFormula extends NonCacheableFormula {
 	 */
 	@Nonnull
 	Bitmap[] getBitmaps();
-
-	/**
-	 * Returns clone of the formula adding new facet to the formula along with `entityIds` that match this facet id.
-	 */
-	@Nonnull
-	FacetGroupFormula getCloneWithFacet(int facetId, @Nonnull Bitmap... entityIds);
 
 	/**
 	 * Returns clone of the formula combining all facets from the `anotherFormula` and this formula.

@@ -45,6 +45,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -94,7 +95,7 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 	/**
 	 * Contains reference to the output snippet bound to this executable.
 	 */
-	private final @Nullable OutputSnippet outputSnippet;
+	private final @Nullable List<OutputSnippet> outputSnippet;
 	/**
 	 * Contains requests for generating alternative language code snippets.
 	 */
@@ -232,36 +233,43 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 		}
 
 		if (resource != null) {
-			final String markdownSnippet = generateMarkdownSnippet(shouldHaveResult, theResult, outputSnippet);
+			final List<String> markdownSnippets = outputSnippet.stream()
+				.map(snippet -> generateMarkdownSnippet(shouldHaveResult, theResult, snippet))
+				.toList();
 
-			// generate Markdown snippet from the result if required
-			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
-				if (outputSnippet == null) {
-					writeFile(resource, outputFormat, markdownSnippet);
-				} else {
-					writeFile(outputSnippet.path(), markdownSnippet);
+			for (int i = 0; i < outputSnippet.size(); i++) {
+				final OutputSnippet snippet = outputSnippet.get(i);
+				final String markdownSnippet = markdownSnippets.get(i);
+
+				// generate Markdown snippet from the result if required
+				final String outputFormat = ofNullable(snippet).map(OutputSnippet::forFormat).orElse("json");
+				if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
+					if (snippet == null) {
+						writeFile(resource, outputFormat, markdownSnippet);
+					} else {
+						writeFile(snippet.path(), markdownSnippet);
+					}
 				}
+
+				// assert MarkDown file contents
+				final Optional<String> markDownFile = snippet == null ?
+					readFile(resource, outputFormat) : readFile(snippet.path());
+				markDownFile.ifPresent(
+					content -> {
+						assertEquals(
+							content,
+							markdownSnippet
+						);
+
+						final Path assertSource = snippet == null ?
+							resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+							snippet.path().normalize();
+
+						final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+						System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
+					}
+				);
 			}
-
-			// assert MarkDown file contents
-			final Optional<String> markDownFile = outputSnippet == null ?
-				readFile(resource, outputFormat) : readFile(outputSnippet.path());
-			markDownFile.ifPresent(
-				content -> {
-					assertEquals(
-						content,
-						markdownSnippet
-					);
-
-					final Path assertSource = outputSnippet == null ?
-						resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
-						outputSnippet.path().normalize();
-
-					final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
-					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
-				}
-			);
 		}
 	}
 }

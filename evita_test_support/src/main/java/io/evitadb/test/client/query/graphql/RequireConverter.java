@@ -62,25 +62,22 @@ abstract class RequireConverter {
 
 	@Nonnull
 	protected Optional<String> convertFilterConstraint(@Nonnull DataLocator dataLocator,
-	                                                   @Nonnull FilterConstraint filterConstraint,
-	                                                   int offset) {
+	                                                   @Nonnull FilterConstraint filterConstraint) {
 		return filterConstraintToJsonConverter.convert(dataLocator, filterConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()));
+			.map(it -> inputJsonPrinter.print(it.value()));
 	}
 
 	@Nonnull
 	protected Optional<String> convertOrderConstraint(@Nonnull DataLocator dataLocator,
-	                                                  @Nonnull OrderConstraint orderConstraint,
-	                                                  int offset) {
+	                                                  @Nonnull OrderConstraint orderConstraint) {
 		return orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()));
+			.map(it -> inputJsonPrinter.print(it.value()));
 	}
 
 	@Nonnull
 	protected Optional<String> convertRequireConstraint(@Nonnull DataLocator dataLocator,
-	                                                    @Nonnull RequireConstraint requireConstraint,
-	                                                    int offset) {
+	                                                    @Nonnull RequireConstraint requireConstraint) {
 		return requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
-			.map(it -> inputJsonPrinter.print(offset, it.value()));
+			.map(it -> inputJsonPrinter.print(it.value()));
 	}
 }

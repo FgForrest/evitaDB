@@ -98,10 +98,10 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 
 		facetSummaryProducer.requireDefaultFacetSummary(
 			facetSummary.getStatisticsDepth(),
-			referenceSchema -> facetSummary.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			referenceSchema -> facetSummary.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			referenceSchema -> facetSummary.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummary.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema)).orElse(null),
-			referenceSchema -> facetSummary.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummary.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema)).orElse(null),
+			referenceSchema -> facetSummary.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema, false)).orElse(null),
+			referenceSchema -> facetSummary.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, false)).orElse(null),
+			referenceSchema -> facetSummary.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummary.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, false)).orElse(null),
+			referenceSchema -> facetSummary.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummary.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema, false)).orElse(null),
 			facetSummary.getFacetEntityRequirement().orElse(null),
 			facetSummary.getGroupEntityRequirement().orElse(null)
 		);

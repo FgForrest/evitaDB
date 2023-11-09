@@ -5,7 +5,7 @@ perex: |
   Ordering by selling price is one of the basic requirements for e-commerce applications. The price ordering constraint
   allows to sort the output entities by their selling price in ascending or descending order.
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 ## Price natural
@@ -23,7 +23,8 @@ priceNatural(
     </dd>
 </dl>
 
-This constraint allows output entities to be sorted by their [selling price](../filtering/price.md#price-for-sale-computation-algorithm) 
+The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/order/PriceNatural.java</SourceClass> constraint 
+allows output entities to be sorted by their [selling price](../filtering/price.md#price-for-sale-computation-algorithm) 
 in their natural numeric order. It requires only the order direction and the price constraints in the `filterBy` section
 of the query. The price variant (with or without tax) is determined by the [`priceType`](../requirements/price.md#price-type) 
 requirement of the query (price with tax is used by default).

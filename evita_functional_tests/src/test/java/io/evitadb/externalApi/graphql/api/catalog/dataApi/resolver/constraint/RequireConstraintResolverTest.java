@@ -32,7 +32,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -66,6 +65,14 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 					.e("filterBy", map()
 						.e("entityPrimaryKeyInSet", List.of(1, 2)))
 					.build()
+			)
+		);
+		assertEquals(
+			facetGroupsConjunction(Entities.BRAND),
+			resolver.resolve(
+				Entities.PRODUCT,
+				"facetBrandGroupsConjunction",
+				map().build()
 			)
 		);
 	}
@@ -139,7 +146,7 @@ class RequireConstraintResolverTest extends AbstractConstraintResolverTest {
 
 	@Test
 	void shouldNotResolveValueRequireConstraint() {
-		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", null));
+		assertThrows(EvitaInvalidUsageException.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandSummary", null));
 		assertThrows(EvitaInternalError.class, () -> resolver.resolve(Entities.PRODUCT, "facetBrandGroupsConjunction", List.of()));
 	}
 }

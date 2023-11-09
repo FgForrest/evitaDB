@@ -1,0 +1,15 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "priceInCurrency" : "EUR"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "priceContentRespectingFilter" : [ ]
+    }
+  }
+}

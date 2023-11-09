@@ -67,6 +67,7 @@ public class SpecificHierarchyDataFetcher implements DataFetcher<List<LevelInfoD
 		final LevelInfoDto currentLevelInfoDto = new LevelInfoDto(
 			currentLevel,
 			levelInfo.entity(),
+			levelInfo.requested(),
 			levelInfo.queriedEntityCount(),
 			levelInfo.childrenCount()
 		);

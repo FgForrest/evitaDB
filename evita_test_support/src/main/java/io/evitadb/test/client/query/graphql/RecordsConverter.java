@@ -92,12 +92,14 @@ public class RecordsConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		} else {
 			return new ArgumentSupplier[] {
-				__ -> new Argument(
+				offset -> new Argument(
 					RecordPageFieldHeaderDescriptor.NUMBER,
+					offset,
 					page.getPageNumber()
 				),
-				__ -> new Argument(
+				offset -> new Argument(
 					RecordPageFieldHeaderDescriptor.SIZE,
+					offset,
 					page.getPageSize()
 				)
 			};
@@ -111,12 +113,14 @@ public class RecordsConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		} else {
 			return new ArgumentSupplier[] {
-				__ -> new Argument(
+				offset -> new Argument(
 					RecordStripFieldHeaderDescriptor.OFFSET,
+					offset,
 					strip.getOffset()
 				),
-				__ -> new Argument(
+				offset -> new Argument(
 					RecordStripFieldHeaderDescriptor.LIMIT,
+					offset,
 					strip.getLimit()
 				)
 			};

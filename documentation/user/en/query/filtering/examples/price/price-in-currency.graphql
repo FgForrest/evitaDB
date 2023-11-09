@@ -1,0 +1,21 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInCurrency: EUR
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

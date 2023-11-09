@@ -1,0 +1,14 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "priceInPriceLists" : [
+      "basic"
+    ],
+    "priceInCurrency" : "EUR",
+    "priceValidInNow" : true
+  },
+  "require" : {
+    "priceHistogram" : 10
+  }
+}

@@ -1,0 +1,25 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInPriceLists: [
+        "vip-group-1-level",
+        "vip-group-2-level",
+        "vip-group-3-level"
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

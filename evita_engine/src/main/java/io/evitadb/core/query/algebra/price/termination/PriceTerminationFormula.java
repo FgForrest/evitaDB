@@ -27,12 +27,13 @@ import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.NonCacheableFormula;
 import io.evitadb.core.query.algebra.NonCacheableFormulaScope;
-import io.evitadb.core.query.algebra.price.CacheablePriceFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramProducer;
 import io.evitadb.index.bitmap.Bitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
+import java.util.function.Predicate;
 
 /**
  * Interface marks all formulas that apply {@link PricePredicate} onto already collected price records / entities.
@@ -41,7 +42,14 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface PriceTerminationFormula extends PriceWrappingFormula, CacheablePriceFormula, NonCacheableFormulaScope, NonCacheableFormula {
+public interface PriceTerminationFormula extends PriceWrappingFormula, NonCacheableFormulaScope, NonCacheableFormula {
+
+	/**
+	 * Returns predicate that is able to mark price as within the requested price range.
+	 * @return predicate that is able to mark price as within the requested price range.
+	 */
+	@Nullable
+	Predicate<BigDecimal> getRequestedPredicate();
 
 	/**
 	 * Returns bitmap that contains set of entity primary keys that were excluded due to {@link PricePredicate}.

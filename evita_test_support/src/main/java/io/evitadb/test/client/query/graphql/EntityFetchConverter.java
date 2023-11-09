@@ -160,7 +160,8 @@ public class EntityFetchConverter extends RequireConverter {
 		return new ArgumentSupplier[] {
 			offset -> new Argument(
 				ParentsFieldHeaderDescriptor.STOP_AT,
-				convertRequireConstraint(new HierarchyDataLocator(entitySchema.getName()), stopAt.get(), offset)
+				offset,
+				convertRequireConstraint(new HierarchyDataLocator(entitySchema.getName()), stopAt.get())
 					.orElseThrow()
 			)
 		};
@@ -204,7 +205,7 @@ public class EntityFetchConverter extends RequireConverter {
 				fieldsBuilder.addObjectField(
 					EntityDescriptor.ATTRIBUTES,
 					getAttributesFieldsBuilder(attributesToFetch),
-					__ -> new Argument(AttributesFieldHeaderDescriptor.LOCALE, requiredLocales.iterator().next())
+					offset -> new Argument(AttributesFieldHeaderDescriptor.LOCALE, offset, requiredLocales.iterator().next())
 				);
 			} else {
 				final List<? extends AttributeSchemaContract> globalAttributes = attributesToFetch.stream().filter(it -> !it.isLocalized()).toList();
@@ -220,7 +221,7 @@ public class EntityFetchConverter extends RequireConverter {
 						EntityDescriptor.ATTRIBUTES.name() + StringUtils.toPascalCase(locale.toString()),
 						EntityDescriptor.ATTRIBUTES,
 						getAttributesFieldsBuilder(localizedAttributes),
-						__ -> new Argument(AttributesFieldHeaderDescriptor.LOCALE, locale)
+						offset -> new Argument(AttributesFieldHeaderDescriptor.LOCALE, offset, locale)
 					);
 				}
 			}
@@ -271,7 +272,7 @@ public class EntityFetchConverter extends RequireConverter {
 				entityFieldsBuilder.addObjectField(
 					EntityDescriptor.ASSOCIATED_DATA,
 					getAssociatedDataFieldsBuilder(associatedDataToFetch),
-					__ -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, requiredLocales.iterator().next())
+					offset -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, offset, requiredLocales.iterator().next())
 				);
 			} else {
 				final List<AssociatedDataSchemaContract> globalAssociatedData = associatedDataToFetch.stream().filter(it -> !it.isLocalized()).toList();
@@ -287,7 +288,7 @@ public class EntityFetchConverter extends RequireConverter {
 						EntityDescriptor.ASSOCIATED_DATA.name() + StringUtils.toPascalCase(locale.toString()),
 						EntityDescriptor.ASSOCIATED_DATA,
 						getAssociatedDataFieldsBuilder(localizedAssociatedData),
-						__ -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, locale)
+						offset -> new Argument(AssociatedDataFieldHeaderDescriptor.LOCALE, offset, locale)
 					);
 				}
 			}
@@ -346,8 +347,8 @@ public class EntityFetchConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		}
 		return new ArgumentSupplier[] {
-			__ -> new Argument(PriceBigDecimalFieldHeaderDescriptor.FORMATTED, true),
-			__ -> new Argument(PriceBigDecimalFieldHeaderDescriptor.WITH_CURRENCY, true)
+			offset -> new Argument(PriceBigDecimalFieldHeaderDescriptor.FORMATTED, offset, true),
+			offset -> new Argument(PriceBigDecimalFieldHeaderDescriptor.WITH_CURRENCY, offset, true)
 		};
 	}
 
@@ -436,7 +437,8 @@ public class EntityFetchConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					ReferenceFieldHeaderDescriptor.FILTER_BY,
-					convertFilterConstraint(referenceDataLocator, referenceContent.getFilterBy().get(), offset)
+					offset,
+					convertFilterConstraint(referenceDataLocator, referenceContent.getFilterBy().get())
 						.orElseThrow()
 				)
 			);
@@ -446,7 +448,8 @@ public class EntityFetchConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					ReferenceFieldHeaderDescriptor.ORDER_BY,
-					convertOrderConstraint(referenceDataLocator, referenceContent.getOrderBy().get(), offset)
+					offset,
+					convertOrderConstraint(referenceDataLocator, referenceContent.getOrderBy().get())
 						.orElseThrow()
 				)
 			);

@@ -45,9 +45,11 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.price.model.priceRecord.CumulatedVirtualPriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,6 +72,10 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 */
 	private final QuadriFunction<Integer, Integer, QueryPriceMode, PriceContract, PriceRecordContract> converter;
 	/**
+	 * The entity fetch to ask for.
+	 */
+	private final EntityFetch entityFetch;
+	/**
 	 * Contains the predicate that must be fulfilled in order selling price is accepted by the filter.
 	 */
 	private final Predicate<PriceContract> filter;
@@ -79,11 +85,8 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 	 */
 	private FilteredPriceRecords filteredPriceRecords;
 
-	public SellingPriceAvailableBitmapFilter() {
-		this(priceContract -> true);
-	}
-
-	public SellingPriceAvailableBitmapFilter(@Nonnull Predicate<PriceContract> filter) {
+	public SellingPriceAvailableBitmapFilter(@Nullable String[] additionalPriceLists, @Nonnull Predicate<PriceContract> filter) {
+		this.entityFetch = ArrayUtils.isEmpty(additionalPriceLists) ? ENTITY_REQUIRE : new EntityFetch(PriceContent.respectingFilter(additionalPriceLists));
 		this.converter = (entityPrimaryKey, indexedPricePlaces, priceQueryMode, priceContract) -> new CumulatedVirtualPriceRecord(
 			entityPrimaryKey,
 			priceQueryMode == QueryPriceMode.WITH_TAX ?
@@ -94,10 +97,14 @@ public class SellingPriceAvailableBitmapFilter implements EntityToBitmapFilter, 
 		this.filter = filter;
 	}
 
+	public SellingPriceAvailableBitmapFilter(@Nullable String... additionalPriceLists) {
+		this(additionalPriceLists, priceContract -> true);
+	}
+
 	@Nonnull
 	@Override
 	public EntityFetch getEntityRequire() {
-		return ENTITY_REQUIRE;
+		return entityFetch;
 	}
 
 	@Nonnull

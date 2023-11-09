@@ -4,11 +4,11 @@
     "level": 1,
     "entity": {
       "primaryKey": 66466,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "portables"
       }
     },
+    "requested": false,
     "queriedEntityCount": 1396,
     "childrenCount": 3
   },
@@ -16,11 +16,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66471,
-      "parentPrimaryKey": 66466,
       "attributes": {
         "code": "phones"
       }
     },
+    "requested": false,
     "queriedEntityCount": 977,
     "childrenCount": 0
   },
@@ -28,11 +28,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66472,
-      "parentPrimaryKey": 66466,
       "attributes": {
         "code": "tablets"
       }
     },
+    "requested": false,
     "queriedEntityCount": 378,
     "childrenCount": 0
   },
@@ -40,11 +40,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66473,
-      "parentPrimaryKey": 66466,
       "attributes": {
         "code": "e-readers"
       }
     },
+    "requested": false,
     "queriedEntityCount": 41,
     "childrenCount": 0
   },
@@ -52,11 +52,11 @@
     "level": 1,
     "entity": {
       "primaryKey": 66467,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "laptops"
       }
     },
+    "requested": false,
     "queriedEntityCount": 2314,
     "childrenCount": 6
   },
@@ -64,11 +64,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66474,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "netbooks"
       }
     },
+    "requested": false,
     "queriedEntityCount": 86,
     "childrenCount": 0
   },
@@ -76,11 +76,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66475,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "ultrabooks"
       }
     },
+    "requested": false,
     "queriedEntityCount": 291,
     "childrenCount": 0
   },
@@ -88,11 +88,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66476,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "gaming"
       }
     },
+    "requested": false,
     "queriedEntityCount": 105,
     "childrenCount": 0
   },
@@ -100,11 +100,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66477,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "workstations"
       }
     },
+    "requested": false,
     "queriedEntityCount": 89,
     "childrenCount": 0
   },
@@ -112,11 +112,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66478,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "touch"
       }
     },
+    "requested": false,
     "queriedEntityCount": 55,
     "childrenCount": 0
   },
@@ -124,11 +124,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66479,
-      "parentPrimaryKey": 66467,
       "attributes": {
         "code": "macbooks"
       }
     },
+    "requested": false,
     "queriedEntityCount": 92,
     "childrenCount": 0
   },
@@ -136,11 +136,11 @@
     "level": 1,
     "entity": {
       "primaryKey": 66468,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "accessories"
       }
     },
+    "requested": false,
     "queriedEntityCount": 501,
     "childrenCount": 6
   },
@@ -148,11 +148,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66480,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "christmas-electronics"
       }
     },
+    "requested": false,
     "queriedEntityCount": 10,
     "childrenCount": 0
   },
@@ -160,11 +160,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66481,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "smart-wearable"
       }
     },
+    "requested": false,
     "queriedEntityCount": 285,
     "childrenCount": 3
   },
@@ -172,11 +172,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66482,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "audio"
       }
     },
+    "requested": true,
     "queriedEntityCount": 116,
     "childrenCount": 4
   },
@@ -184,11 +184,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66483,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "monitors"
       }
     },
+    "requested": false,
     "queriedEntityCount": 50,
     "childrenCount": 0
   },
@@ -196,11 +196,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66484,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "keyboards"
       }
     },
+    "requested": false,
     "queriedEntityCount": 20,
     "childrenCount": 1
   },
@@ -208,11 +208,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66537,
-      "parentPrimaryKey": 66468,
       "attributes": {
         "code": "mouses"
       }
     },
+    "requested": false,
     "queriedEntityCount": 20,
     "childrenCount": 0
   },
@@ -220,11 +220,11 @@
     "level": 1,
     "entity": {
       "primaryKey": 66469,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "vouchers"
       }
     },
+    "requested": false,
     "queriedEntityCount": 12,
     "childrenCount": 1
   },
@@ -232,11 +232,11 @@
     "level": 2,
     "entity": {
       "primaryKey": 66493,
-      "parentPrimaryKey": 66469,
       "attributes": {
         "code": "vouchers-for-shareholders"
       }
     },
+    "requested": false,
     "queriedEntityCount": 6,
     "childrenCount": 0
   },
@@ -244,11 +244,11 @@
     "level": 1,
     "entity": {
       "primaryKey": 66470,
-      "parentPrimaryKey": null,
       "attributes": {
         "code": "prepared-products"
       }
     },
+    "requested": false,
     "queriedEntityCount": 92,
     "childrenCount": 0
   }
