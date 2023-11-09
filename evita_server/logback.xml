@@ -26,6 +26,7 @@
 
 	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.err</target>
+		<filter class="io.evitadb.server.log.StandardLogFilter" />
 		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
 			<level>WARN</level>
 		</filter>
@@ -36,6 +37,7 @@
 
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.out</target>
+		<filter class="io.evitadb.server.log.StandardLogFilter" />
 		<filter class="ch.qos.logback.classic.filter.LevelFilter">
 			<level>INFO</level>
 			<onMatch>ACCEPT</onMatch>
@@ -47,6 +49,7 @@
 	</appender>
 
 	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+		<filter class="io.evitadb.server.log.StandardLogFilter" />
 		<file>/evita/logs/evita_server.log</file>
 
 		<encoder>
@@ -54,10 +57,20 @@
 		</encoder>
 	</appender>
 
+	<appender name="ACCESS_FILE" class="ch.qos.logback.core.FileAppender">
+		<filter class="io.evitadb.server.log.AccessLogFilter" />
+		<file>/evita/logs/evita_server_access.log</file>
+
+		<encoder>
+			<pattern>%msg%n</pattern>
+		</encoder>
+	</appender>
+
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
 		<appender-ref ref="STDERR" />
 		<appender-ref ref="FILE" />
+		<appender-ref ref="ACCESS_FILE" />
 	</root>
 
 	<logger name="org.xnio" level="ERROR"/>
