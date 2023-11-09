@@ -91,7 +91,7 @@ public class GrpcArtificialFullDatabaseBenchmarkState extends GrpcArtificialBenc
 		server = new ExternalApiServer(
 			this.evita,
 			new ApiOptions(
-				null, null, new CertificateSettings.Builder().build(), Map.of(
+				null, null, false, new CertificateSettings.Builder().build(), Map.of(
 				SystemProvider.CODE, new SystemConfig(AbstractApiConfiguration.LOCALHOST + ":" + SystemConfig.DEFAULT_SYSTEM_PORT),
 				GrpcProvider.CODE, new GrpcConfig())
 			),
