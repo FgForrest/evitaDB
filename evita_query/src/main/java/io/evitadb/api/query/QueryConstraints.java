@@ -53,7 +53,7 @@ import static java.util.Optional.ofNullable;
  */
 public interface QueryConstraints {
 
-	/*
+	/*+
 		HEADING
 	 */
 
@@ -320,7 +320,7 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nullable
-	static ReferenceHaving referenceHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
+	static ReferenceHaving referenceHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
 		return referenceName == null ? null : new ReferenceHaving(referenceName, constraint);
 	}
 
@@ -461,8 +461,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nonnull String attributeName, @Nullable T from, @Nullable T to) {
-		if (from == null && to == null) {
+	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
+		if (attributeName == null || (from == null && to == null)) {
 			return null;
 		} else {
 			return new AttributeBetween(attributeName, from, to);
@@ -492,8 +492,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static AttributeContains attributeContains(@Nonnull String attributeName, @Nullable String textToSearch) {
-		return textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
+	static AttributeContains attributeContains(@Nullable String attributeName, @Nullable String textToSearch) {
+		return attributeName == null || textToSearch == null ? null : new AttributeContains(attributeName, textToSearch);
 	}
 
 	/**
@@ -520,8 +520,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static AttributeStartsWith attributeStartsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
-		return textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
+	static AttributeStartsWith attributeStartsWith(@Nullable String attributeName, @Nullable String textToSearch) {
+		return attributeName == null || textToSearch == null ? null : new AttributeStartsWith(attributeName, textToSearch);
 	}
 
 	/**
@@ -548,8 +548,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static AttributeEndsWith attributeEndsWith(@Nonnull String attributeName, @Nullable String textToSearch) {
-		return textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
+	static AttributeEndsWith attributeEndsWith(@Nullable String attributeName, @Nullable String textToSearch) {
+		return attributeName == null || textToSearch == null ? null : new AttributeEndsWith(attributeName, textToSearch);
 	}
 
 	/**
@@ -577,8 +577,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static <T extends Serializable> AttributeEquals attributeEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
-		return attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
+	static <T extends Serializable> AttributeEquals attributeEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+		return attributeName == null || attributeValue == null ? null : new AttributeEquals(attributeName, attributeValue);
 	}
 
 	/**
@@ -599,8 +599,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nonnull String attributeName, @Nullable T attributeValue) {
-		return attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
+	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
+		return attributeName == null || attributeValue == null ? null : new AttributeLessThan(attributeName, attributeValue);
 	}
 
 	/**
@@ -622,8 +622,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
-		return attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
+	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+		return attributeName == null || attributeValue == null ? null : new AttributeLessThanEquals(attributeName, attributeValue);
 	}
 
 	/**
@@ -644,8 +644,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nonnull String attributeName, @Nullable T attributeValue) {
-		return attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
+	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
+		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThan(attributeName, attributeValue);
 	}
 
 	/**
@@ -667,8 +667,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nonnull String attributeName, @Nullable T attributeValue) {
-		return attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
+	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
+		return attributeName == null || attributeValue == null ? null : new AttributeGreaterThanEquals(attributeName, attributeValue);
 	}
 
 	/**
@@ -914,8 +914,8 @@ public interface QueryConstraints {
 	 * (contrary to what you might expect if you have experience with SQL).
 	*/
 	@Nullable
-	static HierarchyWithin hierarchyWithin(@Nonnull String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
-		if (ofParent == null) {
+	static HierarchyWithin hierarchyWithin(@Nullable String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
+		if (ofParent == null || referenceName == null) {
 			return null;
 		} else if (with == null) {
 			return new HierarchyWithin(referenceName, ofParent);
@@ -1048,8 +1048,8 @@ public interface QueryConstraints {
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
 	*/
 	@Nonnull
-	static HierarchyWithinRoot hierarchyWithinRoot(@Nonnull String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
-		return with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
+	static HierarchyWithinRoot hierarchyWithinRoot(@Nullable String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
+		return referenceName == null || with == null ? new HierarchyWithinRoot() : new HierarchyWithinRoot(referenceName, with);
 	}
 
 	/**
@@ -1450,8 +1450,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable OffsetDateTime atTheMoment) {
-		return atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
+	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable OffsetDateTime atTheMoment) {
+		return attributeName == null || atTheMoment == null ? null : new AttributeInRange(attributeName, atTheMoment);
 	}
 
 	/**
@@ -1481,8 +1481,8 @@ public interface QueryConstraints {
 	 * </pre>
 	*/
 	@Nullable
-	static AttributeInRange attributeInRange(@Nonnull String attributeName, @Nullable Number theValue) {
-		return theValue == null ? null : new AttributeInRange(attributeName, theValue);
+	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable Number theValue) {
+		return attributeName == null || theValue == null ? null : new AttributeInRange(attributeName, theValue);
 	}
 
 	/**
@@ -1511,9 +1511,9 @@ public interface QueryConstraints {
 	 * inRange('age', 63)
 	 * </pre>
 	*/
-	@Nonnull
-	static AttributeInRange attributeInRangeNow(@Nonnull String attributeName) {
-		return new AttributeInRange(attributeName);
+	@Nullable
+	static AttributeInRange attributeInRangeNow(@Nullable String attributeName) {
+		return attributeName == null ? null : new AttributeInRange(attributeName);
 	}
 
 	/**
@@ -1543,8 +1543,8 @@ public interface QueryConstraints {
 	*/
 	@SuppressWarnings("unchecked")
 	@Nullable
-	static <T extends Serializable> AttributeInSet attributeInSet(@Nonnull String attributeName, @Nullable T... set) {
-		if (set == null) {
+	static <T extends Serializable> AttributeInSet attributeInSet(@Nullable String attributeName, @Nullable T... set) {
+		if (attributeName == null || ArrayUtils.isEmpty(set)) {
 			return null;
 		}
 		final List<T> args = Arrays.stream(set).filter(Objects::nonNull).toList();
@@ -1585,9 +1585,9 @@ public interface QueryConstraints {
 	 * equals('code','C')
 	 * </pre>
 	*/
-	@Nonnull
-	static AttributeEquals attributeEqualsFalse(@Nonnull String attributeName) {
-		return new AttributeEquals(attributeName, Boolean.FALSE);
+	@Nullable
+	static AttributeEquals attributeEqualsFalse(@Nullable String attributeName) {
+		return attributeName == null ? null : new AttributeEquals(attributeName, Boolean.FALSE);
 	}
 
 	/**
@@ -1614,9 +1614,9 @@ public interface QueryConstraints {
 	 * equals('code','C')
 	 * </pre>
 	*/
-	@Nonnull
-	static AttributeEquals attributeEqualsTrue(@Nonnull String attributeName) {
-		return new AttributeEquals(attributeName, Boolean.TRUE);
+	@Nullable
+	static AttributeEquals attributeEqualsTrue(@Nullable String attributeName) {
+		return attributeName == null ? null : new AttributeEquals(attributeName, Boolean.TRUE);
 	}
 
 	/**
@@ -1638,8 +1638,8 @@ public interface QueryConstraints {
 	 * Function supports attribute arrays in the same way as plain values.
 	*/
 	@Nullable
-	static AttributeIs attributeIs(@Nonnull String attributeName, @Nullable AttributeSpecialValue specialValue) {
-		if (specialValue == null) {
+	static AttributeIs attributeIs(@Nullable String attributeName, @Nullable AttributeSpecialValue specialValue) {
+		if (attributeName == null || specialValue == null) {
 			return null;
 		}
 		return new AttributeIs(attributeName, specialValue);
@@ -1663,9 +1663,9 @@ public interface QueryConstraints {
 	 * 
 	 * Function supports attribute arrays in the same way as plain values.
 	*/
-	@Nonnull
-	static AttributeIs attributeIsNull(@Nonnull String attributeName) {
-		return new AttributeIs(attributeName, AttributeSpecialValue.NULL);
+	@Nullable
+	static AttributeIs attributeIsNull(@Nullable String attributeName) {
+		return attributeName == null ? null : new AttributeIs(attributeName, AttributeSpecialValue.NULL);
 	}
 
 	/**
@@ -1686,9 +1686,9 @@ public interface QueryConstraints {
 	 * 
 	 * Function supports attribute arrays in the same way as plain values.
 	*/
-	@Nonnull
-	static AttributeIs attributeIsNotNull(@Nonnull String attributeName) {
-		return new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
+	@Nullable
+	static AttributeIs attributeIsNotNull(@Nullable String attributeName) {
+		return attributeName == null ? null : new AttributeIs(attributeName, AttributeSpecialValue.NOT_NULL);
 	}
 
 	/**
@@ -1814,8 +1814,8 @@ public interface QueryConstraints {
 	 * selected by the user in order to be able to compute [facet summary](#facet-summary) output.*
 	*/
 	@Nullable
-	static FacetHaving facetHaving(@Nonnull String referenceName, @Nullable FilterConstraint... constraint) {
-		return ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
+	static FacetHaving facetHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
+		return referenceName == null || ArrayUtils.isEmpty(constraint) ? null : new FacetHaving(referenceName, constraint);
 	}
 
 	/**
@@ -2117,8 +2117,8 @@ public interface QueryConstraints {
 	 * maintaining the depth-first order of the category tree.
 	*/
 	@Nullable
-	static ReferenceProperty referenceProperty(@Nonnull String referenceName, @Nullable OrderConstraint... constraints) {
-		if (constraints == null) {
+	static ReferenceProperty referenceProperty(@Nullable String referenceName, @Nullable OrderConstraint... constraints) {
+		if (referenceName == null || constraints == null) {
 			return null;
 		}
 		return new ReferenceProperty(referenceName, constraints);
@@ -2283,9 +2283,9 @@ public interface QueryConstraints {
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
 	*/
-	@Nonnull
-	static AttributeNatural attributeNatural(@Nonnull String attributeName) {
-		return new AttributeNatural(attributeName);
+	@Nullable
+	static AttributeNatural attributeNatural(@Nullable String attributeName) {
+		return attributeName == null ? null : new AttributeNatural(attributeName);
 	}
 
 	/**
@@ -2327,9 +2327,10 @@ public interface QueryConstraints {
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
 	*/
-	@Nonnull
-	static AttributeNatural attributeNatural(@Nonnull String attributeName, @Nonnull OrderDirection orderDirection) {
-		return new AttributeNatural(attributeName, orderDirection);
+	@Nullable
+	static AttributeNatural attributeNatural(@Nullable String attributeName, @Nullable OrderDirection orderDirection) {
+		return attributeName == null ? null :
+			new AttributeNatural(attributeName, orderDirection == null ? OrderDirection.ASC : orderDirection);
 	}
 
 	/**
@@ -2362,8 +2363,8 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static PriceNatural priceNatural(@Nonnull OrderDirection orderDirection) {
-		return new PriceNatural(orderDirection);
+	static PriceNatural priceNatural(@Nullable OrderDirection orderDirection) {
+		return new PriceNatural(orderDirection == null ? OrderDirection.ASC : orderDirection);
 	}
 
 	/**
@@ -2507,8 +2508,8 @@ public interface QueryConstraints {
 	 * be composed as: blue(11) AND red(12)
 	*/
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		return new FacetGroupsConjunction(referenceName, filterBy);
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, filterBy);
 	}
 
 	/**
@@ -2561,8 +2562,8 @@ public interface QueryConstraints {
 	 * be composed as: blue(11) AND red(12)
 	*/
 	@Nullable
-	static FacetGroupsConjunction facetGroupsConjunction(@Nonnull String referenceName) {
-		return new FacetGroupsConjunction(referenceName, null);
+	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName) {
+		return referenceName == null ? null : new FacetGroupsConjunction(referenceName, null);
 	}
 
 	/**
@@ -2615,8 +2616,8 @@ public interface QueryConstraints {
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
 	*/
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		return new FacetGroupsDisjunction(referenceName, filterBy);
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, filterBy);
 	}
 
 	/**
@@ -2669,8 +2670,8 @@ public interface QueryConstraints {
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
 	*/
 	@Nullable
-	static FacetGroupsDisjunction facetGroupsDisjunction(@Nonnull String referenceName) {
-		return new FacetGroupsDisjunction(referenceName, null);
+	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName) {
+		return referenceName == null ? null : new FacetGroupsDisjunction(referenceName, null);
 	}
 
 	/**
@@ -2689,8 +2690,8 @@ public interface QueryConstraints {
 	 * when selected.
 	*/
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		return new FacetGroupsNegation(referenceName, filterBy);
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, filterBy);
 	}
 
 	/**
@@ -2709,8 +2710,8 @@ public interface QueryConstraints {
 	 * when selected.
 	*/
 	@Nullable
-	static FacetGroupsNegation facetGroupsNegation(@Nonnull String referenceName) {
-		return new FacetGroupsNegation(referenceName, null);
+	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName) {
+		return referenceName == null ? null : new FacetGroupsNegation(referenceName, null);
 	}
 
 	/**
@@ -3413,10 +3414,10 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
-		@Nonnull HierarchyNode node,
+		@Nullable HierarchyNode node,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null) {
+		if (outputName == null || node == null) {
 			return null;
 		} else {
 			return requirement == null ?
@@ -3507,11 +3508,11 @@ public interface QueryConstraints {
 	@Nullable
 	static HierarchyFromNode fromNode(
 		@Nullable String outputName,
-		@Nonnull HierarchyNode node,
+		@Nullable HierarchyNode node,
 		@Nullable EntityFetch entityFetch,
 		@Nullable HierarchyOutputRequireConstraint... requirement
 	) {
-		if (outputName == null) {
+		if (outputName == null || node == null) {
 			return null;
 		} else {
 			return entityFetch == null ?
@@ -4501,7 +4502,7 @@ public interface QueryConstraints {
 	 * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
 	 * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
 	 * 
-	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
+	 * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
 	 * query.
 	 * 
@@ -4521,7 +4522,7 @@ public interface QueryConstraints {
 	 * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
 	 * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
 	 * 
-	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
+	 * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
 	 * query.
 	 * 
@@ -4544,7 +4545,7 @@ public interface QueryConstraints {
 	 * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
 	 * one or more arguments of this requirement.
 	 * 
-	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
+	 * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
 	 * query. Requirement might be combined with {@link AttributeContent} requirement.
 	 * 
@@ -4564,7 +4565,7 @@ public interface QueryConstraints {
 	 * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
 	 * one or more arguments of this requirement.
 	 * 
-	 * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
+	 * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
 	 * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
 	 * query. Requirement might be combined with {@link AttributeContent} requirement.
 	 * 
@@ -4739,12 +4740,16 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable String... attributeNames) {
-		return new ReferenceContent(
-			referenceName, null, null,
-			attributeContent(attributeNames), null, null
-		);
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable String... attributeNames) {
+		if (referenceName == null) {
+			return null;
+		} else {
+			return new ReferenceContent(
+				referenceName, null, null,
+				attributeContent(attributeNames), null, null
+			);
+		}
 	}
 
 	/**
@@ -4761,9 +4766,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName) {
-		return new ReferenceContent(referenceName, null, null, null, null, null);
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, null, null, null, null);
 	}
 
 
@@ -4781,9 +4786,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
 			attributeContent, null, null
 		);
@@ -4852,9 +4857,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName,  null, null,
 			null, entityRequirement, null
 		);
@@ -4874,9 +4879,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName,  null, null,
 			attributeContent, entityRequirement, null
 		);
@@ -4921,9 +4926,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
 			null, null, groupEntityRequirement
 		);
@@ -4943,9 +4948,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
 			attributeContent, null, groupEntityRequirement
 		);
@@ -4987,11 +4992,11 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
+	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nonnull String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
+		@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return new ReferenceContent(
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
 			entityRequirement, groupEntityRequirement
 		);
@@ -5011,12 +5016,12 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
+	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
-		@Nonnull String referenceName, @Nullable AttributeContent attributeContent,
+		@Nullable String referenceName, @Nullable AttributeContent attributeContent,
 		@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement
 	) {
-		return new ReferenceContent(
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, null,
 			attributeContent, entityRequirement, groupEntityRequirement
 		);
@@ -5118,9 +5123,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		return new ReferenceContent(referenceName, filterBy, null, null, null);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null);
 	}
 
 	/**
@@ -5137,9 +5142,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy) {
-		return new ReferenceContent(referenceName, filterBy, null, null, null, null);
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, null, null);
 	}
 
 	/**
@@ -5156,9 +5161,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, attributeContent, null, null);
 	}
 
 	/**
@@ -5175,9 +5180,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, null);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, null);
 	}
 
 	/**
@@ -5194,9 +5199,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, null,
 			null, entityRequirement, null
 		);
@@ -5216,9 +5221,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, null,
 			attributeContent, entityRequirement, null
 		);
@@ -5238,9 +5243,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, null, groupEntityRequirement);
 	}
 
 	/**
@@ -5257,9 +5262,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, null,
 			null, null, groupEntityRequirement
 		);
@@ -5279,9 +5284,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, null,
 			attributeContent, null, groupEntityRequirement
 		);
@@ -5301,9 +5306,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, null, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -5320,9 +5325,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, null,
 			null, entityRequirement, groupEntityRequirement
 		);
@@ -5342,9 +5347,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, null,
 			attributeContent, entityRequirement, groupEntityRequirement
 		);
@@ -5364,9 +5369,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
-		return new ReferenceContent(referenceName, null, orderBy, null, null);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, null);
 	}
 
 	/**
@@ -5383,9 +5388,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			null, null, null
 		);
@@ -5405,9 +5410,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			attributeContent, null, null
 		);
@@ -5427,9 +5432,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, null);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, null);
 	}
 
 	/**
@@ -5446,9 +5451,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			null, entityRequirement, null
 		);
@@ -5468,9 +5473,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			attributeContent, entityRequirement, null
 		);
@@ -5490,9 +5495,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, null, groupEntityRequirement);
 	}
 
 	/**
@@ -5509,9 +5514,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			null, null, groupEntityRequirement
 		);
@@ -5531,9 +5536,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			attributeContent, null, groupEntityRequirement
 		);
@@ -5553,9 +5558,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, null, orderBy, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -5572,9 +5577,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			null, entityRequirement, groupEntityRequirement
 		);
@@ -5594,9 +5599,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, null, orderBy,
 			attributeContent, entityRequirement, groupEntityRequirement
 		);
@@ -5616,9 +5621,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, null, null);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, null);
 	}
 
 	/**
@@ -5635,9 +5640,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			null, null, null
 		);
@@ -5657,9 +5662,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			attributeContent, null, null
 		);
@@ -5679,9 +5684,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, null);
 	}
 
 	/**
@@ -5698,9 +5703,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			null, entityRequirement, null
 		);
@@ -5720,9 +5725,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			attributeContent, entityRequirement, null
 		);
@@ -5742,9 +5747,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, null, groupEntityRequirement);
 	}
 
 	/**
@@ -5761,9 +5766,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			null, null, groupEntityRequirement
 		);
@@ -5783,9 +5788,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			attributeContent, null, groupEntityRequirement
 		);
@@ -5805,9 +5810,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContent(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
+	@Nullable
+	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(referenceName, filterBy, orderBy, entityRequirement, groupEntityRequirement);
 	}
 
 	/**
@@ -5824,9 +5829,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			null, entityRequirement, groupEntityRequirement
 		);
@@ -5846,9 +5851,9 @@ public interface QueryConstraints {
 	 * references(CATEGORY, filterBy(attributeEquals('code', 10)), entityBody())
 	 * ```
 	*/
-	@Nonnull
-	static ReferenceContent referenceContentWithAttributes(@Nonnull String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
-		return new ReferenceContent(
+	@Nullable
+	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
+		return referenceName == null ? null : new ReferenceContent(
 			referenceName, filterBy, orderBy,
 			attributeContent, entityRequirement, groupEntityRequirement
 		);
@@ -6231,8 +6236,8 @@ public interface QueryConstraints {
 	 * ```
 	*/
 	@Nonnull
-	static PriceType priceType(@Nonnull QueryPriceMode priceMode) {
-		return new PriceType(priceMode);
+	static PriceType priceType(@Nullable QueryPriceMode priceMode) {
+		return new PriceType(priceMode == null ? QueryPriceMode.WITH_TAX : priceMode);
 	}
 
 	/**
@@ -6447,9 +6452,9 @@ public interface QueryConstraints {
 	 * facetSummary(IMPACT)
 	 * ```
 	*/
-	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable EntityRequire... requirements) {
-		return new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityRequire... requirements) {
+		return referenceName == null ? null : new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements);
 	}
 
 	/**
@@ -6475,8 +6480,11 @@ public interface QueryConstraints {
 	 * facetSummary(IMPACT)
 	 * ```
 	*/
-	@Nonnull
-	static FacetSummaryOfReference facetSummaryOfReference(@Nonnull String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
+		if (referenceName == null) {
+			return null;
+		}
 		return statisticsDepth == null ?
 			new FacetSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS, requirements) :
 			new FacetSummaryOfReference(referenceName, statisticsDepth, requirements);
@@ -6505,26 +6513,28 @@ public interface QueryConstraints {
 	 * facetSummary(IMPACT)
 	 * ```
 	*/
-	@Nonnull
+	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nonnull String referenceName,
+		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable OrderBy facetOrderBy,
 		@Nullable EntityRequire... requirements
 	) {
-		return facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
 	}
 
-	@Nonnull
+	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nonnull String referenceName,
+		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityRequire... requirements
 	) {
-		return facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
 	}
 
 	/**
@@ -6550,9 +6560,9 @@ public interface QueryConstraints {
 	 * facetSummary(IMPACT)
 	 * ```
 	*/
-	@Nonnull
+	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
-		@Nonnull String referenceName,
+		@Nullable String referenceName,
 		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterBy facetFilterBy,
 		@Nullable FilterGroupBy facetGroupFilterBy,
@@ -6560,6 +6570,9 @@ public interface QueryConstraints {
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityRequire... requirements
 	) {
+		if (referenceName == null) {
+			return null;
+		}
 		if (statisticsDepth == null) {
 			statisticsDepth = FacetStatisticsDepth.COUNTS;
 		}
@@ -6589,6 +6602,7 @@ public interface QueryConstraints {
 	 * queryTelemetry()
 	 * ```
 	*/
+	@Nonnull
 	static QueryTelemetry queryTelemetry() {
 		return new QueryTelemetry();
 	}
@@ -6596,8 +6610,9 @@ public interface QueryConstraints {
 	/**
 	 * This `debug` require is targeted for internal purposes only and is not exposed in public evitaDB API.
 	*/
-	static Debug debug(@Nonnull DebugMode... debugMode) {
-		return new Debug(debugMode);
+	@Nullable
+	static Debug debug(@Nullable DebugMode... debugMode) {
+		return ArrayUtils.isEmpty(debugMode) ? null : new Debug(debugMode);
 	}
 
 	/**
@@ -6629,7 +6644,7 @@ public interface QueryConstraints {
 	 * all language specific attributes, all prices, all references and all associated data.
 	 */
 	@Nonnull
-	static RequireConstraint[] entityFetchAllAnd(@Nonnull RequireConstraint... combineWith) {
+	static RequireConstraint[] entityFetchAllAnd(@Nullable RequireConstraint... combineWith) {
 		if (ArrayUtils.isEmpty(combineWith)) {
 			return new RequireConstraint[]{entityFetchAll()};
 		} else {

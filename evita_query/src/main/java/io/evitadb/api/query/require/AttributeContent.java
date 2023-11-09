@@ -51,7 +51,7 @@ import static java.util.Optional.of;
  * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
  * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
  *
- * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
+ * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
  * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
  * query.
  *

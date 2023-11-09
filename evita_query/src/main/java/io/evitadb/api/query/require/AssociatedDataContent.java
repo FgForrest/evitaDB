@@ -49,7 +49,7 @@ import static java.util.Optional.of;
  * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
  * one or more arguments of this requirement.
  *
- * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
+ * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
  * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
  * query. Requirement might be combined with {@link AttributeContent} requirement.
  *
