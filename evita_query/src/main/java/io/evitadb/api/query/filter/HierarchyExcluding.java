@@ -60,19 +60,19 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories'),
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
  *             excluding(
- *                 attributeEquals('code', 'wireless-headphones')
+ *                 attributeEquals("code", "wireless-headphones")
  *             )
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -91,19 +91,19 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories'),
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
  *             excluding(
- *                 attributeEquals('code', 'wireless-headphones')
+ *                 attributeEquals("code", "wireless-headphones")
  *             )
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )

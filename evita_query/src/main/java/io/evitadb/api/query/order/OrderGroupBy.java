@@ -30,7 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.require.FacetSummary;
+import io.evitadb.api.query.require.ReferenceContent;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -38,17 +38,45 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `orderByGroup` is container for ordering groups within {@link FacetSummary}. This ordering constraint cannot
- * be used anywhere else.
+ * The `entityGroupProperty` ordering constraint can only be used within the {@link ReferenceContent} requirement.
+ * It allows the context of the reference ordering to be changed from attributes of the reference itself to attributes
+ * of the group entity within which the reference is aggregated.
+ *
+ * In other words, if the Product entity has multiple references to ParameterValue entities that are grouped by their
+ * assignment to the Parameter entity, you can sort those references primarily by the name attribute of the grouping
+ * entity, and secondarily by the name attribute of the referenced entity. Let's look at an example:
  *
  * Example:
  *
  * <pre>
- * facetSummaryOfReference(
- *    'parameters',
- *    orderGroupBy(
- *       attributeNatural('name', OrderDirection.ASC)
- *    )
+ * query(
+ *     collection("Product"),
+ *     filterBy(
+ *         attributeEquals("code", "garmin-vivoactive-4"),
+ *         entityLocaleEquals("en")
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent("code"),
+ *             referenceContent(
+ *                 "parameterValues",
+ *                 orderBy(
+ *                     entityGroupProperty(
+ *                         attributeNatural("name", ASC)
+ *                     ),
+ *                     entityProperty(
+ *                         attributeNatural("name", ASC)
+ *                     )
+ *                 ),
+ *                 entityFetch(
+ *                     attributeContent("name")
+ *                 ),
+ *                 entityGroupFetch(
+ *                     attributeContent("name")
+ *                 )
+ *             )
+ *         )
+ *     )
  * )
  * </pre>
  *

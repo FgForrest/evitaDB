@@ -48,27 +48,27 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         referenceHaving(
- *             'brand',
+ *             "brand",
  *             entityHaving(
- *                 attributeEquals('code','sony')
+ *                 attributeEquals("code","sony")
  *             )
  *         )
  *     ),
  *     orderBy(
  *         referenceProperty(
- *             'brand',
- *             attributeNatural('orderInBrand', ASC)
+ *             "brand",
+ *             attributeNatural("orderInBrand", ASC)
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code'),
+ *             attributeContent("code"),
  *             referenceContentWithAttributes(
- *                 'brand',
- *                 attributeContent('orderInBrand')
+ *                 "brand",
+ *                 attributeContent("orderInBrand")
  *             )
  *         )
  *     )

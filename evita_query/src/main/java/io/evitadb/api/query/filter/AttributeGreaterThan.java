@@ -49,7 +49,7 @@ import java.io.Serializable;
  * Example:
  *
  * <pre>
- * greaterThan('age', 20)
+ * greaterThan("age", 20)
  * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

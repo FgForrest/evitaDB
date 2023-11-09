@@ -59,8 +59,8 @@ import java.util.Optional;
  * Example:
  *
  * <pre>
- * inRange('valid', 2020-07-30T20:37:50+00:00)
- * inRange('age', 18)
+ * inRange("valid", 2020-07-30T20:37:50+00:00)
+ * inRange("age", 18)
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
@@ -68,9 +68,9 @@ import java.util.Optional;
  * `[[18, 25],[60,65]]` all these constraints will match:
  *
  * <pre>
- * inRange('age', 18)
- * inRange('age', 24)
- * inRange('age', 63)
+ * inRange("age", 18)
+ * inRange("age", 24)
+ * inRange("age", 63)
  * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
