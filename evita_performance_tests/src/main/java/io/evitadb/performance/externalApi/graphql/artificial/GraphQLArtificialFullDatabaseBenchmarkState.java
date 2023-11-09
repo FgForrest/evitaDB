@@ -86,7 +86,7 @@ public class GraphQLArtificialFullDatabaseBenchmarkState extends GraphQLArtifici
 		// start graphql server
 		server = new ExternalApiServer(
 			this.evita,
-			new ApiOptions(null, null, new CertificateSettings.Builder().build(), Map.of(GraphQLProvider.CODE, new GraphQLConfig())),
+			new ApiOptions(null, null, false, new CertificateSettings.Builder().build(), Map.of(GraphQLProvider.CODE, new GraphQLConfig())),
 			Collections.singleton(new GraphQLProviderRegistrar())
 		);
 		server.start();
