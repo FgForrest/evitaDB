@@ -27,11 +27,13 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
@@ -46,7 +48,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -76,8 +81,28 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 		@Nonnull ReferenceContract baseReference,
 		@Nonnull EntitySchemaContract entitySchema
 	) {
+		this(baseReference, entitySchema, Collections.emptyList());
+	}
+
+	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
+		@Nonnull ReferenceContract baseReference,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<LocalMutation<?, ?>> mutations
+	) {
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
+		final List<AttributeMutation> attributeMutations = new ArrayList<>(mutations.size());
+		for (LocalMutation<?, ?> mutation : mutations) {
+			if (mutation instanceof AttributeMutation attributeMutation) {
+				attributeMutations.add(attributeMutation);
+			} else if (mutation instanceof SetReferenceGroupMutation referenceMutation) {
+				this.referenceGroupMutation = referenceMutation;
+			} else if (mutation instanceof RemoveReferenceMutation referenceMutation) {
+				this.referenceGroupMutation = referenceMutation;
+			} else {
+				throw new EvitaInvalidUsageException("Unsupported mutation type: " + mutation.getClass().getName());
+			}
+		}
 		this.attributesBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
 			baseReference.getReferenceSchema().orElseGet(
@@ -92,7 +117,8 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			baseReference.getReferenceSchema()
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap()),
-			true
+			true,
+			attributeMutations
 		);
 	}
 

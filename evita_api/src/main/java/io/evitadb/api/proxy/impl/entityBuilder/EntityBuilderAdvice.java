@@ -29,10 +29,12 @@ import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedInstance;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import one.edee.oss.proxycian.MethodClassification;
 import one.edee.oss.proxycian.PredicateMethodClassification;
 import one.edee.oss.proxycian.recipe.Advice;
+import one.edee.oss.proxycian.trait.ProxyStateAccessor;
 import one.edee.oss.proxycian.util.ReflectionUtils;
 import one.edee.oss.proxycian.utils.GenericsUtils;
 import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
@@ -42,6 +44,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -66,7 +69,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			toInstanceMethodClassification(),
 			upsertViaMethodClassification(),
 			upsertDeeplyViaMethodClassification(),
-			/* TODO JNO - support also open with mutations */
+			toMutationArrayMethodClassification(),
+			toMutationCollectionMethodClassification(),
 			openForWriteMethodClassification(),
 			SetAttributeMethodClassifier.INSTANCE,
 			SetAssociatedDataMethodClassifier.INSTANCE,
@@ -93,6 +97,64 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				proxyState.createEntityProxy(
 					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
 				)
+		);
+	}
+
+	@Nonnull
+	private static PredicateMethodClassification<Object, Class<?>, SealedEntityProxyState> toMutationArrayMethodClassification() {
+		return new PredicateMethodClassification<>(
+			"withMutationArray",
+			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, SealedInstance.class) &&
+				"withMutations".equals(method.getName()) &&
+				method.getParameterCount() == 1 &&
+				method.getParameterTypes()[0].isArray() &&
+				LocalMutation.class.equals(method.getParameterTypes()[0].getComponentType()),
+			(method, proxyState) -> {
+				final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericReturnType());
+				if (genericType.isEmpty()) {
+					throw new IllegalStateException("Cannot determine the generic type of the method " + method);
+				} else {
+					return genericType.get(0).getResolvedType();
+				}
+			},
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
+				final LocalMutation<?, ?>[] mutations = (LocalMutation<?, ?>[]) args[0];
+				final Object theProxy = proxyState.createEntityProxy(
+					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
+				);
+				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
+				targetProxyState.getEntityBuilderWithMutations(Arrays.asList(mutations));
+				return theProxy;
+			}
+		);
+	}
+
+	@Nonnull
+	private static PredicateMethodClassification<Object, Class<?>, SealedEntityProxyState> toMutationCollectionMethodClassification() {
+		return new PredicateMethodClassification<>(
+			"withMutationArray",
+			(method, proxyState) -> ReflectionUtils.isMatchingMethodPresentOn(method, SealedInstance.class) &&
+				"withMutations".equals(method.getName()) &&
+				method.getParameterCount() == 1 &&
+				Collection.class.isAssignableFrom(method.getParameterTypes()[0]),
+			(method, proxyState) -> {
+				final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericReturnType());
+				if (genericType.isEmpty()) {
+					throw new IllegalStateException("Cannot determine the generic type of the method " + method);
+				} else {
+					return genericType.get(0).getResolvedType();
+				}
+			},
+			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
+				@SuppressWarnings("unchecked")
+				final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
+				final Object theProxy = proxyState.createEntityProxy(
+					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
+				);
+				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
+				targetProxyState.getEntityBuilderWithMutations(mutations);
+				return theProxy;
+			}
 		);
 	}
 

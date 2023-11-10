@@ -29,6 +29,8 @@ import io.evitadb.api.mock.CategoryInterfaceSealed;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
@@ -49,6 +51,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -103,7 +106,7 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 			evitaSession -> {
 				/*
 					This is somehow weird scenario - created instances are always mutable - so the `openForWrite` is
-					technically not necessary, but the create new entity should be correctly called with CategoryInterfaceEditor
+					technically not necessary, but create new entity should be correctly called with CategoryInterfaceEditor
 					here and not the CategoryInterfaceSealed
 				 */
 				final CategoryInterfaceEditor newCategory = evitaSession.createNewEntity(CategoryInterfaceSealed.class, 1000)
@@ -169,6 +172,130 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 					.setName(CZECH_LOCALE, "Aktualizovaná kořenová kategorie")
 					.setPriority(178L)
 					.setValidity(null);
+
+				final Optional<EntityMutation> mutation = updatedCategory.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(4, mutation.get().getLocalMutations().size());
+
+				final CategoryInterface modifiedInstance = updatedCategory.toInstance();
+				assertEquals("updated-root-category", modifiedInstance.getCode());
+				assertEquals("Aktualizovaná kořenová kategorie", modifiedInstance.getName(CZECH_LOCALE));
+				assertEquals(178L, modifiedInstance.getPriority());
+				assertNull(modifiedInstance.getValidity());
+
+				assertEquals("root-category", sealedCategory.getCode());
+				assertEquals("Kořenová kategorie", sealedCategory.getName(CZECH_LOCALE));
+				assertEquals(78L, sealedCategory.getPriority());
+				assertEquals(VALIDITY, sealedCategory.getValidity());
+
+				updatedCategory.upsertVia(evitaSession);
+
+				assertEquals(1000, updatedCategory.getId());
+				assertCategory(
+					evitaSession.getEntity(Entities.CATEGORY, updatedCategory.getId(), entityFetchAllContent()).orElseThrow(),
+					"updated-root-category", "Aktualizovaná kořenová kategorie", 178L, null
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should create new entity of custom type with array of mutations")
+	@Order(3)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewEntityOfCustomTypeWithArrayOfMutations(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				if (evitaSession.getEntity(Entities.CATEGORY, 1000).isPresent()) {
+					evitaSession.deleteEntity(Entities.CATEGORY, 1000);
+				}
+			}
+		);
+		shouldCreateNewEntityOfCustomType(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final CategoryInterfaceSealed sealedCategory = evitaSession.queryOne(
+					Query.query(
+						filterBy(
+							entityPrimaryKeyInSet(1000)
+						),
+						require(entityFetchAll())
+					),
+					CategoryInterfaceSealed.class
+				).orElseThrow();
+
+				final CategoryInterfaceEditor updatedCategory = sealedCategory
+					.withMutations(
+						new UpsertAttributeMutation("code", "updated-root-category"),
+						new UpsertAttributeMutation("name", CZECH_LOCALE, "Aktualizovaná kořenová kategorie"),
+						new UpsertAttributeMutation("priority", 178L),
+						new RemoveAttributeMutation("validity")
+					);
+
+				final Optional<EntityMutation> mutation = updatedCategory.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(4, mutation.get().getLocalMutations().size());
+
+				final CategoryInterface modifiedInstance = updatedCategory.toInstance();
+				assertEquals("updated-root-category", modifiedInstance.getCode());
+				assertEquals("Aktualizovaná kořenová kategorie", modifiedInstance.getName(CZECH_LOCALE));
+				assertEquals(178L, modifiedInstance.getPriority());
+				assertNull(modifiedInstance.getValidity());
+
+				assertEquals("root-category", sealedCategory.getCode());
+				assertEquals("Kořenová kategorie", sealedCategory.getName(CZECH_LOCALE));
+				assertEquals(78L, sealedCategory.getPriority());
+				assertEquals(VALIDITY, sealedCategory.getValidity());
+
+				updatedCategory.upsertVia(evitaSession);
+
+				assertEquals(1000, updatedCategory.getId());
+				assertCategory(
+					evitaSession.getEntity(Entities.CATEGORY, updatedCategory.getId(), entityFetchAllContent()).orElseThrow(),
+					"updated-root-category", "Aktualizovaná kořenová kategorie", 178L, null
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should create new entity of custom type with collection of mutations")
+	@Order(3)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewEntityOfCustomTypeWithCollectionOfMutations(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				if (evitaSession.getEntity(Entities.CATEGORY, 1000).isPresent()) {
+					evitaSession.deleteEntity(Entities.CATEGORY, 1000);
+				}
+			}
+		);
+		shouldCreateNewEntityOfCustomType(evita);
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final CategoryInterfaceSealed sealedCategory = evitaSession.queryOne(
+					Query.query(
+						filterBy(
+							entityPrimaryKeyInSet(1000)
+						),
+						require(entityFetchAll())
+					),
+					CategoryInterfaceSealed.class
+				).orElseThrow();
+
+				final CategoryInterfaceEditor updatedCategory = sealedCategory
+					.withMutations(
+						Arrays.asList(
+							new UpsertAttributeMutation("code", "updated-root-category"),
+							new UpsertAttributeMutation("name", CZECH_LOCALE, "Aktualizovaná kořenová kategorie"),
+							new UpsertAttributeMutation("priority", 178L),
+							new RemoveAttributeMutation("validity")
+						)
+					);
 
 				final Optional<EntityMutation> mutation = updatedCategory.toMutation();
 				assertTrue(mutation.isPresent());

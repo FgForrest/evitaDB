@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -43,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
@@ -50,6 +52,7 @@ import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -162,6 +165,21 @@ public class SealedEntityProxyState
 	@Nonnull
 	public Optional<EntityBuilder> getEntityBuilderIfPresent() {
 		return ofNullable(this.entityBuilder);
+	}
+
+	@Nonnull
+	public EntityBuilder getEntityBuilderWithMutations(@Nonnull Collection<LocalMutation<?, ?>> mutations) {
+		Assert.isPremiseValid(entityBuilder == null, "Entity builder already created!");
+		if (entity instanceof EntityDecorator entityDecorator) {
+			entityBuilder = new ExistingEntityBuilder(entityDecorator, mutations);
+		} else if (entity instanceof Entity theEntity) {
+			entityBuilder = new ExistingEntityBuilder(theEntity, mutations);
+		} else if (entity instanceof EntityBuilder) {
+			throw new EvitaInternalError("Entity builder already created!");
+		} else {
+			throw new EvitaInternalError("Unexpected entity type: " + entity.getClass().getName());
+		}
+		return entityBuilder;
 	}
 
 	@Nonnull

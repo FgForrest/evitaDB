@@ -150,6 +150,26 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	 */
 	ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, S> attributeTypes,
+		boolean suppressVerification,
+		@Nonnull Collection<AttributeMutation> attributeMutations
+	) {
+		this.entitySchema = entitySchema;
+		this.attributeMutations = new HashMap<>();
+		for (AttributeMutation attributeMutation : attributeMutations) {
+			this.attributeMutations.put(attributeMutation.getAttributeKey(), attributeMutation);
+		}
+		this.baseAttributes = createAttributesContainer(entitySchema, attributes, attributeTypes);
+		this.suppressVerification = suppressVerification;
+		this.attributePredicate = Droppable::exists;
+	}
+
+	/**
+	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
+	 */
+	ExistingAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Attributes<S> baseAttributes,
 		boolean suppressVerification
 	) {

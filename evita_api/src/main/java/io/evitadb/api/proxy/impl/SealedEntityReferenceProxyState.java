@@ -29,9 +29,11 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.EqualsAndHashCode;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
@@ -39,6 +41,7 @@ import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
@@ -83,6 +86,19 @@ public class SealedEntityReferenceProxyState
 	@Nullable
 	public ReferenceSchemaContract getReferenceSchema() {
 		return reference.getReferenceSchema().orElseThrow();
+	}
+
+	@Nonnull
+	public ReferenceBuilder getReferenceBuilderWithMutations(@Nonnull Collection<LocalMutation<?,?>> mutations) {
+		Assert.isPremiseValid(referenceBuilder == null, "Entity builder already created!");
+		if (reference instanceof ReferenceBuilder) {
+			Assert.isPremiseValid(referenceBuilder == null, "Entity builder already created!");
+		} else {
+			referenceBuilder = new ExistingReferenceBuilder(
+				reference, getEntitySchema(), mutations
+			);
+		}
+		return referenceBuilder;
 	}
 
 	@Override
