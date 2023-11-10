@@ -28,7 +28,7 @@ but can be any string value, and will group together all evitaDB calls with this
 The request definition (what a request identifier represents) is up to the client to decide, for example, a single request 
 for JavaScript client may group together all evitaDB calls for a single page render.
 
-### Usage
+### Configuration
 
 <LanguageSpecific to="evitaql">
 
@@ -80,3 +80,17 @@ X-EvitaDB-RequestID: 05e620b2-5b40-4932-b585-bf3bb6bde4b3
 Both headers are optional.
 
 </LanguageSpecific>
+
+### Logging
+
+These identifiers can be also used to group application log messages by clients and requests for easier debugging of
+errors that happened during a specific request. This is done using [MDC](https://www.slf4j.org/manual.html#mdc)
+support. evitaDB passes the client and request identifiers to the MDC context under `clientId` and `requestId` names.
+
+The specific usage depends on the used implementation of the [SLF4J](https://www.slf4j.org/) logging facade. For example
+in [Logback](https://logback.qos.ch/index.html) this can be done using `%X{clientId}` and `%X{requestId}` patterns in the log pattern:
+```xml
+<encoder>
+    <pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} C:%X{clientId} R:%X{requestId} - %msg%n</pattern>
+</encoder>
+```
