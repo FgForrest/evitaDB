@@ -64,7 +64,7 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
             throw new CoercingParseValueException("Local time input is not a string.");
         }
         try {
-            return LocalTime.parse((String) input, FORMATTER);
+            return LocalTime.parse((String) input, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -77,7 +77,7 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
             throw new CoercingParseValueException("Local time input is not a StringValue.");
         }
         try {
-            return LocalTime.parse(((StringValue) input).getValue(), FORMATTER);
+            return LocalTime.parse(((StringValue) input).getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }
