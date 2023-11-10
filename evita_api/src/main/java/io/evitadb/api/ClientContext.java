@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.utils.Assert;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +52,16 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ClientContext {
+
+	/**
+	 * Name of property representing the client identifier in the {@link MDC}.
+	 */
+	String MDC_CLIENT_ID_PROPERTY = "clientId";
+	/**
+	 * Name of property representing the request identifier in the {@link MDC}.
+	 */
+	String MDC_REQUEST_ID_PROPERTY = "requestId";
+
 	/**
 	 * Holds the client context for the current thread.
 	 *
@@ -81,10 +92,17 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, requestId));
+
+			final Context newContext = new Context(clientId, requestId);
+			context.push(newContext);
+			newContext.init();
+
 			lambda.run();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -105,10 +123,17 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, null));
+
+			final Context newContext = new Context(clientId, null);
+			context.push(newContext);
+			newContext.init();
+
 			lambda.run();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -130,10 +155,16 @@ public interface ClientContext {
 		final Deque<Context> context = CLIENT_CONTEXT.get();
 		Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
 		try {
-			context.push(new Context(context.peek().clientId(), requestId));
+			final Context newContext = new Context(context.peek().clientId(), requestId);
+			context.push(newContext);
+			newContext.init();
+
 			lambda.run();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -160,10 +191,17 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, requestId));
+
+			final Context newContext = new Context(clientId, requestId);
+			context.push(newContext);
+			newContext.init();
+
 			return lambda.get();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -185,10 +223,18 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, null));
+
+			final Context newContext = new Context(clientId, null);
+			context.push(newContext);
+			newContext.init();
+
 			return lambda.get();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -210,10 +256,17 @@ public interface ClientContext {
 		final Deque<Context> context = CLIENT_CONTEXT.get();
 		try {
 			Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
-			context.push(new Context(context.peek().clientId(), requestId));
+
+			final Context newContext = new Context(context.peek().clientId(), requestId);
+			context.push(newContext);
+			newContext.init();
+
 			return lambda.get();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -264,6 +317,19 @@ public interface ClientContext {
 		@Nonnull String clientId,
 		@Nullable String requestId
 	) {
+		void init() {
+			// remove any previous data just to make sure
+			MDC.remove(MDC_CLIENT_ID_PROPERTY);
+			MDC.remove(MDC_REQUEST_ID_PROPERTY);
+
+			MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
+			MDC.put(MDC_REQUEST_ID_PROPERTY, requestId);
+		}
+
+		void tearDown() {
+			MDC.remove(MDC_CLIENT_ID_PROPERTY);
+			MDC.remove(MDC_REQUEST_ID_PROPERTY);
+		}
 	}
 
 }
