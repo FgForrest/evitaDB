@@ -223,7 +223,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			() -> ContextMissingException.referencedEntityContextMissing(entityName, referenceName)
 		);
 		final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
-		/* TODO JNO - tady by se měla nejspíš vytvářet reference proxy (podle přítomnosti @Entity anotace) */
 		return entityExtractor.apply(referenceDecorator)
 			.map(it -> proxyFactory.createEntityProxy(itemType, it, referencedEntitySchemas))
 			.orElse(null);
@@ -615,7 +614,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
-		/* TODO JNO - tady bychom měli podporovat i reference proxy! */
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
 			if (references == null) {
