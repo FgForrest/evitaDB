@@ -69,6 +69,18 @@ public interface CategoryInterfaceEditor extends CategoryInterface, InstanceEdit
 	@RemoveWhenExists
 	void removeParent();
 
+	@ParentEntity
+	@RemoveWhenExists
+	boolean removeParentAndReturnResult();
+
+	@ParentEntity
+	@RemoveWhenExists
+	Integer removeParentAndReturnItsPrimaryKey();
+
+	@ParentEntity
+	@RemoveWhenExists
+	CategoryInterface removeParentAndReturnIt();
+
 	CategoryInterfaceEditor setCode(@Nonnull String code);
 
 	CategoryInterfaceEditor setName(@Nonnull String name);

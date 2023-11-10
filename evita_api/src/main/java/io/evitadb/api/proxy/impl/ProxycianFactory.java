@@ -404,7 +404,8 @@ public class ProxycianFactory implements ProxyFactory {
 					final ExceptionRethrowingFunction<EntityContract, Object> referenceFct =
 						GetReferenceMethodClassifier.getExtractorIfPossible(
 							schema, referencedEntitySchemas, expectedType, parameters[i], reflectionLookup,
-							proxyFactory, proxyReferenceFactory
+							(itemType, entity) -> proxyFactory.createEntityProxy(itemType, entity, referencedEntitySchemas),
+							proxyReferenceFactory
 						);
 					if (referenceFct != null) {
 						argumentExtractors[i] = referenceFct;

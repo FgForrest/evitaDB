@@ -184,7 +184,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 					if (itemType.isInstance(it)) {
 						return it;
 					} else if (it instanceof SealedEntity sealedEntity) {
-						return theState.createEntityProxy(itemType, sealedEntity, referencedEntitySchemas);
+						return theState.getOrCreateReferencedEntityProxy(itemType, sealedEntity, ProxyType.PARENT);
 					} else {
 						throw ContextMissingException.hierarchyEntityContextMissing();
 					}

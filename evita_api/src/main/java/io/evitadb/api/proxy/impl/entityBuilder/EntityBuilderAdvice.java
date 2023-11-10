@@ -94,8 +94,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityProxy(
-					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
+				proxyState.createReferencedEntityProxy(
+					methodContext, proxyState.getEntity()
 				)
 		);
 	}
@@ -119,8 +119,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				final LocalMutation<?, ?>[] mutations = (LocalMutation<?, ?>[]) args[0];
-				final Object theProxy = proxyState.createEntityProxy(
-					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
+				final Object theProxy = proxyState.createReferencedEntityProxy(
+					methodContext, proxyState.getEntity()
 				);
 				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
 				targetProxyState.getEntityBuilderWithMutations(Arrays.asList(mutations));
@@ -148,8 +148,8 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				@SuppressWarnings("unchecked")
 				final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
-				final Object theProxy = proxyState.createEntityProxy(
-					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
+				final Object theProxy = proxyState.createReferencedEntityProxy(
+					methodContext, proxyState.getEntity()
 				);
 				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
 				targetProxyState.getEntityBuilderWithMutations(mutations);
@@ -200,7 +200,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				return proxyState.getEntityBuilderIfPresent()
 					.map(InstanceEditor::toInstance)
 					.map(EntityContract.class::cast)
-					.map(proxyState::createNewNonCachedClone)
+					.map(proxyState::cloneProxy)
 					.orElse(proxy);
 			}
 		);

@@ -250,45 +250,6 @@ public class SealedEntityProxyState
 			.proxy(expectedType, instanceSupplier);
 	}
 
-	/* TODO JNO - proč se tohle nepoužívá? */
-	@Nonnull
-	public <T> T createEntityReferenceProxyWithCallback(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType,
-		@Nonnull Consumer<EntityReference> callback
-	) throws EntityClassInvalidException {
-		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final InitialReferenceBuilder referenceBuilder = new InitialReferenceBuilder(
-				entitySchema,
-				referenceSchema.getName(),
-				Integer.MIN_VALUE,
-				referenceSchema.getCardinality(),
-				referenceSchema.getReferencedEntityType()
-			);
-			return new ProxyWithUpsertCallback(
-				ProxycianFactory.createEntityReferenceProxy(
-					expectedType, recipes, collectedRecipes,
-					this.entity,
-					getReferencedEntitySchemas(),
-					referenceBuilder,
-					getReflectionLookup(),
-					this.generatedProxyObjects
-				),
-				entRef -> {
-					referenceBuilder.setReferencedEntityPrimaryKey(entRef.getPrimaryKey());
-					callback.accept(entRef);
-				}
-			);
-		};
-		return generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(referenceSchema.getName(), Integer.MIN_VALUE, proxyType),
-				key -> instanceSupplier.get()
-			)
-			.proxy(expectedType, instanceSupplier);
-	}
-
 	/**
 	 * Method propagates all mutations in reference proxies to the {@link #getEntityBuilder()}.
 	 */

@@ -57,11 +57,11 @@ import java.util.stream.Collectors;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenceProxy> {
-	@Serial private static final long serialVersionUID = -5338309229187809879L;
 	/**
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final EntityReferenceBuilderAdvice INSTANCE = new EntityReferenceBuilderAdvice();
+	@Serial private static final long serialVersionUID = -5338309229187809879L;
 	/**
 	 * List of all method classifications supported by this advice.
 	 */
@@ -94,8 +94,8 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityReferenceProxy(
-					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), proxyState.getReference()
+				proxyState.getOrCreateEntityReferenceProxy(
+					methodContext, proxyState.getReference()
 				)
 		);
 	}
@@ -119,10 +119,10 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				final LocalMutation<?, ?>[] mutations = (LocalMutation<?, ?>[]) args[0];
-				final Object theProxy = proxyState.createEntityReferenceProxy(
-					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), proxyState.getReference()
+				final Object theProxy = proxyState.getOrCreateEntityReferenceProxy(
+					methodContext, proxyState.getReference()
 				);
-				final SealedEntityReferenceProxyState targetProxyState = (SealedEntityReferenceProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
+				final SealedEntityReferenceProxyState targetProxyState = (SealedEntityReferenceProxyState) ((ProxyStateAccessor) theProxy).getProxyState();
 				targetProxyState.getReferenceBuilderWithMutations(Arrays.asList(mutations));
 				return theProxy;
 			}
@@ -146,12 +146,11 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
-				@SuppressWarnings("unchecked")
-				final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
-				final Object theProxy = proxyState.createEntityReferenceProxy(
-					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), proxyState.getReference()
+				@SuppressWarnings("unchecked") final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
+				final Object theProxy = proxyState.getOrCreateEntityReferenceProxy(
+					methodContext, proxyState.getReference()
 				);
-				final SealedEntityReferenceProxyState targetProxyState = (SealedEntityReferenceProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
+				final SealedEntityReferenceProxyState targetProxyState = (SealedEntityReferenceProxyState) ((ProxyStateAccessor) theProxy).getProxyState();
 				targetProxyState.getReferenceBuilderWithMutations(mutations);
 				return theProxy;
 			}
@@ -187,8 +186,10 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getReferenceBuilderIfPresent()
 				.map(BuilderContract::build)
 				.map(ReferenceContract.class::cast)
-				.map(it -> (Object) proxyState.createNewNonCachedEntityReferenceProxy(
-					proxyState.getProxyClass(), proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), it)
+				.map(
+					it -> (Object) proxyState.createNewReferenceProxy(
+						proxyState.getProxyClass(), proxyState.getEntity(), it
+					)
 				)
 				.orElse(proxy)
 		);

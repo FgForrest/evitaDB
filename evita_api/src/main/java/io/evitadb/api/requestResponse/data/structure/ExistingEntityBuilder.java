@@ -25,16 +25,9 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.requestResponse.data.AssociatedDataContract;
-import io.evitadb.api.requestResponse.data.AttributesContract;
-import io.evitadb.api.requestResponse.data.Droppable;
-import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.PricesContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
-import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -80,6 +73,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -119,6 +113,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Getter private final PriceContractSerializablePredicate pricePredicate;
 
 	private final Entity baseEntity;
+	private final EntityDecorator baseEntityDecorator;
 	@Delegate(types = AttributesContract.class)
 	private final ExistingEntityAttributesBuilder attributesBuilder;
 	@Delegate(types = AssociatedDataContract.class)
@@ -138,6 +133,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity.getDelegate();
+		this.baseEntityDecorator = baseEntity;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
@@ -159,6 +155,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity;
+		this.baseEntityDecorator = null;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
@@ -241,7 +238,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 					.stream()
 					.mapToObj(pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(getType(), pId, null))
 					.findFirst()
-			).orElseGet(this.baseEntity::getParentEntity);
+			)
+			.orElseGet(
+				() -> this.baseEntityDecorator == null ?
+					this.baseEntity.getParentEntity() : this.baseEntityDecorator.getParentEntity()
+			);
 	}
 
 	@Override
@@ -530,33 +531,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
-	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
-		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
-		Assert.isTrue(
-			referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), null)),
-			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
-		);
-		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
-		Assert.isTrue(getReference(referenceName, referencedPrimaryKey).isPresent(), "There's no reference of type " + referenceName + " and primary key " + referencedPrimaryKey + "!");
-		final Optional<ReferenceContract> theReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
-			.filter(referencePredicate);
-		Assert.isTrue(
-			theReference.isPresent(),
-			"Reference to " + referenceName + " and primary key " + referenceKey +
-				" is not present on the entity " + baseEntity.getType() + " and id " +
-				baseEntity.getPrimaryKey() + "!"
-		);
-		this.referenceMutations.put(
-			referenceKey,
-			Collections.singletonList(
-				new RemoveReferenceMutation(referenceKey)
-			)
-		);
-		this.removedReferences.add(referenceKey);
-		return this;
-	}
-
-	@Override
 	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
 		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
 		final Optional<ReferenceContract> existingReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
@@ -601,6 +575,33 @@ public class ExistingEntityBuilder implements EntityBuilder {
 				);
 			}
 		}
+	}
+
+	@Override
+	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
+		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
+		Assert.isTrue(
+			referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), null)),
+			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
+		);
+		final ReferenceKey referenceKey = new ReferenceKey(referenceName, referencedPrimaryKey);
+		Assert.isTrue(getReference(referenceName, referencedPrimaryKey).isPresent(), "There's no reference of type " + referenceName + " and primary key " + referencedPrimaryKey + "!");
+		final Optional<ReferenceContract> theReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey)
+			.filter(referencePredicate);
+		Assert.isTrue(
+			theReference.isPresent(),
+			"Reference to " + referenceName + " and primary key " + referenceKey +
+				" is not present on the entity " + baseEntity.getType() + " and id " +
+				baseEntity.getPrimaryKey() + "!"
+		);
+		this.referenceMutations.put(
+			referenceKey,
+			Collections.singletonList(
+				new RemoveReferenceMutation(referenceKey)
+			)
+		);
+		this.removedReferences.add(referenceKey);
+		return this;
 	}
 
 	@Override
@@ -701,7 +702,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		if (mutations.isEmpty()) {
 			return Optional.empty();
 		} else {
-			return Optional.of(
+			return of(
 				new EntityUpsertMutation(
 					baseEntity.getType(),
 					Objects.requireNonNull(baseEntity.getPrimaryKey()),
@@ -720,12 +721,41 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			.orElse(baseEntity);
 	}
 
+	@Nullable
 	private ReferenceContract evaluateReferenceMutations(@Nullable ReferenceContract reference, @Nonnull List<ReferenceMutation<?>> mutations) {
 		ReferenceContract mutatedReference = reference;
 		for (ReferenceMutation<?> mutation : mutations) {
 			mutatedReference = mutation.mutateLocal(this.baseEntity.schema, mutatedReference);
 		}
-		return mutatedReference != null && mutatedReference.differsFrom(reference) ? mutatedReference : reference;
+		final ReferenceContract theReference = mutatedReference != null && mutatedReference.differsFrom(reference) ? mutatedReference : reference;
+		if (this.baseEntityDecorator != null && theReference != null) {
+			final Optional<ReferenceContract> originalReference = this.baseEntityDecorator.getReference(
+				theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey()
+			);
+			final Optional<SealedEntity> originalReferencedEntity = originalReference
+				.map(ReferenceContract::getReferencedEntity)
+				.orElse(null);
+			final Optional<SealedEntity> originalReferencedEntityGroup = originalReference
+				.map(ReferenceContract::getGroupEntity)
+				.orElse(null);
+			final Boolean entityValid = originalReferencedEntity
+				.map(EntityContract::getPrimaryKey)
+				.map(it -> it == theReference.getReferencedPrimaryKey())
+				.orElse(false);
+			final Boolean entityGroupValid = originalReferencedEntityGroup
+				.map(EntityContract::getPrimaryKey)
+				.map(it -> theReference.getGroup().map(group -> Objects.equals(it, group.getPrimaryKey())).orElse(false))
+				.orElse(false);
+			if (entityValid || entityGroupValid) {
+				return new ReferenceDecorator(
+					theReference,
+					entityValid ? originalReferencedEntity.get() : null,
+					entityGroupValid ? originalReferencedEntityGroup.get() : null,
+					referencePredicate.getAttributePredicate(theReference.getReferenceName())
+				);
+			}
+		}
+		return theReference;
 	}
 
 	@Nonnull

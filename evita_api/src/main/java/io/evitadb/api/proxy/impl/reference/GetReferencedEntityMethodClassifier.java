@@ -26,6 +26,7 @@ package io.evitadb.api.proxy.impl.reference;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
+import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -222,7 +223,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return resultWrapper.apply(
 				entityExtractor.apply(referenceDecorator)
-					.map(it -> theState.createEntityProxy(itemType, it, theState.getReferencedEntitySchemas()))
+					.map(it -> theState.getOrCreateReferencedEntityProxy(itemType, it, ProxyType.REFERENCED_ENTITY))
 					.orElse(null)
 			);
 		};

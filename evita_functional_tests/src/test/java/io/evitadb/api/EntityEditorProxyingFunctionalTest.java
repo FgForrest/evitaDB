@@ -1427,4 +1427,136 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	@DisplayName("Should remove parent and return boolean result")
+	@Order(23)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveParentAndReturnBooleanResult(EvitaContract evita) {
+		getCategoryByCode(evita, "child-category-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
+		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
+					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertTrue(childCategory.removeParentAndReturnResult());
+				assertFalse(childCategory.removeParentAndReturnResult());
+
+				final Optional<EntityMutation> mutation = childCategory.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(1, mutation.get().getLocalMutations().size());
+
+				final CategoryInterface modifiedInstance = childCategory.toInstance();
+				assertNull(modifiedInstance.getParentId());
+
+				childCategory.upsertVia(evitaSession);
+
+				final SealedEntity childCategorySE = evitaSession.getEntity(
+					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertTrue(childCategorySE.getParentEntity().isEmpty());
+			}
+		);
+	}
+
+	@DisplayName("Should remove parent and return primary key result")
+	@Order(24)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveParentAndReturnPrimaryKeyResult(EvitaContract evita) {
+		getCategoryByCode(evita, "child-category-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
+		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
+					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(1000, childCategory.removeParentAndReturnItsPrimaryKey());
+				assertNull(childCategory.removeParentAndReturnItsPrimaryKey());
+
+				final Optional<EntityMutation> mutation = childCategory.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(1, mutation.get().getLocalMutations().size());
+
+				final CategoryInterface modifiedInstance = childCategory.toInstance();
+				assertNull(modifiedInstance.getParentId());
+
+				childCategory.upsertVia(evitaSession);
+
+				final SealedEntity childCategorySE = evitaSession.getEntity(
+					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertTrue(childCategorySE.getParentEntity().isEmpty());
+			}
+		);
+	}
+
+	@DisplayName("Should remove parent and return its body as result")
+	@Order(25)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveParentAndReturnItsBodyAsResult(EvitaContract evita) {
+		getCategoryByCode(evita, "child-category-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewEntityOfCustomTypeWithSettingParentId(evita);
+		final EntityReference childCategoryRef = getCategoryByCode(evita, "child-category-1").orElseThrow();
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final CategoryInterfaceEditor childCategory = evitaSession.getEntity(
+					CategoryInterfaceEditor.class, childCategoryRef.primaryKey(),
+					hierarchyContent(entityFetchAll()), attributeContentAll()
+				).orElseThrow();
+
+				final CategoryInterface originalParent = childCategory.removeParentAndReturnIt();
+				assertEquals(1000, originalParent.getId());
+				assertEquals("root-category", originalParent.getCode());
+				assertNull(childCategory.removeParentAndReturnIt());
+
+				final Optional<EntityMutation> mutation = childCategory.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(1, mutation.get().getLocalMutations().size());
+
+				final CategoryInterface modifiedInstance = childCategory.toInstance();
+				assertNull(modifiedInstance.getParentId());
+
+				childCategory.upsertVia(evitaSession);
+
+				final SealedEntity childCategorySE = evitaSession.getEntity(
+					Entities.CATEGORY, childCategoryRef.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertTrue(childCategorySE.getParentEntity().isEmpty());
+			}
+		);
+	}
+
 }

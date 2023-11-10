@@ -81,16 +81,13 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				if (parameterCount == 0 && method.isAnnotationPresent(RemoveWhenExists.class)) {
 					if (returnType.equals(proxyState.getProxyClass())) {
 						return removeParentEntityWithEntityBuilderResult();
-					} else if (Boolean.class.isAssignableFrom(returnType)) {
-						/* TODO JNO - write test for this */
+					} else if (Boolean.class.isAssignableFrom(returnType) || boolean.class.isAssignableFrom(returnType)) {
 						return removeParentEntityWithBooleanResult(returnType);
-					} else if (Number.class.isAssignableFrom(returnType)) {
-						/* TODO JNO - write test for this */
+					} else if (NumberUtils.isIntConvertibleNumber(returnType)) {
 						return removeParentEntityWithParentIdResult(returnType);
 					} else if (void.class.isAssignableFrom(returnType)) {
 						return removeParentEntityWithVoidResult();
 					} else {
-						/* TODO JNO - write test for this */
 						return removeParentEntityWithParentEntityResult(returnType);
 					}
 				}
@@ -333,7 +330,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.createEntityProxy(
+			final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
 				theState.getEntitySchema(), expectedType, ProxyType.PARENT, parentId
 			);
 			entityBuilder.setParent(parentId);
@@ -360,7 +357,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.createEntityProxy(
+			final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
 				theState.getEntitySchema(), expectedType, ProxyType.PARENT, parentId
 			);
 			entityBuilder.setParent(parentId);
@@ -458,7 +455,6 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
 			if (parentEntity.isPresent()) {
-				final Optional<EntityClassifierWithParent> theParentEntity = parentEntity.get().getParentEntity();
 				entityBuilder.removeParent();
 				final Optional<Object> referencedEntityObject = theState.getReferencedEntityObjectIfPresent(
 					theState.getType(),
@@ -468,12 +464,8 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				);
 				return referencedEntityObject
 					.orElseGet(() -> {
-						if (theParentEntity.isPresent() && theParentEntity.get() instanceof EntityContract entityContract) {
-							return theState.createNewNonCachedEntityProxy(
-								expectedType,
-								entityContract,
-								theState.getReferencedEntitySchemas()
-							);
+						if (parentEntity.get() instanceof EntityContract entityContract) {
+							return theState.createReferencedEntityProxy(expectedType, entityContract);
 						} else {
 							throw ContextMissingException.hierarchyEntityContextMissing();
 						}
