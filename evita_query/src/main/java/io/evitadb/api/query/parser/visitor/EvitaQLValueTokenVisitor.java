@@ -36,17 +36,20 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Currency;
 import java.util.Iterator;
 import java.util.List;
@@ -68,6 +71,10 @@ import static io.evitadb.api.query.parser.grammar.EvitaQLParser.*;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2021
  */
 public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
+
+    private static final String EXPECTED_OFFSET_DATE_TIME_FORMAT = "yyyy-MM-ddTHH:mm:ss.sss+-HH:mm";
+    private static final String EXPECTED_LOCAL_DATE_TIME_FORMAT = "yyyy-MM-ddTHH:mm:ss.sss";
+    private static final String EXPECTED_LOCAL_TIME_FORMAT = "HH:mm:ss.sss";
 
     protected static final EvitaQLValueTokenVisitor multipleValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
         String.class,
@@ -286,7 +293,15 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             LocalTime.class,
-            () -> LocalTime.from(DateTimeFormatter.ISO_LOCAL_TIME.parse(ctx.getText()))
+            () -> {
+                try {
+                    return LocalTime.from(DateTimeFormatter.ISO_LOCAL_TIME.parse(ctx.getText())).truncatedTo(ChronoUnit.MILLIS);
+                } catch (DateTimeException ex) {
+                    throw new EvitaInvalidUsageException(String.format(
+                        "%s. Expected time in variation of format `%s`.", ex.getMessage(), EXPECTED_LOCAL_TIME_FORMAT
+                    ));
+                }
+            }
         );
     }
 
@@ -295,7 +310,15 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             LocalDateTime.class,
-            () -> LocalDateTime.from(DateTimeFormatter.ISO_LOCAL_DATE_TIME.parse(ctx.getText()))
+            () -> {
+                try {
+                    return LocalDateTime.from(DateTimeFormatter.ISO_LOCAL_DATE_TIME.parse(ctx.getText())).truncatedTo(ChronoUnit.MILLIS);
+                } catch (DateTimeException ex) {
+                    throw new EvitaInvalidUsageException(String.format(
+                        "%s. Expected date time in variation of format `%s`.", ex.getMessage(), EXPECTED_LOCAL_DATE_TIME_FORMAT
+                    ));
+                }
+            }
         );
     }
 
@@ -304,7 +327,15 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             OffsetDateTime.class,
-            () -> OffsetDateTime.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(ctx.getText()))
+            () -> {
+                try {
+                    return OffsetDateTime.from(DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(ctx.getText())).truncatedTo(ChronoUnit.MILLIS);
+                } catch (DateTimeException ex) {
+                    throw new EvitaInvalidUsageException(String.format(
+                        "%s. Expected date time in variation of format `%s`.", ex.getMessage(), EXPECTED_OFFSET_DATE_TIME_FORMAT
+                    ));
+                }
+            }
         );
     }
 
