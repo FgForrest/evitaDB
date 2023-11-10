@@ -48,16 +48,16 @@ import java.util.Arrays;
  * Example:
  *
  * <pre>
- * inSet('level', 1, 2, 3)
+ * inSet("level", 1, 2, 3)
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `inSet` returns true if any of attribute values
- * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
+ * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
  * match:
  *
  * <pre>
- * inSet('code','A','D')
- * inSet('code','A', 'B')
+ * inSet("code","A","D")
+ * inSet("code","A", "B")
  * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

@@ -27,6 +27,7 @@ import io.evitadb.api.query.GenericConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.dataType.StripList;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -35,18 +36,21 @@ import java.io.Serializable;
 import java.util.Optional;
 
 /**
- * This `strip` query controls count of the entities in the query output. It allows specifying 2 arguments in following order:
+ * The `strip` requirement controls the number and slice of entities returned in the query response. If the requested
+ * strip exceeds the number of available records, a result from the zero offset with retained limit is returned.
+ * An empty result is only returned if the query returns no result at all or the limit is set to zero. By automatically
+ * returning the first strip result when the requested page is exceeded, we try to avoid the need to issue a secondary
+ * request to fetch the data.
  *
- * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) offset**: number of the items that
- *   should be omitted in the result, must be greater than or equals to zero (mandatory)
- * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) limit**: number of entities on
- *   that should be returned, must be greater than zero (mandatory)
+ * The information about the actual returned page and data statistics can be found in the query response, which is
+ * wrapped in a so-called data chunk object. In case of the strip constraint, the {@link StripList} is used as data
+ * chunk object.
  *
- * Example - return 24 records from index 52:
+ * Example:
  *
- * ```
+ * <pre>
  * strip(52, 24)
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

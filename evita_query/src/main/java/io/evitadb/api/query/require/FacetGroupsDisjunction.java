@@ -55,15 +55,18 @@ import java.util.Optional;
  *
  * <pre>
  * query(
- *    entities('product'),
+ *    entities("product"),
  *    filterBy(
  *       userFilter(
- *          facet('group', 1, 2),
- *          facet('parameterType', 11, 12, 22)
+ *          facet("group", 1, 2),
+ *          facet(
+ *             "parameterType",
+ *             entityPrimaryKeyInSet(11, 12, 22)
+ *          )
  *       )
  *    ),
  *    require(
- *       facetGroupsDisjunction('parameterType', 1, 2)
+ *       facetGroupsDisjunction("parameterType", 1, 2)
  *    )
  * )
  * </pre>

@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -38,7 +39,24 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * TOBEDONE JNO - document me
+ * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
+ * similar to the "where" clause in SQL. FilterGroupBy container might contain one or more sub-constraints, that are
+ * combined by logical disjunction (AND).
+ *
+ * The `filterGroupBy` is equivalent to {@link FilterBy}, but can be used only within {@link FacetSummary} container
+ * and defines the filter constraints limiting the facet groups returned in facet summary.
+ *
+ * Example:
+ *
+ * <pre>
+ * filterGroupBy(
+ *    isNotNull("code"),
+ *    or(
+ *       equals("code", "ABCD"),
+ *       startsWith("title", "Knife")
+ *    )
+ * )
+ * </pre>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

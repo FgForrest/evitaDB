@@ -26,8 +26,8 @@ package io.evitadb.api.query.filter;
 import io.evitadb.dataType.SupportedEnum;
 
 /**
- * Represents constant or "special" value attribute can have (or has it implicitly, e.g. missing value is represented by {@code null}
- * that is not comparable via {@link Comparable}.
+ * Represents constant or "special" value attribute can have (or has it implicitly, e.g. missing value is represented by
+ * {@code null} that is not comparable via {@link Comparable}.
  *
  * @see AttributeIs
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
@@ -37,4 +37,5 @@ public enum AttributeSpecialValue {
 
 	NULL,
 	NOT_NULL
+
 }

@@ -53,7 +53,7 @@ class PriceNaturalTest {
 	void shouldRecognizeApplicability() {
 		assertTrue(priceNatural().isApplicable());
 		assertTrue(priceNatural(DESC).isApplicable());
-		assertFalse(priceNatural(null).isApplicable());
+		assertFalse(new PriceNatural(null).isApplicable());
 	}
 
 	@Test

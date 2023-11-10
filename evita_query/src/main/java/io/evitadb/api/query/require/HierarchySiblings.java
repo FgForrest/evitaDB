@@ -74,19 +74,19 @@ import static java.util.Optional.of;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             siblings(
- *                 'audioSiblings',
- *                 entityFetch(attributeContent('code')),
+ *                 "audioSiblings",
+ *                 entityFetch(attributeContent("code")),
  *                 statistics(
  *                     CHILDREN_COUNT,
  *                     QUERIED_ENTITY_COUNT

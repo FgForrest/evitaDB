@@ -48,7 +48,7 @@ import java.io.Serializable;
  * <pre>
  * query(
  *    filterBy(
- *       attributeInSet('code', 't-shirt', 'sweater', 'pants')
+ *       attributeInSet("code", "t-shirt", "sweater", "pants")
  *    ),
  *    orderBy(
  *       attributeSetInFilter()

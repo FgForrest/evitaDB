@@ -27,26 +27,27 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.filter.AttributeBetween;
+import io.evitadb.api.query.filter.PriceBetween;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `priceHistogram` requirement usage triggers computing and adding an object to the result index. It has single
- * argument that states the number of histogram buckets (columns) that can be safely visualized to the user. Usually
- * there is fixed size area dedicated to the histogram visualisation and there is no sense to return histogram with
- * so many buckets (columns) that wouldn't be possible to render. For example - if there is 200px size for the histogram
- * and we want to dedicate 10px for one column, it's wise to ask for 20 buckets.
+ * The `priceHistogram` is computed from the price for sale. The interval related constraints - i.e. {@link AttributeBetween}
+ * and {@link PriceBetween} in the userFilter part are excluded for the sake of histogram calculation. If this weren't
+ * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
+ * narrower range and eventually into a dead end.
  *
- * When this requirement is used an additional object {@link io.evitadb.api.requestResponse.extraResult.Histogram} is stored to the result.
- * Histogram contains statistics on price layout in the query result.
+ * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
+ * visualizes the price with tax.
  *
  * Example:
  *
- * ```
+ * <pre>
  * priceHistogram(20)
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

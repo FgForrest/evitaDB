@@ -37,22 +37,21 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `filterBy` is container for filtering constraints. It is mandatory container when any filtering is to be used.
- * This container allows only one children container with the filtering condition.
+ * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
+ * similar to the "where" clause in SQL. FilterBy container might contain one or more sub-constraints, that are combined
+ * by logical disjunction (AND).
  *
  * Example:
  *
- * ```
+ * <pre>
  * filterBy(
- *     and(
- *        isNotNull('code'),
- *        or(
- *           equals('code', 'ABCD'),
- *           startsWith('title', 'Knife')
- *        )
- *     )
+ *    isNotNull("code"),
+ *    or(
+ *       equals("code", "ABCD"),
+ *       startsWith("title", "Knife")
+ *    )
  * )
- * ```
+ * </pre>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
