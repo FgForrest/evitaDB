@@ -23,26 +23,13 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.InstanceEditor;
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
-import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
-import io.evitadb.test.Entities;
-
-import java.util.function.Consumer;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 
 /**
- * Example interface mapping a brand entity.
+ * Example of ProductInterface sealed into SealedInstance.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface BrandInterfaceEditor extends BrandInterface, InstanceEditor<BrandInterface> {
-
-	BrandInterfaceEditor setCode(String code);
-
-	@ReferenceRef(Entities.STORE)
-	BrandInterfaceEditor setStore(int storeId);
-
-	@ReferenceRef(Entities.STORE)
-	BrandInterfaceEditor setNewStore(@CreateWhenMissing Consumer<StoreInterfaceEditor> storeConsumer);
+public interface SealedProductInterface extends ProductInterface, SealedInstance<ProductInterface, ProductInterfaceEditor> {
 
 }

@@ -23,14 +23,18 @@
 
 package io.evitadb.api;
 
+import io.evitadb.api.mock.BrandInterfaceEditor;
 import io.evitadb.api.mock.CategoryInterface;
 import io.evitadb.api.mock.CategoryInterfaceEditor;
 import io.evitadb.api.mock.CategoryInterfaceSealed;
+import io.evitadb.api.mock.ProductInterfaceEditor;
+import io.evitadb.api.mock.SealedProductInterface;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
@@ -39,8 +43,6 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
-import io.evitadb.test.generator.DataGenerator.Labels;
-import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -50,19 +52,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_PRIORITY;
-import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_VALIDITY;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static io.evitadb.test.generator.DataGenerator.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface which is isolated from the original
@@ -319,6 +318,70 @@ public class IsolatedEntityEditorProxyingFunctionalTest extends AbstractEntityPr
 					evitaSession.getEntity(Entities.CATEGORY, updatedCategory.getId(), entityFetchAllContent()).orElseThrow(),
 					"updated-root-category", "Aktualizovaná kořenová kategorie", 178L, null
 				);
+			}
+		);
+	}
+
+	@DisplayName("Should create new product with all nested entities in one go")
+	@Order(4)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldCreateNewCustomProductWithPricesAndReferences(EvitaContract evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-1")
+					.setName(CZECH_LOCALE, "Produkt 1")
+					.setEnum(TestEnum.ONE)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(1, parameter -> parameter.setPriority(10L))
+					.upsertVia(evitaSession);
+
+				final SealedProductInterface sealedProduct = evitaSession.getEntity(
+					SealedProductInterface.class, newProduct.getPrimaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final ProductInterfaceEditor productEditor = sealedProduct.openForWrite();
+				final List<EntityReference> storedReferences = productEditor.setNewBrand(
+						newBrand -> {
+							final BrandInterfaceEditor brandEditor = newBrand.setCode("brand-1");
+							brandEditor.setNewStore(
+								store -> store.setCode("store-1")
+									.setLabels(new Labels())
+									.setReferencedFiles(new ReferencedFileSet())
+							);
+						}
+					)
+					.upsertDeeplyVia(evitaSession);
+
+				assertEquals(3, storedReferences.size());
+				int toFind = 3;
+				for (EntityReference storedReference : storedReferences) {
+					final SealedEntity theEntity = evitaSession.getEntity(
+						storedReference.getType(), storedReference.getPrimaryKey(), entityFetchAllContent()
+					).orElseThrow();
+					if (storedReference.getType().equals(Entities.PRODUCT)) {
+						assertEquals("product-1", theEntity.getAttribute(ATTRIBUTE_CODE));
+						assertEquals(1, theEntity.getReferences(Entities.BRAND).size());
+						toFind--;
+					} else if (storedReference.getType().equals(Entities.BRAND)) {
+						assertEquals("brand-1", theEntity.getAttribute(ATTRIBUTE_CODE));
+						assertEquals(1, theEntity.getReferences(Entities.STORE).size());
+						toFind--;
+					} else if (storedReference.getType().equals(Entities.STORE)) {
+						assertEquals("store-1", theEntity.getAttribute(ATTRIBUTE_CODE));
+						assertNotNull(theEntity.getAssociatedData(ASSOCIATED_DATA_LABELS));
+						assertNotNull(theEntity.getAssociatedData(ASSOCIATED_DATA_REFERENCED_FILES));
+						toFind--;
+					} else {
+						fail("Unexpected entity type: " + storedReference.getType());
+					}
+				}
+				assertEquals(0, toFind);
 			}
 		);
 	}

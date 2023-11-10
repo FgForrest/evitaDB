@@ -63,6 +63,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -1076,7 +1077,6 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> getReferencedEntity(
-		@Nonnull Method method,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull String targetEntityType,
@@ -1344,7 +1344,9 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				if (returnType.equals(proxyState.getProxyClass()) ||
 					void.class.equals(returnType) ||
 					method.isAnnotationPresent(CreateWhenMissing.class) ||
-					method.isAnnotationPresent(RemoveWhenExists.class)
+					Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(CreateWhenMissing.class::isInstance) ||
+					method.isAnnotationPresent(RemoveWhenExists.class) ||
+					Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(RemoveWhenExists.class::isInstance)
 				) {
 					return null;
 				}
@@ -1395,12 +1397,12 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						return getEntityId(referenceName, collectionType, itemType, referenceExtractor, resultWrapper);
 					} else if (entityInstance != null) {
 						return getReferencedEntity(
-							method, entitySchema, referenceSchema,
+							entitySchema, referenceSchema,
 							entityInstance.name(), collectionType, itemType, referenceExtractor, resultWrapper
 						);
 					} else if (entityRefInstance != null) {
 						return getReferencedEntity(
-							method, entitySchema, referenceSchema,
+							entitySchema, referenceSchema,
 							entityRefInstance.value(), collectionType, itemType, referenceExtractor, resultWrapper
 						);
 					} else if (method.getParameterCount() == 1 && NumberUtils.isIntConvertibleNumber(method.getParameterTypes()[0]) && collectionType == null) {

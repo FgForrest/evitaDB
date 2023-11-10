@@ -23,26 +23,24 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.InstanceEditor;
-import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
-import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
-import io.evitadb.test.Entities;
-
-import java.util.function.Consumer;
+import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
+import io.evitadb.test.generator.DataGenerator;
+import io.evitadb.test.generator.DataGenerator.Labels;
+import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 /**
- * Example interface mapping a brand entity.
+ * Example store interface for proxying.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface BrandInterfaceEditor extends BrandInterface, InstanceEditor<BrandInterface> {
+public interface StoreInterfaceEditor extends StoreInterface {
 
-	BrandInterfaceEditor setCode(String code);
+	StoreInterfaceEditor setCode(String code);
 
-	@ReferenceRef(Entities.STORE)
-	BrandInterfaceEditor setStore(int storeId);
+	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
+	StoreInterfaceEditor setLabels(Labels labels);
 
-	@ReferenceRef(Entities.STORE)
-	BrandInterfaceEditor setNewStore(@CreateWhenMissing Consumer<StoreInterfaceEditor> storeConsumer);
+	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
+	StoreInterfaceEditor setReferencedFiles(ReferencedFileSet referencedFileSet);
 
 }

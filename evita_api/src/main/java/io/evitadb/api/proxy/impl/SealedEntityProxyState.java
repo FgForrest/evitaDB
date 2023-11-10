@@ -133,32 +133,34 @@ public class SealedEntityProxyState
 					it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY
 			)
 			.flatMap(
-				it -> Stream.concat(
-					// we need first store the referenced entities of referenced entity (depth wise)
-					it.getValue().getSealedEntityProxies()
-						.flatMap(SealedEntityProxy::getReferencedEntityBuildersWithCallback),
-					// and then the referenced entity itself
-					it.getValue().getSealedEntityProxies()
-						.map(SealedEntityProxy::getEntityBuilderWithCallback)
-						.filter(Optional::isPresent)
-						.map(Optional::get)
-						.map(
-							mutation -> {
-								final EntityBuilder theBuilder = mutation.builder();
-								final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
-								final Consumer<EntityReference> externalCallback = it.getValue().callback();
-								return new EntityBuilderWithCallback(
-									theBuilder,
-									mutationCallback == null ?
-										externalCallback :
-										entityReference1 -> {
-											mutation.updateEntityReference(entityReference1);
-											externalCallback.accept(entityReference1);
-										}
-								);
-							}
-						)
-				)
+				it -> {
+					return Stream.concat(
+						// we need first store the referenced entities of referenced entity (depth wise)
+						it.getValue().getSealedEntityProxies()
+							.flatMap(SealedEntityProxy::getReferencedEntityBuildersWithCallback),
+						// and then the referenced entity itself
+						it.getValue().getSealedEntityProxies()
+							.map(SealedEntityProxy::getEntityBuilderWithCallback)
+							.filter(Optional::isPresent)
+							.map(Optional::get)
+							.map(
+								mutation -> {
+									final EntityBuilder theBuilder = mutation.builder();
+									final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
+									final Consumer<EntityReference> externalCallback = it.getValue().callback();
+									return new EntityBuilderWithCallback(
+										theBuilder,
+										mutationCallback == null ?
+											externalCallback :
+											entityReference1 -> {
+												mutation.updateEntityReference(entityReference1);
+												externalCallback.accept(entityReference1);
+											}
+									);
+								}
+							)
+					);
+				}
 			);
 	}
 
