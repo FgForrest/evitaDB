@@ -53,9 +53,6 @@ public class SetReferenceAttributeMethodClassifier extends DirectMethodClassific
 	 */
 	public static final SetReferenceAttributeMethodClassifier INSTANCE = new SetReferenceAttributeMethodClassifier();
 
-	/* TODO JNO - SUPPORT METHODS that set EntityClassifier + Externally fetched entity object */
-	/* TODO JNO - support method working directly with external entity without the reference proxy (builder) intermediate */
-
 	/**
 	 * Provides implementation for setting attribute value from a single value returning a void return type.
 	 *

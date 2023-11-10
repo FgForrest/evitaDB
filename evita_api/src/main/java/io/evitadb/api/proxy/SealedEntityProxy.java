@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -83,22 +82,6 @@ public interface SealedEntityProxy extends EvitaProxy {
 	 */
 	@Nonnull
 	Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback();
-
-	/**
-	 * Returns the registered proxy, matching the registration context in creation methods method.
-	 *
-	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
-	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
-	 * @param expectedType         the expected class type of the proxy
-	 * @param proxyType            set of logical types to be searched for the proxy instance
-	 */
-	@Nonnull
-	<T> Optional<T> getReferencedEntityObjectIfPresent(
-		@Nonnull String referencedEntityType,
-		int referencedPrimaryKey,
-		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType proxyType
-	);
 
 	/**
 	 * Types of generated proxies.

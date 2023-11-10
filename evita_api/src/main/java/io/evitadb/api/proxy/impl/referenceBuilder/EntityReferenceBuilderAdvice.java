@@ -70,8 +70,8 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 			toInstanceMethodClassification(),
 			upsertViaMethodClassification(),
 			openForWriteMethodClassification(),
-			/* TODO JNO - doplnit classifier na změnu skupiny */
-			SetReferenceAttributeMethodClassifier.INSTANCE
+			SetReferenceAttributeMethodClassifier.INSTANCE,
+			SetReferenceGroupMethodClassifier.INSTANCE
 		}
 	);
 

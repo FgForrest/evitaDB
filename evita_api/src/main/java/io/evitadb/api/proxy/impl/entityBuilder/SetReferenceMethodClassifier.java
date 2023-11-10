@@ -88,7 +88,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param consumerType     the return type to look for the annotation on
 	 */
 	@Nonnull
-	private static Optional<RecognizedContext> recognizeCallContext(
+	public static Optional<RecognizedContext> recognizeCallContext(
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Class<?> returnType,
@@ -167,6 +167,21 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Returns true if the entity annotation is recognized in the given scope.
+	 *
+	 * @param entityRecognizedIn the entity recognized in
+	 * @param scope              the scope to check
+	 * @return true if the entity annotation is recognized in the given scope
+	 */
+	public static boolean isEntityRecognizedIn(
+		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
+		@Nonnull Optional<RecognizedContext> entityRecognizedIn,
+		@Nonnull EntityRecognizedIn scope
+	) {
+		return entityRecognizedIn.map(RecognizedContext::recognizedIn).map(scope::equals).orElse(false);
+	}
+
+	/**
 	 * Returns true if referenced type is assignable from the given class.
 	 *
 	 * @param referencedType the referenced type
@@ -196,21 +211,6 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<?> aClass
 	) {
 		return referencedType.map(ResolvedParameter::resolvedType).map(NumberUtils::isIntConvertibleNumber).orElse(false);
-	}
-
-	/**
-	 * Returns true if the entity annotation is recognized in the given scope.
-	 *
-	 * @param entityRecognizedIn the entity recognized in
-	 * @param scope              the scope to check
-	 * @return true if the entity annotation is recognized in the given scope
-	 */
-	private static boolean isEntityRecognizedIn(
-		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-		@Nonnull Optional<RecognizedContext> entityRecognizedIn,
-		@Nonnull EntityRecognizedIn scope
-	) {
-		return entityRecognizedIn.map(RecognizedContext::recognizedIn).map(scope::equals).orElse(false);
 	}
 
 	/**
@@ -624,12 +624,13 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		);
 		final String referenceName = referenceSchema.getName();
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final Collection<ReferenceContract> references = theState.getEntityBuilder()
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final Collection<ReferenceContract> references = entityBuilder
 				.getReferences(referenceName);
 			if (references.isEmpty()) {
 				return theState.createReferencedEntityProxyWithCallback(
 					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType, ProxyType.REFERENCED_ENTITY,
-					entityReference -> theState.getEntityBuilder().setReference(referenceName, entityReference.primaryKey())
+					entityReference -> entityBuilder.setReference(referenceName, entityReference.primaryKey())
 				);
 			} else {
 				final ReferenceContract firstReference = references.iterator().next();
@@ -776,6 +777,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
 			if (references.isEmpty()) {
 				// do nothing
+				return null;
 			} else if (references.size() == 1) {
 				final int referencedPrimaryKey = references.iterator().next().getReferencedPrimaryKey();
 				final Optional<ReferenceContract> reference = entityBuilder.getReference(referenceName, referencedPrimaryKey);
@@ -805,7 +807,6 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						"because there is more than single reference!"
 				);
 			}
-			return null;
 		};
 	}
 
@@ -1134,7 +1135,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					"doesn't match the referencedEntity entity type: `" + expectedEntityType + "`!"
 			);
 			entityBuilder.setReference(referenceName, sealedEntity.getPrimaryKey());
-			return proxy;
+			return null;
 		};
 	}
 
@@ -1677,10 +1678,10 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * Returns method implementation that creates or updates reference by passing primary keys
 	 * to the method parameter. This implementation doesn't allow to set attributes on the reference.
 	 *
-	 * @param proxyState         the proxy state
+	 * @param proxyState          the proxy state
 	 * @param referencedParameter the entity recognized in
-	 * @param returnType         the return type
-	 * @param referenceSchema    the reference schema
+	 * @param returnType          the return type
+	 * @param referenceSchema     the reference schema
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -1885,7 +1886,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	/**
 	 * Represents identification of the place which has been recognized as reference representation.
 	 */
-	private enum EntityRecognizedIn {
+	public enum EntityRecognizedIn {
 		PARAMETER,
 		CONSUMER,
 		RETURN_TYPE
@@ -1897,7 +1898,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param mainType     common parameter type (generic wrapper)
 	 * @param resolvedType resolved generic parameter type
 	 */
-	private record ResolvedParameter(
+	public record ResolvedParameter(
 		@Nonnull Class<?> mainType,
 		@Nonnull Class<?> resolvedType
 	) {
@@ -1911,7 +1912,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param entityType     the resolved entity type
 	 * @param isGroup        whether the entity is a reference group or referenced entity itself
 	 */
-	private record RecognizedContext(
+	public record RecognizedContext(
 		@Nonnull EntityRecognizedIn recognizedIn,
 		@Nonnull ResolvedParameter entityContract,
 		@Nonnull String entityType,
