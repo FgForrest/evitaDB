@@ -623,8 +623,8 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			} else {
 				final Optional<ReferenceContract> firstReference = references.findFirst();
 				if (firstReference.isEmpty()) {
-					final Optional<?> referencedInstance = theState.getReferencedEntityObject(
-						referencedEntityType, Integer.MIN_VALUE, itemType, ProxyType.REFERENCED_ENTITY_BUILDER, ProxyType.ENTITY
+					final Optional<?> referencedInstance = theState.getReferencedEntityObjectIfPresent(
+						referencedEntityType, Integer.MIN_VALUE, itemType, ProxyType.REFERENCED_ENTITY
 					);
 					if (referencedInstance.isPresent()) {
 						return resultWrapper.apply(referencedInstance.get());
@@ -633,8 +633,8 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					}
 				} else {
 					final ReferenceContract theReference = firstReference.get();
-					final Optional<?> referencedInstance = theState.getReferencedEntityObject(
-						referencedEntityType, theReference.getReferencedPrimaryKey(), itemType, ProxyType.REFERENCED_ENTITY_BUILDER, ProxyType.ENTITY
+					final Optional<?> referencedInstance = theState.getReferencedEntityObjectIfPresent(
+						referencedEntityType, theReference.getReferencedPrimaryKey(), itemType, ProxyType.REFERENCED_ENTITY
 					);
 					if (referencedInstance.isPresent()) {
 						return resultWrapper.apply(referencedInstance.get());

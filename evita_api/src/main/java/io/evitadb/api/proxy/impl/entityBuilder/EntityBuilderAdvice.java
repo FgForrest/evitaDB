@@ -66,6 +66,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			toInstanceMethodClassification(),
 			upsertViaMethodClassification(),
 			upsertDeeplyViaMethodClassification(),
+			/* TODO JNO - support also open with mutations */
 			openForWriteMethodClassification(),
 			SetAttributeMethodClassifier.INSTANCE,
 			SetAssociatedDataMethodClassifier.INSTANCE,
@@ -89,7 +90,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityBuilderProxy(
+				proxyState.createEntityProxy(
 					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas()
 				)
 		);

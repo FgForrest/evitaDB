@@ -853,7 +853,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
 		assertActive();
 		final EntityBuilder entityBuilder = createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType));
-		return this.proxyFactory.createEntityBuilderProxy(expectedType, entityBuilder, getEntitySchemaIndex());
+		return this.proxyFactory.createEntityProxy(expectedType, entityBuilder, getEntitySchemaIndex());
 	}
 
 	@Nonnull
@@ -880,7 +880,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
 		assertActive();
 		final EntityBuilder entityBuilder = createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType), primaryKey);
-		return this.proxyFactory.createEntityBuilderProxy(expectedType, entityBuilder, getEntitySchemaIndex());
+		return this.proxyFactory.createEntityProxy(expectedType, entityBuilder, getEntitySchemaIndex());
 	}
 
 	@Nonnull

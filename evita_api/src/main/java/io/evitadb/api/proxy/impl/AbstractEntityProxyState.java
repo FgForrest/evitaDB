@@ -27,6 +27,7 @@ import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.ProxyReferenceFactory;
+import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -35,11 +36,11 @@ import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
-import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
 import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreProvider;
 
@@ -48,11 +49,17 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -61,18 +68,12 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @EqualsAndHashCode(of = {"entity", "proxyClass"})
-@RequiredArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider, ProxyFactory, ProxyReferenceFactory {
 	@Serial private static final long serialVersionUID = -6935480192166155348L;
 	/**
 	 * The sealed entity that is being proxied.
 	 */
 	@Nonnull protected final EntityContract entity;
-	/**
-	 * The index of referenced entity schemas by their type at the time the proxy was built.
-	 */
-	@Getter
-	@Nonnull protected final Map<String, EntitySchemaContract> referencedEntitySchemas;
 	/**
 	 * The class of the proxy was built upon.
 	 */
@@ -81,6 +82,11 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 * The map of recipes provided from outside that are used to build the proxy.
 	 */
 	@Nonnull protected final Map<ProxyEntityCacheKey, ProxyRecipe> recipes;
+	/**
+	 * The index of referenced entity schemas by their type at the time the proxy was built.
+	 */
+	@Getter
+	@Nonnull protected final Map<String, EntitySchemaContract> referencedEntitySchemas;
 	/**
 	 * The merged map all recipes - the ones provided from outside and the ones created with default configuration on
 	 * the fly during the proxy building.
@@ -93,11 +99,46 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	/**
 	 * Cache for the already generated proxies so that the same method call returns the same instance.
 	 */
-	@Nonnull protected transient Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> generatedProxyObjects = new ConcurrentHashMap<>();
+	@Nonnull protected transient Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> generatedProxyObjects;
 	/**
 	 * The local data store that is used to store the data that are not part of the sealed entity.
 	 */
 	private Map<String, Serializable> localDataStore;
+
+	protected AbstractEntityProxyState(
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull Class<?> proxyClass,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		this.entity = entity;
+		this.referencedEntitySchemas = referencedEntitySchemas;
+		this.proxyClass = proxyClass;
+		this.recipes = recipes;
+		this.collectedRecipes = collectedRecipes;
+		this.reflectionLookup = reflectionLookup;
+		this.generatedProxyObjects = new ConcurrentHashMap<>();
+	}
+
+	protected AbstractEntityProxyState(
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull Class<?> proxyClass,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> externalProxyObjectsCache
+	) {
+		this.entity = entity;
+		this.referencedEntitySchemas = referencedEntitySchemas;
+		this.proxyClass = proxyClass;
+		this.recipes = recipes;
+		this.collectedRecipes = collectedRecipes;
+		this.reflectionLookup = reflectionLookup;
+		this.generatedProxyObjects = externalProxyObjectsCache;
+	}
 
 	/**
 	 * Returns the sealed entity that is being proxied.
@@ -133,6 +174,7 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 
 	/**
 	 * Returns entity schema for the passed entity type.
+	 *
 	 * @param entityType name of the entity type
 	 * @return entity schema for the passed entity type or empty result
 	 */
@@ -143,6 +185,7 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 
 	/**
 	 * Returns entity schema for the passed entity type.
+	 *
 	 * @param entityType name of the entity type
 	 * @return entity schema for the passed entity type or empty result
 	 */
@@ -172,37 +215,14 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		@Nonnull EntityContract entity,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) {
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
+			createNewNonCachedEntityProxy(expectedType, entity, referencedEntitySchemas)
+		);
 		return generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), ProxyType.ENTITY),
-				key -> new ProxyWithUpsertCallback(
-					createNewNonCachedEntityProxy(expectedType, entity, referencedEntitySchemas)
-				)
+				new ProxyInstanceCacheKey(entity.getType(), entity.getPrimaryKey(), ProxyType.REFERENCED_ENTITY),
+				key -> instanceSupplier.get()
 			)
-			.proxy(expectedType)
-			.orElseThrow();
-	}
-
-	@Nonnull
-	@Override
-	public <T> T createEntityBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
-	) throws EntityClassInvalidException {
-		return generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(
-					entity.getType(),
-					ofNullable(entity.getPrimaryKey()).orElse(Integer.MIN_VALUE),
-					ProxyType.ENTITY_BUILDER
-				),
-				key -> new ProxyWithUpsertCallback(
-					ProxycianFactory.createEntityBuilderProxy(
-						expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup()
-					)
-				)
-			)
-			.proxy(expectedType)
-			.orElseThrow();
+			.proxy(expectedType, instanceSupplier);
 	}
 
 	@Nonnull
@@ -223,7 +243,7 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		//noinspection DataFlowIssue,unchecked
 		return (T) ProxycianFactory.createEntityProxy(
 			getProxyClass(), recipes, collectedRecipes, entity, referencedEntitySchemas, getReflectionLookup(),
-			stateClone -> stateClone.registerReferencedEntityObjects(this.generatedProxyObjects)
+			stateClone -> stateClone.registerReferencedInstancesObjects(this.generatedProxyObjects)
 		);
 	}
 
@@ -235,7 +255,8 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		@Nonnull ReferenceContract reference
 	) {
 		return ProxycianFactory.createEntityReferenceProxy(
-			expectedType, recipes, collectedRecipes, entity,referencedEntitySchemas, reference, getReflectionLookup()
+			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup(),
+			this.generatedProxyObjects
 		);
 	}
 
@@ -250,29 +271,32 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
 	@Nonnull
-	public <T> T createEntityBuilderProxyWithCallback(
+	public <T> T createEntityProxyWithCallback(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull Class<T> expectedType,
 		@Nonnull ProxyType proxyType,
 		@Nonnull Consumer<EntityReference> callback
 	) throws EntityClassInvalidException {
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
+			final InitialEntityBuilder entityBuilder = new InitialEntityBuilder(entitySchema);
+			return new ProxyWithUpsertCallback(
+				ProxycianFactory.createEntityProxy(
+					expectedType, recipes, collectedRecipes,
+					entityBuilder, referencedEntitySchemas,
+					getReflectionLookup()
+				),
+				callback
+			);
+		};
 		return generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(entitySchema.getName(), Integer.MIN_VALUE, proxyType),
-				key -> {
-					final InitialEntityBuilder entityBuilder = new InitialEntityBuilder(entitySchema);
-					return new ProxyWithUpsertCallback(
-						ProxycianFactory.createEntityBuilderProxy(
-							expectedType, recipes, collectedRecipes,
-							entityBuilder, referencedEntitySchemas,
-							getReflectionLookup()
-						),
-						callback
-					);
-				}
+				key -> instanceSupplier.get()
 			)
-			.proxy(expectedType)
-			.orElseThrow();
+			.proxy(
+				expectedType,
+				instanceSupplier
+			);
 	}
 
 	@Override
@@ -283,36 +307,20 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference
 	) {
+		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
+			ProxycianFactory.createEntityReferenceProxy(
+				expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup(),
+				this.generatedProxyObjects
+			)
+		);
 		return generatedProxyObjects.computeIfAbsent(
 				new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE),
-				key -> new ProxyWithUpsertCallback(
-					ProxycianFactory.createEntityReferenceProxy(
-						expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup()
-					)
-				)
+				key -> instanceSupplier.get()
 			)
-			.proxy(expectedType)
-			.orElseThrow();
-	}
-
-	@Nonnull
-	@Override
-	public <T> T createEntityReferenceBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-		@Nonnull ReferenceContract reference
-	) throws EntityClassInvalidException {
-		return generatedProxyObjects.computeIfAbsent(
-				new ProxyInstanceCacheKey(reference.getReferenceName(), reference.getReferencedPrimaryKey(), ProxyType.REFERENCE_BUILDER),
-				key -> new ProxyWithUpsertCallback(
-					ProxycianFactory.createEntityBuilderReferenceProxy(
-						expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup()
-					)
-				)
-			)
-			.proxy(expectedType)
-			.orElseThrow();
+			.proxy(
+				expectedType,
+				instanceSupplier
+			);
 	}
 
 	/**
@@ -337,7 +345,12 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		);
 	}
 
-	void registerReferencedEntityObjects(@Nonnull Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> generatedProxyObjects) {
+	/**
+	 * Method propagates references to the referenced instances to the {@link #generatedProxyObjects} cache of this state.
+	 *
+	 * @param generatedProxyObjects from previous state
+	 */
+	void registerReferencedInstancesObjects(@Nonnull Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> generatedProxyObjects) {
 		this.generatedProxyObjects.putAll(generatedProxyObjects);
 	}
 
@@ -372,27 +385,65 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	 * mutations are persisted via. {@link io.evitadb.api.EvitaSessionContract#upsertEntity(EntityMutation)}. If there
 	 * is no need to invoke any callback, the {@link #DO_NOTHING_CALLBACK} is used.
 	 */
-	protected record ProxyWithUpsertCallback(
-		@Nonnull Object proxyOfAnyType,
-		@Nonnull Consumer<EntityReference> callback
-	) {
-
+	protected static class ProxyWithUpsertCallback {
 		private static final Consumer<EntityReference> DO_NOTHING_CALLBACK = entityReference -> {
 		};
+		@Nonnull private final List<Object> proxies;
+		@Nonnull private Consumer<EntityReference> callback;
+
+		public ProxyWithUpsertCallback(@Nonnull Object proxy, @Nonnull Consumer<EntityReference> callback) {
+			this.proxies = new LinkedList<>();
+			this.proxies.add(proxy);
+			this.callback = callback;
+		}
 
 		public ProxyWithUpsertCallback(@Nonnull Object proxy) {
 			this(proxy, DO_NOTHING_CALLBACK);
 		}
 
-		@SuppressWarnings("unchecked")
 		@Nonnull
-		public <T> Optional<T> proxy(@Nonnull Class<T> classToImplement) {
-			if (classToImplement.isInstance(proxyOfAnyType)) {
-				return Optional.of((T) proxyOfAnyType);
-			}
-			return Optional.empty();
+		public Consumer<EntityReference> callback() {
+			return callback;
 		}
 
+		@SuppressWarnings("unchecked")
+		@Nonnull
+		public <T> T proxy(@Nonnull Class<T> classToImplement, @Nonnull Supplier<ProxyWithUpsertCallback> newInstanceSupplier) {
+			for (Object proxy : proxies) {
+				if (classToImplement.isInstance(proxy)) {
+					return (T) proxy;
+				}
+			}
+			final ProxyWithUpsertCallback newInstance = newInstanceSupplier.get();
+			final T proxy = newInstance.proxy(
+				classToImplement,
+				() -> {
+					throw new EvitaInternalError("Should not happen - the supplier should provide correct type!");
+				}
+			);
+			this.proxies.add(proxy);
+			if (newInstance.callback != DO_NOTHING_CALLBACK) {
+				Assert.isTrue(this.callback == DO_NOTHING_CALLBACK, "Cannot merge two callbacks");
+				this.callback = newInstance.callback;
+			}
+			return proxy;
+		}
+
+		@SuppressWarnings("unchecked")
+		@Nonnull
+		public <T> Optional<? extends T> proxyIfPossible(@Nonnull Class<T> classToImplement) {
+			for (Object proxy : proxies) {
+				if (classToImplement.isInstance(proxy)) {
+					return of((T) proxy);
+				}
+			}
+			return empty();
+		}
+
+		@Nonnull
+		public Stream<SealedEntityProxy> getSealedEntityProxies() {
+			return proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
+		}
 	}
 
 }

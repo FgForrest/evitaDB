@@ -65,7 +65,6 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 	@SuppressWarnings("unchecked")
 	private static final List<MethodClassification<?, SealedEntityReferenceProxy>> METHOD_CLASSIFICATION = Arrays.asList(
 		new MethodClassification[]{
-			/* TODO JNO - tohle zvalidovat, jeslti je korektní */
 			getContractMethodClassification(),
 			toMutationMethodClassification(),
 			toInstanceMethodClassification(),
@@ -90,7 +89,7 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 				}
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
-				proxyState.createEntityReferenceBuilderProxy(
+				proxyState.createEntityReferenceProxy(
 					methodContext, proxyState.getEntity(), proxyState.getReferencedEntitySchemas(), proxyState.getReference()
 				)
 		);

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 
@@ -31,7 +32,7 @@ import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductParameterInterfaceEditor extends ProductParameterInterface {
+public interface ProductParameterInterfaceEditor extends ProductParameterInterface, InstanceEditor<ProductParameterInterface> {
 
 	void setPriority(Long priority);
 

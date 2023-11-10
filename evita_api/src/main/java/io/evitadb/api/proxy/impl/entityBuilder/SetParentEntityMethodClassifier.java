@@ -261,7 +261,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 				entityBuilder.removeParent();
 			} else {
 				entityBuilder.setParent(parent.getPrimaryKey());
-				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT_BUILDER);
+				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
 			}
 			return proxy;
 		};
@@ -280,9 +280,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Serializable referencedEntityInstance = theState.createReferencedEntityBuilderProxyWithCallback(
+			final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
 				theState.getEntitySchema(), expectedType,
-				ProxyType.PARENT_BUILDER,
+				ProxyType.PARENT,
 				entityReference -> entityBuilder.setParent(entityReference.getPrimaryKey())
 			);
 			//noinspection unchecked
@@ -305,9 +305,9 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Serializable referencedEntityInstance = theState.createReferencedEntityBuilderProxyWithCallback(
+			final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
 				theState.getEntitySchema(), expectedType,
-				ProxyType.PARENT_BUILDER,
+				ProxyType.PARENT,
 				entityReference -> entityBuilder.setParent(entityReference.getPrimaryKey())
 			);
 			//noinspection unchecked
@@ -333,8 +333,8 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
-				theState.getEntitySchema(), expectedType, ProxyType.PARENT_BUILDER, parentId
+			final Serializable referencedEntityInstance = theState.createEntityReferenceProxy(
+				theState.getEntitySchema(), expectedType, ProxyType.PARENT, parentId
 			);
 			entityBuilder.setParent(parentId);
 			//noinspection unchecked
@@ -360,8 +360,8 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
-				theState.getEntitySchema(), expectedType, ProxyType.PARENT_BUILDER, parentId
+			final Serializable referencedEntityInstance = theState.createEntityReferenceProxy(
+				theState.getEntitySchema(), expectedType, ProxyType.PARENT, parentId
 			);
 			entityBuilder.setParent(parentId);
 			//noinspection unchecked
@@ -460,11 +460,11 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 			if (parentEntity.isPresent()) {
 				final Optional<EntityClassifierWithParent> theParentEntity = parentEntity.get().getParentEntity();
 				entityBuilder.removeParent();
-				final Optional<Object> referencedEntityObject = theState.getReferencedEntityObject(
+				final Optional<Object> referencedEntityObject = theState.getReferencedEntityObjectIfPresent(
 					theState.getType(),
 					parentEntity.get().getPrimaryKey(),
 					expectedType,
-					ProxyType.PARENT_BUILDER, ProxyType.PARENT
+					ProxyType.PARENT
 				);
 				return referencedEntityObject
 					.orElseGet(() -> {

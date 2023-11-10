@@ -23,6 +23,7 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
@@ -33,7 +34,7 @@ import java.util.Locale;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductCategoryInterfaceEditor extends ProductCategoryInterface {
+public interface ProductCategoryInterfaceEditor extends ProductCategoryInterface, InstanceEditor<ProductCategoryInterface> {
 
 	ProductCategoryInterfaceEditor setOrderInCategory(@Nonnull Long orderInCategory);
 

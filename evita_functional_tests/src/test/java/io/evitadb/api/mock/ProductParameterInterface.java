@@ -27,12 +27,14 @@ import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.test.generator.DataGenerator;
 
+import java.io.Serializable;
+
 /**
  * Example interface mapping a product parameter reference.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductParameterInterface {
+public interface ProductParameterInterface extends Serializable {
 
 	@ReferencedEntity
 	int getPrimaryKey();

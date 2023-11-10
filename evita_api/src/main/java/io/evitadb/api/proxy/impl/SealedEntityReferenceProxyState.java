@@ -69,9 +69,10 @@ public class SealedEntityReferenceProxyState
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
 	) {
-		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup);
+		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup, entityInstanceCache);
 		this.reference = reference;
 	}
 
@@ -102,14 +103,15 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public Optional<ReferenceBuilder> getReferenceBuilderIfPresent() {
-		return Optional.of(referenceBuilder)
+		return Optional.ofNullable(referenceBuilder)
 			.filter(ReferenceBuilder::hasChanges);
 	}
 
 	@Override
 	@Nonnull
 	public ReferenceContract getReference() {
-		return reference;
+		return this.referenceBuilder == null ?
+			this.reference : this.referenceBuilder;
 	}
 
 	@Nonnull

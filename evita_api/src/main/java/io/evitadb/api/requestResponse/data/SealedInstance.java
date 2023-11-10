@@ -42,7 +42,7 @@ import java.util.Collection;
  */
 @ThreadSafe
 @Immutable
-public interface SealedInstance<S extends Serializable, T extends InstanceEditor<S>> {
+public interface SealedInstance<READ_INTERFACE extends Serializable, WRITE_INTERFACE extends InstanceEditor<READ_INTERFACE>> {
 
 	/**
 	 * Opens entity for update - returns {@link InstanceEditor} that allows modification of the entity internals and
@@ -52,7 +52,7 @@ public interface SealedInstance<S extends Serializable, T extends InstanceEditor
 	 * the version that is represented by this sealed entity.
 	 */
 	@Nonnull
-	T openForWrite();
+	WRITE_INTERFACE openForWrite();
 
 	/**
 	 * Opens entity for update - returns {@link InstanceEditor} and incorporates the passed array of `localMutations`
@@ -63,7 +63,7 @@ public interface SealedInstance<S extends Serializable, T extends InstanceEditor
 	 * the version that is represented by this sealed entity.
 	 */
 	@Nonnull
-	T withMutations(@Nonnull LocalMutation<?, ?>... localMutations);
+	WRITE_INTERFACE withMutations(@Nonnull LocalMutation<?, ?>... localMutations);
 
 	/**
 	 * Opens entity for update - returns {@link InstanceEditor} and incorporates the passed collection of `localMutations`
@@ -74,6 +74,6 @@ public interface SealedInstance<S extends Serializable, T extends InstanceEditor
 	 * the version that is represented by this sealed entity.
 	 */
 	@Nonnull
-	T withMutations(@Nonnull Collection<LocalMutation<?, ?>> localMutations);
+	WRITE_INTERFACE withMutations(@Nonnull Collection<LocalMutation<?, ?>> localMutations);
 
 }

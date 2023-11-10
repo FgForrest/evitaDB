@@ -61,24 +61,4 @@ public interface ProxyReferenceFactory {
 		@Nonnull ReferenceContract reference
 	) throws EntityClassInvalidException;
 
-	/**
-	 * Creates proxy instance of entity builder that implements `expectedType` contract. Entity proxy respects
-	 * request context used in the query that fetched {@link SealedEntity}.
-	 *
-	 * @param expectedType            contract that the proxy should implement
-	 * @param entity                  owner entity
-	 * @param referencedEntitySchemas the entity schemas of entities that might be referenced by the reference schema
-	 * @param reference               reference instance to create proxy for
-	 * @param <T>                     type of contract that the proxy should implement
-	 * @return proxy instance of sealed entity
-	 * @throws EntityClassInvalidException if the proxy contract is not valid
-	 */
-	@Nonnull
-	<T> T createEntityReferenceBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-		@Nonnull ReferenceContract reference
-	) throws EntityClassInvalidException;
-
 }

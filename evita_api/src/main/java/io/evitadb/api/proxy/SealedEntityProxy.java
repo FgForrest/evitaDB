@@ -93,24 +93,20 @@ public interface SealedEntityProxy extends EvitaProxy {
 	 * @param proxyType            set of logical types to be searched for the proxy instance
 	 */
 	@Nonnull
-	<T> Optional<T> getReferencedEntityObject(
+	<T> Optional<T> getReferencedEntityObjectIfPresent(
 		@Nonnull String referencedEntityType,
 		int referencedPrimaryKey,
 		@Nonnull Class<T> expectedType,
-		@Nonnull ProxyType... proxyType
+		@Nonnull ProxyType proxyType
 	);
 
 	/**
 	 * Types of generated proxies.
 	 */
 	enum ProxyType {
-		ENTITY,
-		ENTITY_BUILDER,
 		PARENT,
-		PARENT_BUILDER,
 		REFERENCE,
-		REFERENCE_BUILDER,
-		REFERENCED_ENTITY_BUILDER
+		REFERENCED_ENTITY
 	}
 
 	/**

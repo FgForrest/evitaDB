@@ -143,7 +143,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 			return resultWrapper.apply(
 				parentEntityExtractor.apply(sealedEntity)
 					.map(
-						it -> theState.getReferencedEntityObject(sealedEntity.getType(), it.getPrimaryKey(), expectedType, ProxyType.PARENT, ProxyType.PARENT_BUILDER)
+						it -> theState.getReferencedEntityObjectIfPresent(sealedEntity.getType(), it.getPrimaryKey(), expectedType, ProxyType.PARENT)
 							.orElseGet(() -> new EntityReference(sealedEntity.getType(), it.getPrimaryKey()))
 					)
 					.orElse(null)
@@ -248,7 +248,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				} else {
 					//noinspection unchecked
 					final BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> simpleCachedParentEntityExtractor = (sealedEntity, sealedEntityProxyState) -> sealedEntity.getParentEntity()
-						.map(parent -> sealedEntityProxyState.getReferencedEntityObject(expectedParentEntityType, parent.getPrimaryKey(), valueType, ProxyType.PARENT, ProxyType.PARENT_BUILDER)
+						.map(parent -> sealedEntityProxyState.getReferencedEntityObjectIfPresent(expectedParentEntityType, parent.getPrimaryKey(), valueType, ProxyType.PARENT)
 							.orElse(parent));
 					final BiFunction<EntityContract, SealedEntityProxyState, Optional<?>> cachedParentEntityExtractor =
 						resultWrapper instanceof OptionalProducingOperator ?

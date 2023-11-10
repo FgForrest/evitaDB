@@ -682,7 +682,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
-		return proxyFactory.createEntityBuilderProxy(
+		return proxyFactory.createEntityProxy(
 			expectedType,
 			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)),
 			getEntitySchemaIndex()
@@ -702,7 +702,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
-		return proxyFactory.createEntityBuilderProxy(
+		return proxyFactory.createEntityProxy(
 			expectedType,
 			createNewEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType), primaryKey),
 			getEntitySchemaIndex()
@@ -712,7 +712,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
-		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+		if (customEntity instanceof InstanceEditor<?> ie) {
 			return ie.toMutation()
 				.map(this::upsertEntity)
 				.orElseGet(() -> {

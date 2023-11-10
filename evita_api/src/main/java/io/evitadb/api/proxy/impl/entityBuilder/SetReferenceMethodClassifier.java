@@ -238,12 +238,12 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				.getReference(referenceName, referencedId);
 			final Object referenceProxy = reference
 				.map(
-					referenceContract -> theState.createEntityReferenceBuilderProxy(
+					referenceContract -> theState.createEntityReferenceProxy(
 						expectedType, theState.getEntity(), theState.getReferencedEntitySchemas(), referenceContract
 					)
 				).orElseGet(
-					() -> theState.createEntityReferenceBuilderProxy(
-						theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE_BUILDER,
+					() -> theState.createEntityReferenceProxy(
+						theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE,
 						referencedId
 					)
 				);
@@ -278,12 +278,12 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final Optional<ReferenceContract> reference = theState.getEntityBuilder()
 				.getReference(referenceName, referencedId);
 			final Object referenceProxy = reference.map(
-				referenceContract -> theState.createEntityReferenceBuilderProxy(
+				referenceContract -> theState.createEntityReferenceProxy(
 					expectedType, theState.getEntity(), theState.getReferencedEntitySchemas(), referenceContract
 				)
 			).orElseGet(
-				() -> theState.createEntityReferenceBuilderProxy(
-					theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE_BUILDER,
+				() -> theState.createEntityReferenceProxy(
+					theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE,
 					referencedId
 				)
 			);
@@ -321,7 +321,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (reference.isEmpty()) {
 				throw new ReferenceNotFoundException(referenceName, referencedId, theState.getEntity());
 			} else {
-				referenceProxy = theState.createEntityReferenceBuilderProxy(
+				referenceProxy = theState.createEntityReferenceProxy(
 					expectedType, theState.getEntity(), theState.getReferencedEntitySchemas(), reference.get()
 				);
 			}
@@ -359,7 +359,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (reference.isEmpty()) {
 				throw new ReferenceNotFoundException(referenceName, referencedId, theState.getEntity());
 			} else {
-				referenceProxy = theState.createEntityReferenceBuilderProxy(
+				referenceProxy = theState.createEntityReferenceProxy(
 					expectedType, theState.getEntity(), theState.getReferencedEntitySchemas(), reference.get()
 				);
 			}
@@ -390,11 +390,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
-			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
+			final Object referencedEntityInstance = theState.createEntityReferenceProxy(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
-				ProxyType.REFERENCE_BUILDER,
+				ProxyType.REFERENCE,
 				referencedId
 			);
 			entityBuilder.setReference(referenceSchema.getName(), referencedId);
@@ -425,11 +425,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
-			final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
+			final Object referencedEntityInstance = theState.createEntityReferenceProxy(
 				theState.getEntitySchema(),
 				referenceSchema,
 				expectedType,
-				ProxyType.REFERENCE_BUILDER,
+				ProxyType.REFERENCE,
 				referencedId
 			);
 			entityBuilder.setReference(referenceSchema.getName(), referencedId);
@@ -457,11 +457,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Object referencedEntityInstance = theState.createEntityBuilderProxyWithCallback(
+			final Object referencedEntityInstance = theState.createEntityProxyWithCallback(
 				referencedEntitySchema,
 				theState.getReferencedEntitySchemas(),
 				expectedType,
-				ProxyType.REFERENCED_ENTITY_BUILDER,
+				ProxyType.REFERENCED_ENTITY,
 				entityReference -> entityBuilder.setReference(referenceSchema.getName(), entityReference.getPrimaryKey())
 			);
 			//noinspection unchecked
@@ -487,11 +487,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Object referencedEntityInstance = theState.createEntityBuilderProxyWithCallback(
+			final Object referencedEntityInstance = theState.createEntityProxyWithCallback(
 				referencedEntitySchema,
 				theState.getReferencedEntitySchemas(),
 				expectedType,
-				ProxyType.REFERENCED_ENTITY_BUILDER,
+				ProxyType.REFERENCED_ENTITY,
 				entityReference -> entityBuilder.setReference(referenceSchema.getName(), entityReference.getPrimaryKey())
 			);
 			//noinspection unchecked
@@ -521,7 +521,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (references.isEmpty()) {
 				throw ContextMissingException.referenceContextMissing(referenceSchema.getName());
 			} else {
-				final Object referencedEntityInstance = theState.createEntityBuilderProxy(
+				final Object referencedEntityInstance = theState.createEntityProxy(
 					expectedType,
 					references.iterator().next().getReferencedEntity()
 						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(entityBuilder.getType(), referenceSchema.getName())),
@@ -554,7 +554,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			if (references.isEmpty()) {
 				throw ContextMissingException.referenceContextMissing(referenceSchema.getName());
 			} else {
-				final Object referencedEntityInstance = theState.createEntityBuilderProxy(
+				final Object referencedEntityInstance = theState.createEntityProxy(
 					expectedType,
 					references.iterator().next().getReferencedEntity()
 						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(entityBuilder.getType(), referenceSchema.getName())),
@@ -588,8 +588,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final Collection<ReferenceContract> references = theState.getEntityBuilder()
 				.getReferences(referenceName);
 			if (references.isEmpty()) {
-				return theState.createEntityReferenceBuilderProxy(
-					theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE_BUILDER,
+				return theState.createEntityReferenceProxy(
+					theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE,
 					referencedId
 				);
 			} else {
@@ -627,15 +627,15 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final Collection<ReferenceContract> references = theState.getEntityBuilder()
 				.getReferences(referenceName);
 			if (references.isEmpty()) {
-				return theState.createReferencedEntityBuilderProxyWithCallback(
-					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType, ProxyType.REFERENCED_ENTITY_BUILDER,
+				return theState.createReferencedEntityProxyWithCallback(
+					theState.getEntitySchemaOrThrow(referencedEntityType), expectedType, ProxyType.REFERENCED_ENTITY,
 					entityReference -> theState.getEntityBuilder().setReference(referenceName, entityReference.primaryKey())
 				);
 			} else {
 				final ReferenceContract firstReference = references.iterator().next();
-				final Optional<?> referencedInstance = theState.getReferencedEntityObject(
+				final Optional<?> referencedInstance = theState.getReferencedEntityObjectIfPresent(
 					referencedEntityType, firstReference.getReferencedPrimaryKey(),
-					expectedType, ProxyType.REFERENCED_ENTITY_BUILDER, ProxyType.ENTITY
+					expectedType, ProxyType.REFERENCED_ENTITY
 				);
 				if (referencedInstance.isPresent()) {
 					return referencedInstance.get();
@@ -1162,7 +1162,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			);
 			final Integer primaryKey = sealedEntity.getPrimaryKey();
 			entityBuilder.setReference(referenceName, primaryKey);
-			theState.registerReferencedEntityObject(expectedEntityType, primaryKey, referencedEntity, ProxyType.ENTITY);
+			theState.registerReferencedEntityObject(expectedEntityType, primaryKey, referencedEntity, ProxyType.REFERENCED_ENTITY);
 			return proxy;
 		};
 	}
@@ -1524,11 +1524,11 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.getEntityBuilder();
 				final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
-				final Object referencedEntityInstance = theState.createEntityReferenceBuilderProxy(
+				final Object referencedEntityInstance = theState.createEntityReferenceProxy(
 					theState.getEntitySchema(),
 					referenceSchema,
 					expectedType,
-					ProxyType.REFERENCE_BUILDER,
+					ProxyType.REFERENCE,
 					referencedId
 				);
 				entityBuilder.setReference(referenceSchema.getName(), referencedId);

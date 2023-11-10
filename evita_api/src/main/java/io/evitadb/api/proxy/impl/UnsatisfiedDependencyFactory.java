@@ -61,14 +61,5 @@ public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	) throws EntityClassInvalidException {
 		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
 	}
-
-	@Nonnull
-	@Override
-	public <T> T createEntityBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
-	) throws EntityClassInvalidException {
-		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
-	}
+	
 }

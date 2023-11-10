@@ -54,6 +54,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
@@ -65,8 +66,6 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies the ability to proxy an entity into an arbitrary interface.
- *
- * TODO JNO - otestovat úpravu atributu na referenci
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -1301,6 +1300,129 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());
+			}
+		);
+	}
+
+	@DisplayName("Should modify attribute on reference in isolated editor")
+	@Order(21)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldIsolateMutationsInSeparatedEditors(EvitaContract evita) {
+		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+			.orElseGet(() -> {
+				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
+				return getProductByCode(evita, "product-6").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor product6 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final List<Long> originalPriorities = product6.getProductCategoriesAsList()
+					.stream()
+					.map(ProductCategoryInterface::getOrderInCategory)
+					.toList();
+
+				final List<ProductCategoryInterfaceEditor> editors = product6.getProductCategoriesAsList()
+					.stream()
+					.map(it -> {
+						final ProductCategoryInterfaceEditor editor = it.openForWrite();
+						editor.setOrderInCategory(it.getOrderInCategory() << 1);
+						return editor;
+					})
+					.toList();
+
+				final Optional<EntityMutation> mutation = product6.toMutation();
+				assertFalse(mutation.isPresent());
+
+				for (ProductCategoryInterfaceEditor editor : editors) {
+					final Optional<EntityMutation> editorMutation = editor.toMutation();
+					assertTrue(editorMutation.isPresent());
+					assertEquals(1, editorMutation.get().getLocalMutations().size());
+				}
+
+				final ProductInterface modifiedInstance = product6.toInstance();
+				final Iterator<Long> priorityIt = originalPriorities.iterator();
+
+				modifiedInstance.getProductCategories()
+					.forEach(it -> assertEquals(priorityIt.next(), it.getOrderInCategory()));
+
+				product6.upsertDeeplyVia(evitaSession);
+
+				final SealedEntity storedProduct = evitaSession.getEntity(
+					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Iterator<Long> priorityItAgain = originalPriorities.iterator();
+				for (ReferenceContract reference : storedProduct.getReferences(Entities.CATEGORY)) {
+					assertEquals(priorityItAgain.next(), reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
+				}
+
+				for (ProductCategoryInterfaceEditor editor : editors) {
+					evitaSession.upsertEntity(editor);
+				}
+
+				final SealedEntity storedProductAgain = evitaSession.getEntity(
+					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Iterator<Long> priorityItAgainAndAgain = originalPriorities.iterator();
+				for (ReferenceContract reference : storedProductAgain.getReferences(Entities.CATEGORY)) {
+					assertEquals(
+						priorityItAgainAndAgain.next() << 1,
+						reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class)
+					);
+				}
+			}
+		);
+	}
+
+	@DisplayName("Should modify attribute on reference in shared editor")
+	@Order(22)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldShareReferenceMutationsInSharedEditor(EvitaContract evita) {
+		final EntityReference product6Ref = getProductByCode(evita, "product-6")
+			.orElseGet(() -> {
+				shouldCreateNewCustomProductWithNewBrandViaConsumer(evita);
+				return getProductByCode(evita, "product-6").orElseThrow();
+			});
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor product6 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final ProductParameterInterfaceEditor editor = product6.getOrCreateParameter(1);
+				editor.setPriority(80L);
+				assertEquals(80L, editor.getPriority());
+
+				final Optional<EntityMutation> mutation = product6.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(1, mutation.get().getLocalMutations().size());
+
+				final Optional<EntityMutation> editorMutation = editor.toMutation();
+				assertTrue(editorMutation.isPresent());
+				assertEquals(1, editorMutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product6.toInstance();
+				assertEquals(80L, modifiedInstance.getParameter().getPriority());
+
+				product6.upsertDeeplyVia(evitaSession);
+
+				final SealedEntity storedProduct = evitaSession.getEntity(
+					Entities.PRODUCT, product6Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				for (ReferenceContract reference : storedProduct.getReferences(Entities.PARAMETER)) {
+					assertEquals(80L, reference.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class));
+				}
 			}
 		);
 	}

@@ -28,6 +28,8 @@ import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.ProxyReferenceFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
+import io.evitadb.api.proxy.impl.AbstractEntityProxyState.ProxyInstanceCacheKey;
+import io.evitadb.api.proxy.impl.AbstractEntityProxyState.ProxyWithUpsertCallback;
 import io.evitadb.api.proxy.impl.entity.EntityContractAdvice;
 import io.evitadb.api.proxy.impl.entity.GetAssociatedDataMethodClassifier;
 import io.evitadb.api.proxy.impl.entity.GetAttributeMethodClassifier;
@@ -90,7 +92,8 @@ public class ProxycianFactory implements ProxyFactory {
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
 			LocalDataStoreAdvice.INSTANCE,
-			EntityContractAdvice.INSTANCE
+			EntityContractAdvice.INSTANCE,
+			EntityBuilderAdvice.INSTANCE
 		}
 	);
 
@@ -98,31 +101,6 @@ public class ProxycianFactory implements ProxyFactory {
 	 * Function that creates a default {@link ProxyRecipe} for an entity reference.
 	 */
 	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
-		new Class<?>[]{cacheKey.type()},
-		new Advice[]{
-			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
-			LocalDataStoreAdvice.INSTANCE,
-			EntityReferenceContractAdvice.INSTANCE
-		}
-	);
-
-	/**
-	 * Function that creates a default {@link ProxyRecipe} for an entity builder.
-	 */
-	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_BUILDER_RECIPE = cacheKey -> new ProxyRecipe(
-		new Class<?>[]{cacheKey.type()},
-		new Advice[]{
-			new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
-			LocalDataStoreAdvice.INSTANCE,
-			EntityContractAdvice.INSTANCE,
-			EntityBuilderAdvice.INSTANCE
-		}
-	);
-
-	/**
-	 * Function that creates a default {@link ProxyRecipe} for an entity builder reference.
-	 */
-	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_BUILDER_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
 		new Class<?>[]{cacheKey.type()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
@@ -172,24 +150,6 @@ public class ProxycianFactory implements ProxyFactory {
 	/**
 	 * Creates a new proxy instance for passed {@link EntityContract} instance.
 	 */
-	static <T> T createEntityBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-		@Nonnull ReflectionLookup reflectionLookup
-	) {
-		return createProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup,
-			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_BUILDER_RECIPE),
-			null
-		);
-	}
-
-	/**
-	 * Creates a new proxy instance for passed {@link EntityContract} instance.
-	 */
 	static <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
@@ -202,25 +162,6 @@ public class ProxycianFactory implements ProxyFactory {
 		return createProxy(
 			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup,
 			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_RECIPE),
-			stateInitializer
-		);
-	}
-
-	/**
-	 * Creates a new proxy instance for passed {@link EntityContract} instance.
-	 */
-	static <T> T createEntityBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-		@Nonnull ReflectionLookup reflectionLookup,
-		@Nullable Consumer<SealedEntityProxyState> stateInitializer
-	) {
-		return createProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup,
-			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_BUILDER_RECIPE),
 			stateInitializer
 		);
 	}
@@ -306,29 +247,13 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull EntityContract entity,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> instanceCache
 	) {
 		return createReferenceProxy(
 			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup,
-			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE)
-		);
-	}
-
-	/**
-	 * Creates a new proxy instance for passed {@link EntityContract} and {@link ReferenceContract} instance.
-	 */
-	static <T> T createEntityBuilderReferenceProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-		@Nonnull ReferenceContract reference,
-		@Nonnull ReflectionLookup reflectionLookup
-	) {
-		return createReferenceProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup,
-			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_BUILDER_REFERENCE_RECIPE)
+			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE),
+			instanceCache
 		);
 	}
 
@@ -343,7 +268,8 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
 		@Nonnull ReflectionLookup reflectionLookup,
-		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator
+		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator,
+		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> instanceCache
 	) {
 		try {
 			if (expectedType.isRecord()) {
@@ -362,7 +288,8 @@ public class ProxycianFactory implements ProxyFactory {
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
-							entity, referencedEntitySchemas, reference, expectedType, recipes, collectedRecipes, reflectionLookup
+							entity, referencedEntitySchemas, reference, expectedType, recipes, collectedRecipes, reflectionLookup,
+							instanceCache
 						)
 					);
 				} else if (isAbstract(expectedType)) {
@@ -376,7 +303,8 @@ public class ProxycianFactory implements ProxyFactory {
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
-							entity, referencedEntitySchemas, reference, expectedType, recipes, collectedRecipes, reflectionLookup
+							entity, referencedEntitySchemas, reference, expectedType, recipes, collectedRecipes, reflectionLookup,
+							instanceCache
 						),
 						bestMatchingConstructor.constructor().getParameterTypes(),
 						bestMatchingConstructor.constructorArguments(entity, reference)
@@ -681,16 +609,6 @@ public class ProxycianFactory implements ProxyFactory {
 		return createEntityProxy(expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup);
 	}
 
-	@Nonnull
-	@Override
-	public <T> T createEntityBuilderProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull EntityContract entity,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
-	) throws EntityClassInvalidException {
-		return createEntityBuilderProxy(expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup);
-	}
-
 	/**
 	 * DTO for storing constructor and constructor argument value extraction lambda.
 	 *
@@ -778,16 +696,6 @@ public class ProxycianFactory implements ProxyFactory {
 			return ProxycianFactory.createEntityProxy(expectedType, recipes, collectedRecipes, entityContract, referencedEntitySchemas, reflectionLookup);
 		}
 
-		@Nonnull
-		@Override
-		public <T> T createEntityBuilderProxy(
-			@Nonnull Class<T> expectedType,
-			@Nonnull EntityContract entity,
-			@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
-		) throws EntityClassInvalidException {
-			return ProxycianFactory.createEntityBuilderProxy(expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reflectionLookup);
-		}
-
 	}
 
 	/**
@@ -808,21 +716,10 @@ public class ProxycianFactory implements ProxyFactory {
 			@Nonnull ReferenceContract reference
 		) throws EntityClassInvalidException {
 			return ProxycianFactory.createEntityReferenceProxy(
-				expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup
+				expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup,
+				null
 			);
 		}
 
-		@Nonnull
-		@Override
-		public <T> T createEntityReferenceBuilderProxy(
-			@Nonnull Class<T> expectedType,
-			@Nonnull EntityContract entity,
-			@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-			@Nonnull ReferenceContract reference
-		) throws EntityClassInvalidException {
-			return ProxycianFactory.createEntityBuilderReferenceProxy(
-				expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup
-			);
-		}
 	}
 }

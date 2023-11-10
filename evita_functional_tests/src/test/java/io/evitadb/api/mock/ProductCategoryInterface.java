@@ -24,12 +24,14 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.generator.DataGenerator;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -40,7 +42,7 @@ import java.util.OptionalLong;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductCategoryInterface {
+public interface ProductCategoryInterface extends Serializable, SealedInstance<ProductCategoryInterface, ProductCategoryInterfaceEditor> {
 
 	@ReferencedEntity
 	int getPrimaryKey();
