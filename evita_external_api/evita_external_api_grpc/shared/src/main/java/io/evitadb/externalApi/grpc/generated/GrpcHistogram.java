@@ -209,6 +209,16 @@ private static final long serialVersionUID = 0L;
      * @return The occurrences.
      */
     int getOccurrences();
+
+    /**
+     * <pre>
+     * Contains true if the `bucket` is overlapping the attribute between filtering constraint
+     * </pre>
+     *
+     * <code>bool requested = 4;</code>
+     * @return The requested.
+     */
+    boolean getRequested();
   }
   /**
    * <pre>
@@ -280,6 +290,11 @@ private static final long serialVersionUID = 0L;
             case 24: {
 
               occurrences_ = input.readInt32();
+              break;
+            }
+            case 32: {
+
+              requested_ = input.readBool();
               break;
             }
             default: {
@@ -384,6 +399,21 @@ private static final long serialVersionUID = 0L;
       return occurrences_;
     }
 
+    public static final int REQUESTED_FIELD_NUMBER = 4;
+    private boolean requested_;
+    /**
+     * <pre>
+     * Contains true if the `bucket` is overlapping the attribute between filtering constraint
+     * </pre>
+     *
+     * <code>bool requested = 4;</code>
+     * @return The requested.
+     */
+    @java.lang.Override
+    public boolean getRequested() {
+      return requested_;
+    }
+
     private byte memoizedIsInitialized = -1;
     @java.lang.Override
     public final boolean isInitialized() {
@@ -407,6 +437,9 @@ private static final long serialVersionUID = 0L;
       if (occurrences_ != 0) {
         output.writeInt32(3, occurrences_);
       }
+      if (requested_ != false) {
+        output.writeBool(4, requested_);
+      }
       unknownFields.writeTo(output);
     }
 
@@ -427,6 +460,10 @@ private static final long serialVersionUID = 0L;
       if (occurrences_ != 0) {
         size += com.google.protobuf.CodedOutputStream
           .computeInt32Size(3, occurrences_);
+      }
+      if (requested_ != false) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(4, requested_);
       }
       size += unknownFields.getSerializedSize();
       memoizedSize = size;
@@ -452,6 +489,8 @@ private static final long serialVersionUID = 0L;
       }
       if (getOccurrences()
           != other.getOccurrences()) return false;
+      if (getRequested()
+          != other.getRequested()) return false;
       if (!unknownFields.equals(other.unknownFields)) return false;
       return true;
     }
@@ -471,6 +510,9 @@ private static final long serialVersionUID = 0L;
       }
       hash = (37 * hash) + OCCURRENCES_FIELD_NUMBER;
       hash = (53 * hash) + getOccurrences();
+      hash = (37 * hash) + REQUESTED_FIELD_NUMBER;
+      hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+          getRequested());
       hash = (29 * hash) + unknownFields.hashCode();
       memoizedHashCode = hash;
       return hash;
@@ -618,6 +660,8 @@ private static final long serialVersionUID = 0L;
         }
         occurrences_ = 0;
 
+        requested_ = false;
+
         return this;
       }
 
@@ -651,6 +695,7 @@ private static final long serialVersionUID = 0L;
           result.threshold_ = thresholdBuilder_.build();
         }
         result.occurrences_ = occurrences_;
+        result.requested_ = requested_;
         onBuilt();
         return result;
       }
@@ -707,6 +752,9 @@ private static final long serialVersionUID = 0L;
         }
         if (other.getOccurrences() != 0) {
           setOccurrences(other.getOccurrences());
+        }
+        if (other.getRequested() != false) {
+          setRequested(other.getRequested());
         }
         this.mergeUnknownFields(other.unknownFields);
         onChanged();
@@ -980,6 +1028,49 @@ private static final long serialVersionUID = 0L;
       public Builder clearOccurrences() {
         
         occurrences_ = 0;
+        onChanged();
+        return this;
+      }
+
+      private boolean requested_ ;
+      /**
+       * <pre>
+       * Contains true if the `bucket` is overlapping the attribute between filtering constraint
+       * </pre>
+       *
+       * <code>bool requested = 4;</code>
+       * @return The requested.
+       */
+      @java.lang.Override
+      public boolean getRequested() {
+        return requested_;
+      }
+      /**
+       * <pre>
+       * Contains true if the `bucket` is overlapping the attribute between filtering constraint
+       * </pre>
+       *
+       * <code>bool requested = 4;</code>
+       * @param value The requested to set.
+       * @return This builder for chaining.
+       */
+      public Builder setRequested(boolean value) {
+        
+        requested_ = value;
+        onChanged();
+        return this;
+      }
+      /**
+       * <pre>
+       * Contains true if the `bucket` is overlapping the attribute between filtering constraint
+       * </pre>
+       *
+       * <code>bool requested = 4;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearRequested() {
+        
+        requested_ = false;
         onChanged();
         return this;
       }

@@ -33,7 +33,6 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import net.openhft.hashing.LongHashFunction;
@@ -94,20 +93,6 @@ public class FacetGroupOrFormula extends AbstractFormula implements FacetGroupFo
 	@Override
 	public long getOperationCost() {
 		return 11;
-	}
-
-	@Nonnull
-	@Override
-	public FacetGroupFormula getCloneWithFacet(int facetId, @Nonnull Bitmap... entityIds) {
-		Assert.isTrue(!this.facetIds.contains(facetId), "Formula already contains facet id `" + facetId + "`");
-		final Bitmap clonedFacetIdsBitmap = new BaseBitmap(facetIds);
-		clonedFacetIdsBitmap.add(facetId);
-		return new FacetGroupOrFormula(
-			referenceName,
-			facetGroupId,
-			clonedFacetIdsBitmap,
-			ArrayUtils.mergeArrays(bitmaps, entityIds)
-		);
 	}
 
 	@Nonnull

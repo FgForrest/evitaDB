@@ -96,22 +96,22 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories'),
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
  *             having(
  *                 or(
- *                     attributeIsNull('validity'),
- *                     attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+ *                     attributeIsNull("validity"),
+ *                     attributeInRange("validity", 2023-10-01T01:00:00-01:00)
  *                 )
  *             )
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )

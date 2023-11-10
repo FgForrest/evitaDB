@@ -616,7 +616,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 								session, null, categoryHierarchy, categoryCardinalities,
 								false,
 								false, false,
-								null
+								1
 							)
 						);
 					}
@@ -790,7 +790,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeParents(
 							session, 53, categoryHierarchy,
 							categoryCardinalities, null,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							53
 						)
 					)
 				);
@@ -859,7 +861,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeParents(
 							session, 53, categoryHierarchy,
 							categoryCardinalities, entity -> true,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							53
 						)
 					)
 				);
@@ -936,7 +940,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeParents(
 							session, 53, categoryHierarchy,
 							categoryCardinalities, entity -> !disallowedParents.contains(entity.getPrimaryKey()),
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							53
 						)
 					)
 				);
@@ -1007,7 +1013,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeParents(
 							session, 30, categoryHierarchy,
 							categoryCardinalities, entity -> true,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							30
 						)
 					)
 				);
@@ -1132,7 +1140,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 2, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							2
 						)
 					)
 				);
@@ -1196,7 +1205,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeSiblings(
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1330,7 +1341,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, null, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							2
 						)
 					)
 				);
@@ -1400,7 +1412,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -1469,7 +1482,9 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeSiblings(
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1539,7 +1554,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -1803,7 +1819,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -1871,7 +1888,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeSiblings(
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -2007,7 +2025,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -2074,7 +2093,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 						computeSiblings(
 							session, 6, categoryHierarchy,
 							categoryCardinalities,
-							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.CHILDREN_COUNT), statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -2146,7 +2166,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);
@@ -2277,7 +2298,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							1
 						)
 					)
 				);
@@ -2346,7 +2368,8 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							session, 1, categoryHierarchy,
 							categoryCardinalities, false,
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
-							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT)
+							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
+							6
 						)
 					)
 				);

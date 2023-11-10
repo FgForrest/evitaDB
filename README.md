@@ -159,6 +159,41 @@ team, we regularly test evitaDB only on the Linux AMD64 platform (which you can 
 and you may experience minor problems when running evitaDB on other (non-Linux) environments. Please report any bugs
 you might encounter, and we'll try to fix them as soon as possible.
 
+## How to build evitaDB
+
+evitaDB is built using [Maven](https://maven.apache.org/). You can build the entire project by running the following
+command in the root directory of the project:
+
+```shell
+mvn clean install
+```
+
+**Maven setup**
+
+The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your
+in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+
+In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF8"?>
+<toolchains xmlns="http://maven.apache.org/POM/4.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/TOOLCHAINS/1.1.0 https://maven.apache.org/xsd/toolchains-1.1.0.xsd">
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>17</version>
+      <vendor>openjdk</vendor>
+      <id>jdk17</id>
+    </provides>
+    <configuration>
+      <jdkHome>/path/to/your/jdk17/installation/directory</jdkHome>
+    </configuration>
+  </toolchain>
+</toolchains>
+```
+
 ## How this repository is organized
 
 - **documentation**: research documents, documentation, specifications

@@ -14,6 +14,7 @@
         }
       }
     },
+    "requested": false,
     "queriedEntityCount": 10,
     "childrenCount": 0
   },
@@ -31,6 +32,7 @@
         }
       }
     },
+    "requested": false,
     "queriedEntityCount": 285,
     "childrenCount": 3
   },
@@ -48,6 +50,7 @@
         }
       }
     },
+    "requested": true,
     "queriedEntityCount": 116,
     "childrenCount": 4
   },
@@ -65,6 +68,7 @@
         }
       }
     },
+    "requested": false,
     "queriedEntityCount": 50,
     "childrenCount": 0
   },
@@ -82,6 +86,7 @@
         }
       }
     },
+    "requested": false,
     "queriedEntityCount": 20,
     "childrenCount": 1
   },
@@ -99,6 +104,7 @@
         }
       }
     },
+    "requested": false,
     "queriedEntityCount": 20,
     "childrenCount": 0
   }

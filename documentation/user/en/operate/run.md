@@ -110,11 +110,22 @@ open/re-mapping ports opened inside the Docker container in the following way:
 ```shell
 # run on foreground, destroy container after exit, use exact mapping for host ports
 docker run --name evitadb -i --rm \
--p 5555:5555 \ 
--p 5556:5556 \ 
--p 5557:5557 \  
-index.docker.io/evitadb/evitadb:latest
+        -p 5555:5555 \ 
+        -p 5556:5556 \ 
+        -p 5557:5557 \
+        -e "api.exposedOn=localhost" \  
+        index.docker.io/evitadb/evitadb:latest
 ```
+
+<Note type="info">
+
+The `-e "api.exposedOn=localhost"` argument is necessary when evitaLab and/or Open API schema is generated and used
+from the host system the docker container is running on. This argument is not necessary when container shares 
+the network with the host using argument `--net=host`. Argument tells evitaDB running in container to use `localhost`
+as a domain for generated URLs in the schemas and the evitaLab network requests. Otherwise it would use the container
+inner hostname as a domain, which is not accessible from the outer host system.
+
+</Note>
 
 <Table>
     <Thead>

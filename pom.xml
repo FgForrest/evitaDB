@@ -26,7 +26,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.evitadb</groupId>
 	<artifactId>evita_root</artifactId>
-	<version>0.9-SNAPSHOT</version>
+	<version>0.10-SNAPSHOT</version>
 	<packaging>pom</packaging>
 	<name>evitaDB - Root &amp; modules aggregator</name>
 	<url>https://evitadb.io</url>
@@ -114,10 +114,10 @@
 		<maven.toolchains.version>3.0.0</maven.toolchains.version>
 		<jboss.version>3.5.0.Final</jboss.version>
 		<lombok.version>1.18.24</lombok.version>
-		<grpc.version>1.58.0</grpc.version>
+		<grpc.version>1.59.0</grpc.version>
 		<bouncyCastle.version>1.70</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
-		<nettyHandler.version>4.1.94.Final</nettyHandler.version>
+		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
 		<swagger.version>2.2.15</swagger.version>
 	</properties>
 
@@ -447,7 +447,7 @@
 					<jdkToolchain>
 						<version>${java.version}</version>
 					</jdkToolchain>
-					<argLine>${surefireArgLine} -Xmx4g -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
+					<argLine>${surefireArgLine} -Xmx4g -Duser.country=US, -Duser.language=us -Dfile.encoding=${project.build.sourceEncoding} --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang.invoke=ALL-UNNAMED --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED</argLine>
 				</configuration>
 			</plugin>
 			<plugin>

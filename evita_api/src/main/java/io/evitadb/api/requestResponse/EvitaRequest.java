@@ -45,6 +45,7 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -113,9 +114,9 @@ public class EvitaRequest {
 	private Boolean requiresHierarchyParents;
 	private Integer limit;
 	private EvitaRequest.ResultForm resultForm;
-	private Map<String, FilterBy> facetGroupConjunction;
-	private Map<String, FilterBy> facetGroupDisjunction;
-	private Map<String, FilterBy> facetGroupNegation;
+	private Map<String, FacetFilterBy> facetGroupConjunction;
+	private Map<String, FacetFilterBy> facetGroupDisjunction;
+	private Map<String, FacetFilterBy> facetGroupNegation;
 	private Boolean queryTelemetryRequested;
 	private EnumSet<DebugMode> debugModes;
 	private Map<String, RequirementContext> entityFetchRequirements;
@@ -234,7 +235,7 @@ public class EvitaRequest {
 		this.entityReference = null;
 		this.entityFetchRequirements = null;
 		this.defaultReferenceRequirement = null;
-		this.entityPrices = evitaRequest.entityPrices;
+		this.entityPrices = null;
 		this.currencySet = evitaRequest.currencySet;
 		this.currency = evitaRequest.currency;
 		this.requiresPriceLists = evitaRequest.requiresPriceLists;
@@ -604,11 +605,17 @@ public class EvitaRequest {
 	 */
 	public boolean isRequiresPriceLists() {
 		if (this.requiresPriceLists == null) {
-			final PriceInPriceLists pricesInPriceList = QueryUtils.findFilter(query, PriceInPriceLists.class);
-			this.priceLists = ofNullable(pricesInPriceList)
+			final List<PriceInPriceLists> priceInPriceLists = QueryUtils.findFilters(query, PriceInPriceLists.class);
+			Assert.isTrue(
+				priceInPriceLists.size() <= 1,
+				"Query can not contain more than one price in price lists filter constraints!"
+			);
+			final Optional<PriceInPriceLists> pricesInPriceList = priceInPriceLists.isEmpty() ?
+				Optional.empty() : Optional.of(priceInPriceLists.get(0));
+			this.priceLists = pricesInPriceList
 				.map(PriceInPriceLists::getPriceLists)
 				.orElse(new String[0]);
-			this.requiresPriceLists = pricesInPriceList != null;
+			this.requiresPriceLists = pricesInPriceList.isPresent();
 		}
 		return this.requiresPriceLists;
 	}
@@ -632,9 +639,16 @@ public class EvitaRequest {
 	@Nullable
 	public Currency getRequiresCurrency() {
 		if (this.currencySet == null) {
-			this.currency = ofNullable(QueryUtils.findFilter(query, PriceInCurrency.class))
+			final List<Currency> currenciesFound = QueryUtils.findFilters(query, PriceInCurrency.class)
+				.stream()
 				.map(PriceInCurrency::getCurrency)
-				.orElse(null);
+				.distinct()
+				.toList();
+			Assert.isTrue(
+				currenciesFound.size() <= 1,
+				"Query can not contain more than one currency filtering constraints!"
+			);
+			this.currency = currenciesFound.isEmpty() ? null : currenciesFound.get(0);
 			this.currencySet = true;
 		}
 		return this.currency;
@@ -647,9 +661,16 @@ public class EvitaRequest {
 	@Nullable
 	public OffsetDateTime getRequiresPriceValidIn() {
 		if (this.priceValidInTimeSet == null) {
-			this.priceValidInTime = ofNullable(QueryUtils.findFilter(query, PriceValidIn.class))
+			final List<OffsetDateTime> validitySpan = QueryUtils.findFilters(query, PriceValidIn.class)
+				.stream()
 				.map(it -> ofNullable(it.getTheMoment()).orElse(alignedNow))
-				.orElse(null);
+				.distinct()
+				.toList();
+			Assert.isTrue(
+				validitySpan.size() <= 1,
+				"Query can not contain more than one price validity constraints!"
+			);
+			this.priceValidInTime = validitySpan.isEmpty() ? null : validitySpan.get(0);
 			this.priceValidInTimeSet = true;
 		}
 		return this.priceValidInTime;
@@ -660,13 +681,13 @@ public class EvitaRequest {
 	 * joined by conjunction (AND) instead of default disjunction (OR).
 	 */
 	@Nonnull
-	public Optional<FilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupConjunction(@Nonnull String referenceName) {
 		if (this.facetGroupConjunction == null) {
 			this.facetGroupConjunction = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsConjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupConjunction.put(reqReferenceName, it.getFacetGroups());
+					this.facetGroupConjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
 				});
 		}
 		return ofNullable(this.facetGroupConjunction.get(referenceName));
@@ -677,13 +698,13 @@ public class EvitaRequest {
 	 * joined with other facet groups by disjunction (OR) instead of default conjunction (AND).
 	 */
 	@Nonnull
-	public Optional<FilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupDisjunction(@Nonnull String referenceName) {
 		if (this.facetGroupDisjunction == null) {
 			this.facetGroupDisjunction = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsDisjunction.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupDisjunction.put(reqReferenceName, it.getFacetGroups());
+					this.facetGroupDisjunction.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
 				});
 		}
 		return ofNullable(this.facetGroupDisjunction.get(referenceName));
@@ -694,13 +715,13 @@ public class EvitaRequest {
 	 * joined by negation (AND NOT) instead of default disjunction (OR).
 	 */
 	@Nonnull
-	public Optional<FilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
+	public Optional<FacetFilterBy> getFacetGroupNegation(@Nonnull String referenceName) {
 		if (this.facetGroupNegation == null) {
 			this.facetGroupNegation = new HashMap<>();
 			QueryUtils.findRequires(query, FacetGroupsNegation.class)
 				.forEach(it -> {
 					final String reqReferenceName = it.getReferenceName();
-					this.facetGroupNegation.put(reqReferenceName, it.getFacetGroups());
+					this.facetGroupNegation.put(reqReferenceName, new FacetFilterBy(it.getFacetGroups().orElse(null)));
 				});
 		}
 		return ofNullable(this.facetGroupNegation.get(referenceName));
@@ -955,6 +976,22 @@ public class EvitaRequest {
 		 * Represents a request for all attributes to be fetched.
 		 */
 		public static final AttributeRequest FULL = new AttributeRequest(Collections.emptySet(), true);
+	}
+
+	/**
+	 * Wraps the information whether the facet group was altered by a refinement constraint and if so, whether
+	 * filterBy constraint was provided or not.
+	 *
+	 * @param filterBy    filterBy constraint that was provided by the refinement constraint
+	 */
+	public record FacetFilterBy(
+		@Nullable FilterBy filterBy
+	) {
+
+		public boolean isFilterDefined() {
+			return filterBy != null;
+		}
+
 	}
 
 }

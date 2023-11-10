@@ -1,0 +1,25 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "christmas-electronics"
+      }
+    },
+    "priceInPriceLists" : [
+      "christmas-prices",
+      "basic"
+    ],
+    "priceInCurrency" : "EUR",
+    "priceValidIn" : "2023-05-05T10:15:30+01:00"
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "priceContentRespectingFilter" : [ ]
+    }
+  }
+}

@@ -29,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.math.BigDecimal;
 import java.util.function.Predicate;
 
 /**
@@ -39,9 +41,22 @@ import java.util.function.Predicate;
 @RequiredArgsConstructor
 public abstract class PricePredicate implements Predicate<PriceRecordContract> {
 	public static final PricePredicate NO_FILTER = new PricePredicate("NO FILTER PREDICATE") {
+
 		@Override
 		public boolean test(PriceRecordContract priceRecord) {
 			return true;
+		}
+
+		@Nullable
+		@Override
+		public BigDecimal getFrom() {
+			return null;
+		}
+
+		@Nullable
+		@Override
+		public BigDecimal getTo() {
+			return null;
 		}
 
 		@Override
@@ -54,6 +69,39 @@ public abstract class PricePredicate implements Predicate<PriceRecordContract> {
 	 * Contains brief description of what predicate does.
 	 */
 	private final String description;
+
+	/**
+	 * Returns lower threshold of the filter.
+	 * @return lower threshold of the filter if any
+	 */
+	@Nullable
+	public abstract BigDecimal getFrom();
+
+	/**
+	 * Returns upper threshold of the filter.
+	 * @return upper threshold of the filter if any
+	 */
+	@Nullable
+	public abstract BigDecimal getTo();
+
+	/**
+	 * Returns predicate that can be used to filter out price records that are not in the filter range.
+	 * @return predicate that can be used to filter out price records that are not in the filter range
+	 */
+	@Nonnull
+	public Predicate<BigDecimal> getRequestedPredicate() {
+		final BigDecimal from = getFrom();
+		final BigDecimal to = getTo();
+		return threshold -> {
+			if (from != null && threshold.compareTo(from) < 0) {
+				return false;
+			}
+			if (to != null && threshold.compareTo(to) > 0) {
+				return false;
+			}
+			return true;
+		};
+	}
 
 	@Override
 	public String toString() {

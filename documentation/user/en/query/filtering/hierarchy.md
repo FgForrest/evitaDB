@@ -7,7 +7,7 @@ perex: |
   the items relevant to the currently viewed category.
 date: '5.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 Hierarchy filtering can be applied only to entities [marked as hierarchical](../../use/data-model.md#hierarchy-placement) 

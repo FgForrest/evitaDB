@@ -46,22 +46,27 @@ public class HierarchyTest {
 		// create hierarchy of level infos to be used in the tests
 		levelInfo = new LevelInfo(
 			new EntityReference("category", 1),
+			false,
 			5, 2,
 			List.of(
 				new LevelInfo(
 					new EntityReference("category", 2),
+					true,
 					4, 1,
 					List.of(
 						new LevelInfo(
 							new EntityReference("category", 3),
+							false,
 							3, 0,
 							List.of(
 								new LevelInfo(
 									new EntityReference("category", 4),
+									false,
 									2, 0,
 									List.of(
 										new LevelInfo(
 											new EntityReference("category", 5),
+											false,
 											1, 0,
 											List.of()
 										)
@@ -73,18 +78,22 @@ public class HierarchyTest {
 				),
 				new LevelInfo(
 					new EntityReference("category", 6),
+					false,
 					4, 1,
 					List.of(
 						new LevelInfo(
 							new EntityReference("category", 7),
+							false,
 							3, 0,
 							List.of(
 								new LevelInfo(
 									new EntityReference("category", 8),
+									false,
 									2, 0,
 									List.of(
 										new LevelInfo(
 											new EntityReference("category", 9),
+											false,
 											1, 0,
 											List.of()
 										)

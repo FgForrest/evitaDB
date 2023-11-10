@@ -1,0 +1,31 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "christmas-electronics"
+        }
+      },
+      priceInPriceLists: [
+        "christmas-prices",
+        "basic"
+      ],
+      priceInCurrency: EUR,
+      priceValidIn: "2023-05-05T10:15:30+01:00"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

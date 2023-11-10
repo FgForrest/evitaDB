@@ -35,7 +35,10 @@ import io.evitadb.utils.MemoryMeasuringConstants;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
+import java.math.BigDecimal;
+import java.util.function.Predicate;
 
 /**
  * Flattened formula represents a memoized form of original formula that contains already computed bitmap of results.
@@ -60,6 +63,14 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends Fla
 	 * Price evaluation context. Copies {@link PriceWrappingFormula#getPriceEvaluationContext()}.
 	 */
 	@Getter @Nonnull private final PriceEvaluationContext priceEvaluationContext;
+	/**
+	 * Filtering threshold from.
+	 */
+	@Getter @Nullable private final BigDecimal from;
+	/**
+	 * Filtering threshold to.
+	 */
+	@Getter @Nullable private final BigDecimal to;
 
 	/**
 	 * Method returns gross estimation of the in-memory size of this instance. The estimation is expected not to be
@@ -72,12 +83,36 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends Fla
 			priceEvaluationContext.estimateSize();
 	}
 
-	public FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(long formulaHash, long transactionalIdHash, @Nonnull long[] originalBitmapIds, @Nonnull Bitmap memoizedResult, @Nonnull FilteredPriceRecords filteredPriceRecords, @Nonnull Bitmap recordsFilteredOutByPredicate, @Nonnull PriceEvaluationContext priceEvaluationContext) {
+	public FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
+		long formulaHash, long transactionalIdHash,
+		@Nonnull long[] originalBitmapIds,
+		@Nonnull Bitmap memoizedResult,
+		@Nonnull FilteredPriceRecords filteredPriceRecords,
+		@Nonnull Bitmap recordsFilteredOutByPredicate,
+		@Nonnull PriceEvaluationContext priceEvaluationContext,
+		@Nullable BigDecimal from, @Nullable BigDecimal to
+	) {
 		super(formulaHash, transactionalIdHash, originalBitmapIds, memoizedResult);
 		this.filteredPriceRecords = filteredPriceRecords;
 		this.recordsFilteredOutByPredicate = recordsFilteredOutByPredicate;
 		this.priceEvaluationContext = priceEvaluationContext;
 		this.filteredPriceRecords.prepareForFlattening();
+		this.from = from;
+		this.to = to;
+	}
+
+	@Nullable
+	@Override
+	public Predicate<BigDecimal> getRequestedPredicate() {
+		return threshold -> {
+			if (from != null && threshold.compareTo(from) < 0) {
+				return false;
+			}
+			if (to != null && threshold.compareTo(to) > 0) {
+				return false;
+			}
+			return true;
+		};
 	}
 
 	@Nonnull
@@ -85,7 +120,7 @@ public class FlattenedFormulaWithFilteredPricesAndFilteredOutRecords extends Fla
 	public Formula getCloneWithPricePredicateFilteredOutResults() {
 		return new FlattenedFormulaWithFilteredPricesAndFilteredOutRecords(
 			recordHash, transactionalIdHash, transactionalDataIds, recordsFilteredOutByPredicate,
-			filteredPriceRecords, recordsFilteredOutByPredicate, priceEvaluationContext
+			filteredPriceRecords, recordsFilteredOutByPredicate, priceEvaluationContext, from, to
 		);
 	}
 

@@ -49,7 +49,7 @@ import java.util.Arrays;
  *       attributeEqualsTrue("shortcut")
  *    ),
  *    orderBy(
- *       attributeSetExact('code', 't-shirt', 'sweater', 'pants')
+ *       attributeSetExact("code", "t-shirt", "sweater", "pants")
  *    )
  * )
  * </pre>

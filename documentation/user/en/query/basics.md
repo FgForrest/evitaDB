@@ -436,9 +436,9 @@ the summary could include a calculation of how many entities will be left when t
 the filter:
 
 - [facet summary](requirements/facet.md#facet-summary)
-- [facet conjunction](requirements/facet.md#facet-conjunction)
-- [facet disjunction](requirements/facet.md#facet-disjunction)
-- [facet negation](requirements/facet.md#facet-negation)
+- [facet conjunction](requirements/facet.md#facet-groups-conjunction)
+- [facet disjunction](requirements/facet.md#facet-groups-disjunction)
+- [facet negation](requirements/facet.md#facet-groups-negation)
 
 ### Histogram
 

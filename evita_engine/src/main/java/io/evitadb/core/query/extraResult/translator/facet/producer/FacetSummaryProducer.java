@@ -518,7 +518,7 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 				final Stream<FacetGroupIndex> groupIndexesAsStream = ofNullable(facetSummaryRequest.groupPredicate())
 					.map(
 						predicate -> facetEntityTypeIndex.getFacetGroupIndexesAsStream()
-							.filter(groupIx -> ofNullable(groupIx.getGroupId()).map(predicate::test).orElse(true))
+							.filter(groupIx -> ofNullable(groupIx.getGroupId()).map(predicate::test).orElse(false))
 					)
 					.orElseGet(facetEntityTypeIndex::getFacetGroupIndexesAsStream);
 

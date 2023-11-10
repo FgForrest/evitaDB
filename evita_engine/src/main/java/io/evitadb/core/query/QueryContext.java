@@ -33,7 +33,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
@@ -41,6 +40,7 @@ import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -78,6 +78,7 @@ import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -233,7 +234,6 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
 	 * the query result to be reused in other query evaluation phases (require).
 	 */
-	@Getter
 	private Formula rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
@@ -988,18 +988,24 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
-		if (groupId == null || facetGroupConjunction.isEmpty()) {
+		final Optional<FacetFilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
+		if (facetGroupConjunction.isEmpty()) {
 			return false;
+		} else if (facetGroupConjunction.get().isFilterDefined()) {
+			if (groupId == null) {
+				return false;
+			} else {
+				return getFacetRelationTuples().computeIfAbsent(
+					new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
+					refName -> new FilteringFormulaPredicate(
+						this, facetGroupConjunction.get().filterBy(),
+						referenceSchema.getReferencedGroupType(),
+						() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
+					)
+				).test(groupId);
+			}
 		} else {
-			return getFacetRelationTuples().computeIfAbsent(
-				new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
-				refName -> new FilteringFormulaPredicate(
-					this, facetGroupConjunction.get(),
-					referenceSchema.getReferencedGroupType(),
-					() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
-				)
-			).test(groupId);
+			return true;
 		}
 	}
 
@@ -1009,18 +1015,24 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
-		if (groupId == null || facetGroupDisjunction.isEmpty()) {
+		final Optional<FacetFilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
+		if (facetGroupDisjunction.isEmpty()) {
 			return false;
+		} else if (facetGroupDisjunction.get().isFilterDefined()) {
+			if (groupId == null) {
+				return false;
+			} else {
+				return getFacetRelationTuples().computeIfAbsent(
+					new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
+					refName -> new FilteringFormulaPredicate(
+						this, facetGroupDisjunction.get().filterBy(),
+						referenceSchema.getReferencedGroupType(),
+						() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
+					)
+				).test(groupId);
+			}
 		} else {
-			return getFacetRelationTuples().computeIfAbsent(
-				new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
-				refName -> new FilteringFormulaPredicate(
-					this, facetGroupDisjunction.get(),
-					referenceSchema.getReferencedGroupType(),
-					() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
-				)
-			).test(groupId);
+			return true;
 		}
 	}
 
@@ -1030,18 +1042,24 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
-		if (groupId == null || facetGroupNegation.isEmpty()) {
+		final Optional<FacetFilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
+		if (facetGroupNegation.isEmpty()) {
 			return false;
+		} else if (facetGroupNegation.get().isFilterDefined()) {
+			if (groupId == null) {
+				return false;
+			} else {
+				return getFacetRelationTuples().computeIfAbsent(
+					new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
+					refName -> new FilteringFormulaPredicate(
+						this, facetGroupNegation.get().filterBy(),
+						referenceSchema.getReferencedGroupType(),
+						() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
+					)
+				).test(groupId);
+			}
 		} else {
-			return getFacetRelationTuples().computeIfAbsent(
-				new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
-				refName -> new FilteringFormulaPredicate(
-					this, facetGroupNegation.get(),
-					referenceSchema.getReferencedGroupType(),
-					() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
-				)
-			).test(groupId);
+			return true;
 		}
 	}
 
@@ -1064,6 +1082,13 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 */
 	public void returnBuffer(@Nonnull int[] borrowedBuffer) {
 		this.buffers.push(borrowedBuffer);
+	}
+
+	@Nonnull
+	public Bitmap getRootHierarchyNodes() {
+		return ofNullable(rootHierarchyNodesFormula)
+			.map(Formula::compute)
+			.orElse(EmptyBitmap.INSTANCE);
 	}
 
 	/**

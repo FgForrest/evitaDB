@@ -61,7 +61,7 @@ class AttributeBetweenTest {
 	void shouldRecognizeApplicability() {
 		assertNull(attributeBetween("abc", null, null));
 		assertFalse(new AttributeBetween("abc", null, null).isApplicable());
-		assertFalse(attributeBetween(null, "abc", "abc").isApplicable());
+		assertFalse(new AttributeBetween(null, "abc", "abc").isApplicable());
 		assertFalse(new AttributeBetween(null, null, null).isApplicable());
 		assertTrue(attributeBetween("abc", "def", "def").isApplicable());
 		assertTrue(attributeBetween("abc", "def", null).isApplicable());
@@ -85,7 +85,7 @@ class AttributeBetweenTest {
 		assertEquals(attributeBetween("abc", "def", "def").hashCode(), attributeBetween("abc", "def", "def").hashCode());
 		assertNotEquals(attributeBetween("abc", "def", "def").hashCode(), attributeBetween("abc", "defe", "defe").hashCode());
 		assertNotEquals(attributeBetween("abc", "def", "def").hashCode(), new AttributeBetween("abc", null, null).hashCode());
-		assertNotEquals(attributeBetween("abc", "def", "def").hashCode(), attributeBetween(null, "abc", "abc").hashCode());
+		assertNotEquals(attributeBetween("abc", "def", "def").hashCode(), new AttributeBetween(null, "abc", "abc").hashCode());
 		assertEquals(attributeBetween("abc", null, "def").hashCode(), attributeBetween("abc", null, "def").hashCode());
 	}
 

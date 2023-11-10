@@ -44,34 +44,34 @@ import java.io.Serializable;
  *
  * Example (select entities having reference brand with category attribute equal to alternativeProduct):
  *
- * ```
+ * <pre>
  * referenceHavingAttribute(
- *     'brand',
- *     attributeEquals('category', 'alternativeProduct')
+ *     "brand",
+ *     attributeEquals("category", "alternativeProduct")
  * )
- * ```
+ * </pre>
  *
  * Example (select entities having any reference brand):
  *
- * ```
- * referenceHavingAttribute('brand')
- * ```
+ * <pre>
+ * referenceHavingAttribute("brand")
+ * </pre>
  *
  * Example (select entities having any reference brand of primary key 1):
  *
- * ```
+ * <pre>
  * referenceHavingAttribute(
- *     'brand',
+ *     "brand",
  *     entityPrimaryKeyInSet(1)
  * )
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "having",
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
-		"match any of the passed entity primary keys. This container resembles the SQL inner join clauses.",
+		"match the inner filter constraint. This container resembles the SQL inner join clauses.",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer {

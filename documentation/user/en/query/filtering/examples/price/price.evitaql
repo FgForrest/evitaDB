@@ -1,0 +1,14 @@
+query(
+    collection('Product'),
+    filterBy(
+        priceInPriceLists('basic'),
+        priceInCurrency('EUR'),
+        priceValidInNow()
+    ),
+    require(
+      entityFetch(
+        attributeContent('code'),
+        priceContentRespectingFilter()
+      )
+    )
+)

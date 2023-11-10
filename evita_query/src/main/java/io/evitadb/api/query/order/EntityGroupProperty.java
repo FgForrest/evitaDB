@@ -49,22 +49,22 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
- *         attributeEquals('code', 'garmin-vivoactive-4')
+ *         attributeEquals("code", "garmin-vivoactive-4")
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code'),
+ *             attributeContent("code"),
  *             referenceContent(
- *                 'parameterValues',
+ *                 "parameterValues",
  *                 orderBy(
  *                     entityGroupProperty(
- *                         attributeNatural('code', DESC)
+ *                         attributeNatural("code", DESC)
  *                     )
  *                 ),
  *                 entityFetch(
- *                     attributeContent('code')
+ *                     attributeContent("code")
  *                 )
  *             )
  *         )
@@ -79,25 +79,25 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
- *         attributeEquals('code', 'garmin-vivoactive-4')
+ *         attributeEquals("code", "garmin-vivoactive-4")
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code'),
+ *             attributeContent("code"),
  *             referenceContent(
- *                 'parameterValues',
+ *                 "parameterValues",
  *                 orderBy(
  *                     entityGroupProperty(
- *                         attributeNatural('code', DESC)
+ *                         attributeNatural("code", DESC)
  *                     ),
  *                     entityProperty(
- *                         attributeNatural('code', DESC)
+ *                         attributeNatural("code", DESC)
  *                     )
  *                 ),
  *                 entityFetch(
- *                     attributeContent('code')
+ *                     attributeContent("code")
  *                 )
  *             )
  *         )

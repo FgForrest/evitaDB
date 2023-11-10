@@ -33,5 +33,6 @@ docker run --name evitadb -i --net=host \
       -v "/www/oss/evitaDB/evita_server/logback.xml:/evita/logback.xml" \
       -v "/www/oss/evitaDB/evita_server/logs:/evita/logs" \
       -e "cache.enabled=false" \
+      -e "api.exposedOn=localhost" \
       index.docker.io/evitadb/evitadb:latest
 echo "Done"

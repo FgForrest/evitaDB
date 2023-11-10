@@ -6,7 +6,7 @@ perex: |
   whether two values are the same, one is smaller than the other, or vice versa. This fact underlies the basic set of 
   filtering constraints that you will commonly use when building queries.  
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 <Note type="info">

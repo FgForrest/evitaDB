@@ -1083,6 +1083,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassifierWithFilterConstraintArgs(EvitaQLParser.ClassifierWithFilterConstraintArgsContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOptionalFilterConstraintArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClassifierWithOptionalFilterConstraintArgs(EvitaQLParser.ClassifierWithOptionalFilterConstraintArgsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOrderConstraintListArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

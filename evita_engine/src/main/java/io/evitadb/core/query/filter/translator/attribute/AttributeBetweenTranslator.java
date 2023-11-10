@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -78,20 +79,34 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 			final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final Class<? extends Serializable> attributeType = attributeDefinition.getPlainType();
 			final AttributeFormula filteringFormula;
+			final Predicate<BigDecimal> requestedPredicate;
 			if (Range.class.isAssignableFrom(attributeType)) {
 				final long comparableFrom;
 				final long comparableTo;
 				if (NumberRange.class.isAssignableFrom(attributeType)) {
+					final BigDecimal fromBigDecimal = toTargetType(from, BigDecimal.class);
+					final BigDecimal toBigDecimal = toTargetType(to, BigDecimal.class);
+					requestedPredicate = threshold -> {
+						if (fromBigDecimal != null && threshold.compareTo(fromBigDecimal) < 0) {
+							return false;
+						}
+						if (toBigDecimal != null && threshold.compareTo(toBigDecimal) > 0) {
+							return false;
+						}
+						return true;
+					};
+
 					if (attributeDefinition.getIndexedDecimalPlaces() > 0) {
-						comparableFrom = getBigDecimalComparable(from, attributeDefinition.getIndexedDecimalPlaces(), Long.MIN_VALUE);
-						comparableTo = getBigDecimalComparable(to, attributeDefinition.getIndexedDecimalPlaces(), Long.MAX_VALUE);
+						comparableFrom = getBigDecimalComparable(fromBigDecimal, attributeDefinition.getIndexedDecimalPlaces(), Long.MIN_VALUE);
+						comparableTo = getBigDecimalComparable(toBigDecimal, attributeDefinition.getIndexedDecimalPlaces(), Long.MAX_VALUE);
 					} else {
-						comparableFrom = getLongComparable(from, Long.MIN_VALUE);
-						comparableTo = getLongComparable(to, Long.MAX_VALUE);
+						comparableFrom = getLongComparable(toTargetType(from, Long.class), Long.MIN_VALUE);
+						comparableTo = getLongComparable(toTargetType(to, Long.class), Long.MAX_VALUE);
 					}
 				} else if (DateTimeRange.class.isAssignableFrom(attributeType)) {
-					comparableFrom = getOffsetDateTimeComparable(from, Long.MIN_VALUE);
-					comparableTo = getOffsetDateTimeComparable(to, Long.MAX_VALUE);
+					comparableFrom = getOffsetDateTimeComparable(toTargetType(from, OffsetDateTime.class), Long.MIN_VALUE);
+					comparableTo = getOffsetDateTimeComparable(toTargetType(to, OffsetDateTime.class), Long.MAX_VALUE);
+					requestedPredicate = null;
 				} else {
 					throw new EvitaInternalError("Unexpected Range type!");
 				}
@@ -100,11 +115,29 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
 					filterByVisitor.applyOnFilterIndexes(
 						attributeDefinition, index -> index.getRecordsOverlappingFormula(comparableFrom, comparableTo)
-					)
+					),
+					requestedPredicate
 				);
 			} else {
-				final Comparable comparableFrom = (Comparable) EvitaDataTypes.toTargetType(from, attributeType);
-				final Comparable comparableTo = (Comparable) EvitaDataTypes.toTargetType(to, attributeType);
+				final Comparable comparableFrom = (Comparable) toTargetType(from, attributeType);
+				final Comparable comparableTo = (Comparable) toTargetType(to, attributeType);
+
+				if (Number.class.isAssignableFrom(attributeType)) {
+					final BigDecimal fromBigDecimal = EvitaDataTypes.toTargetType((Serializable) comparableFrom, BigDecimal.class);
+					final BigDecimal toBigDecimal = EvitaDataTypes.toTargetType((Serializable) comparableTo, BigDecimal.class);
+					requestedPredicate = threshold -> {
+						if (fromBigDecimal != null && threshold.compareTo(fromBigDecimal) < 0) {
+							return false;
+						}
+						if (toBigDecimal != null && threshold.compareTo(toBigDecimal) > 0) {
+							return false;
+						}
+						return true;
+					};
+				} else {
+					requestedPredicate = null;
+				}
+
 				filteringFormula = new AttributeFormula(
 					attributeDefinition.isLocalized() ?
 						new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
@@ -119,7 +152,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 								return index.getRecordsGreaterThanEqFormula(comparableFrom);
 							}
 						}
-					)
+					),
+					requestedPredicate
 				);
 			}
 			if (filterByVisitor.isPrefetchPossible()) {
@@ -155,8 +189,8 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 			processingScope::getAttributeSchema,
 			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
 			attributeSchema -> {
-				final Comparable comparableFrom = (Comparable) EvitaDataTypes.toTargetType(from, attributeSchema.getPlainType());
-				final Comparable comparableTo = (Comparable) EvitaDataTypes.toTargetType(to, attributeSchema.getPlainType());
+				final Comparable comparableFrom = (Comparable) toTargetType(from, attributeSchema.getPlainType());
+				final Comparable comparableTo = (Comparable) toTargetType(to, attributeSchema.getPlainType());
 				if (Range.class.isAssignableFrom(attributeSchema.getPlainType())) {
 					if (NumberRange.class.isAssignableFrom(attributeSchema.getPlainType())) {
 						return getNumberRangePredicate((Number) comparableFrom, (Number) comparableTo);
@@ -174,21 +208,18 @@ public class AttributeBetweenTranslator implements FilteringConstraintTranslator
 	}
 
 	@Nonnull
-	private static Long getOffsetDateTimeComparable(@Nullable Serializable from, long minValue) {
-		final OffsetDateTime comparableValue = EvitaDataTypes.toTargetType(from, OffsetDateTime.class);
-		return ofNullable(comparableValue).map(DateTimeRange::toComparableLong).orElse(minValue);
+	private static Long getOffsetDateTimeComparable(@Nullable OffsetDateTime value, long defaultValue) {
+		return ofNullable(value).map(DateTimeRange::toComparableLong).orElse(defaultValue);
 	}
 
 	@Nonnull
-	private static Long getLongComparable(@Nullable Serializable from, long minValue) {
-		final Long comparableValue = EvitaDataTypes.toTargetType(from, Long.class);
-		return ofNullable(comparableValue).orElse(minValue);
+	private static Long getLongComparable(@Nullable Long value, long defaultValue) {
+		return ofNullable(value).orElse(defaultValue);
 	}
 
 	@Nonnull
-	private static Long getBigDecimalComparable(@Nullable Serializable value, int indexedDecimalPlaces, long defaultValue) {
-		final BigDecimal comparableValue = EvitaDataTypes.toTargetType(value, BigDecimal.class);
-		return ofNullable(comparableValue)
+	private static Long getBigDecimalComparable(@Nullable BigDecimal value, int indexedDecimalPlaces, long defaultValue) {
+		return ofNullable(value)
 			.map(it -> BigDecimalNumberRange.toComparableLong(it, indexedDecimalPlaces))
 			.orElse(defaultValue);
 	}

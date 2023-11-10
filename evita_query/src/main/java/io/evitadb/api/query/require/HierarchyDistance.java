@@ -49,19 +49,19 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             children(
- *                 'subcategories',
- *                 entityFetch(attributeContent('code')),
+ *                 "subcategories",
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1))
  *             )
  *         )

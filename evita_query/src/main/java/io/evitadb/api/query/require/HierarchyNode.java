@@ -52,23 +52,23 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories')
+ *             "categories",
+ *             attributeEquals("code", "accessories")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             children(
- *                 'subMenu',
- *                 entityFetch(attributeContent('code')),
+ *                 "subMenu",
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(
  *                     node(
  *                         filterBy(
- *                             attributeStartsWith('code', 'w')
+ *                             attributeStartsWith("code", "w")
  *                         )
  *                     )
  *                 )

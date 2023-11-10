@@ -53,12 +53,17 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
-		@Nonnull HierarchyFilteringPredicate exclusionPredicate,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nullable HierarchyFilteringPredicate exclusionPredicate,
+		@Nullable HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(
+			context, entityFetcher,
+			hierarchyFilterPredicateProducer,
+			exclusionPredicate, scopePredicate,
+			statisticsBase, statisticsType
+		);
 	}
 
 	@Nonnull
@@ -67,9 +72,11 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
+		final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
 		final ChildrenStatisticsHierarchyVisitor childrenVisitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			0,
+			hierarchyNodes::contains,
 			scopePredicate,
 			filterPredicate,
 			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
@@ -83,7 +90,6 @@ public class ChildrenStatisticsComputer extends AbstractHierarchyStatisticsCompu
 				filterPredicate
 			);
 		} else if (context.hierarchyFilter() instanceof HierarchyWithin) {
-			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate children hierarchy statistics the HierarchyWithin filter must select exactly " +

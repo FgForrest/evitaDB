@@ -33,14 +33,15 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * This `facetGroupsDisjunction` require constraint allows specifying facet relation among different facet groups of certain
@@ -54,15 +55,18 @@ import java.util.Arrays;
  *
  * <pre>
  * query(
- *    entities('product'),
+ *    entities("product"),
  *    filterBy(
  *       userFilter(
- *          facet('group', 1, 2),
- *          facet('parameterType', 11, 12, 22)
+ *          facet("group", 1, 2),
+ *          facet(
+ *             "parameterType",
+ *             entityPrimaryKeyInSet(11, 12, 22)
+ *          )
  *       )
  *    ),
  *    require(
- *       facetGroupsDisjunction('parameterType', 1, 2)
+ *       facetGroupsDisjunction("parameterType", 1, 2)
  *    )
  * )
  * </pre>
@@ -109,7 +113,7 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 
 	@Creator
 	public FacetGroupsDisjunction(@Nonnull @Classifier String referenceName,
-	                              @Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
+	                              @Nullable @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
 		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
 	}
 
@@ -126,17 +130,16 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 	 */
 	@AliasForParameter("filterBy")
 	@Nonnull
-	public FilterBy getFacetGroups() {
+	public Optional<FilterBy> getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())
 			.filter(child -> child instanceof FilterBy)
 			.map(FilterBy.class::cast)
-			.findAny()
-			.orElseThrow(() -> new EvitaInvalidUsageException("FacetGroupsDisjunction requires FilterBy constraint."));
+			.findAny();
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0 && getAdditionalChildrenCount() > 0;
+		return isArgumentsNonNull() && getArguments().length > 0;
 	}
 
 	@Nonnull

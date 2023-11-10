@@ -35,17 +35,20 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `require` is container for listing all additional requirements for th equery. It is mandatory container when
- * any requirement query is to be used.
+ * Requirements have no direct parallel in other database languages. They define sideway calculations, paging,
+ * the amount of data fetched for each returned entity, and so on, but never affect the number or order of returned
+ * entities. They also allow to compute additional calculations that relate to the returned entities, but contain
+ * other contextual data - for example hierarchy data for creating menus, facet summary for parametrized filter,
+ * histograms for charts, and so on.
  *
  * Example:
  *
- * ```
+ * <pre>
  * require(
  *     page(1, 2),
- *     entityBody()
+ *     entityFetch()
  * )
- * ```
+ * </pre>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

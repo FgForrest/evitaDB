@@ -56,15 +56,15 @@ import java.util.stream.Stream;
  * Example that fetches only global and `en-US` localized attributes and associated data (considering there are multiple
  * language localizations):
  *
- * ```
- * dataInLocales('en-US')
- * ```
+ * <pre>
+ * dataInLocales("en-US")
+ * <pre>
  *
  * Example that fetches all available global and localized data:
  *
- * ```
+ * <pre>
  * dataInLocalesAll()
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

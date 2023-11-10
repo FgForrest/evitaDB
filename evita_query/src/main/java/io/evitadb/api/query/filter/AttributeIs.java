@@ -47,7 +47,7 @@ import java.io.Serializable;
  * Example:
  *
  * <pre>
- * attributeIs('visible', NULL)
+ * attributeIs("visible", NULL)
  * </pre>
  *
  * Function supports attribute arrays in the same way as plain values.
