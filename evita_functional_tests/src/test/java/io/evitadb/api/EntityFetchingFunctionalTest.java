@@ -3966,6 +3966,40 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should return products sorted by exact order with duplicate keys")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderWithDuplicateKeys(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = {12, 1};
+				final Integer[] duplicatedExactOrder = {12, 12, 1};
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(Arrays.stream(exactOrder).sorted().toArray(Integer[]::new))
+						),
+						orderBy(
+							entityPrimaryKeyExact(duplicatedExactOrder)
+						)
+					)
+				);
+				assertEquals(2, products.getRecordData().size());
+				assertEquals(2, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products sorted by exact order appending the rest")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
