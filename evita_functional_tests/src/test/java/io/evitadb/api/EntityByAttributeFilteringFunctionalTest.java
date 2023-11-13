@@ -3178,6 +3178,60 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return products sorted by exact order of the attribute in the filter constraint with duplicate attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderInFilterWithDuplicateAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final String[] randomCodes = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+					.toArray(String[]::new);
+				final String[] randomCodesWithDuplicates = new String[randomCodes.length + 1];
+				for (int i = -1; i < randomCodes.length; i++) {
+					if (i == -1) {
+						randomCodesWithDuplicates[i + 1] = randomCodes[0];
+					} else {
+						randomCodesWithDuplicates[i + 1] = randomCodes[i];
+					}
+				}
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_CODE, randomCodesWithDuplicates)
+						),
+						orderBy(
+							attributeSetInFilter(ATTRIBUTE_CODE)
+						),
+						require(
+							entityFetch(
+								attributeContentAll()
+							),
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomCodes,
+					products.getRecordData().stream()
+						.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+						.toArray(String[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products sorted by exact order of the attribute with prefetch")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3360,6 +3414,77 @@ public class EntityByAttributeFilteringFunctionalTest {
 					ArrayUtils.mergeArrays(
 						exactOrder, theRest
 					),
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order with duplicate attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderWithDuplicateAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+				final Integer[] randomProductIds = Arrays.stream(randomData)
+					.map(AttributeTuple::primaryKey)
+					.toArray(Integer[]::new);
+				final String[] randomCodes = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.toArray(String[]::new);
+				ArrayUtils.shuffleArray(random, randomCodes);
+				final String[] randomCodesWithDuplicates = new String[randomCodes.length + 1];
+				for (int i = -1; i < randomCodes.length; i++) {
+					if (i == -1) {
+						randomCodesWithDuplicates[i + 1] = randomCodes[0];
+					} else {
+						randomCodesWithDuplicates[i + 1] = randomCodes[i];
+					}
+				}
+				final Integer[] randomSortedProductIds = Arrays.stream(randomCodes)
+					.map(
+						it -> Arrays.stream(randomData)
+							.filter(att -> it.equals(att.attributeValue()))
+							.map(AttributeTuple::primaryKey)
+							.findFirst()
+							.orElseThrow()
+					)
+					.toArray(Integer[]::new);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(randomProductIds)
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, randomCodesWithDuplicates)
+						),
+						require(
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
+							)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomSortedProductIds,
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)
