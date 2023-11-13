@@ -72,6 +72,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.evitadb.utils.ClassUtils.isAbstract;
 import static io.evitadb.utils.ClassUtils.isFinal;
@@ -245,13 +246,16 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull EntityContract entity,
+		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> instanceCache
 	) {
 		return createReferenceProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup,
+			expectedType, recipes, collectedRecipes,
+			entity, entityPrimaryKeySupplier,
+			referencedEntitySchemas, reference, reflectionLookup,
 			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE),
 			instanceCache
 		);
@@ -265,6 +269,7 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
 		@Nonnull EntityContract entity,
+		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
 		@Nonnull ReflectionLookup reflectionLookup,
@@ -288,7 +293,9 @@ public class ProxycianFactory implements ProxyFactory {
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
-							entity, referencedEntitySchemas, reference, expectedType, recipes, collectedRecipes, reflectionLookup,
+							entity, entityPrimaryKeySupplier,
+							referencedEntitySchemas, reference, expectedType, recipes,
+							collectedRecipes, reflectionLookup,
 							instanceCache
 						)
 					);
@@ -303,7 +310,9 @@ public class ProxycianFactory implements ProxyFactory {
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
-							entity, referencedEntitySchemas, reference, expectedType, recipes, collectedRecipes, reflectionLookup,
+							entity, entityPrimaryKeySupplier,
+							referencedEntitySchemas, reference, expectedType,
+							recipes, collectedRecipes, reflectionLookup,
 							instanceCache
 						),
 						bestMatchingConstructor.constructor().getParameterTypes(),
@@ -717,7 +726,9 @@ public class ProxycianFactory implements ProxyFactory {
 			@Nonnull ReferenceContract reference
 		) throws EntityClassInvalidException {
 			return ProxycianFactory.createEntityReferenceProxy(
-				expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, reflectionLookup,
+				expectedType, recipes, collectedRecipes,
+				entity, () -> null,
+				referencedEntitySchemas, reference, reflectionLookup,
 				null
 			);
 		}

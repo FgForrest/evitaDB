@@ -215,7 +215,7 @@ public class SealedEntityProxyState
 					existingReference -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
 							expectedType, recipes, collectedRecipes,
-							this.entity,
+							this.entity, this::getPrimaryKey,
 							referencedEntitySchemas,
 							new ExistingReferenceBuilder(existingReference, getEntitySchema()),
 							getReflectionLookup(),
@@ -226,7 +226,7 @@ public class SealedEntityProxyState
 				.orElseGet(() -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
 							expectedType, recipes, collectedRecipes,
-							this.entity,
+							this.entity, this::getPrimaryKey,
 							getReferencedEntitySchemas(),
 							new InitialReferenceBuilder(
 								entitySchema,

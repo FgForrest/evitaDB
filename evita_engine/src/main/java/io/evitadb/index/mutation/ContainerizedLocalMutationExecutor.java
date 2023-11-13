@@ -401,7 +401,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private List<LocalMutation<?, ?>> verifyConsistency() {
 		final EntityBodyStoragePart entityStorageContainer = this.getEntityStorageContainer();
 		final List<LocalMutation<?, ?>> requestedChanges;
-		if (entityStorageContainer.isNew() && !entityContainer.isMarkedForRemoval()) {
+		if (entityStorageContainer.isNew() && !entityStorageContainer.isValidated() && !entityContainer.isMarkedForRemoval()) {
 			// we need to check entire entity
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			requestedChanges = verifyMandatoryAttributes(entityStorageContainer, missingMandatedAttributes, true, true);
@@ -413,6 +413,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 			verifyMandatoryAssociatedData(entityStorageContainer);
 			verifyReferenceCardinalities(referencesStorageContainer);
+			entityStorageContainer.setValidated(true);
 		} else if (entityStorageContainer.isMarkedForRemoval()) {
 			requestedChanges = Collections.emptyList();
 		} else {

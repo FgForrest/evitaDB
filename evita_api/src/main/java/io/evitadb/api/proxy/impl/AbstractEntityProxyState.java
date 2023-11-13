@@ -44,6 +44,7 @@ import one.edee.oss.proxycian.trait.localDataStore.LocalDataStore;
 import one.edee.oss.proxycian.trait.localDataStore.LocalDataStoreProvider;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
@@ -145,6 +146,14 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	@Nonnull
 	public EntityContract getEntity() {
 		return entity;
+	}
+
+	/**
+	 * Returns the primary key of the sealed entity that is being proxied.
+	 */
+	@Nullable
+	public Integer getPrimaryKey() {
+		return entity.getPrimaryKey();
 	}
 
 	/**
@@ -354,7 +363,9 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		@Nonnull ReferenceContract reference
 	) {
 		return ProxycianFactory.createEntityReferenceProxy(
-			expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup(),
+			expectedType, recipes, collectedRecipes,
+			entity, this::getPrimaryKey,
+			referencedEntitySchemas, reference, getReflectionLookup(),
 			this.generatedProxyObjects
 		);
 	}
@@ -377,7 +388,9 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 	) {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityReferenceProxy(
-				expectedType, recipes, collectedRecipes, entity, referencedEntitySchemas, reference, getReflectionLookup(),
+				expectedType, recipes, collectedRecipes,
+				entity, this::getPrimaryKey,
+				referencedEntitySchemas, reference, getReflectionLookup(),
 				this.generatedProxyObjects
 			)
 		);

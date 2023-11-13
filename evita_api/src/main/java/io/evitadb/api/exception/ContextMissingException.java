@@ -180,6 +180,14 @@ public class ContextMissingException extends EvitaInvalidUsageException {
 		);
 	}
 
+	public static ContextMissingException referencedEntityGroupContextMissing(@Nonnull String entityName, @Nonnull String referenceName) {
+		return new ContextMissingException(
+			"Entity `" + entityName + "` references of type `" +
+				referenceName + "` were not fetched with `entityGroupFetch` requirement. " +
+				"Related entity group body is not available."
+		);
+	}
+
 	public ContextMissingException() {
 		super(
 			"Query context is missing. You need to use method getPriceForSale(Currency, OffsetDateTime, Serializable...) " +

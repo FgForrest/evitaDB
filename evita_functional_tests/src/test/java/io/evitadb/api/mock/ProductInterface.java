@@ -249,4 +249,7 @@ public interface ProductInterface extends EntityClassifier {
 
 	@ReferenceRef(Entities.STORE)
 	int[] getStores();
+
+	@ReferenceRef(Entities.STORE)
+	StoreInterface getStoreById(int storeId);
 }

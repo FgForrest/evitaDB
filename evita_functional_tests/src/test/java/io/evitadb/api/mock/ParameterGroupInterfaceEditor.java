@@ -23,28 +23,27 @@
 
 package io.evitadb.api.mock;
 
-import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.EntityRef;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
-import io.evitadb.test.generator.DataGenerator.Labels;
-import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
+
+import java.io.Serializable;
 
 /**
- * Example store interface for proxying.
+ * Example interface mapping a parameter group entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface StoreInterfaceEditor extends StoreInterface {
+@EntityRef(Entities.PARAMETER_GROUP)
+public interface ParameterGroupInterfaceEditor extends Serializable {
 
-	StoreInterfaceEditor setCode(String code);
+	@PrimaryKeyRef
+	int getId();
 
-	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
-	StoreInterfaceEditor setLabels(Labels labels);
+	@AttributeRef(DataGenerator.ATTRIBUTE_CODE)
+	String getCode();
 
-	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
-	StoreInterfaceEditor setReferencedFiles(ReferencedFileSet referencedFileSet);
-
-	@ReferencedEntityGroup
-	void setCategory(int categoryId);
-
+	void setCode(String code);
 }

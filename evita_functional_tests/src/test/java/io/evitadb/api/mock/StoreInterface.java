@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKeyRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
 
@@ -43,5 +44,8 @@ public interface StoreInterface extends EntityClassifier {
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_CODE)
 	String getCode();
+
+	@ReferencedEntityGroup
+	Integer getCategory();
 
 }

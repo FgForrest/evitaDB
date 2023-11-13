@@ -96,7 +96,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 		if (parentEntity != null) {
 			if (int.class.equals(parameterType) || Integer.class.equals(parameterType)) {
 				return sealedEntity -> sealedEntity.getParentEntity().map(EntityClassifier::getPrimaryKey).orElse(null);
-			} else if (EntityReference.class.equals(parameterType) || EntityReferenceContract.class.equals(parameterType)) {
+			} else if (EntityReferenceContract.class.isAssignableFrom(parameterType)) {
 				return sealedEntity -> sealedEntity.getParentEntity().map(it -> new EntityReference(it.getType(), it.getPrimaryKey())).orElse(null);
 			} else if (EntityClassifier.class.equals(parameterType) || EntityClassifierWithParent.class.equals(parameterType)) {
 				return sealedEntity -> sealedEntity.getParentEntity().orElse(null);
@@ -243,7 +243,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 				// now we need to identify the return type and return appropriate implementation
 				if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(valueType))) {
 					return singleParentIdResult(parentEntityExtractor, resultWrapper, EvitaDataTypes.toWrappedForm(valueType));
-				} else if (valueType.equals(EntityReference.class)) {
+				} else if (EntityReferenceContract.class.isAssignableFrom(valueType)) {
 					return singleParentReferenceResult(parentEntityExtractor, valueType, resultWrapper);
 				} else {
 					//noinspection unchecked

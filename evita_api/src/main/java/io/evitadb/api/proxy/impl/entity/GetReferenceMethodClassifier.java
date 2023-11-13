@@ -32,6 +32,7 @@ import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
@@ -138,7 +139,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			// return the appropriate result
 			final Entity entityInstance = reflectionLookup.getClassAnnotation(itemType, Entity.class);
 			final EntityRef entityRefInstance = reflectionLookup.getClassAnnotation(itemType, EntityRef.class);
-			if (itemType.equals(EntityReference.class)) {
+			if (EntityReferenceContract.class.isAssignableFrom(itemType)) {
 				return getEntityReference(referenceName, collectionType);
 			} else if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(itemType))) {
 				//noinspection unchecked
@@ -1398,7 +1399,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					// return the appropriate result
 					final Entity entityInstance = reflectionLookup.getClassAnnotation(itemType, Entity.class);
 					final EntityRef entityRefInstance = reflectionLookup.getClassAnnotation(itemType, EntityRef.class);
-					if (itemType.equals(EntityReference.class)) {
+					if (EntityReferenceContract.class.isAssignableFrom(itemType)) {
 						return getEntityReference(referenceName, collectionType, referenceExtractor, resultWrapper);
 					} else if (Number.class.isAssignableFrom(EvitaDataTypes.toWrappedForm(itemType))) {
 						//noinspection unchecked

@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
@@ -82,6 +84,11 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@ReferenceRef(Entities.BRAND)
 	ProductInterfaceEditor setNewBrand(@CreateWhenMissing Consumer<BrandInterfaceEditor> brandConsumer);
+
+	/* TODO JNO - otestovat */
+	@ReferenceRef(Entities.BRAND)
+	@CreateWhenMissing
+	ProductInterfaceEditor setBrandWithCategory(@ReferencedEntity int storeId, @ReferencedEntityGroup int categoryId);
 
 	@ReferenceRef(Entities.BRAND)
 	ProductInterfaceEditor updateBrand(Consumer<BrandInterfaceEditor> brandConsumer);
@@ -289,5 +296,4 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@ReferenceRef(Entities.STORE)
 	@RemoveWhenExists
 	StoreInterface removeStoreById(int storeId);
-
 }

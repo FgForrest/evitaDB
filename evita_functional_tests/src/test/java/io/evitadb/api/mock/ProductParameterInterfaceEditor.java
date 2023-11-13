@@ -23,9 +23,14 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
+
+import java.util.function.Consumer;
 
 /**
  * Example interface mapping a product parameter reference.
@@ -34,10 +39,28 @@ import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
  */
 public interface ProductParameterInterfaceEditor extends ProductParameterInterface, InstanceEditor<ProductParameterInterface> {
 
-	void setPriority(Long priority);
+	ProductParameterInterfaceEditor setPriority(Long priority);
 
 	@ReferencedEntity
 	@CreateWhenMissing
 	ParameterInterfaceEditor getOrCreateParameter();
+
+	@ReferencedEntityGroup
+	@RemoveWhenExists
+	ProductParameterInterfaceEditor removeParameterGroup();
+
+	void setParameterGroup(Integer parameterGroup);
+
+	void setParameterGroupEntityClassifier(EntityReferenceContract entityClassifier);
+
+	void setParameterGroupEntity(ParameterGroupInterfaceEditor groupEntity);
+
+	@ReferencedEntityGroup
+	@CreateWhenMissing
+	ProductParameterInterfaceEditor getOrCreateParameterGroupEntity(Consumer<ParameterGroupInterfaceEditor> groupEntity);
+
+	@ReferencedEntityGroup
+	@CreateWhenMissing
+	ProductParameterInterfaceEditor getOrCreateParameterGroupEntity(int groupEntityId, Consumer<ParameterGroupInterfaceEditor> groupEntity);
 
 }

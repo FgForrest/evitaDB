@@ -23,8 +23,11 @@
 
 package io.evitadb.api.mock;
 
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.test.generator.DataGenerator;
 
 import java.io.Serializable;
@@ -34,12 +37,21 @@ import java.io.Serializable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductParameterInterface extends Serializable {
+public interface ProductParameterInterface extends Serializable, SealedInstance<ProductParameterInterface, ProductParameterInterfaceEditor> {
 
 	@ReferencedEntity
 	int getPrimaryKey();
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	Long getPriority();
+
+	@ReferencedEntityGroup
+	Integer getParameterGroup();
+
+	@ReferencedEntityGroup
+	EntityReferenceContract<?> getParameterGroupEntityClassifier();
+
+	@ReferencedEntityGroup
+	ParameterGroupInterfaceEditor getParameterGroupEntity();
 
 }

@@ -30,6 +30,7 @@ import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -55,6 +56,7 @@ import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -116,7 +118,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			.orElse(false);
 
 		// if entity reference is returned, return appropriate implementation
-		if (valueType.equals(EntityReference.class)) {
+		if (EntityReferenceContract.class.isAssignableFrom(valueType)) {
 			if (referencedEntity != null || entityIsReferencedEntity) {
 				return (sealedEntity, reference) -> new EntityReference(reference.getReferencedEntityType(), reference.getReferencedPrimaryKey());
 			} else {
@@ -211,7 +213,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> singleEntityResult(
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
-		@Nonnull Function<ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
+		@Nonnull BiFunction<String, ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
 		@Nonnull UnaryOperator<Object> resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
@@ -222,7 +224,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 			);
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
 			return resultWrapper.apply(
-				entityExtractor.apply(referenceDecorator)
+				entityExtractor.apply(theState.getType(), referenceDecorator)
 					.map(it -> theState.getOrCreateReferencedEntityProxy(itemType, it, ProxyType.REFERENCED_ENTITY))
 					.orElse(null)
 			);
@@ -343,7 +345,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 					.orElse(false);
 
 				// if entity reference is returned, return appropriate implementation
-				if (valueType.equals(EntityReference.class)) {
+				if (EntityReferenceContract.class.isAssignableFrom(valueType)) {
 					if (referencedEntity != null || entityIsReferencedEntity) {
 						return singleEntityReferenceResult(resultWrapper);
 					} else {
@@ -369,7 +371,14 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 						);
 						return singleEntityResult(
 							referenceName, valueType,
-							ReferenceDecorator::getReferencedEntity, resultWrapper
+							(theEntityType, referenceDecorator) -> {
+								if (referenceDecorator.getReferencedEntity().isPresent()) {
+									return referenceDecorator.getReferencedEntity();
+								} else {
+									throw ContextMissingException.referencedEntityContextMissing(theEntityType, referenceName);
+								}
+							},
+							resultWrapper
 						);
 					} else if (referencedEntityGroup != null) {
 						// or return complex type of the referenced entity group
@@ -385,17 +394,45 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 							)
 						);
 						return singleEntityResult(
-							referenceName, valueType, ReferenceDecorator::getGroupEntity, resultWrapper
+							referenceName, valueType,
+							(theEntityType, referenceDecorator) -> {
+								if (referenceDecorator.getGroup().isEmpty()) {
+									return Optional.empty();
+								} else if (referenceDecorator.getGroupEntity().isPresent()) {
+									return referenceDecorator.getGroupEntity();
+								} else {
+									throw ContextMissingException.referencedEntityGroupContextMissing(theEntityType, referenceName);
+								}
+							},
+							resultWrapper
 						);
 					} else if (entityType.isPresent()) {
 						// otherwise return entity or group based on entity type matching result
 						if (entityIsReferencedEntity) {
 							return singleEntityResult(
-								referenceName, valueType, ReferenceDecorator::getReferencedEntity, resultWrapper
+								referenceName, valueType,
+								(theEntityType, referenceDecorator) -> {
+									if (referenceDecorator.getReferencedEntity().isPresent()) {
+										return referenceDecorator.getReferencedEntity();
+									} else {
+										throw ContextMissingException.referencedEntityContextMissing(theEntityType, referenceName);
+									}
+								},
+								resultWrapper
 							);
 						} else if (entityIsReferencedGroup) {
 							return singleEntityResult(
-								referenceName, valueType, ReferenceDecorator::getGroupEntity,resultWrapper
+								referenceName, valueType,
+								(theEntityType, referenceDecorator) -> {
+									if (referenceDecorator.getGroup().isEmpty()) {
+										return Optional.empty();
+									} else if (referenceDecorator.getGroupEntity().isPresent()) {
+										return referenceDecorator.getGroupEntity();
+									} else {
+										throw ContextMissingException.referencedEntityGroupContextMissing(theEntityType, referenceName);
+									}
+								},
+								resultWrapper
 							);
 						} else {
 							return null;

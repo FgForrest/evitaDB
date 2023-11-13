@@ -37,7 +37,6 @@ import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
 import io.evitadb.api.requestResponse.data.annotation.PriceForSaleRef;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.function.ExceptionRethrowingFunction;
@@ -692,7 +691,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				@SuppressWarnings("rawtypes") final Class itemType;
 				if (Collection.class.equals(resolvedTypes[index]) || List.class.isAssignableFrom(resolvedTypes[index]) || Set.class.isAssignableFrom(resolvedTypes[index])) {
 					collectionType = resolvedTypes[index];
-					itemType = resolvedTypes.length > index + 1 ? resolvedTypes[index + 1] : EntityReference.class;
+					itemType = resolvedTypes.length > index + 1 ? resolvedTypes[index + 1] : PriceContract.class;
 				} else if (resolvedTypes[index].isArray()) {
 					collectionType = resolvedTypes[index];
 					itemType = returnType.getComponentType();

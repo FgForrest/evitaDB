@@ -23,6 +23,7 @@
 
 package io.evitadb.api.proxy.impl;
 
+import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -44,6 +45,9 @@ import java.io.Serial;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Proxy state for proxies that wrap sealed entity reference.
@@ -56,6 +60,10 @@ public class SealedEntityReferenceProxyState
 	implements EntityClassifier, SealedEntityReferenceProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	/**
+	 * Supplier of the wrapped entity primary key that might be assigned later when {@link SealedEntityProxy} is persisted.
+	 */
+	@Nonnull private final Supplier<Integer> entityPrimaryKeySupplier;
+	/**
 	 * Optional reference to the {@link ReferenceBuilder} that is created on demand by calling mutation method on
 	 * internally wrapped entity {@link #getReference()}.
 	 */
@@ -67,6 +75,7 @@ public class SealedEntityReferenceProxyState
 
 	public SealedEntityReferenceProxyState(
 		@Nonnull EntityContract entity,
+		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
 		@Nonnull Class<?> proxyClass,
@@ -76,6 +85,7 @@ public class SealedEntityReferenceProxyState
 		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
 	) {
 		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup, entityInstanceCache);
+		this.entityPrimaryKeySupplier = entityPrimaryKeySupplier;
 		this.reference = reference;
 	}
 
@@ -119,7 +129,7 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public Optional<ReferenceBuilder> getReferenceBuilderIfPresent() {
-		return Optional.ofNullable(referenceBuilder)
+		return ofNullable(referenceBuilder)
 			.filter(ReferenceBuilder::hasChanges);
 	}
 
@@ -139,7 +149,8 @@ public class SealedEntityReferenceProxyState
 	@Nonnull
 	@Override
 	public Integer getPrimaryKey() {
-		return entity.getPrimaryKey();
+		return ofNullable(entity.getPrimaryKey())
+			.orElseGet(entityPrimaryKeySupplier);
 	}
 
 	@Override

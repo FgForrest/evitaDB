@@ -189,7 +189,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @return true if referenced type is assignable from the given class
 	 */
 	@Nonnull
-	private static Boolean resolvedTypeIs(
+	public static Boolean resolvedTypeIs(
 		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 		@Nonnull Optional<ResolvedParameter> referencedType,
 		@Nonnull Class<?> aClass
@@ -201,14 +201,12 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * Returns true if referenced type is assignable from the given class.
 	 *
 	 * @param referencedType the referenced type
-	 * @param aClass         the class to check
 	 * @return true if referenced type is assignable from the given class
 	 */
 	@Nonnull
-	private static Boolean resolvedTypeIsNumber(
+	public static Boolean resolvedTypeIsNumber(
 		@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
-		@Nonnull Optional<ResolvedParameter> referencedType,
-		@Nonnull Class<?> aClass
+		@Nonnull Optional<ResolvedParameter> referencedType
 	) {
 		return referencedType.map(ResolvedParameter::resolvedType).map(NumberUtils::isIntConvertibleNumber).orElse(false);
 	}
@@ -816,7 +814,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					"doesn't match the referenced entity type: `" + expectedEntityType + "`!"
 			);
 			entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKey());
-			return proxy;
+			return null;
 		};
 	}
 
@@ -1542,7 +1540,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return proxyState.getEntitySchema(referenceSchema.getReferencedEntityType())
 			.map(referencedEntitySchema -> {
-				if (Arrays.stream(method.getParameterAnnotations()[0]).anyMatch(CreateWhenMissing.class::isInstance)) {
+				if (method.isAnnotationPresent(CreateWhenMissing.class) ||
+					Arrays.stream(method.getParameterAnnotations()[0]).anyMatch(CreateWhenMissing.class::isInstance)) {
 					if (returnType.equals(proxyState.getProxyClass())) {
 						return createReferencedEntityWithEntityBuilderResult(
 							referencedEntitySchema,
@@ -1832,7 +1831,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						return setOrRemoveReferenceById(proxyState, method, returnType, referenceSchema);
 					} else if (resolvedTypeIs(referencedType, EntityClassifier.class) && noDirectlyReferencedEntityRecognized) {
 						return setReferenceByEntityClassifier(proxyState, entityRecognizedIn.orElseThrow(), returnType, referenceSchema);
-					} else if (resolvedTypeIsNumber(referencedType, Number.class) && noDirectlyReferencedEntityRecognized) {
+					} else if (resolvedTypeIsNumber(referencedType) && noDirectlyReferencedEntityRecognized) {
 						return setReferenceById(proxyState, referencedType.orElseThrow(), returnType, referenceSchema);
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.PARAMETER)) {
 						return setReferenceByEntity(proxyState, entityRecognizedIn.orElseThrow(), returnType, referenceSchema);

@@ -312,6 +312,33 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	private static int createParameterGroupEntityIfMissing(EvitaContract evita) {
+		return createParameterEntityGroupIfMissing(evita, 1);
+	}
+
+	private static int createParameterEntityGroupIfMissing(EvitaContract evita, int number) {
+		return evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final Optional<EntityReference> parameterReference = evitaSession.queryOneEntityReference(
+					query(
+						collection(Entities.PARAMETER_GROUP),
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "parameterGroup-" + number)
+						)
+					)
+				);
+				return parameterReference
+					.orElseGet(
+						() -> evitaSession.createNewEntity(Entities.PARAMETER_GROUP)
+							.setAttribute(ATTRIBUTE_CODE, "parameterGroup-" + number)
+							.upsertVia(evitaSession)
+					)
+					.getPrimaryKey();
+			}
+		);
+	}
+
 	private static int createBrandEntityIfMissing(EvitaContract evita) {
 		return evita.updateCatalog(
 			TEST_CATALOG,
@@ -379,6 +406,17 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			session -> {
 				return session.queryOneEntityReference(
 					query(collection(Entities.CATEGORY), filterBy(attributeEquals("code", code)))
+				);
+			}
+		);
+	}
+
+	private static Optional<EntityReference> getParameterGroupByCode(EvitaContract evita, String code) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryOneEntityReference(
+					query(collection(Entities.PARAMETER_GROUP), filterBy(attributeEquals("code", code)))
 				);
 			}
 		);
@@ -2263,6 +2301,252 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertThrows(
 					ReferenceCardinalityViolatedException.class, () -> product4.upsertVia(evitaSession)
 				);
+			}
+		);
+	}
+
+	@DisplayName("Should set reference group")
+	@Order(37)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldSetReferenceGroup(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-9")
+					.setName(CZECH_LOCALE, "Produkt 9")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(parameterId, that -> that.setPriority(10L).setParameterGroup(parameterGroupId));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(15, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity product = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
+
+				final ProductInterface loadedProduct = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				assertNotNull(groupEntity);
+				assertEquals(parameterGroupId, groupEntity.getId());
+				assertEquals("parameterGroup-1", groupEntity.getCode());
+
+				loadedProduct.getParameter()
+					.openForWrite()
+					.removeParameterGroup()
+					.upsertVia(evitaSession);
+
+				final SealedEntity productAgain = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameterAgain = productAgain.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				assertTrue(theParameterAgain.getGroup().isEmpty());
+
+				final ProductInterface loadedProductAgain = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				assertNull(loadedProductAgain.getParameter().getParameterGroup());
+				assertNull(loadedProductAgain.getParameter().getParameterGroupEntityClassifier());
+				assertNull(loadedProductAgain.getParameter().getParameterGroupEntity());
+			}
+		);
+	}
+
+	@DisplayName("Should set reference group as entity reference")
+	@Order(38)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldSetReferenceGroupAsEntityReference(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-10")
+					.setName(CZECH_LOCALE, "Produkt 10")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(parameterId, that -> that.setPriority(10L)
+						.setParameterGroupEntityClassifier(new EntityReference(Entities.PARAMETER_GROUP, parameterGroupId))
+					);
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(15, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity product = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
+
+				final ProductInterface loadedProduct = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				assertNotNull(groupEntity);
+				assertEquals(parameterGroupId, groupEntity.getId());
+				assertEquals("parameterGroup-1", groupEntity.getCode());
+			}
+		);
+	}
+
+	@DisplayName("Should set reference group as entity")
+	@Order(39)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldSetReferenceGroupAsEntity(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ParameterGroupInterfaceEditor parameterGroupEntity = evitaSession.getEntity(
+					ParameterGroupInterfaceEditor.class, parameterGroupId, entityFetchAllContent()
+				).orElseThrow();
+
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-11")
+					.setName(CZECH_LOCALE, "Produkt 11")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(parameterId, that -> that.setPriority(10L)
+						.setParameterGroupEntity(parameterGroupEntity)
+					);
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				final Optional<EntityMutation> mutation = newProduct.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(15, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = newProduct.toInstance();
+				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroup());
+				assertEquals(parameterGroupId, modifiedInstance.getParameter().getParameterGroupEntityClassifier().getPrimaryKey());
+
+				newProduct.upsertVia(evitaSession);
+
+				assertTrue(newProduct.getId() > 0);
+				final SealedEntity product = evitaSession.getEntity(Entities.PRODUCT, newProduct.getId(), entityFetchAllContent()).orElseThrow();
+				final ReferenceContract theParameter = product.getReference(Entities.PARAMETER, parameterId).orElseThrow();
+				assertEquals(parameterGroupId, theParameter.getGroup().orElseThrow().getPrimaryKey());
+
+				final ProductInterface loadedProduct = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				assertNotNull(groupEntity);
+				assertEquals(parameterGroupId, groupEntity.getId());
+				assertEquals("parameterGroup-1", groupEntity.getCode());
+			}
+		);
+	}
+
+	@DisplayName("Should set reference group as newly created entity")
+	@Order(40)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldSetReferenceGroupAsNewlyCreatedEntity(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-12")
+					.setName(CZECH_LOCALE, "Produkt 12")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(parameterId, that -> that.setPriority(10L));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				newProduct.upsertVia(evitaSession);
+
+				newProduct.getParameter()
+					.openForWrite()
+					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-2"))
+					.upsertDeeplyVia(evitaSession);
+
+				final EntityReference createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-2")
+					.orElseThrow();
+
+				final ProductInterface loadedProduct = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				assertNotNull(groupEntity);
+				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
+				assertEquals("parameterGroup-2", groupEntity.getCode());
 			}
 		);
 	}
