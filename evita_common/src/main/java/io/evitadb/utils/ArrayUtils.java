@@ -34,7 +34,6 @@ import java.lang.reflect.Array;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -889,8 +888,6 @@ public class ArrayUtils {
 	 * in that array.
 	 */
 	public static int sortAlong(@Nonnull int[] sortedArray, @Nonnull int[] arrayToSort) {
-		final List<Integer> visitedSortedNumbers = new ArrayList<>(sortedArray.length);
-
 		final int lastIndex = arrayToSort.length - 1;
 		final int[] positions = new int[arrayToSort.length];
 		Arrays.fill(positions, -1);
@@ -898,16 +895,10 @@ public class ArrayUtils {
 
 		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
 			final int number = sortedArray[i];
-			if (visitedSortedNumbers.contains(number)) {
-				// ignore duplicate values in sorted array
-				continue;
-			} else {
-				visitedSortedNumbers.add(number);
-			}
 
 			if (number >= arrayToSort[0] && number <= arrayToSort[lastIndex]) {
 				final int indexInArrayToSort = Arrays.binarySearch(arrayToSort, number);
-				if (indexInArrayToSort >= 0) {
+				if (indexInArrayToSort >= 0 && positions[indexInArrayToSort] == -1) {
 					positions[indexInArrayToSort] = itemsLocalized++;
 				}
 			}
