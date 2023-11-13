@@ -44,7 +44,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -380,7 +379,7 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldParseOffsetDateTimeLiteral() {
-        final Value value1 = parseValueUnsafe(OffsetDateTime.of(2020, 2 ,8 ,13, 30, 55, 0, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        final Value value1 = parseValueUnsafe("2020-02-08T13:30:55+01:00");
         assertEquals(OffsetDateTime.class, value1.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())),
@@ -394,7 +393,7 @@ class EvitaQLValueTokenVisitorTest {
                 value2.asOffsetDateTime()
         );
 
-        final Value value3 = parseValueUnsafe(OffsetDateTime.of(2020, 2 ,8 ,13, 30, 55, 123000000, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        final Value value3 = parseValueUnsafe("2020-02-08T13:30:55.123+01:00");
         assertEquals(OffsetDateTime.class, value3.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())),
@@ -408,7 +407,7 @@ class EvitaQLValueTokenVisitorTest {
             value4.asOffsetDateTime()
         );
 
-        final Value value5 = parseValueUnsafe(OffsetDateTime.of(2020, 2 ,8 ,13, 30, 55, 123450000, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+        final Value value5 = parseValueUnsafe("2020-02-08T13:30:55.12345+01:00");
         assertEquals(OffsetDateTime.class, value5.getType());
         assertEquals(
             OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())),
@@ -477,13 +476,7 @@ class EvitaQLValueTokenVisitorTest {
 
     @Test
     void shouldParseOffsetDateTimeRangeLiteral() {
-        final Value valueFull1 = parseValueUnsafe(
-            "[" +
-                OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 0, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-                "," +
-                OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 0, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) +
-                "]"
-        );
+        final Value valueFull1 = parseValueUnsafe("[2020-02-08T13:30:55+01:00,2020-02-09T13:30:55+01:00]");
         assertEquals(DateTimeRange.class, valueFull1.getType());
         assertEquals(
                 DateTimeRange.between(
@@ -552,12 +545,7 @@ class EvitaQLValueTokenVisitorTest {
                 valueWithoutStart2.asDateTimeRange()
         );
 
-        final Value valueFull3 = parseValueUnsafe(formatValue(
-            DateTimeRange.between(
-                OffsetDateTime.of(2020, 2, 8, 13, 30, 55, 123000000, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now())),
-                OffsetDateTime.of(2020, 2, 9, 13, 30, 55, 123000000, ZoneId.of("Europe/Prague").getRules().getOffset(Instant.now()))
-            )
-        ));
+        final Value valueFull3 = parseValueUnsafe("[2020-02-08T13:30:55.123+01:00,2020-02-09T13:30:55.123+01:00]");
         assertEquals(DateTimeRange.class, valueFull3.getType());
         assertEquals(
             DateTimeRange.between(

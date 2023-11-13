@@ -892,15 +892,18 @@ public class ArrayUtils {
 		final int[] positions = new int[arrayToSort.length];
 		Arrays.fill(positions, -1);
 		int itemsLocalized = 0;
+
 		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
 			final int number = sortedArray[i];
+
 			if (number >= arrayToSort[0] && number <= arrayToSort[lastIndex]) {
 				final int indexInArrayToSort = Arrays.binarySearch(arrayToSort, number);
-				if (indexInArrayToSort >= 0) {
+				if (indexInArrayToSort >= 0 && positions[indexInArrayToSort] == -1) {
 					positions[indexInArrayToSort] = itemsLocalized++;
 				}
 			}
 		}
+
 		final int[] copyOfSource = Arrays.copyOf(arrayToSort, arrayToSort.length);
 		int unknownNumbers = 0;
 		for (int i = 0; i < copyOfSource.length; i++) {
@@ -910,6 +913,7 @@ public class ArrayUtils {
 				arrayToSort[itemsLocalized + unknownNumbers++] = copyOfSource[i];
 			}
 		}
+
 		return arrayToSort.length - unknownNumbers;
 	}
 
