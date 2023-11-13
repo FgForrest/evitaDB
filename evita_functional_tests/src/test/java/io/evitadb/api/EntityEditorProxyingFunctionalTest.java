@@ -26,6 +26,7 @@ package io.evitadb.api;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.mock.*;
+import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -41,6 +42,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.ArrayUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.OrderAnnotation;
@@ -54,9 +56,12 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -1216,7 +1221,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 	@Test
 	@UseDataSet(HUNDRED_PRODUCTS)
 	void shouldRemovePrice(EvitaContract evita) {
-		final EntityReference product7Ref = getProductByCode(evita, "product-8")
+		final EntityReference product8Ref = getProductByCode(evita, "product-8")
 			.orElseGet(() -> {
 				shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
 				return getProductByCode(evita, "product-8").orElseThrow();
@@ -1226,7 +1231,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 			TEST_CATALOG,
 			evitaSession -> {
 				final ProductInterfaceEditor product8 = evitaSession.getEntity(
-					ProductInterfaceEditor.class, product7Ref.primaryKey(), entityFetchAllContent()
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
 				/*
@@ -1239,12 +1244,12 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
 				 */
 
-				product8.removePricesById(2);
-				product8.removePricesByCurrency(CURRENCY_USD);
-				product8.removePrice(product8.getPrice("basic", CURRENCY_CZK, 5));
-				product8.removePrice(6, "basic", CURRENCY_CZK);
-				product8.removePricesById("reference");
-				product8.removeBasicPrice(7, CURRENCY_CZK);
+				product8.removePricesById(2)
+					.removePricesByCurrency(CURRENCY_USD)
+					.removePrice(product8.getPrice("basic", CURRENCY_CZK, 5))
+					.removePrice(6, "basic", CURRENCY_CZK)
+					.removePricesByPriceList("reference")
+					.removeBasicPrice(7, CURRENCY_CZK);
 
 				final Optional<EntityMutation> mutation = product8.toMutation();
 				assertTrue(mutation.isPresent());
@@ -1257,7 +1262,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				product8.upsertVia(evitaSession);
 
 				final SealedEntity product8SE = evitaSession.getEntity(
-					Entities.PRODUCT, product7Ref.primaryKey(), entityFetchAllContent()
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
 				).orElseThrow();
 
 				assertEquals(1, product8SE.getPrices().size());
@@ -1555,6 +1560,582 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertTrue(childCategorySE.getParentEntity().isEmpty());
+			}
+		);
+	}
+
+	@DisplayName("Should remove prices and return collection / array of removed prices")
+	@Order(26)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemovePricesAndReturnTheirCollectionAsResult(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				/*
+				new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+				new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+				 */
+
+				final PriceContract[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnTheirArray(CURRENCY_USD);
+				assertEquals(1, removedPricesByCurrency.length);
+				assertEquals(4, removedPricesByCurrency[0].priceId());
+				final Collection<PriceContract> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirCollection("vip");
+				assertEquals(2, removedPricesByPriceList.size());
+				final Set<Integer> removedPriceIds = removedPricesByPriceList.stream().map(PriceContract::priceId).collect(Collectors.toSet());
+				assertTrue(removedPriceIds.contains(2));
+				assertTrue(removedPriceIds.contains(3));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(3, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(4, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(4, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove prices and return collection / array of removed price ids")
+	@Order(27)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemovePricesAndReturnCollectionOfTheirIdsAsResult(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				/*
+				new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+				new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+				 */
+
+				final int[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnArrayOfTheirIds(CURRENCY_USD);
+				assertEquals(1, removedPricesByCurrency.length);
+				assertEquals(4, removedPricesByCurrency[0]);
+				final Collection<Integer> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirIds("vip");
+				assertEquals(2, removedPricesByPriceList.size());
+				final Set<Integer> removedPriceIds = new HashSet<>(removedPricesByPriceList);
+				assertTrue(removedPriceIds.contains(2));
+				assertTrue(removedPriceIds.contains(3));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(3, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(4, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(4, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove prices and return collection / array of removed price keys")
+	@Order(28)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemovePricesAndReturnCollectionOfTheirKeysAsResult(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				/*
+				new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+				new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+				 */
+
+				final Price.PriceKey[] removedPricesByCurrency = product8.removePricesByCurrencyAndReturnArrayOfTheirPriceKeys(CURRENCY_USD);
+				assertEquals(1, removedPricesByCurrency.length);
+				assertEquals(new Price.PriceKey(4, "vip", CURRENCY_USD), removedPricesByCurrency[0]);
+				final Collection<Price.PriceKey> removedPricesByPriceList = product8.removePricesByPriceListAndReturnTheirKeys("vip");
+				assertEquals(2, removedPricesByPriceList.size());
+				final Set<Price.PriceKey> removedPriceIds = new HashSet<>(removedPricesByPriceList);
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(3, "vip", CURRENCY_CZK)));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(3, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(4, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(4, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove prices one by one and return their identification")
+	@Order(29)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemovePricesOneByOneAndReturnTheirIdentification(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				/*
+				new Price(1, "reference", CURRENCY_CZK, null, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(2, "vip", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(3, "vip", CURRENCY_CZK, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true),
+				new Price(4, "vip", CURRENCY_USD, 7, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(5, "basic", CURRENCY_CZK, 9, BigDecimal.ONE, new BigDecimal("1.1"), BigDecimal.TEN, null, true),
+				new Price(6, "basic", CURRENCY_CZK, null, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, true),
+				new Price(7, "basic", CURRENCY_CZK, 8, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, VALIDITY, true)
+				 */
+
+				final PriceContract priceContract = product8.removePriceByIdAndReturnIt(1, "reference", CURRENCY_CZK);
+				assertEquals(new Price.PriceKey(1, "reference", CURRENCY_CZK), priceContract.priceKey());
+				assertEquals(2, product8.removePriceByIdAndReturnItsId(2, "vip", CURRENCY_CZK));
+				assertTrue(product8.removePriceByIdAndReturnTrueIfRemoved(3, "vip", CURRENCY_CZK));
+				assertFalse(product8.removePriceByIdAndReturnTrueIfRemoved(3, "vip", CURRENCY_CZK));
+				assertEquals(new Price.PriceKey(7, "basic", CURRENCY_CZK), product8.removePriceByIdAndReturnItsPriceKey(7, "basic", CURRENCY_CZK));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(4, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(3, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(3, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return boolean if any was removed")
+	@Order(30)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnBooleanIfAnyRemoved(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertTrue(product8.removeAllPrices());
+				assertFalse(product8.removeAllPrices());
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return their ids as array")
+	@Order(30)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnTheirIdsAsArray(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final int[] removedPriceIds = product8.removeAllPricesAndReturnTheirIds();
+				for (int i = 1; i < 8; i++) {
+					assertTrue(ArrayUtils.contains(removedPriceIds, i));
+				}
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return their ids as collection")
+	@Order(31)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnTheirIdsAsCollection(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Collection<Integer> removedPriceIds = product8.removeAllPricesAndReturnCollectionOfTheirIds();
+				for (int i = 1; i < 8; i++) {
+					int expectedPriceId = i;
+					assertTrue(removedPriceIds.stream().anyMatch(it -> it == expectedPriceId));
+				}
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return their price keys as array")
+	@Order(32)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnTheirPriceKeysAsArray(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Set<Price.PriceKey> removedPriceIds = new HashSet<>(
+					Arrays.asList(product8.removeAllPricesAndReturnTheirPriceKeys())
+				);
+
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(1, "reference", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(3, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(4, "vip", CURRENCY_USD)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(5, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(6, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(7, "basic", CURRENCY_CZK)));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return their price keys as collection")
+	@Order(33)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnTheirPriceKeysAsCollection(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Set<Price.PriceKey> removedPriceIds = new HashSet<>(
+					product8.removeAllPricesAndReturnCollectionOfTheirPriceKeys()
+				);
+
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(1, "reference", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(3, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(4, "vip", CURRENCY_USD)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(5, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(6, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(7, "basic", CURRENCY_CZK)));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return them as array")
+	@Order(34)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnThemAsArray(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Set<Price.PriceKey> removedPriceIds = Arrays.stream(product8.removeAllPricesAndReturnThem())
+					.map(PriceContract::priceKey)
+					.collect(Collectors.toSet());
+
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(1, "reference", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(3, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(4, "vip", CURRENCY_USD)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(5, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(6, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(7, "basic", CURRENCY_CZK)));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove all prices and return them as collection")
+	@Order(35)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllPricesAndReturnThemAsCollection(EvitaContract evita) {
+		getProductByCode(evita, "product-8")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithNewParameterViaGetOrCreateMethodWithId(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product8Ref = getProductByCode(evita, "product-8").orElseThrow();
+				final ProductInterfaceEditor product8 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final Set<Price.PriceKey> removedPriceIds = product8.removeAllPricesAndReturnThemAsCollection().stream()
+					.map(PriceContract::priceKey)
+					.collect(Collectors.toSet());
+
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(1, "reference", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(2, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(3, "vip", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(4, "vip", CURRENCY_USD)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(5, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(6, "basic", CURRENCY_CZK)));
+				assertTrue(removedPriceIds.contains(new Price.PriceKey(7, "basic", CURRENCY_CZK)));
+
+				final Optional<EntityMutation> mutation = product8.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(7, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product8.toInstance();
+				assertEquals(0, modifiedInstance.getAllPricesAsList().size());
+
+				product8.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product8Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertEquals(0, product8SE.getPrices().size());
 			}
 		);
 	}

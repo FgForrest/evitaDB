@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Price;
 import io.evitadb.api.requestResponse.data.annotation.ReferenceRef;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.test.Entities;
 import io.evitadb.test.generator.DataGenerator;
@@ -41,6 +42,7 @@ import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
@@ -171,11 +173,51 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@Price
 	@RemoveWhenExists
-	ProductInterfaceEditor removePricesById(String priceList);
+	PriceContract removePriceByIdAndReturnIt(int priceId, String priceList, Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	Integer removePriceByIdAndReturnItsId(int priceId, String priceList, Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	PriceKey removePriceByIdAndReturnItsPriceKey(int priceId, String priceList, Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	boolean removePriceByIdAndReturnTrueIfRemoved(int priceId, String priceList, Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	ProductInterfaceEditor removePricesByPriceList(String priceList);
+
+	@Price
+	@RemoveWhenExists
+	Collection<PriceContract> removePricesByPriceListAndReturnTheirCollection(String priceList);
+
+	@Price
+	@RemoveWhenExists
+	Collection<Integer> removePricesByPriceListAndReturnTheirIds(String priceList);
+
+	@Price
+	@RemoveWhenExists
+	Collection<PriceKey> removePricesByPriceListAndReturnTheirKeys(String priceList);
 
 	@Price
 	@RemoveWhenExists
 	ProductInterfaceEditor removePricesByCurrency(Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	PriceContract[] removePricesByCurrencyAndReturnTheirArray(Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	int[] removePricesByCurrencyAndReturnArrayOfTheirIds(Currency currency);
+
+	@Price
+	@RemoveWhenExists
+	PriceKey[] removePricesByCurrencyAndReturnArrayOfTheirPriceKeys(Currency currency);
 
 	@Price
 	@RemoveWhenExists
@@ -188,6 +230,34 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@Price
 	@RemoveWhenExists
 	ProductInterfaceEditor removePrice(PriceContract price);
+
+	@Price
+	@RemoveWhenExists
+	boolean removeAllPrices();
+
+	@Price
+	@RemoveWhenExists
+	int[] removeAllPricesAndReturnTheirIds();
+
+	@Price
+	@RemoveWhenExists
+	PriceKey[] removeAllPricesAndReturnTheirPriceKeys();
+
+	@Price
+	@RemoveWhenExists
+	PriceContract[] removeAllPricesAndReturnThem();
+
+	@Price
+	@RemoveWhenExists
+	Collection<Integer> removeAllPricesAndReturnCollectionOfTheirIds();
+
+	@Price
+	@RemoveWhenExists
+	Collection<PriceKey> removeAllPricesAndReturnCollectionOfTheirPriceKeys();
+
+	@Price
+	@RemoveWhenExists
+	Collection<PriceContract> removeAllPricesAndReturnThemAsCollection();
 
 	@ReferenceRef(Entities.STORE)
 	ProductInterfaceEditor addStore(int storeId);
