@@ -94,11 +94,19 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@RemoveWhenExists
 	ProductInterfaceEditor removeBrand();
 
+	@ReferenceRef(Entities.BRAND)
+	@RemoveWhenExists
+	BrandInterface removeBrandAndReturnItsBody();
+
 	@ReferenceRef(Entities.PARAMETER)
 	ProductInterfaceEditor setParameter(int parameterId, @CreateWhenMissing Consumer<ProductParameterInterfaceEditor> parameterEditor);
 
 	@ReferenceRef(Entities.PARAMETER)
 	ProductInterfaceEditor updateParameter(int parameterId, Consumer<ProductParameterInterfaceEditor> parameterEditor);
+
+	@ReferenceRef(Entities.PARAMETER)
+	@RemoveWhenExists
+	ProductParameterInterface removeParameterAndReturnItsBody();
 
 	@ReferenceRef(Entities.PARAMETER)
 	@CreateWhenMissing
@@ -110,6 +118,10 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	@ReferenceRef(Entities.CATEGORY)
 	@RemoveWhenExists
 	ProductInterfaceEditor removeProductCategoryById(int categoryId);
+
+	@ReferenceRef(Entities.CATEGORY)
+	@RemoveWhenExists
+	ProductCategoryInterface removeProductCategoryByIdAndReturnItsBody(int categoryId);
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
@@ -273,5 +285,9 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@ReferenceRef(Entities.STORE)
 	ProductInterfaceEditor setStores(StoreInterface... store);
+
+	@ReferenceRef(Entities.STORE)
+	@RemoveWhenExists
+	StoreInterface removeStoreById(int storeId);
 
 }

@@ -758,7 +758,6 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		boolean entityRecognizedInReturnType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			/* TODO JNO - write test for this */
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final String referenceName = referenceSchema.getName();
 			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
@@ -1374,7 +1373,6 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<?> expectedType,
 		boolean entityRecognizedInReturnType
 	) {
-		/* TODO JNO - write a test for this */
 		final String referenceName = referenceSchema.getName();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();

@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.mock.*;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -2136,6 +2137,132 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				).orElseThrow();
 
 				assertEquals(0, product8SE.getPrices().size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove one to many references by id and return their proxies")
+	@Order(36)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveOneToManyReferencesAndReturnTheirProxies(EvitaContract evita) {
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
+
+		getProductByCode(evita, "product-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithPricesAndReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+
+				final ProductInterfaceEditor product1 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product1Ref.primaryKey(),
+					referenceContentWithAttributes(
+						Entities.CATEGORY,
+						entityFetchAll()
+					),
+					referenceContentWithAttributes(
+						Entities.STORE,
+						entityFetchAll()
+					)
+				).orElseThrow();
+
+				final ProductCategoryInterface removedCategory = product1.removeProductCategoryByIdAndReturnItsBody(categoryId2);
+				assertNotNull(removedCategory);
+				assertEquals(categoryId2, removedCategory.getCategory().getId());
+				assertEquals(categoryId2, removedCategory.getCategoryReferencePrimaryKey());
+				assertEquals(2L, removedCategory.getOrderInCategory());
+
+				final StoreInterface store = product1.removeStoreById(1);
+				assertNotNull(store);
+				assertEquals(1, store.getId());
+				assertEquals("Delirium-Tremens-1", store.getCode());
+
+				final Optional<EntityMutation> mutation = product1.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(2, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product1.toInstance();
+				assertEquals(1, modifiedInstance.getProductCategories().size());
+				assertNotNull(modifiedInstance.getCategoryById(categoryId1));
+				assertNull(modifiedInstance.getCategoryById(categoryId2));
+
+				assertEquals(2, modifiedInstance.getStores().length);
+
+				product1.upsertVia(evitaSession);
+
+				final SealedEntity product8SE = evitaSession.getEntity(
+					Entities.PRODUCT, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertNull(product8SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
+				assertNotNull(product8SE.getReference(Entities.CATEGORY, categoryId1).orElse(null));
+				assertEquals(2, product8SE.getReferences(Entities.STORE).size());
+			}
+		);
+	}
+
+	@DisplayName("Should remove one to zero or one references by id and return their proxies")
+	@Order(36)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveOneToZeroOrOneReferencesAndReturnTheirProxies(EvitaContract evita) {
+		final int brandId = createBrandEntityIfMissing(evita);
+		final int parameterId = createParameterEntityIfMissing(evita);
+
+		getProductByCode(evita, "product-4")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithBrandSetAsPrimaryKey(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product4Ref = getProductByCode(evita, "product-4").orElseThrow();
+
+				final ProductInterfaceEditor product4 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product4Ref.primaryKey(),
+					referenceContentWithAttributes(
+						Entities.BRAND,
+						entityFetchAll()
+					),
+					referenceContentWithAttributes(
+						Entities.PARAMETER,
+						entityFetchAll()
+					)
+				).orElseThrow();
+
+				final BrandInterface removedBrand = product4.removeBrandAndReturnItsBody();
+				assertNotNull(removedBrand);
+				assertEquals(brandId, removedBrand.getId());
+
+				final ProductParameterInterface removedParameter = product4.removeParameterAndReturnItsBody();
+				assertNotNull(removedParameter);
+				assertEquals(parameterId, removedParameter.getPrimaryKey());
+
+				final Optional<EntityMutation> mutation = product4.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(2, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product4.toInstance();
+				assertNull(modifiedInstance.getBrand());
+				assertNull(modifiedInstance.getParameter());
+
+				assertThrows(
+					ReferenceCardinalityViolatedException.class, () -> product4.upsertVia(evitaSession)
+				);
 			}
 		);
 	}

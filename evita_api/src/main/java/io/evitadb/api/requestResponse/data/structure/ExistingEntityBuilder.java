@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.data.*;
@@ -114,9 +115,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	private final Entity baseEntity;
 	private final EntityDecorator baseEntityDecorator;
-	@Delegate(types = AttributesContract.class)
+	@Delegate(types = AttributesContract.class, excludes = AttributesAvailabilityChecker.class)
 	private final ExistingEntityAttributesBuilder attributesBuilder;
-	@Delegate(types = AssociatedDataContract.class)
+	@Delegate(types = AssociatedDataContract.class, excludes = AssociatedDataAvailabilityChecker.class)
 	private final ExistingAssociatedDataBuilder associatedDataBuilder;
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	private final ExistingPricesBuilder pricesBuilder;
@@ -224,14 +225,12 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		return baseEntity.getPrimaryKey();
 	}
 
-	@Override
-	public boolean parentAvailable() {
-		return baseEntity.parentAvailable();
-	}
-
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
 		return ofNullable(hierarchyMutation)
 			.map(it ->
 				it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent())
@@ -246,18 +245,76 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
+	public boolean parentAvailable() {
+		return baseEntity.parentAvailable();
+	}
+
+	@Override
+	public boolean attributesAvailable() {
+		return baseEntityDecorator == null ?
+			baseEntity.attributesAvailable() : baseEntityDecorator.attributesAvailable();
+	}
+
+	@Override
+	public boolean attributesAvailable(@Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributesAvailable(locale) : baseEntityDecorator.attributesAvailable(locale);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributeAvailable(attributeName) : baseEntityDecorator.attributeAvailable(attributeName);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributeAvailable(attributeName, locale) : baseEntityDecorator.attributeAvailable(attributeName, locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable() {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable() : baseEntityDecorator.associatedDataAvailable();
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(locale) : baseEntityDecorator.associatedDataAvailable(locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(associatedDataName) : baseEntityDecorator.associatedDataAvailable(associatedDataName);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(associatedDataName, locale) : baseEntityDecorator.associatedDataAvailable(associatedDataName, locale);
+	}
+
+	@Override
 	public boolean referencesAvailable() {
-		return baseEntity.referencesAvailable();
+		return baseEntityDecorator == null ?
+			baseEntity.referencesAvailable() : baseEntityDecorator.referencesAvailable();
 	}
 
 	@Override
 	public boolean referencesAvailable(@Nonnull String referenceName) {
-		return baseEntity.referencesAvailable(referenceName);
+		return baseEntityDecorator == null ?
+			baseEntity.referencesAvailable(referenceName) : baseEntityDecorator.referencesAvailable(referenceName);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences() {
+		if (!referencesAvailable()) {
+			throw ContextMissingException.referenceContextMissing();
+		}
 		return Stream.concat(
 				baseEntity.getReferences()
 					.stream()
@@ -282,6 +339,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		return getReferences()
 			.stream()
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
@@ -291,11 +351,15 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		final ReferenceKey entityReferenceContract = new ReferenceKey(referenceName, referencedEntityId);
 		final Optional<ReferenceContract> reference = baseEntity.getReference(referenceName, referencedEntityId)
 			.map(it -> ofNullable(this.referenceMutations.get(entityReferenceContract))
 				.map(mutations -> evaluateReferenceMutations(it, mutations))
-				.orElse(it)
+				.orElseGet(() -> baseEntityDecorator == null ?
+					it : baseEntityDecorator.getReference(referenceName, referencedEntityId).orElse(it))
 			)
 			.or(() ->
 				ofNullable(this.referenceMutations.get(entityReferenceContract))
@@ -327,6 +391,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
 			"Attribute " + attributeName + " was not fetched and cannot be removed. Please enrich the entity first or load it with attributes."
@@ -338,6 +405,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
 			"Attributes were not fetched and cannot be updated. Please enrich the entity first or load it with attributes. Please enrich the entity first or load it with attributes."
@@ -349,6 +419,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
 			"Attributes were not fetched and cannot be updated. Please enrich the entity first or load it with attributes. Please enrich the entity first or load it with attributes."
@@ -360,6 +433,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
 			"Attribute " + attributeName + " in locale " + locale + " was not fetched and cannot be removed. Please enrich the entity first or load it with attributes."
@@ -371,6 +447,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
 			"Attributes in locale " + locale + " were not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
@@ -382,6 +461,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
 			"Attributes in locale " + locale + " were not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
@@ -393,6 +475,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
+		if (!attributeAvailable(mutation.getAttributeKey().attributeName())) {
+			throw ContextMissingException.attributeContextMissing(mutation.getAttributeKey().attributeName());
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(mutation.getAttributeKey(), -1)),
 			"Attribute " + mutation.getAttributeKey() + " was not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
@@ -404,6 +489,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be removed. Please enrich the entity first or load it with the associated data."
@@ -415,6 +503,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nullable T associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -426,6 +517,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -437,6 +531,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be removed. Please enrich the entity first or load it with the associated data."
@@ -448,6 +545,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -459,6 +559,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T[] associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -470,6 +573,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
+		if (!associatedDataAvailable(mutation.getAssociatedDataKey().associatedDataName())) {
+			throw ContextMissingException.associatedDataContextMissing(mutation.getAssociatedDataKey().associatedDataName());
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(mutation.getAssociatedDataKey(), -1)),
 			"Associated data " + mutation.getAssociatedDataKey() + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -480,6 +586,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setParent(int parentPrimaryKey) {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
 		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParent(), OptionalInt.of(parentPrimaryKey)) ?
 			new SetParentMutation(parentPrimaryKey) : null;
 		return this;
@@ -487,6 +596,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder removeParent() {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
 		Assert.notNull(baseEntity.getParent(), "Cannot remove parent that is not present!");
 		this.hierarchyMutation = this.baseEntity.getParent().isPresent() ? new RemoveParentMutation() : null;
 		return this;
@@ -510,6 +622,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		Assert.isTrue(
 			referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referencedEntityType, cardinality, null)),
 			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
@@ -532,6 +647,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+		if (!referencesAvailable(referenceBuilder.getReferenceName())) {
+			throw ContextMissingException.referenceContextMissing(referenceBuilder.getReferenceName());
+		}
 		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
 		final Optional<ReferenceContract> existingReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
 		if (existingReference.isEmpty()) {
@@ -579,6 +697,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
 		Assert.isTrue(
 			referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), null)),
@@ -606,6 +727,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -616,6 +738,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -626,6 +749,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -636,6 +760,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -646,6 +771,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
