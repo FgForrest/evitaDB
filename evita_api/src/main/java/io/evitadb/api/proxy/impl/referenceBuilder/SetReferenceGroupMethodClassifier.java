@@ -59,7 +59,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.isEntityRecognizedIn;
@@ -70,6 +69,9 @@ import static java.util.Optional.of;
 
 /**
  * Identifies methods that are used to set entity referenced group into an entity and provides their implementation.
+ *
+ * TODO JNO - verify that the is managed is verified for referenced entities and groups
+ * TODO JNO - verify that the schemas are accessed inside implementations via theState.getEntitySchema methods
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -498,101 +500,6 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	}
 
 	/**
-	 * Returns method implementation that creates or updates reference by passing integer id and a consumer lambda, that
-	 * could immediately modify referenced entity. This method creates the reference without possibility to set
-	 * attributes on the reference and works directly with the referenced entity.
-	 *
-	 * @param proxyState        the proxy state
-	 * @param returnType        the return type
-	 * @param referencedIdIndex the index of the referenced id parameter
-	 * @param consumerIndex     the index of the consumer parameter
-	 * @param expectedType      the expected type of the referenced entity proxy
-	 * @return the method implementation
-	 */
-	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupByIdAndEntityConsumer(
-		@Nonnull SealedEntityReferenceProxyState proxyState,
-		@Nonnull Class<?> returnType,
-		int referencedIdIndex,
-		int consumerIndex,
-		@Nonnull Class<?> expectedType
-	) {
-		if (returnType.equals(proxyState.getProxyClass())) {
-			return createReferencedEntityWithIdAndEntityBuilderResult(
-				expectedType, referencedIdIndex, consumerIndex
-			);
-		} else {
-			return createReferencedEntityWithIdAndVoidResult(
-				expectedType, referencedIdIndex, consumerIndex
-			);
-		}
-	}
-
-	/**
-	 * Return a method implementation that creates new proxy object representing a referenced external entity
-	 * and returns the reference to the entity proxy to allow chaining (builder pattern).
-	 *
-	 * @param expectedType        the expected type of the referenced entity proxy
-	 * @param referenceIdLocation the location of the reference id in the method arguments
-	 * @param consumerLocation    the location of the consumer in the method arguments
-	 * @return the method implementation
-	 */
-	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> createReferencedEntityWithIdAndEntityBuilderResult(
-		@Nonnull Class<?> expectedType,
-		int referenceIdLocation,
-		int consumerLocation
-	) {
-		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final int referencedGroupId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
-			final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-				theState.getEntitySchema(),
-				expectedType,
-				ProxyType.REFERENCED_ENTITY,
-				referencedGroupId
-			);
-			referenceBuilder.setGroup(referencedGroupId);
-			//noinspection unchecked
-			final Consumer<Object> consumer = (Consumer<Object>) args[consumerLocation];
-			consumer.accept(referencedEntityInstance);
-			return proxy;
-		};
-	}
-
-	/**
-	 * Return a method implementation that creates new proxy object representing a referenced external entity
-	 * and returns no result.
-	 *
-	 * @param expectedType        the expected type of the referenced entity proxy
-	 * @param referenceIdLocation the location of the reference id in the method arguments
-	 * @param consumerLocation    the location of the consumer in the method arguments
-	 * @return the method implementation
-	 */
-	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> createReferencedEntityWithIdAndVoidResult(
-		@Nonnull Class<?> expectedType,
-		int referenceIdLocation,
-		int consumerLocation
-	) {
-		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final int referencedGroupId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
-			final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-				theState.getEntitySchema(),
-				expectedType,
-				ProxyType.REFERENCED_ENTITY,
-				referencedGroupId
-			);
-			referenceBuilder.setGroup(referencedGroupId);
-			//noinspection unchecked
-			final Consumer<Object> consumer = (Consumer<Object>) args[consumerLocation];
-			consumer.accept(referencedEntityInstance);
-			return null;
-		};
-	}
-
-	/**
 	 * Returns method implementation that creates, updates or removes reference by passing referenced entity ids.
 	 * This implementation doesn't allow to set attributes on the reference.
 	 *
@@ -785,17 +692,12 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 					firstParameter = null;
 				}
 
-				OptionalInt referencedIdIndex = OptionalInt.empty();
-				OptionalInt consumerIndex = OptionalInt.empty();
 				Optional<ResolvedParameter> referencedType = empty();
 				for (int i = 0; i < parameterCount; i++) {
 					final Class<?> parameterType = method.getParameterTypes()[i];
-					if (NumberUtils.isIntConvertibleNumber(parameterType)) {
-						referencedIdIndex = OptionalInt.of(i);
-					} else if (EntityReferenceContract.class.isAssignableFrom(parameterType)) {
+					if (EntityReferenceContract.class.isAssignableFrom(parameterType)) {
 						referencedType = of(new ResolvedParameter(EntityReferenceContract.class, EntityReferenceContract.class));
 					} else if (Consumer.class.isAssignableFrom(parameterType)) {
-						consumerIndex = OptionalInt.of(i);
 						final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[i]);
 						referencedType = of(
 							new ResolvedParameter(
@@ -838,7 +740,8 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 						return null;
 					}
 				} else if (parameterCount == 1) {
-					if (referencedIdIndex.isPresent() && noDirectlyReferencedEntityRecognized) {
+					final boolean parameterIsNumber = NumberUtils.isIntConvertibleNumber(method.getParameterTypes()[0]);
+					if (parameterIsNumber && noDirectlyReferencedEntityRecognized) {
 						return setOrRemoveReferencedGroupById(proxyState, method, returnType);
 					} else if (resolvedTypeIs(referencedType, EntityReferenceContract.class) && noDirectlyReferencedEntityRecognized) {
 						return setReferenceByEntityClassifier(proxyState, returnType, referenceSchema);
@@ -846,17 +749,8 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 						return setReferencedEntityByEntity(proxyState, returnType, referenceSchema);
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.CONSUMER)) {
 						return setReferencedEntityGroupByEntityConsumer(method, proxyState, referenceSchema, returnType, expectedType);
-					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.RETURN_TYPE) && referencedIdIndex.isPresent()) {
+					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.RETURN_TYPE) && parameterIsNumber) {
 						return setOrRemoveReferencedEntityByEntityReturnType(entityRecognizedIn.get().entityContract().resolvedType());
-					}
-				} else if (parameterCount == 2 && consumerIndex.isPresent() && referencedIdIndex.isPresent()) {
-					if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.CONSUMER)) {
-						return setReferencedEntityGroupByIdAndEntityConsumer(
-							proxyState, returnType,
-							referencedIdIndex.getAsInt(),
-							consumerIndex.getAsInt(),
-							expectedType
-						);
 					}
 				}
 

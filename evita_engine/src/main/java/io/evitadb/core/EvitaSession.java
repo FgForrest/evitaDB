@@ -41,6 +41,7 @@ import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UnexpectedTransactionStateException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -57,6 +58,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -725,16 +728,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
-		if (customEntity instanceof InstanceEditor<?> ie) {
-			return ie.toMutation()
-				.map(this::upsertEntity)
-				.orElseGet(() -> {
-					// no modification occurred, we can return the reference to the original entity
-					// the `toInstance` method should be cost-free in this case, as no modifications occurred
-					final EntityContract entity = (EntityContract) ie.toInstance();
-					return new EntityReference(entity.getType(), entity.getPrimaryKey());
-				});
-		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
+		if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return sealedEntityProxy.getEntityBuilderWithCallback()
 				.map(entityBuilderWithCallback -> {
 					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
@@ -745,6 +739,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
 					final EntityContract entity = sealedEntityProxy.getEntity();
+					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+				});
+		} else if (customEntity instanceof InstanceEditor<?> ie) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.orElseGet(() -> {
+					// no modification occurred, we can return the reference to the original entity
+					// the `toInstance` method should be cost-free in this case, as no modifications occurred
+					final EntityContract entity = (EntityContract) ie.toInstance();
 					return new EntityReference(entity.getType(), entity.getPrimaryKey());
 				});
 		} else {
@@ -759,11 +762,34 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
-		if (customEntity instanceof InstanceEditor<?> ie) {
-			return ie.toMutation()
-				.map(this::upsertEntity)
-				.map(List::of)
-				.orElse(Collections.emptyList());
+		if (customEntity instanceof SealedEntityReferenceProxy sealedEntityReferenceProxy) {
+			return Stream.concat(
+					// we need first to store the referenced entities (deep wise)
+					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback()
+						.map(entityBuilderWithCallback -> {
+							final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+							entityBuilderWithCallback.updateEntityReference(entityReference);
+							return entityReference;
+						}),
+					// and then the reference itself
+					sealedEntityReferenceProxy
+						.getReferenceBuilderIfPresent()
+						.stream()
+						.map(it -> {
+								final EntityClassifier entityClassifier = sealedEntityReferenceProxy.getEntityClassifier();
+								final EntityUpsertMutation entityUpsertMutation = new EntityUpsertMutation(
+									entityClassifier.getType(),
+									entityClassifier.getPrimaryKey(),
+									EntityExistence.MUST_EXIST,
+									it.buildChangeSet().collect(Collectors.toList())
+								);
+								final EntityReference entityReference = this.upsertEntity(entityUpsertMutation);
+								sealedEntityReferenceProxy.notifyBuilderUpserted();
+								return entityReference;
+							}
+						)
+				)
+				.toList();
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
@@ -777,6 +803,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					return entityReference;
 				})
 				.toList();
+		} else if (customEntity instanceof InstanceEditor<?> ie) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.map(List::of)
+				.orElse(Collections.emptyList());
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Method `upsertEntity` expects an instance of InstanceEditor, " +
@@ -1064,11 +1095,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	/**
 	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
-	 * 
-	 * @param contract contract of the entity to be created
+	 *
+	 * @param contract     contract of the entity to be created
 	 * @param sealedEntity sealed entity to be used as a source of data
+	 * @param <S>          type of the entity
 	 * @return new instance of the entity proxy
-	 * @param <S> type of the entity
 	 */
 	@Nonnull
 	private <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
@@ -1078,6 +1109,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	/**
 	 * Returns map with current {@link Catalog#getSchema() catalog} {@link EntitySchemaContract entity schema} instances
 	 * indexed by their {@link EntitySchemaContract#getName() name}.
+	 *
 	 * @return map with current {@link Catalog#getSchema() catalog} {@link EntitySchemaContract entity schema} instances
 	 */
 	@Nonnull

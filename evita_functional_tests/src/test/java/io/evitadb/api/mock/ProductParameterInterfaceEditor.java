@@ -59,8 +59,4 @@ public interface ProductParameterInterfaceEditor extends ProductParameterInterfa
 	@CreateWhenMissing
 	ProductParameterInterfaceEditor getOrCreateParameterGroupEntity(Consumer<ParameterGroupInterfaceEditor> groupEntity);
 
-	@ReferencedEntityGroup
-	@CreateWhenMissing
-	ProductParameterInterfaceEditor getOrCreateParameterGroupEntity(int groupEntityId, Consumer<ParameterGroupInterfaceEditor> groupEntity);
-
 }

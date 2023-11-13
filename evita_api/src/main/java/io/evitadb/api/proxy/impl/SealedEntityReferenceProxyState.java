@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.ExistingReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -57,7 +58,7 @@ import static java.util.Optional.ofNullable;
 @EqualsAndHashCode(of = {"reference"}, callSuper = true)
 public class SealedEntityReferenceProxyState
 	extends AbstractEntityProxyState
-	implements EntityClassifier, SealedEntityReferenceProxy {
+	implements SealedEntityReferenceProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	/**
 	 * Supplier of the wrapped entity primary key that might be assigned later when {@link SealedEntityProxy} is persisted.
@@ -87,6 +88,12 @@ public class SealedEntityReferenceProxyState
 		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup, entityInstanceCache);
 		this.entityPrimaryKeySupplier = entityPrimaryKeySupplier;
 		this.reference = reference;
+	}
+
+	@Nonnull
+	@Override
+	public EntityClassifier getEntityClassifier() {
+		return new EntityReference(getType(), getPrimaryKey());
 	}
 
 	/**
@@ -126,11 +133,19 @@ public class SealedEntityReferenceProxyState
 		return referenceBuilder;
 	}
 
+	@Override
+	public void notifyBuilderUpserted() {
+		if (referenceBuilder != null) {
+			this.referenceBuilder = new ExistingReferenceBuilder(
+				this.referenceBuilder.build(), getEntitySchema()
+			);
+		}
+	}
+
 	@Nonnull
 	@Override
 	public Optional<ReferenceBuilder> getReferenceBuilderIfPresent() {
-		return ofNullable(referenceBuilder)
-			.filter(ReferenceBuilder::hasChanges);
+		return ofNullable(referenceBuilder);
 	}
 
 	@Override
@@ -146,7 +161,7 @@ public class SealedEntityReferenceProxyState
 		return entity.getType();
 	}
 
-	@Nonnull
+	@Nullable
 	@Override
 	public Integer getPrimaryKey() {
 		return ofNullable(entity.getPrimaryKey())
@@ -158,4 +173,5 @@ public class SealedEntityReferenceProxyState
 		return reference instanceof ReferenceBuilder rb ?
 			rb.build().toString() : reference.toString();
 	}
+
 }

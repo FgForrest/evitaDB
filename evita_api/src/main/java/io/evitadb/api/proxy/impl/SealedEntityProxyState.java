@@ -28,7 +28,6 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.SealedEntityProxy;
 import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
-import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -48,6 +47,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Setter;
 import one.edee.oss.proxycian.recipe.ProxyRecipe;
+import one.edee.oss.proxycian.trait.ProxyStateAccessor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -55,9 +55,7 @@ import java.io.Serial;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -68,7 +66,7 @@ import static java.util.Optional.ofNullable;
  */
 public class SealedEntityProxyState
 	extends AbstractEntityProxyState
-	implements EntityClassifier, SealedEntityProxy {
+	implements SealedEntityProxy {
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	/**
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
@@ -121,43 +119,26 @@ public class SealedEntityProxyState
 	public Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback() {
 		propagateReferenceMutations();
 		return Optional.ofNullable(this.entityBuilder)
-			.map(it -> new EntityBuilderWithCallback(it, entityReference -> this.entityReference = entityReference));
-	}
-
-	@Override
-	@Nonnull
-	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback() {
-		return this.generatedProxyObjects.entrySet().stream()
-			.filter(
-				it -> it.getKey().proxyType() == ProxyType.PARENT ||
-					it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY
-			)
-			.flatMap(
-				it -> Stream.concat(
-					// we need first store the referenced entities of referenced entity (depth wise)
-					it.getValue().getSealedEntityProxies()
-						.flatMap(SealedEntityProxy::getReferencedEntityBuildersWithCallback),
-					// and then the referenced entity itself
-					it.getValue().getSealedEntityProxies()
-						.map(SealedEntityProxy::getEntityBuilderWithCallback)
-						.filter(Optional::isPresent)
-						.map(Optional::get)
-						.map(
-							mutation -> {
-								final EntityBuilder theBuilder = mutation.builder();
-								final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
-								final Consumer<EntityReference> externalCallback = it.getValue().callback();
-								return new EntityBuilderWithCallback(
-									theBuilder,
-									mutationCallback == null ?
-										externalCallback :
-										entityReference1 -> {
-											mutation.updateEntityReference(entityReference1);
-											externalCallback.accept(entityReference1);
-										}
-								);
-							}
-						)
+			.map(
+				it -> new EntityBuilderWithCallback(
+					it,
+					entityReference -> {
+						this.entityReference = entityReference;
+						this.entityBuilder = new ExistingEntityBuilder(
+							// we can cast it here, since we know that both InitialEntityBuilder and ExistingEntityBuilder
+							// fabricate Entity instances
+							(Entity) this.entityBuilder.toInstance()
+						);
+						// we need to mark all references as upserted, since they were persisted along with the entity
+						this.generatedProxyObjects
+							.entrySet()
+							.stream()
+							.filter(goEntry -> goEntry.getKey().proxyType() == ProxyType.REFERENCE)
+							.flatMap(goEntry -> goEntry.getValue().proxies().stream())
+							.forEach(refProxy -> ((SealedEntityReferenceProxyState)((ProxyStateAccessor)refProxy).getProxyState())
+								.notifyBuilderUpserted()
+							);
+					}
 				)
 			);
 	}

@@ -2551,4 +2551,55 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	@DisplayName("Should set reference group by id and update it")
+	@Order(41)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldSetReferenceGroupByIdAndUpdateIt(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-13")
+					.setName(CZECH_LOCALE, "Produkt 13")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(parameterId, that -> that.setPriority(10L).setParameterGroup(parameterGroupId));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				newProduct.upsertVia(evitaSession);
+
+				newProduct.getParameter()
+					.openForWrite()
+					.getOrCreateParameterGroupEntity(newGroup -> newGroup.setCode("parameterGroup-20"))
+					.upsertDeeplyVia(evitaSession);
+
+				final EntityReference createdParameterGroup = getParameterGroupByCode(evita, "parameterGroup-20")
+					.orElseThrow();
+
+				final ProductInterface loadedProduct = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				final ParameterGroupInterfaceEditor groupEntity = loadedProduct.getParameter().getParameterGroupEntity();
+				assertNotNull(groupEntity);
+				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
+				assertEquals("parameterGroup-20", groupEntity.getCode());
+			}
+		);
+	}
+
 }

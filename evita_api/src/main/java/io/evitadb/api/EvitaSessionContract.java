@@ -852,8 +852,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * Method inserts to or updates entity in collection according to passed set of mutations.
 	 *
-	 * TOBEDONE #43 - support new variants for the model class
-	 *
 	 * @param entityMutation list of mutation snippets that alter or form the entity
 	 */
 	@Nonnull

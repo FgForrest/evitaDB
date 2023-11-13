@@ -87,7 +87,7 @@
 					<regexFlags>MULTILINE</regexFlags>
 					<replacements>
 						<replacement>
-							<token>(// Generated from*[\S\s]*?)package io.evitadb.api.query.parser.grammar;</token>
+							<token>^(// Generated from*[\S\s]*?)package io.evitadb.api.query.parser.grammar;</token>
 							<value>
 /*
  *

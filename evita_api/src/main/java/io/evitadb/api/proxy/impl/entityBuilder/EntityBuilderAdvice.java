@@ -166,9 +166,12 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				proxyState.propagateReferenceMutations();
-				final EntityReference entityReference = proxyState.getEntityBuilderIfPresent()
-					.flatMap(InstanceEditor::toMutation)
-					.map(it -> ((EvitaSessionContract) args[0]).upsertEntity(it))
+				final EntityReference entityReference = proxyState.getEntityBuilderWithCallback()
+					.map(it -> {
+						final EntityReference resultReference = ((EvitaSessionContract) args[0]).upsertEntity(it.builder());
+						it.updateEntityReference(resultReference);
+						return resultReference;
+					})
 					.orElseGet(() -> new EntityReference(proxyState.getType(), proxyState.getPrimaryKey()));
 				proxyState.setEntityReference(entityReference);
 				return entityReference;

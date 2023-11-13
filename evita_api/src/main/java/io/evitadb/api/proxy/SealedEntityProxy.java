@@ -35,7 +35,6 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 /**
  * This interface is implemented by all proxy types that wrap a sealed entity and provide access to an instance of
@@ -43,7 +42,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityProxy extends EvitaProxy {
+public interface SealedEntityProxy extends EvitaProxy, ReferencedEntityBuilderProvider {
 
 	/**
 	 * Returns the primary key of the underlying sealed entity. The primary key might be null if the entity hasn't been
@@ -70,18 +69,6 @@ public interface SealedEntityProxy extends EvitaProxy {
 	 */
 	@Nonnull
 	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback();
-
-	/**
-	 * Returns stream of entity mutations that related not to internal wrapped {@link #getEntity()} but to
-	 * entities that are referenced from this internal entity. This stream is used in method
-	 * {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} to store all changes that were made to the object
-	 * tree originating from this proxy.
-	 *
-	 * @return stream of all mutations that were made to the object tree originating from this proxy, empty stream if
-	 * no mutations were made or mutations were made only to the internally wrapped {@link #getEntity()}
-	 */
-	@Nonnull
-	Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback();
 
 	/**
 	 * Types of generated proxies.

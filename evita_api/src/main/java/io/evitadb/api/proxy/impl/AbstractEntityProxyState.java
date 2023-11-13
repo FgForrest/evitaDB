@@ -25,10 +25,14 @@ package io.evitadb.api.proxy.impl;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
+import io.evitadb.api.proxy.ReferencedEntityBuilderProvider;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityProxy.EntityBuilderWithCallback;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxycianFactory.ProxyEntityCacheKey;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -49,6 +53,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +73,12 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @EqualsAndHashCode(of = {"entity", "proxyClass"})
-public abstract class AbstractEntityProxyState implements Serializable, LocalDataStoreProvider {
+abstract class AbstractEntityProxyState implements
+	Serializable,
+	LocalDataStoreProvider,
+	EntityClassifier,
+	ReferencedEntityBuilderProvider
+{
 	@Serial private static final long serialVersionUID = -6935480192166155348L;
 	/**
 	 * The sealed entity that is being proxied.
@@ -464,6 +474,44 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		);
 	}
 
+	@Override
+	@Nonnull
+	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback() {
+		return this.generatedProxyObjects.entrySet().stream()
+			.filter(
+				it -> it.getKey().proxyType() == ProxyType.PARENT ||
+					it.getKey().proxyType() == ProxyType.REFERENCED_ENTITY
+			)
+			.flatMap(
+				it -> Stream.concat(
+					// we need first store the referenced entities of referenced entity (depth wise)
+					it.getValue().getSealedEntityProxies()
+						.flatMap(SealedEntityProxy::getReferencedEntityBuildersWithCallback),
+					// and then the referenced entity itself
+					it.getValue().getSealedEntityProxies()
+						.map(SealedEntityProxy::getEntityBuilderWithCallback)
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.map(
+							mutation -> {
+								final EntityBuilder theBuilder = mutation.builder();
+								final Consumer<EntityReference> mutationCallback = mutation.upsertCallback();
+								final Consumer<EntityReference> externalCallback = it.getValue().callback();
+								return new EntityBuilderWithCallback(
+									theBuilder,
+									mutationCallback == null ?
+										externalCallback :
+										entityReference1 -> {
+											mutation.updateEntityReference(entityReference1);
+											externalCallback.accept(entityReference1);
+										}
+								);
+							}
+						)
+				)
+			);
+	}
+
 	/**
 	 * Method propagates references to the referenced instances to the {@link #generatedProxyObjects} cache of this state.
 	 *
@@ -560,9 +608,15 @@ public abstract class AbstractEntityProxyState implements Serializable, LocalDat
 		}
 
 		@Nonnull
+		public Collection<Object> proxies() {
+			return proxies;
+		}
+
+		@Nonnull
 		public Stream<SealedEntityProxy> getSealedEntityProxies() {
 			return proxies.stream().filter(SealedEntityProxy.class::isInstance).map(SealedEntityProxy.class::cast);
 		}
+
 	}
 
 }

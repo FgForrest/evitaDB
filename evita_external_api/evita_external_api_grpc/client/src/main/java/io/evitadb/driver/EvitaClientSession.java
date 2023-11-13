@@ -41,6 +41,7 @@ import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UnexpectedTransactionStateException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -63,6 +64,8 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -124,6 +127,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
@@ -941,11 +945,34 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
-		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
-			return ((InstanceEditor<?>)customEntity).toMutation()
-				.map(this::upsertEntity)
-				.map(List::of)
-				.orElse(Collections.emptyList());
+		if (customEntity instanceof SealedEntityReferenceProxy sealedEntityReferenceProxy) {
+			return Stream.concat(
+					// we need first to store the referenced entities (deep wise)
+					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback()
+						.map(entityBuilderWithCallback -> {
+							final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+							entityBuilderWithCallback.updateEntityReference(entityReference);
+							return entityReference;
+						}),
+					// and then the reference itself
+					sealedEntityReferenceProxy
+						.getReferenceBuilderIfPresent()
+						.stream()
+						.map(it -> {
+								final EntityClassifier entityClassifier = sealedEntityReferenceProxy.getEntityClassifier();
+								final EntityUpsertMutation entityUpsertMutation = new EntityUpsertMutation(
+									entityClassifier.getType(),
+									entityClassifier.getPrimaryKey(),
+									EntityExistence.MUST_EXIST,
+									it.buildChangeSet().collect(Collectors.toList())
+								);
+								final EntityReference entityReference = this.upsertEntity(entityUpsertMutation);
+								sealedEntityReferenceProxy.notifyBuilderUpserted();
+								return entityReference;
+							}
+						)
+				)
+				.toList();
 		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
 			return Stream.concat(
 					// we need first to store the referenced entities (deep wise)
@@ -953,12 +980,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 					// then the entity itself
 					sealedEntityProxy.getEntityBuilderWithCallback().stream()
 				)
-				.map(entityMutation -> {
-					final EntityReference entityReference = upsertEntity(entityMutation.builder());
-					entityMutation.updateEntityReference(entityReference);
+				.map(entityBuilderWithCallback -> {
+					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+					entityBuilderWithCallback.updateEntityReference(entityReference);
 					return entityReference;
 				})
 				.toList();
+		} else if (customEntity instanceof InstanceEditor<?> ie) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.map(List::of)
+				.orElse(Collections.emptyList());
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Method `upsertEntity` expects an instance of InstanceEditor, " +
