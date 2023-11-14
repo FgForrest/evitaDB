@@ -94,7 +94,7 @@ the following HTTP request:
 GET /gql/fashion
 ```
 
-<Note type="example">
+<Note type="info">
 
 <NoteTitle toggles="true">
 
