@@ -66,7 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
 /**
- * Generic HTTP request handler for processing {@link GraphQLRequest}s and returning {@link GraphQLResponse}s using passed
+ * HTTP request handler for processing {@link GraphQLRequest}s and returning {@link GraphQLResponse}s using passed
  * configured instance of {@link GraphQL}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022

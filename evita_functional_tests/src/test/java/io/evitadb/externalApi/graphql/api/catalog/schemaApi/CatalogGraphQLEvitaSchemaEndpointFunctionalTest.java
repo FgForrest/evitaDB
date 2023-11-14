@@ -21,20 +21,14 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * Ancestor for tests for GraphQL catalog endpoint.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
-
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
-    public static final String APPLICATION_GRAPHQL = "application/graphql";
+public abstract class CatalogGraphQLEvitaSchemaEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
 }

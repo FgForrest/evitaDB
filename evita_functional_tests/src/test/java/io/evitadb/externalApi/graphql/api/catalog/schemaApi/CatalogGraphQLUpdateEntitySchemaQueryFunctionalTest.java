@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.*;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
+public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String EMPTY_SCHEMA_PATH = "data.getEmptySchema";
 	private static final String UPDATE_EMPTY_SCHEMA_PATH = "data.updateEmptySchema";

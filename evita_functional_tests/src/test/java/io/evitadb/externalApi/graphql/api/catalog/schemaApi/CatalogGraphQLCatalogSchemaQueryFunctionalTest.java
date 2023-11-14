@@ -53,7 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
+public class CatalogGraphQLCatalogSchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String CATALOG_SCHEMA_PATH = "data.getCatalogSchema";
 
