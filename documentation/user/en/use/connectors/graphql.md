@@ -64,6 +64,8 @@ catalog APIs, or with the reserved `system` keyword for the above-mentioned <Ter
 The <Term>catalog schema API</Term> is more of an "introspection" API, as it allows users to view and modify internal evitaDB
 schemas, which in turn affects the GraphQL API schema.
 
+Each GraphQL API instance supports only `POST` HTTP method for executing queries and mutations.
+
 <Note type="example">
 
 <NoteTitle toggles="true">
@@ -79,6 +81,30 @@ with its own relevant GraphQL schema:
 - `/gql/electronic` - a <Term>catalog data API</Term> to query or update the actual data of the `electronic` catalog
 - `/gql/electronic/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronic` catalog
 - `/gql/system` - the <Term>system API</Term> to manage evitaDB itself
+
+</Note>
+
+### GraphQL schema fetching
+
+Each GraphQL API instance supports standard [introspection capabilities](https://graphql.org/learn/introspection/) for GraphQL schema
+reconstruction. On top of that, each instance supports fetching reconstructed GraphQL schema in DSL format using 
+`GET` HTTP request on the instance URL. For example, to fetch the GraphQL schema of the `fashion` catalog, you can issue
+the following HTTP request:
+```http request
+GET /gql/fashion
+```
+
+<Note type="example">
+
+<NoteTitle toggles="true">
+
+##### `GET` method meaning in the GraphQL spec
+</NoteTitle>
+
+We are aware that this implementation is not the right way of using `GET` method according to the GraphQL spec.
+However, we opted for this implementation because we use the same approach for fetching the OpenAPI specifications of REST API.
+Also, we don't plan to support executing queries and mutations using `GET` method anyway, because it involves unnecessary
+escaping of the query string and so on.
 
 </Note>
 
