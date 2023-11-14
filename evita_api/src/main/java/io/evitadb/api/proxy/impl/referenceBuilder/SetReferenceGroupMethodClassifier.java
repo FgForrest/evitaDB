@@ -40,7 +40,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
@@ -70,9 +69,6 @@ import static java.util.Optional.of;
 /**
  * Identifies methods that are used to set entity referenced group into an entity and provides their implementation.
  *
- * TODO JNO - verify that the is managed is verified for referenced entities and groups
- * TODO JNO - verify that the schemas are accessed inside implementations via theState.getEntitySchema methods
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class SetReferenceGroupMethodClassifier extends DirectMethodClassification<Object, SealedEntityReferenceProxyState> {
@@ -80,6 +76,22 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * We may reuse singleton instance since advice is stateless.
 	 */
 	public static final SetReferenceGroupMethodClassifier INSTANCE = new SetReferenceGroupMethodClassifier();
+
+	/**
+	 * Method returns the referenced entity group type and verifies that it is managed by evitaDB.
+	 * @param referenceSchema the reference schema
+	 * @return the referenced entity group type
+	 */
+	@Nullable
+	private static String getReferencedGroupType(@Nonnull ReferenceSchemaContract referenceSchema, boolean requireManagedOnly) {
+		final String referencedEntityType = referenceSchema.getReferencedGroupType();
+		Assert.isTrue(
+			!requireManagedOnly || referenceSchema.isReferencedGroupTypeManaged(),
+			"Referenced entity group type `" + referencedEntityType + "` is not managed " +
+				"by evitaDB and cannot be created by method call!"
+		);
+		return referencedEntityType;
+	}
 
 	/**
 	 * Return a method implementation that removes the single reference if exists.
@@ -181,12 +193,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class expectedType
 	) {
-		final String referencedEntityType = referenceSchema.getReferencedGroupType();
-		Assert.isTrue(
-			referenceSchema.isReferencedGroupTypeManaged(),
-			"Referenced entity group type `" + referencedEntityType + "` is not managed " +
-				"by evitaDB and cannot be created by method call!"
-		);
+		final String referencedEntityType = getReferencedGroupType(referenceSchema, true);
 		final String referenceName = referenceSchema.getName();
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
@@ -254,7 +261,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupWithVoidResult(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final String expectedEntityType = referenceSchema.getReferencedGroupType();
+		final String expectedEntityType = getReferencedGroupType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
@@ -280,7 +287,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupWithBuilderResult(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final String expectedEntityType = referenceSchema.getReferencedGroupType();
+		final String expectedEntityType = getReferencedGroupType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
@@ -316,40 +323,36 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<?> returnType,
 		@Nonnull Class<?> expectedType
 	) {
-		return proxyState.getEntitySchema(referenceSchema.getReferencedGroupType())
-			.map(referencedEntitySchema -> {
-				if (method.isAnnotationPresent(CreateWhenMissing.class) ||
-					Arrays.stream(method.getParameterAnnotations()[0]).anyMatch(CreateWhenMissing.class::isInstance)) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return createReferencedEntityGroupWithEntityBuilderResult(
-							referencedEntitySchema,
-							expectedType
-						);
-					} else if (void.class.equals(returnType)) {
-						return createReferencedEntityGroupWithVoidResult(
-							referencedEntitySchema,
-							expectedType
-						);
-					} else {
-						return null;
-					}
-				} else {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return updateReferencedEntityWithEntityGroupBuilderResult(
-							referenceSchema,
-							expectedType
-						);
-					} else if (void.class.equals(returnType)) {
-						return updateReferencedEntityGroupWithVoidResult(
-							referenceSchema,
-							expectedType
-						);
-					} else {
-						return null;
-					}
-				}
-			})
-			.orElse(null);
+		final String referencedGroupType = getReferencedGroupType(referenceSchema, true);
+		if (method.isAnnotationPresent(CreateWhenMissing.class) ||
+			Arrays.stream(method.getParameterAnnotations()[0]).anyMatch(CreateWhenMissing.class::isInstance)) {
+			if (returnType.equals(proxyState.getProxyClass())) {
+				return createReferencedEntityGroupWithEntityBuilderResult(
+					referencedGroupType,
+					expectedType
+				);
+			} else if (void.class.equals(returnType)) {
+				return createReferencedEntityGroupWithVoidResult(
+					referencedGroupType,
+					expectedType
+				);
+			} else {
+				return null;
+			}
+		} else {
+			if (returnType.equals(proxyState.getProxyClass())) {
+				return updateReferencedEntityWithEntityGroupBuilderResult(
+					referenceSchema.getName(),
+					expectedType
+				);
+			} else if (void.class.equals(returnType)) {
+				return updateReferencedEntityGroupWithVoidResult(
+					referenceSchema.getName(), expectedType
+				);
+			} else {
+				return null;
+			}
+		}
 	}
 
 	/**
@@ -362,13 +365,13 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> createReferencedEntityGroupWithEntityBuilderResult(
-		@Nonnull EntitySchemaContract referencedEntitySchema,
+		@Nonnull String referencedEntityType,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final Object referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
-				referencedEntitySchema,
+				theState.getEntitySchemaOrThrow(referencedEntityType),
 				expectedType,
 				ProxyType.REFERENCED_ENTITY,
 				entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKey())
@@ -389,13 +392,13 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> createReferencedEntityGroupWithVoidResult(
-		@Nonnull EntitySchemaContract referencedEntitySchema,
+		@Nonnull String referencedEntityType,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final Object referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
-				referencedEntitySchema,
+				theState.getEntitySchemaOrThrow(referencedEntityType),
 				expectedType,
 				ProxyType.REFERENCED_ENTITY,
 				entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKey())
@@ -412,25 +415,24 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * (without knowing its primary key since it hasn't been assigned yet) and returns the reference to the entity proxy
 	 * to allow chaining (builder pattern).
 	 *
-	 * @param referenceSchema the reference schema to use
-	 * @param expectedType    the expected type of the referenced entity proxy
+	 * @param expectedType the expected type of the referenced entity proxy
 	 * @return the method implementation
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> updateReferencedEntityWithEntityGroupBuilderResult(
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String referenceName,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final Optional<GroupEntityReference> group = referenceBuilder.getGroup();
 			if (group.isEmpty()) {
-				throw ContextMissingException.referenceContextMissing(referenceSchema.getName());
+				throw ContextMissingException.referenceContextMissing(referenceName);
 			} else {
 				final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
 					expectedType,
 					referenceBuilder.getGroupEntity()
-						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceSchema.getName())),
+						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)),
 					ProxyType.REFERENCED_ENTITY
 				);
 				//noinspection unchecked
@@ -445,25 +447,24 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * Return a method implementation that creates new proxy object representing a reference to and external entity
 	 * (without knowing its primary key since it hasn't been assigned yet) and returns no result.
 	 *
-	 * @param referenceSchema the reference schema to use
-	 * @param expectedType    the expected type of the referenced entity proxy
+	 * @param expectedType the expected type of the referenced entity proxy
 	 * @return the method implementation
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> updateReferencedEntityGroupWithVoidResult(
-		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String referenceName,
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final Optional<GroupEntityReference> group = referenceBuilder.getGroup();
 			if (group.isEmpty()) {
-				throw ContextMissingException.referenceContextMissing(referenceSchema.getName());
+				throw ContextMissingException.referenceContextMissing(referenceName);
 			} else {
 				final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
 					expectedType,
 					referenceBuilder.getGroupEntity()
-						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceSchema.getName())),
+						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)),
 					ProxyType.REFERENCED_ENTITY
 				);
 				//noinspection unchecked
@@ -625,7 +626,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupClassifierWithVoidResult(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final String expectedEntityType = referenceSchema.getReferencedGroupType();
+		final String expectedEntityType = getReferencedGroupType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
@@ -650,7 +651,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupClassifierWithBuilderResult(
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
-		final String expectedEntityType = referenceSchema.getReferencedGroupType();
+		final String expectedEntityType = getReferencedGroupType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];

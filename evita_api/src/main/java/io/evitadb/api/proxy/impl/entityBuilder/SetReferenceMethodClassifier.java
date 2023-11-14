@@ -80,6 +80,22 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	public static final SetReferenceMethodClassifier INSTANCE = new SetReferenceMethodClassifier();
 
 	/**
+	 * Method returns the referenced entity type and verifies that it is managed by evitaDB.
+	 * @param referenceSchema the reference schema
+	 * @return the referenced entity type
+	 */
+	@Nullable
+	private static String getReferencedType(@Nonnull ReferenceSchemaContract referenceSchema, boolean requireManagedOnly) {
+		final String referencedEntityType = referenceSchema.getReferencedEntityType();
+		Assert.isTrue(
+			!requireManagedOnly || referenceSchema.isReferencedEntityTypeManaged(),
+			"Referenced entity group type `" + referencedEntityType + "` is not managed " +
+				"by evitaDB and cannot be created by method call!"
+		);
+		return referencedEntityType;
+	}
+
+	/**
 	 * Asserts that the entity annotation on the referenced class is consistent with the entity type of the parent.
 	 *
 	 * @param reflectionLookup the reflection lookup
@@ -129,16 +145,17 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			return empty();
 		}
 
-		if (referencedEntityType.map(it -> it.equals(referenceSchema.getReferencedEntityType())).orElse(false)) {
+		final String expectedReferencedEntityType = referenceSchema.getReferencedEntityType();
+		if (referencedEntityType.map(it -> it.equals(expectedReferencedEntityType)).orElse(false)) {
 			return of(
 				new RecognizedContext(
-					recognizedIn, entityContract, referenceSchema.getReferencedEntityType(), false
+					recognizedIn, entityContract, expectedReferencedEntityType, false
 				)
 			);
 		} else if (referencedEntityType.map(it -> it.equals(referenceSchema.getReferencedGroupType())).orElse(false)) {
 			return of(
 				new RecognizedContext(
-					recognizedIn, entityContract, referenceSchema.getReferencedEntityType(), true
+					recognizedIn, entityContract, expectedReferencedEntityType, true
 				)
 			);
 		} else if (referenceSchema.getReferencedGroupType() == null) {
@@ -146,7 +163,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			throw new EntityClassInvalidException(
 				entityContract.resolvedType(),
 				"Referenced class type `" + entityContract.resolvedType() + "` must represent " +
-					"entity type `" + referenceSchema.getReferencedEntityType() + "`, " +
+					"entity type `" + expectedReferencedEntityType + "`, " +
 					"but " +
 					(consumerType != null || parameterType != null ? "neither the parameter type `" + ofNullable((Class) consumerType).orElse(parameterType.resolvedType()).getName() + "` nor " : "") +
 					"the return type `" + returnType.getName() + "` is annotated with @Entity referencing `" +
@@ -157,7 +174,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			throw new EntityClassInvalidException(
 				entityContract.resolvedType(),
 				"Referenced class type `" + entityContract.resolvedType() + "` must represent " +
-					"either entity type `" + referenceSchema.getReferencedEntityType() + "` or " +
+					"either entity type `" + expectedReferencedEntityType + "` or " +
 					"`" + referenceSchema.getReferencedGroupType() + "` (group), " +
 					(consumerType != null || parameterType != null ? "neither the parameter type `" + ofNullable((Class) consumerType).orElse(parameterType.resolvedType()).getName() + "` nor " : "") +
 					"the return type `" + returnType.getName() + "` is annotated with @Entity referencing `" +
@@ -601,12 +618,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Class expectedType
 	) {
-		final String referencedEntityType = referenceSchema.getReferencedEntityType();
-		Assert.isTrue(
-			referenceSchema.isReferencedEntityTypeManaged(),
-			"Referenced entity type `" + referencedEntityType + "` is not managed " +
-				"by evitaDB and cannot be created by method call!"
-		);
+		final String referencedEntityType = getReferencedType(referenceSchema, true);
 		final String referenceName = referenceSchema.getName();
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
@@ -804,7 +816,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
@@ -830,7 +842,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
@@ -856,7 +868,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object[] referencedClassifierArray = (Object[]) args[0];
@@ -885,7 +897,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object[] referencedClassifierArray = (Object[]) args[0];
@@ -914,7 +926,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			//noinspection DataFlowIssue,unchecked
@@ -943,7 +955,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			//noinspection DataFlowIssue,unchecked
@@ -1059,7 +1071,6 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			//noinspection DataFlowIssue,unchecked
@@ -1106,7 +1117,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
@@ -1133,7 +1144,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
@@ -1162,7 +1173,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object[] referencedArray = (Object[]) args[0];
@@ -1191,7 +1202,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Object[] referencedArray = (Object[]) args[0];
@@ -1220,7 +1231,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			//noinspection DataFlowIssue,unchecked
@@ -1250,7 +1261,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
-		final String expectedEntityType = referenceSchema.getReferencedEntityType();
+		final String expectedEntityType = getReferencedType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			//noinspection DataFlowIssue,unchecked
@@ -1538,7 +1549,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<?> returnType,
 		@Nonnull Class<?> expectedType
 	) {
-		return proxyState.getEntitySchema(referenceSchema.getReferencedEntityType())
+		final String referencedEntityType = getReferencedType(referenceSchema, true);
+		return proxyState.getEntitySchema(referencedEntityType)
 			.map(referencedEntitySchema -> {
 				if (method.isAnnotationPresent(CreateWhenMissing.class) ||
 					Arrays.stream(method.getParameterAnnotations()[0]).anyMatch(CreateWhenMissing.class::isInstance)) {
