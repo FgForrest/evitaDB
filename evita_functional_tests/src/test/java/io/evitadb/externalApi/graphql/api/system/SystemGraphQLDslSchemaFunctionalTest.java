@@ -21,20 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.api.system;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLSchemaTester;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static org.hamcrest.Matchers.*;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * Tests for GraphQL system DSL endpoint.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
+public class SystemGraphQLDslSchemaFunctionalTest extends SystemGraphQLEndpointFunctionalTest {
 
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
-    public static final String APPLICATION_GRAPHQL = "application/graphql";
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return DSL of GraphQL schema")
+	void shouldReturnDslOfGraphQLSchema(GraphQLSchemaTester tester) {
+		tester.test(SYSTEM_URL)
+			.executeAndExpectOkAndThen()
+			.body(not(emptyOrNullString()));
+	}
 }
