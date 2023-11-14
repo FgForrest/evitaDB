@@ -1153,6 +1153,36 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	/**
+	 * Returns locale that was used for fetching the entity - either the {@link #getImplicitLocale()} or the locale
+	 * from {@link #getLocalePredicate()} if there was exactly single locale used for fetching.
+	 * @return locale that was used for fetching the entity
+	 */
+	@Nullable
+	public Locale getRequestedLocale() {
+		final Set<Locale> locales = localePredicate.getLocales();
+		return locales != null && locales.size() == 1 ?
+			locales.iterator().next() : localePredicate.getImplicitLocale();
+	}
+
+	/**
+	 * Returns true if there was more than one locale used for fetching the entity.
+	 * @return true if there was more than one locale used for fetching the entity
+	 */
+	public boolean isMultipleLocalesRequested() {
+		final Set<Locale> locales = localePredicate.getLocales();
+		return locales != null && locales.size() != 1;
+	}
+
+	/**
+	 * Returns true if passed locale was requested when the entity was fetched.
+	 * @param locale locale to check
+	 * @return true if passed locale was requested when the entity was fetched
+	 */
+	public boolean isLocaleRequested(@Nonnull Locale locale) {
+		return localePredicate.test(locale);
+	}
+
+	/**
 	 * Method collects all references in delegate and filters them by using {@link #referencePredicate}. The result
 	 * of this operation is memoized so all subsequent calls to this method are pretty cheap.
 	 */

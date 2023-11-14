@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.AbstractCategoryPojo;
 import io.evitadb.api.mock.AbstractProductCategoryPojo;
 import io.evitadb.api.mock.AbstractProductPojo;
@@ -269,7 +268,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, locale, externalEntities);
 
 		if (!(product instanceof SealedProductPojo)) {
-			assertThrows(ContextMissingException.class, product::getPriceForSale);
+			assertNull(product.getPriceForSale());
 		}
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
@@ -586,8 +585,8 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 		assertProductBasicData(originalProduct, limitedProduct);
 		assertProductAttributes(originalProduct, limitedProduct, null);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
+		assertNull(limitedProduct.getReferencedFileSet());
+		assertNull(limitedProduct.getReferencedFileSetAsDifferentProperty());
 	}
 
 	@DisplayName("Should return entity reference")

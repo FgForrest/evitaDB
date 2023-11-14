@@ -28,6 +28,7 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy.ProxyType;
 import io.evitadb.api.proxy.impl.ProxyUtils;
+import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
@@ -58,7 +59,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
@@ -181,12 +181,12 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> singleEntityReferenceResult(
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceContract theReference = theState.getReference();
-			return resultWrapper.apply(
-				new EntityReference(theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey())
+			return resultWrapper.wrap(
+				() -> new EntityReference(theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey())
 			);
 		};
 	}
@@ -196,12 +196,12 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> singleEntityGroupReferenceResult(
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceContract theReference = theState.getReference();
-			return resultWrapper.apply(
-				theReference.getGroup().orElse(null)
+			return resultWrapper.wrap(
+				() -> theReference.getGroup().orElse(null)
 			);
 		};
 	}
@@ -214,7 +214,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 		@Nonnull String referenceName,
 		@Nonnull Class<?> itemType,
 		@Nonnull BiFunction<String, ReferenceDecorator, Optional<SealedEntity>> entityExtractor,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
 			final ReferenceContract reference = theState.getReference();
@@ -223,8 +223,8 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 				() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)
 			);
 			final ReferenceDecorator referenceDecorator = (ReferenceDecorator) reference;
-			return resultWrapper.apply(
-				entityExtractor.apply(theState.getType(), referenceDecorator)
+			return resultWrapper.wrap(
+				() -> entityExtractor.apply(theState.getType(), referenceDecorator)
 					.map(it -> theState.getOrCreateReferencedEntityProxy(itemType, it, ProxyType.REFERENCED_ENTITY))
 					.orElse(null)
 			);
@@ -321,7 +321,7 @@ public class GetReferencedEntityMethodClassifier extends DirectMethodClassificat
 				final String referenceName = referenceSchema.getName();
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
-				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+				final ResultWrapper resultWrapper = ProxyUtils.createOptionalWrapper(method, wrappedGenericType);
 				@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 
 				// we need to determine whether the method returns referenced entity or its group

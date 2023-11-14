@@ -487,7 +487,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						.flatMap(key -> ofNullable(availableLocalizedAttributes.get(key.locale()))
 							.map(it -> it.contains(key)).orElse(false) ? Stream.empty() : Stream.of(key))
 						.forEach(it -> missingAttributeHandler.accept(defaultValue, it));
-				} else if (checkGlobal) {
+				} else if (checkGlobal && !attribute.isLocalized()) {
 					final AttributeKey attributeKey = new AttributeKey(attribute.getName());
 					if (!availableGlobalAttributes.contains(attributeKey)) {
 						missingAttributeHandler.accept(defaultValue, attributeKey);

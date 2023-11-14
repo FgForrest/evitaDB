@@ -182,14 +182,15 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 
 		if (externalEntities) {
 			assertCategory(productCategory.getCategory(), sealedEntity, locale);
-			assertTrue(productCategory.getCategoryIfPresent().isPresent());
+			assertTrue(productCategory.getCategoryIfPresentAndFetched().isPresent());
 			assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.getCategoryReference());
 			assertTrue(productCategory.getCategoryReferenceIfPresent().isPresent());
 			assertEquals(sealedEntity.getPrimaryKey(), productCategory.getCategoryReferencePrimaryKey());
 			assertTrue(productCategory.getCategoryReferencePrimaryKeyIfPresent().isPresent());
 		} else {
-			assertNull(productCategory.getCategory());
-			assertEquals(empty(), productCategory.getCategoryIfPresent());
+			assertThrows(ContextMissingException.class, productCategory::getCategory);
+			assertEquals(empty(), productCategory.getCategoryIfPresentAndFetched());
+			assertThrows(ContextMissingException.class, productCategory::getCategoryIfPresent);
 			assertEquals(of(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey())), productCategory.getCategoryReferenceIfPresent());
 			assertEquals(OptionalInt.of(sealedEntity.getPrimaryKey()), productCategory.getCategoryReferencePrimaryKeyIfPresent());
 		}
@@ -673,7 +674,15 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1)),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					attributeContentAll(), hierarchyContent(),
+					associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(
+						entityFetchAll(), entityGroupFetchAll()
+					), dataInLocalesAll()
+				)
+			)
 		);
 
 		final ProductInterface product = evitaSession.queryOne(query, ProductInterface.class)

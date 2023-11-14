@@ -24,6 +24,7 @@
 package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
+import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
@@ -37,7 +38,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
 import java.util.Optional;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
@@ -100,7 +100,7 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<Ob
 				final PrimaryKeyRef primaryKeyRef = reflectionLookup.getAnnotationInstanceForProperty(method, PrimaryKeyRef.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
-				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+				final ResultWrapper resultWrapper = ProxyUtils.createOptionalWrapper(method, wrappedGenericType);
 				@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
@@ -115,8 +115,8 @@ public class GetPrimaryKeyMethodClassifier extends DirectMethodClassification<Ob
 				) {
 					// method matches - provide implementation
 					//noinspection unchecked
-					return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-						toTargetType(
+					return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+						() -> toTargetType(
 							theState.getPrimaryKey(), valueType
 						)
 					);

@@ -859,11 +859,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 				theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey()
 			);
 			final Optional<SealedEntity> originalReferencedEntity = originalReference
-				.map(ReferenceContract::getReferencedEntity)
-				.orElse(null);
+				.flatMap(ReferenceContract::getReferencedEntity);
 			final Optional<SealedEntity> originalReferencedEntityGroup = originalReference
-				.map(ReferenceContract::getGroupEntity)
-				.orElse(null);
+				.flatMap(ReferenceContract::getGroupEntity);
 			final Boolean entityValid = originalReferencedEntity
 				.map(EntityContract::getPrimaryKey)
 				.map(it -> it == theReference.getReferencedPrimaryKey())
