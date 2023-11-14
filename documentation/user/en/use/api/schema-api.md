@@ -210,9 +210,14 @@ for the collection `Product` using a REST mutation of the selected collection li
 
 <LanguageSpecific to="csharp">
 
-**Work in progress**
+## Imperative schema definition
 
-The procedure and documentation for schema definition from C# will be added.
+A schema can be programmatically defined this way:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Imperative schema definition via AP evitaDB API](/documentation/user/en/use/api/example/imperative-schema-definition.cs)
+</SourceCodeTabs>
 
 </LanguageSpecific>
 

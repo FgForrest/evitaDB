@@ -10,7 +10,7 @@ proofreading: 'needed'
 
 The query in evitaDB is represented by a tree of nested "constraints" divided into for parts:
 
-<LanguageSpecific to="evitaql,java,rest">
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 <dl>
     <dt>`collection`</dt>
@@ -60,11 +60,20 @@ in those arguments. An example of such a query might look like this:
 > *calculated with an impact analysis of how the result would look if the user selected some other parameters in* 
 > *addition to the two selected ones.*
 
+<LanguageSpecific to="java,evitaql,rest,graphql">
 evitaQL is represented by a simple
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) which is parsed to
 an abstract syntax tree consisting of constraints 
 (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>) encapsulated in 
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+evitaQL is represented by a simple
+[string](https://learn.microsoft.com/en-us/dotnet/api/system.string) which is parsed to
+an abstract syntax tree consisting of constraints 
+(<SourceClass>EvitaDB.Client/Queries/IConstraint.cs</SourceClass>) encapsulated in 
+<SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass> object.
+</LanguageSpecific>
 
 We have designed the *evitaQL* string representation to look similar to a query defined directly in the *Java* language. 
 We also try to preserve the "look & feel" of the original evitaQL in different languages / APIs like REST, GraphQL or C#
@@ -233,6 +242,140 @@ implementing the local cache may save you network costs and give you better late
 invalidation. You'd have to query only the entity references that contain version information and fetch the entities 
 that are not in the cache with a separate request. So instead of one network request, you have to make two. The benefit 
 of the local cache is therefore somewhat questionable.
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+## Defining queries in C# code
+
+In order to create a query and to compose inner constraints, use the static methods in
+<SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass>.
+
+When this class is imported statically, the C# query definition looks like the string form of the query.
+Thanks to type inference, the IDE will help you with auto-completion of the constraints that make sense in a particular
+context.
+
+This is an example of how the query is composed and how evitaDB is called. 
+The example imports previously mentioned interface 
+<SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass> statically.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+
+[C# query example](/documentation/user/en/use/api/example/csharp-query-example.cs)
+</SourceCodeTabs>
+
+### Automatic query cleaning
+
+The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+
+[C# dirty query example](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
+</SourceCodeTabs>
+
+The query is automatically cleaned and unnecessary constraints are removed before it is processed by the evitaDB engine.
+
+### Query manipulation
+
+There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the
+<SourceClass>EvitaDB.Client/Queries/Visitor/</SourceClass> directory and some have shortcut methods
+in the <SourceClass>EvitaDB.Client/Utils/QueryUtils.cs</SourceClass> class.
+
+The query can be "pretty-printed" by using the `PrettyPrint` method on the
+<SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass> class.
+
+### Data fetching
+
+By default, only primary keys of entities are returned in the query result. In this simplest case, each entity is
+represented by the
+<SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass>
+interface.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+
+[Default query example](/documentation/user/en/use/api/example/default-query-example.cs)
+</SourceCodeTabs>
+
+The client application can request returning entity bodies instead, but this must be explicitly requested using
+a specific require constraint (or their combination):
+
+- [entity fetch](../../query/requirements/fetching.md)
+- [attribute fetch](../../query/requirements/fetching.md#attributes)
+- [associated data fetch](../../query/requirements/fetching.md#associated-data)
+- [price fetch](../../query/requirements/fetching.md#prices)
+- [reference fetch](../../query/requirements/fetching.md#references)
+
+When such a `require` constraint is used, data will be fetched *greedily* during the initial request. The response object
+will then contain entities in the form of
+<SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java">
+
+[Fetching example](/documentation/user/en/use/api/example/fetching-example.cs)
+</SourceCodeTabs>
+
+Although there are simpler variants for querying entities, the typical method is `Query` that returns a complex object
+<SourceClass>EvitaDB.Client/Models/EvitaResponse.cs</SourceClass> containing:
+
+- **<SourceClass>EvitaDB.Client/DataTypes/IDataChunk.cs</SourceClass>** with result entities in
+  the form of <SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass> or
+  <SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass>
+- [Dictionary](https://learn.microsoft.com/cs-cz/dotnet/api/system.collections.idictionary) of extra results indexed by their
+  type (`IDictionary<Class<Type>, IEvitaResponseExtraResult>`)
+
+The next example documents fetching the second page of products in a category with calculated facet statistics:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+
+[Fetching example](/documentation/user/en/use/api/example/query-example.cs)
+</SourceCodeTabs>
+
+There are shortcuts for calling query with the expected entity form so that you don't need to declare the expected
+entity form in the second argument of the `Query` method:
+
+- `QueryEntityReference` producing <SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass>
+- `QuerySealedEntity` producing <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>
+
+#### Lazy fetching (enrichment)
+
+Attributes, associated data, prices and references can be fetched separately by providing the primary key of the entity.
+The initial entity loaded by [entity fetch](../../query/requirements/fetching.md) with a limited set of requirements
+can be enriched later with missing data.
+
+To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass the existing entity to an `EnrichEntity`
+method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
+enforced by database design, enriching an entity object returns a new instance of the entity.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+
+[Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
+</SourceCodeTabs>
+
+Lazy fetching may not be necessary for a frontend designed using an MVC architecture, where all requirements for the
+page are known before rendering. But different architectures might fetch thinner entity forms and later discover that
+they need more data in them. While this approach is not optimal performance-wise, it may make life easier for
+developers, and it's much more optimal to just enrich the existing entity (using lookup by primary key and fetching
+only missing data) instead of fetching the entire entity again.
+
+<Note type="warning">
+Lazy Fetching is currently only fully implemented for embedded evitaDB. If you are using evitaDB remotely via 
+<SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass> you can still use the `EnrichEntity` method on the 
+<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> instance, but the entity
+will be fully fetched again. However, we plan to optimize this scenario in the future.
+</Note>
+
+### Caching considerations
+
+If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration),
+the evitaDB engine automatically caches intermediate calculation results and frequently used entity bodies up to the
+defined memory limit. Details about caching are [described here](../../deep-dive/cache.md). For embedded environments
+the implementation of an own cache on top of the evitaDB cache is not recommended.
+
+If you are using
+<SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>, implementing the local cache may save you network costs and 
+give you better latency. The problem is related to cache invalidation. You'd have to query only the entity references 
+that contain version information and fetch the entities that are not in the cache with a separate request. 
+So instead of one network request, you have to make two. The benefit of the local cache is therefore somewhat questionable.
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">

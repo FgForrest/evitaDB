@@ -34,6 +34,13 @@ instead of the language tag. This is a natural way to work with locale specific 
 
 </LanguageSpecific>
 
+<LanguageSpecific to="csharp">
+
+If you are working with evitaDB in C#, you can use [`CultureInfo`](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)
+instead of the language tag. This is a natural way to work with locale specific data on the platform.
+
+</LanguageSpecific>
+
 <Note type="question">
 
 <NoteTitle toggles="true">

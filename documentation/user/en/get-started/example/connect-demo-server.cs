@@ -1,0 +1,10 @@
+var evita = new EvitaClient(
+	EvitaClientConfiguration.Builder()
+		.Host("demo.evitadb.io")
+		.Port(5556)
+        // demo server provides Let's encrypt trusted certificate
+		.UseGeneratedCertificate(false)
+        // the client will not be mutually verified by the server side
+        .MtlsEnabled(false)
+		.Build()
+);

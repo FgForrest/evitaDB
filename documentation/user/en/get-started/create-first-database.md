@@ -21,7 +21,7 @@ So the evitaDB instance is now up and running and ready to communicate.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="graphql,rest">
+<LanguageSpecific to="graphql,rest,csharp">
 
 We assume that you already have the following Docker image up and running from the [previous chapter](run-evitadb.md):
 
@@ -53,6 +53,21 @@ a tree, product is enabled to have prices:
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" local>
 
 [Example of defining catalog and schema for entity collections](/documentation/user/en/get-started/example/define-catalog-with-schema.java)
+</SourceCodeTabs>
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+## Define a new catalog with a schema
+
+Now you can use <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass> to define a new
+catalog and create predefined schemas for multiple collections: `Brand`, `Category` and `Product`. Each collection
+contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
+a tree, product is enabled to have prices:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java" local>
+
+[Example of defining catalog and schema for entity collections](/documentation/user/en/get-started/example/define-catalog-with-schema.cs)
 </SourceCodeTabs>
 
 </LanguageSpecific>
@@ -130,6 +145,30 @@ Let's see how you can retrieve the entity you just created in another read-only 
 </SourceCodeTabs>
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+## Open session to catalog and insert your first entity
+
+Once the catalog is created and the schema is known, you can insert a first entity to the catalog:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.cs)
+</SourceCodeTabs>
+
+The session is implicitly opened for the scope of the `UpdateCatalog` method. The analogous method `QueryCatalog` at
+the evitaDB class level also opens a session, but only in read-only mode, which doesn't allow updating the catalog.
+Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute
+the load in the cluster.
+
+Let's see how you can retrieve the entity you just created in another read-only session.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
+
+[Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.cs)
+</SourceCodeTabs>
+
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 ## Open session to catalog and insert your first entity
@@ -187,7 +226,7 @@ as mentioned above.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ## Create a small dataset
 
@@ -203,7 +242,7 @@ have in the relational database. The example shows how to define attributes, ass
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ## List existing entities
 
@@ -247,6 +286,25 @@ builder that wraps the original immutable object and allows the changes to be ca
 collected and passed to the server in the `upsertVia` method.
 
 For more information, see the [write API description](../use/api/write-data.md#upsert). 
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+## Update any of existing entities
+
+Updating an entity is similar to creating a new entity:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+
+[Example of listing entities](/documentation/user/en/get-started/example/update-entity.cs)
+</SourceCodeTabs>
+
+The main difference is that you first fetch the entity with all the data you want to update from the evitaDB server and
+apply changes to it. The fetched entity is immutable, so you need to open it for writing first. This action creates a
+builder that wraps the original immutable object and allows the changes to be captured. These changes are eventually
+collected and passed to the server in the `UpsertVia` method.
+
+For more information, see the [write API description](../use/api/write-data.md#upsert).
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
@@ -312,6 +370,34 @@ When you delete a hierarchical entity, you can choose whether or not to delete i
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+## Delete any of existing entities
+
+You can delete entity by is primary key:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+
+[Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.cs)
+</SourceCodeTabs>
+
+Or, you can issue a query that removes all the entities that match the query:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+
+[Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.cs)
+</SourceCodeTabs>
+
+When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/create-small-dataset.java">
+
+[Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.cs)
+</SourceCodeTabs>
+
+For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
+
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 ## Delete any of existing entities
@@ -350,7 +436,7 @@ For more complex examples and explanations, see the [write API chapter](../use/a
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,csharp">
+<LanguageSpecific to="evitaql">
 
 Creating new catalog in other APIs than Java, GraphQL and REST is being prepared.
 

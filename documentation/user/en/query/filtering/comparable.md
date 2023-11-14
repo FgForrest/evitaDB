@@ -14,6 +14,7 @@ In the context of the limitations described in this chapter, you might be intere
 data types and arrays described in [the query language basics](../basics.md#generic-query-rules).
 </Note>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 <Note type="warning">
 When you compare two **[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)** 
 data types, the strings are compared alphabetically from the beginning of the string. For example, *Walther* is greater 
@@ -24,9 +25,25 @@ When you compare two **[Range](../../use/data-types.md#numberrange)** data types
 boundary is greater than the left boundary of the other value. If both left boundaries are equal, the greater is the
 one with the greater right boundary.
 
-The **[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)** data type is compared as 
+The **[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)** data type is compared as
 a numeric value, where the *true* is 1, and *false* is 0.
 </Note>
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+<Note type="warning">
+When you compare two **[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)**
+data types, the strings are compared alphabetically from the beginning of the string. For example, *Walther* is greater
+than *Adam*, but *Jasmine* is not greater than *Joanna*. The correct [culture info](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo) is used to compare the localized attribute string, so that the order is consistent with the national customs of
+the language.
+
+When you compare two **[Range](../../use/data-types.md#numberrange)** data types, the larger one is the one whose left
+boundary is greater than the left boundary of the other value. If both left boundaries are equal, the greater is the
+one with the greater right boundary.
+
+The **[bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool)** data type is compared as
+a numeric value, where the *true* is 1, and *false* is 0.
+</Note>
+</LanguageSpecific>
 
 ## Attribute equals
 

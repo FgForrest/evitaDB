@@ -8,7 +8,7 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ## Indexing modes
 
@@ -52,6 +52,19 @@ The `goLiveAndClose` method sets the catalog to `ALIVE` (transactional) state an
 moment on, multiple clients can open read-only or read-write sessions in parallel to this particular catalog.
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+Any newly created catalog starts in `Warmup` state and must be manually switched to *transactional* mode by executing:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+
+[Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.cs)
+</SourceCodeTabs>
+
+The `GoLiveAndClose` method sets the catalog to `Alive` (transactional) state and closes the current session. From this
+moment on, multiple clients can open read-only or read-write sessions in parallel to this particular catalog.
+
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the 
@@ -81,7 +94,7 @@ moment on, multiple clients can send fetching or mutating requests in parallel t
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ### Incremental indexing
 
@@ -141,6 +154,39 @@ for updating the data:
 </SourceCodeTabs>
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+All model classes are described by interfaces, and there should be no reason to use or instantiate direct classes.
+Interfaces follow this structure:
+
+<dl>
+    <dt>ModelNameContract</dt>
+    <dd>contains all read methods, represents the base contract for the model</dd>
+    <dt>ModelNameEditor</dt>
+    <dd>contains all modification methods</dd>
+    <dt>ModelNameBuilder</dt>
+    <dd>combines **Contract** and **Editor** interfaces, and it is actually used to create the instance</dd>
+</dl>
+
+When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data
+to the entity and then store the entity to the database:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+
+[Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.cs)
+</SourceCodeTabs>
+
+When you read existing entity from the catalog, you obtain read-only
+<SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>, which is
+basically a contract interface with a few methods allowing you to convert it to the builder instance that can be used
+for updating the data:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+
+[Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.cs)
+</SourceCodeTabs>
+
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 In the GraphQL API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
@@ -162,7 +208,7 @@ with individual changes using one of the REST endpoints for modifying data of yo
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ### Versioning
 
@@ -184,13 +230,26 @@ All model classes that support versioning implement the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Versioned.java</SourceClass> interface.
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+Version information is available not only at
+the <SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass> level,
+but also at more granular levels (such as
+<SourceClass>EvitaDB.Client/Models/Data/IAttributes.cs</SourceClass>,
+<SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass>, or
+<SourceClass>EvitaDB.Client/Models/Data/IAssociatedData.cs</SourceClass>.
+
+All model classes that support versioning implement the
+<SourceClass>EvitaDB.Client/Models/Data/IVersioned.cs</SourceClass> interface.
+
+</LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
 
 Version information is available at the entity level. 
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 The version information serves two purposes:
 
@@ -220,8 +279,26 @@ interface and implemented by the
 </Note>
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
 
-<LanguageSpecific to="java,graphql,rest">
+<Note type="info">
+Since the entity is *immutable* and *versioned* the default implementation of the `HashCode` and `Equals` takes these 
+three components into account:
+
+1. entity type
+2. primary key
+3. version
+
+If you need a thorough comparison that compares all model data, you must use the `DiffersFrom` method defined in the
+<SourceClass>EvitaDB.Client/Models/Data/IContentComparator.cs</SourceClass>
+interface and implemented by the
+<SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass>.
+
+</Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ## Session & transaction
 
@@ -268,6 +345,46 @@ will never reach the shared database state. There can be at most one active tran
 be multiple successor transactions during the session's lifetime.
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+The communication with the evitaDB instance always takes place via the
+<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> class.
+Session is a single-threaded communication channel identified by a unique
+[random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier).
+
+In the web environment it's a good idea to have one session per request, in batch processing it's recommended to keep
+a single session for an entire batch.
+
+<Note type="warning">
+To conserve resources, the server automatically closes sessions after a period of inactivity. 
+The interval is set by default to `60 seconds` but 
+[it can be changed](https://evitadb.io/documentation/operate/configure#server-configuration) to different value.
+The inactivity means that there is no activity recorded on the
+<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> instance. If you need
+to artificially keep session alive you need to periodically call some method or use available properties without side-effects on the session, such as:
+
+<dl>
+    <dt>`Active`</dt>
+    <dd>In case of embedded evitaDB usage.</dd>
+    <dt>`GetEntityCollectionSize`</dt>
+    <dd>
+    In case of remote use of evitaDB. In this case we really need to call some method that triggers the network 
+    communication. Many methods in 
+    <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> 
+    return only locally cached results to avoid expensive and unnecessary network calls.
+    </dd>
+</dl>
+</Note>
+
+<SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass> is an envelope for a "unit
+of work" with evitaDB. A transaction exists within a session and is guaranteed to have
+[the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in
+a transaction are always isolated from other transactions and become visible only after the transaction has been
+committed. If the transaction is marked as *rollback only*, all changes will be discarded on transaction closing and
+will never reach the shared database state. There can be at most one active transaction in a session, but there can
+be multiple successor transactions during the session's lifetime.
+
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 The communication with the evitaDB instance using the GraphQL API always uses some kind of session. In the case of the GraphQL API,
@@ -295,7 +412,7 @@ any kind of error, the transaction is automatically rolled back.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 <Note type="warning">
 Parallel transaction handling hasn't been finalized yet, and is scheduled to be finalized in 
@@ -318,6 +435,17 @@ evitaDB recognizes two types of sessions:
     read-only session. This also allows evitaDB to optimize its behavior when working with the database.</dd>
     <dt>read-write</dt>
     <dd>Read-write sessions are opened by calling the `updateCatalog` method</dd>
+</dl>
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+<dl>
+    <dt>read-only (default)</dt>
+    <dd>Read-only sessions are opened by calling the `QueryCatalog` method. No write operations are allowed in a 
+    read-only session. This also allows evitaDB to optimize its behavior when working with the database.</dd>
+    <dt>read-write</dt>
+    <dd>Read-write sessions are opened by calling the `UpdateCatalog` method</dd>
 </dl>
 
 </LanguageSpecific>
@@ -347,7 +475,7 @@ evitaDB recognizes two types of sessions:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 In the future, the read-only sessions can be distributed to multiple read nodes, while the read-write sessions must 
 talk to the master node.
@@ -404,8 +532,58 @@ implementing your tests, or can be useful if you want to ensure that the changes
 session, and you don't have easy access to the places where the transaction is opened.
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
 
-<LanguageSpecific to="java,graphql,rest">
+#### Unsafe session lifecycle
+
+We recommend to open sessions using `QueryCatalog` / `UpdateCatalog` methods that accept a lambda function to execute
+your business logic. This way evitaDB can safely handle the lifecycle management of *sessions* & *transactions*.
+This approach is not always acceptable - for example, if your application needs to be integrated into an existing
+framework that only provides a lifecycle callback methods, there is no way to "wrap" the entire business logic in
+a delegate function.
+
+That's why there is an alternative - not so secure - approach to handling sessions and transactions:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java">
+
+[Manual session and transaction handling](/documentation/user/en/use/api/example/manual-transaction-management.cs)
+</SourceCodeTabs>
+
+<Note type="warning">
+If you use manual *session / transaction* handling, you must ensure that for every scope opening there is 
+a corresponding closing (even if an exception occurs during your business logic call).
+</Note>
+
+Both <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> and
+<SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass> implement C# `IDisposable`
+interface, so you can use them this way:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java">
+
+[Get advantage of Autocloseable behaviour](/documentation/user/en/use/api/example/autocloseable-transaction-management.cs)
+</SourceCodeTabs>
+
+This approach is safe, but has the same disadvantage as using `QueryCatalog` / `UpdateCatalog` methods - you need to
+have all the business logic executable within the same block.
+
+#### Dry-run session
+
+For testing purposes, there is a special flag that can be used when opening a new session - a **dry run** flag:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java">
+
+[Opening dry-run session](/documentation/user/en/use/api/example/dry-run-session.cs)
+</SourceCodeTabs>
+
+In this session, all transactions will automatically have a *rollback* flag set when they are opened, without the need
+to set the rollback flag manually. This fact greatly simplifies
+[transaction rollback on test teardown pattern](http://xunitpatterns.com/Transaction%20Rollback%20Teardown.html) when
+implementing your tests, or can be useful if you want to ensure that the changes are not committed in a particular
+session, and you don't have easy access to the places where the transaction is opened.
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ### Upsert
 
@@ -473,6 +651,71 @@ a stream of mutations that can be sent to and processed by the evitaDB server on
 There is an analogous builder that takes an existing entity and tracks changes made to it.
 
 <SourceCodeTabs requires="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java">
+
+[Detached existing entity example](/documentation/user/en/use/api/example/detached-existing-entity-instantiation.java)
+</SourceCodeTabs>
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+It's expected that most of the entity instances will be created by the evitaDB service classes - such as
+<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass>
+Anyway, there is also the [possibility of creating them directly](#creating-entities-in-detached-mode).
+
+Usually the entity creation will look like this:
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+
+[Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.cs)
+</SourceCodeTabs>
+
+This way, the created entity can be immediately checked against the schema. This form of code is a condensed version,
+and it may be split into several parts, which will reveal the "builder" used in the process.
+
+When you need to alter existing entity, you first fetch it from the server, open for writing (which converts it to
+the builder wrapper), modify it, and finally collect the changes and send them to the server.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+
+[Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.cs)
+</SourceCodeTabs>
+
+<Note type="info">
+The `UpsertVia` method is a shortcut for calling `session.UpsertEntity(builder.BuildChangeSet())`. If you look at the
+<SourceClass>EvitaDB.Client/Models/Data/IBuilder.cs</SourceClass> you'll see, that you can call on it either:
+
+<dl>
+    <dt>`BuildChangeSet`</dt>
+    <dd>Creates a stream of *mutations* that represent the changes you've made to the immutable object.</dd>
+    <dt>`ToInstance`</dt>
+    <dd>Creates a new version of the immutable entity object with all changes applied. This allows you to create a 
+    new instance of the object locally without sending the changes to the server. When you fetch the same instance 
+    from the server again, you'll see that none of the changes have been applied to the database entity.</dd>
+</dl> 
+</Note>
+
+<SourceClass>EvitaDB.Client/Models/Data/Mutations/IEntityMutation.cs</SourceClass> or
+<SourceClass>EvitaDB.Client/Models/Data/IBuilder.cs</SourceClass> can be
+passed to <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> `Upsert` method,
+which returns <SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass>
+containing only entity type and (possibly assigned) primary key information. You can also use the `UpsertAndFetchEntity`
+method, which inserts or creates the entity and returns its body in the form and size you specify in your `Require`
+argument.
+
+#### Creating entities in detached mode
+
+Entity instances can be created even if no EvitaDB instance is available:
+
+<SourceCodeTabs>
+[Detached instantiation example](/documentation/user/en/use/api/example/detached-instantiation.cs)
+</SourceCodeTabs>
+
+Although you will probably only take advantage of this approach when writing test cases, it still allows you to create
+a stream of mutations that can be sent to and processed by the evitaDB server once you manage to get its instance.
+
+There is an analogous builder that takes an existing entity and tracks changes made to it.
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/detached-existing-entity-preparation.cs">
 
 [Detached existing entity example](/documentation/user/en/use/api/example/detached-existing-entity-instantiation.java)
 </SourceCodeTabs>
@@ -566,13 +809,13 @@ argument.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 ### Removal
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,rest">
+<LanguageSpecific to="java,rest,csharp">
 
 The easiest way how to remove an entity is by its *primary key*. However, if you need to remove multiple entities at
 once you need to define a query that will match all the entities to remove:
@@ -584,7 +827,7 @@ To remove one or multiple entities, you need to define a query that will match a
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 
@@ -597,6 +840,12 @@ To remove one or multiple entities, you need to define a query that will match a
 
 The `deleteEntities` method returns the count of removed entities. If you want to return bodies of deleted entities,
 you can use alternative method `deleteEntitiesAndReturnBodies`.
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+The `DeleteEntities` method returns the count of removed entities. If you want to return bodies of deleted entities,
+you can use alternative method `DeleteEntitiesAndReturnBodies`.
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
@@ -626,7 +875,7 @@ entities in usual way.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,rest">
+<LanguageSpecific to="java,rest,csharp">
 
 <Note type="warning">
 evitaDB may not remove all entities matched by the filter part of the query. The removal of entities is subject to the 
@@ -648,6 +897,15 @@ If you are removing a hierarchical entity, and you need to remove not only the e
 you can take advantage of `deleteEntityAndItsHierarchy` method. By default, the method returns the number of entities
 removed, but alternatively it can return the body of the removed root entity with the size and form you specify in
 its `require` argument. If you remove only the root node without removing its children, the children will become
+[orphans](../schema.md#orphan-hierarchy-nodes), and you will need to reattach them to another existing parent.
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+If you are removing a hierarchical entity, and you need to remove not only the entity itself, but its entire subtree,
+you can take advantage of `DeleteEntityAndItsHierarchy` method. By default, the method returns the number of entities
+removed, but alternatively it can return the body of the removed root entity with the size and form you specify in
+its `Require` argument. If you remove only the root node without removing its children, the children will become
 [orphans](../schema.md#orphan-hierarchy-nodes), and you will need to reattach them to another existing parent.
 
 </LanguageSpecific>
@@ -676,10 +934,34 @@ There are a few reasons for this decision:
 </Note>
 
 </LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### How does evitaDB handle the removals internally?
+</NoteTitle>
+
+No data is actually removed once it is created and stored. If you remove the reference/attribute/whatever, it remains
+in the entity and is just marked as `Dropped'. See the
+<SourceClass>EvitaDB.Client/Models/Data/IDroppable.cs</SourceClass> interface implementations.
+
+There are a few reasons for this decision:
+
+1. it's good to have the last known version of the data around when things go wrong, so we can still recover to the
+   previous state.
+2. it allows us to track the changes in the entity through its lifecycle for debugging purposes
+3. it is consistent with our *append-only* storage approach where we need to write
+   [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
+   </Note>
+
+</LanguageSpecific>
+
 
 <LanguageSpecific to="evitaql">
 
 Unfortunately, it is currently not possible to write data using EvitaQL. This extension is also not planned to be
-implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are available.
+implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API, gRPC and C#) are available.
 
 </LanguageSpecific>

@@ -23,7 +23,12 @@ userFilter(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass> works identically
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The <SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass> works identically
+</LanguageSpecific>
 to the [`and`](logical.md#and) constraint, but it distinguishes the filter scope, which is controlled by the user
 through some kind of user interface, from the rest of the query, which contains the mandatory constraints on the result
 set. The user-defined scope can be modified during certain calculations (such as the [facet](../requirements/facet.md)

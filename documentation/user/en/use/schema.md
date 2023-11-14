@@ -71,7 +71,7 @@ There are following types of schemas:
 
 - [catalog schema](#catalog)
 - [entity schema](#entity)
-- [attribute schema](#attribute)
+- [attribute schema](#attributes)
 - [associated data schema](#associated-data)
 - [reference schema](#reference)
 
