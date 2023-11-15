@@ -25,13 +25,16 @@ package io.evitadb.api.proxy.impl.entityBuilder;
 
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 import one.edee.oss.proxycian.CurriedMethodContextInvocationHandler;
 import one.edee.oss.proxycian.DirectMethodClassification;
+import one.edee.oss.proxycian.utils.GenericsUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Parameter;
@@ -61,22 +64,28 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 				final OptionalInt localeParameterPosition;
 				// We only want to handle methods with exactly one parameter, or two parameters of which one is Locale
 				final Class<?>[] parameterTypes = method.getParameterTypes();
-				if (method.getParameterCount() == 1 &&
-					((EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(parameterTypes[0])) || Collection.class.isAssignableFrom(parameterTypes[0])) &&
-					!Locale.class.isAssignableFrom(parameterTypes[0])
-				) {
-					valueParameterPosition = 0;
-					localeParameterPosition = OptionalInt.empty();
+				if (method.getParameterCount() == 1) {
+					if (((EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(parameterTypes[0])) || Collection.class.isAssignableFrom(parameterTypes[0])) &&
+						!Locale.class.isAssignableFrom(parameterTypes[0])) {
+						valueParameterPosition = 0;
+						localeParameterPosition = OptionalInt.empty();
+					} else if (Locale.class.isAssignableFrom(parameterTypes[0])) {
+						localeParameterPosition = OptionalInt.of(0);
+						valueParameterPosition = -1;
+					} else {
+						localeParameterPosition = OptionalInt.empty();
+						valueParameterPosition = -1;
+					}
 				} else if ((method.getParameterCount() == 2 &&
 					Arrays.stream(parameterTypes)
 						.allMatch(it -> Locale.class.isAssignableFrom(it) || Collection.class.isAssignableFrom(it) || EvitaDataTypes.isSupportedTypeOrItsArrayOrEnum(it)))
 				) {
 					int lp = -1;
 					for (int i = 0; i < parameterTypes.length; i++) {
-						 if (Locale.class.isAssignableFrom(parameterTypes[i])) {
-							 lp = i;
-							 break;
-						 }
+						if (Locale.class.isAssignableFrom(parameterTypes[i])) {
+							lp = i;
+							break;
+						}
 					}
 					if (lp == -1) {
 						return null;
@@ -85,7 +94,8 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 						valueParameterPosition = lp == 0 ? 1 : 0;
 					}
 				} else {
-					return null;
+					localeParameterPosition = OptionalInt.empty();
+					valueParameterPosition = -1;
 				}
 
 				// now we need to identify attribute schema that is being requested
@@ -93,62 +103,105 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					method, proxyState.getReflectionLookup(),
 					proxyState.getEntitySchema()
 				);
+
 				// if not found, this method is not classified by this implementation
 				if (attributeSchema == null) {
 					return null;
 				} else {
 					// finally provide implementation that will retrieve the attribute from the entity
 					final String attributeName = attributeSchema.getName();
-					// now we need to identify the argument type
-					final Parameter valueParameter = method.getParameters()[valueParameterPosition];
 					if (attributeSchema.isLocalized()) {
-						Assert.isTrue(localeParameterPosition.isPresent(), "Localized attribute `" + attributeSchema.getName() + "` must have a locale parameter!");
-						if (Collection.class.isAssignableFrom(valueParameter.getType())) {
+						Assert.isTrue(
+							localeParameterPosition.isPresent(),
+							"Localized attribute `" + attributeSchema.getName() + "` must have a locale parameter!"
+						);
+						if (method.isAnnotationPresent(RemoveWhenExists.class)) {
 							if (method.getReturnType().equals(proxyState.getProxyClass())) {
-								return setLocalizedAttributeAsCollectionWithBuilderResult(
-									valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
+								return removeLocalizedAttributeWithBuilderResult(attributeName);
+							} else if (method.getReturnType().equals(void.class)) {
+								return removeLocalizedAttributeWithVoidResult(attributeName);
+							} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
+								return removeLocalizedAttributeWithValueCollectionResult(
+									attributeName,
+									attributeSchema.getType(),
+									GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method)
 								);
 							} else {
-								return setLocalizedAttributeAsCollectionWithVoidResult(
-									valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
-								);
+								return removeLocalizedAttributeWithValueResult(attributeName, method.getReturnType());
 							}
 						} else {
-							if (method.getReturnType().equals(proxyState.getProxyClass())) {
-								return setLocalizedAttributeAsValueWithBuilderResult(
-									valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
-								);
+							// now we need to identify the argument type
+							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
+							if (Collection.class.isAssignableFrom(valueParameter.getType())) {
+								if (method.getReturnType().equals(proxyState.getProxyClass())) {
+									return setLocalizedAttributeAsCollectionWithBuilderResult(
+										valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
+									);
+								} else {
+									return setLocalizedAttributeAsCollectionWithVoidResult(
+										valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
+									);
+								}
 							} else {
-								return setLocalizedAttributeAsValueWithVoidResult(
-									valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
-								);
+								if (method.getReturnType().equals(proxyState.getProxyClass())) {
+									return setLocalizedAttributeAsValueWithBuilderResult(
+										valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
+									);
+								} else {
+									return setLocalizedAttributeAsValueWithVoidResult(
+										valueParameterPosition, localeParameterPosition.getAsInt(), attributeName, attributeSchema.getPlainType()
+									);
+								}
 							}
 						}
 					} else {
-						Assert.isTrue(
-							method.getParameterCount() == 1,
-							"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
-						);
+						if (method.isAnnotationPresent(RemoveWhenExists.class)) {
+							Assert.isTrue(
+								method.getParameterCount() == 0,
+								"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
+							);
 
-						if (Collection.class.isAssignableFrom(valueParameter.getType())) {
 							if (method.getReturnType().equals(proxyState.getProxyClass())) {
-								return setAttributeAsCollectionWithBuilderResult(
-									valueParameterPosition, attributeName, attributeSchema.getPlainType()
+								return removeAttributeWithBuilderResult(attributeName);
+							} else if (method.getReturnType().equals(void.class)) {
+								return removeAttributeWithVoidResult(attributeName);
+							} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
+								return removeAttributeWithValueCollectionResult(
+									attributeName,
+									attributeSchema.getType(),
+									GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method)
 								);
 							} else {
-								return setAttributeAsCollectionWithVoidResult(
-									valueParameterPosition, attributeName, attributeSchema.getPlainType()
-								);
+								return removeAttributeWithValueResult(attributeName, method.getReturnType());
 							}
 						} else {
-							if (method.getReturnType().equals(proxyState.getProxyClass())) {
-								return setAttributeAsValueWithBuilderResult(
-									valueParameterPosition, attributeName, attributeSchema.getPlainType()
-								);
+							// now we need to identify the argument type
+							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
+							Assert.isTrue(
+								method.getParameterCount() == 1,
+								"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
+							);
+
+							if (Collection.class.isAssignableFrom(valueParameter.getType())) {
+								if (method.getReturnType().equals(proxyState.getProxyClass())) {
+									return setAttributeAsCollectionWithBuilderResult(
+										valueParameterPosition, attributeName, attributeSchema.getPlainType()
+									);
+								} else {
+									return setAttributeAsCollectionWithVoidResult(
+										valueParameterPosition, attributeName, attributeSchema.getPlainType()
+									);
+								}
 							} else {
-								return setAttributeAsValueWithVoidResult(
-									valueParameterPosition, attributeName, attributeSchema.getPlainType()
-								);
+								if (method.getReturnType().equals(proxyState.getProxyClass())) {
+									return setAttributeAsValueWithBuilderResult(
+										valueParameterPosition, attributeName, attributeSchema.getPlainType()
+									);
+								} else {
+									return setAttributeAsValueWithVoidResult(
+										valueParameterPosition, attributeName, attributeSchema.getPlainType()
+									);
+								}
 							}
 						}
 					}
@@ -420,6 +473,230 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			}
 			return proxy;
 		};
+	}
+
+	/**
+	 * Provides implementation for removing localized attribute value returning the proxy object return type allowing
+	 * to create a builder pattern in the model objects.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAttributeWithBuilderResult(
+		@Nonnull String attributeName
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			removeLocalizedAttribute(attributeName, args, theState);
+			return proxy;
+		};
+	}
+
+	/**
+	 * Provides implementation for removing localized attribute value returning a void return type.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAttributeWithVoidResult(
+		@Nonnull String attributeName
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			removeLocalizedAttribute(attributeName, args, theState);
+			return null;
+		};
+	}
+
+	/**
+	 * Provides implementation for removing localized attribute value returning the proxy object return type allowing
+	 * to create a builder pattern in the model objects.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAttributeWithValueCollectionResult(
+		@Nonnull String attributeName,
+		@Nonnull Class<?> schemaType,
+		@Nonnull Class plainType
+	) {
+		Assert.isTrue(
+			schemaType.isArray(),
+			"Localized attribute `" + attributeName + "` must be an array in order collection could be returned!"
+		);
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final Object[] removedArray = (Object[]) removeLocalizedAttributeAndReturnIt(attributeName, args, theState);
+			return Arrays.stream(removedArray).map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType)).toList();
+		};
+	}
+
+	/**
+	 * Provides implementation for removing localized attribute value returning the proxy object return type allowing
+	 * to create a builder pattern in the model objects.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAttributeWithValueResult(
+		@Nonnull String attributeName,
+		@Nonnull Class plainType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
+			removeLocalizedAttributeAndReturnIt(attributeName, args, theState), plainType
+		);
+	}
+
+	/**
+	 * Removes localized attribute from the entity.
+	 * @param attributeName name of the attribute to be set
+	 * @param args method arguments
+	 * @param theState proxy state
+	 */
+	private static void removeLocalizedAttribute(
+		@Nonnull String attributeName,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final Locale locale = (Locale) args[0];
+		Assert.notNull(locale, "Locale must not be null!");
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		entityBuilder.removeAttribute(attributeName, locale);
+	}
+
+	/**
+	 * Removes localized attribute from the entity and returns its value.
+	 * @param attributeName name of the attribute to be set
+	 * @param args method arguments
+	 * @param theState proxy state
+	 */
+	@Nullable
+	private static Serializable removeLocalizedAttributeAndReturnIt(
+		@Nonnull String attributeName,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final Locale locale = (Locale) args[0];
+		Assert.notNull(locale, "Locale must not be null!");
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final Serializable attributeToRemove = entityBuilder.getAttribute(attributeName, locale);
+		if (attributeToRemove != null) {
+			entityBuilder.removeAttribute(attributeName, locale);
+			return attributeToRemove;
+		} else {
+			return null;
+		}
+	}
+
+	/**
+	 * Provides implementation for removing attribute value returning the proxy object return type allowing to create
+	 * a builder pattern in the model objects.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeAttributeWithBuilderResult(
+		@Nonnull String attributeName
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			removeAttribute(attributeName, theState);
+			return proxy;
+		};
+	}
+
+	/**
+	 * Provides implementation for removing attribute value returning a void return type.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeAttributeWithVoidResult(
+		@Nonnull String attributeName
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			removeAttribute(attributeName, theState);
+			return null;
+		};
+	}
+
+	/**
+	 * Provides implementation for removing attribute value returning the proxy object return type allowing to create
+	 * a builder pattern in the model objects.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeAttributeWithValueCollectionResult(
+		@Nonnull String attributeName,
+		@Nonnull Class<?> schemaType,
+		@Nonnull Class plainType
+	) {
+		Assert.isTrue(
+			schemaType.isArray(),
+			" attribute `" + attributeName + "` must be an array in order collection could be returned!"
+		);
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final Object[] removedArray = (Object[]) removeAttributeAndReturnIt(attributeName, theState);
+			return Arrays.stream(removedArray).map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType)).toList();
+		};
+	}
+
+	/**
+	 * Provides implementation for removing attribute value returning the proxy object return type allowing to create
+	 * a builder pattern in the model objects.
+	 *
+	 * @param attributeName name of the attribute to be set
+	 * @return implementation of the method call
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeAttributeWithValueResult(
+		@Nonnull String attributeName,
+		@Nonnull Class plainType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> EvitaDataTypes.toTargetType(
+			removeAttributeAndReturnIt(attributeName, theState), plainType
+		);
+	}
+
+	/**
+	 * Removes  attribute from the entity.
+	 * @param attributeName name of the attribute to be set
+	 * @param theState proxy state
+	 */
+	private static void removeAttribute(
+		@Nonnull String attributeName,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		entityBuilder.removeAttribute(attributeName);
+	}
+
+	/**
+	 * Removes  attribute from the entity and returns its value.
+	 * @param attributeName name of the attribute to be set
+	 * @param theState proxy state
+	 */
+	@Nullable
+	private static Serializable removeAttributeAndReturnIt(
+		@Nonnull String attributeName,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final Serializable attributeToRemove = entityBuilder.getAttribute(attributeName);
+		if (attributeToRemove != null) {
+			entityBuilder.removeAttribute(attributeName);
+			return attributeToRemove;
+		} else {
+			return null;
+		}
 	}
 
 }

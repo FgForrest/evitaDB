@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.mock.*;
@@ -31,6 +32,9 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.mutation.associatedData.RemoveAssociatedDataMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.Price;
@@ -56,10 +60,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -2598,6 +2604,93 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertNotNull(groupEntity);
 				assertEquals(createdParameterGroup.getPrimaryKey(), groupEntity.getId());
 				assertEquals("parameterGroup-20", groupEntity.getCode());
+			}
+		);
+	}
+
+	@DisplayName("Should set and remove attributes and associated data")
+	@Order(42)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldSetAndRemoveAttributesAndAssociatedData(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int parameterGroupId = createParameterGroupEntityIfMissing(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final ProductInterfaceEditor newProduct = evitaSession.createNewEntity(ProductInterfaceEditor.class)
+					.setCode("product-14")
+					.setName(CZECH_LOCALE, "Produkt 14")
+					.setName(Locale.ENGLISH, "Product 14")
+					.setEnum(TestEnum.ONE)
+					.setOptionallyAvailable(true)
+					.setAlias(true)
+					.setQuantity(BigDecimal.TEN)
+					.setPriority(78L)
+					.setMarketsAttribute(new String[]{"market-1", "market-2"})
+					.setMarkets(new String[]{"market-3", "market-4"})
+					.setParameter(parameterId, that -> that.setPriority(10L).setParameterGroup(parameterGroupId));
+
+				newProduct.setLabels(new Labels(), CZECH_LOCALE);
+				newProduct.setLabels(new Labels(), Locale.ENGLISH);
+				newProduct.setReferencedFileSet(new ReferencedFileSet());
+
+				newProduct.upsertVia(evitaSession);
+
+				final ProductInterfaceEditor loadedProduct = evitaSession.getEntity(
+					ProductInterfaceEditor.class, newProduct.getId(),
+					hierarchyContent(), attributeContentAll(), associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(entityFetchAll(), entityGroupFetchAll()),
+					dataInLocalesAll()
+				).orElseThrow();
+
+				assertEquals("Produkt 14", loadedProduct.removeName(CZECH_LOCALE));
+				assertEquals(78L, loadedProduct.removePriority());
+				assertArrayEquals(new String[]{"market-1", "market-2"}, loadedProduct.removeMarketsAttribute().toArray(new String[0]));
+				assertEquals(new ReferencedFileSet(), loadedProduct.removeReferencedFileSet());
+				assertEquals(new Labels(), loadedProduct.removeLabels(CZECH_LOCALE));
+				assertArrayEquals(new String[]{"market-3", "market-4"}, loadedProduct.removeMarkets().toArray(new String[0]));
+
+				final Collection<? extends LocalMutation<?, ?>> localMutations = loadedProduct.toMutation().orElseThrow().getLocalMutations();
+				final BitSet expectedMutations = new BitSet(6);
+				assertEquals(6, localMutations.size());
+				for (LocalMutation<?, ?> localMutation : localMutations) {
+					if (localMutation instanceof RemoveAttributeMutation ram) {
+						if (ram.getAttributeKey().attributeName().equals(ATTRIBUTE_NAME)) {
+							assertEquals(CZECH_LOCALE, ram.getAttributeKey().locale());
+							expectedMutations.set(0, true);
+						} else if (ram.getAttributeKey().attributeName().equals(ATTRIBUTE_PRIORITY)) {
+							expectedMutations.set(1, true);
+						} else if (ram.getAttributeKey().attributeName().equals(ATTRIBUTE_MARKETS)) {
+							expectedMutations.set(2, true);
+						} else {
+							fail("Unexpected attribute: " + ram.getAttributeKey());
+						}
+					} else if (localMutation instanceof RemoveAssociatedDataMutation radm) {
+						if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_LABELS)) {
+							assertEquals(CZECH_LOCALE, radm.getAssociatedDataKey().locale());
+							expectedMutations.set(3, true);
+						} else if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_MARKETS)) {
+							expectedMutations.set(4, true);
+						} else if (radm.getAssociatedDataKey().associatedDataName().equals(ASSOCIATED_DATA_REFERENCED_FILES)) {
+							expectedMutations.set(4, true);
+						} else {
+							fail("Unexpected associated data: " + radm.getAssociatedDataKey());
+						}
+					} else {
+						fail("Unexpected mutation: " + localMutation);
+					}
+				}
+
+				for (int i = 0; i < expectedMutations.length(); i++) {
+					assertTrue(expectedMutations.get(i));
+				}
+
+				assertThrows(
+					MandatoryAttributesNotProvidedException.class,
+					() -> loadedProduct.upsertVia(evitaSession)
+				);
 			}
 		);
 	}

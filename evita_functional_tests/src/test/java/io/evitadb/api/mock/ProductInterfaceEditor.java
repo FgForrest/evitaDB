@@ -65,7 +65,7 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_NAME)
 	@RemoveWhenExists
-	ProductInterfaceEditor removeName(Locale locale);
+	String removeName(Locale locale);
 
 	ProductInterfaceEditor setQuantity(@Nonnull BigDecimal quantity);
 
@@ -74,7 +74,7 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
 	@RemoveWhenExists
-	ProductInterfaceEditor removePriority();
+	Long removePriority();
 
 	ProductInterfaceEditor setEnum(TestEnum testEnum);
 
@@ -83,6 +83,10 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 	ProductInterfaceEditor setOptionallyAvailable(boolean optionallyAvailable);
 
 	ProductInterfaceEditor setReferencedFileSet(ReferencedFileSet referencedFileSet);
+
+	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
+	@RemoveWhenExists
+	ReferencedFileSet removeReferencedFileSet();
 
 	ProductInterfaceEditor setBrand(int brandId);
 
@@ -135,7 +139,7 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
 	@RemoveWhenExists
-	ProductInterfaceEditor removeLabels(Locale locale);
+	Labels removeLabels(Locale locale);
 
 	ProductInterfaceEditor setMarkets(String[] markets);
 
@@ -144,11 +148,15 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
 	@RemoveWhenExists
-	ProductInterfaceEditor removeMarkets();
+	Collection<String> removeMarkets();
 
 	ProductInterfaceEditor setMarketsAsList(List<String> marketsAsList);
 
 	ProductInterfaceEditor setMarketsAttribute(String[] marketsAttribute);
+
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	@RemoveWhenExists
+	Collection<String> removeMarketsAttribute();
 
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
 	ProductInterfaceEditor setMarketsAttributeAsVarArg(String... marketsAttribute);
