@@ -426,9 +426,8 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
 			final Set<Locale> locales = localePredicate.getLocales();
 			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-			@SuppressWarnings({"unchecked", "rawtypes"})
-			final Class requestedType = ofNullable(itemType.getComponentType())
-				.orElse((Class)itemType);
+			@SuppressWarnings({"unchecked", "rawtypes"}) final Class requestedType = ofNullable(itemType.getComponentType())
+				.orElse((Class) itemType);
 
 			if (locale == null && locales != null && locales.isEmpty()) {
 				if (itemType.isArray()) {
@@ -681,14 +680,15 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 
 	public GetReferenceAttributeMethodClassifier() {
 		super(
-			"getAttribute",
+			"getReferencedAttribute",
 			(method, proxyState) -> {
 				// We only want to handle non-abstract methods with no parameters or a single Locale parameter
 				if (
-					!ClassUtils.isAbstractOrDefault(method) ||
-						method.getParameterCount() > 1 ||
+					method.getParameterCount() > 1 ||
 						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(CreateWhenMissing.class::isInstance) ||
 						method.isAnnotationPresent(RemoveWhenExists.class) ||
+						Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(RemoveWhenExists.class::isInstance) ||
 						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
 				) {
 					return null;

@@ -175,13 +175,13 @@ public class SetReferenceAttributeMethodClassifier extends DirectMethodClassific
 								return removeAttributeWithValueResult(attributeName, method.getReturnType());
 							}
 						} else {
-							// now we need to identify the argument type
-							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
 							Assert.isTrue(
 								method.getParameterCount() == 1,
 								"Non-localized attribute `" + attributeSchema.getName() + "` must not have a locale parameter!"
 							);
 
+							// now we need to identify the argument type
+							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
 							if (Collection.class.isAssignableFrom(valueParameter.getType())) {
 								if (method.getReturnType().equals(proxyState.getProxyClass())) {
 									return setAttributeAsCollectionWithBuilderResult(
