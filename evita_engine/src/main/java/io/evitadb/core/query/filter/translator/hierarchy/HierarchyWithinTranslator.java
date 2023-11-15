@@ -109,6 +109,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 									nodeId -> createFormulaFromHierarchyIndex(
 										nodeId,
 										createAndStoreHavingPredicate(
+											nodeId,
 											queryContext,
 											of(new FilterBy(hierarchyWithin.getHavingChildrenFilter()))
 												.filter(ConstraintContainer::isApplicable)

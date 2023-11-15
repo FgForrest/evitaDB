@@ -317,14 +317,14 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						.getReferences(Entities.CATEGORY)
 						.stream()
 						.anyMatch(category -> {
-								// is not directly excluded node
-								return !excluded.contains(category.getReferenceKey().primaryKey()) &&
-									// has no parent node that is in excluded set
-									categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
-										.stream()
-										.map(it -> Integer.parseInt(it.getCode()))
-										.noneMatch(excluded::contains);
-							}),
+							// is not directly excluded node
+							return !excluded.contains(category.getReferenceKey().primaryKey()) &&
+								// has no parent node that is in excluded set
+								categoryHierarchy.getParentItems(String.valueOf(category.getReferenceKey().primaryKey()))
+									.stream()
+									.map(it -> Integer.parseInt(it.getCode()))
+									.noneMatch(excluded::contains);
+						}),
 					result.getRecordData()
 				);
 				return null;
@@ -380,7 +380,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 						filterBy(
 							hierarchyWithin(
 								Entities.CATEGORY,
-									attributeEqualsTrue(ATTRIBUTE_SHORTCUT),
+								attributeEqualsTrue(ATTRIBUTE_SHORTCUT),
 								directRelation()
 							)
 						),
@@ -536,6 +536,115 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 		);
 	}
 
+	@DisplayName("Should return products in category subtree only of specified subtrees")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInCategorySubtreeOnlyOfSpecifiedSubtrees(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> included = new HashSet<>(Arrays.asList(6, 13, 20, 25));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(1),
+								having(entityPrimaryKeyInSet(included.toArray(new Integer[0])))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Set<Integer> includedAndRoot = Stream.concat(
+						Stream.of(1),
+						included.stream()
+					)
+					.collect(Collectors.toSet());
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(category -> {
+							final int categoryId = category.getReferenceKey().primaryKey();
+							final String categoryIdAsString = String.valueOf(categoryId);
+							final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
+							return
+								// is directly included node
+								includedAndRoot.contains(categoryId) &&
+									// has included parent node
+									parentItems
+										.stream()
+										.map(it -> Integer.parseInt(it.getCode()))
+										.allMatch(it -> includedAndRoot.contains(it) || Objects.equals(it, 1));
+						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products in category subtree only of specified subtrees excluding root")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInCategorySubtreeOnlyOfSpecifiedSubtreesExcludingRoot(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> included = new HashSet<>(Arrays.asList(6, 13, 20, 25));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(1),
+								having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))),
+								excludingRoot()
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(category -> {
+							final int categoryId = category.getReferenceKey().primaryKey();
+							final String categoryIdAsString = String.valueOf(categoryId);
+							final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
+							return
+								// is directly included node
+								included.contains(categoryId) &&
+									// has included parent node
+									parentItems
+										.stream()
+										.map(it -> Integer.parseInt(it.getCode()))
+										.allMatch(it -> included.contains(it) || Objects.equals(it, 1));
+						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products in category subtree except specified subtrees")
 	@UseDataSet(THOUSAND_PRODUCTS)
 	@Test
@@ -552,6 +661,69 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 								Entities.CATEGORY,
 								entityPrimaryKeyInSet(1),
 								excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0])))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity
+						.getReferences(Entities.CATEGORY)
+						.stream()
+						.anyMatch(category -> {
+							final int categoryId = category.getReferenceKey().primaryKey();
+							final String categoryIdAsString = String.valueOf(categoryId);
+							final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(categoryIdAsString);
+							return
+								// is not directly excluded node
+								!excluded.contains(categoryId) &&
+									// has no excluded parent node
+									parentItems
+										.stream()
+										.map(it -> Integer.parseInt(it.getCode()))
+										.noneMatch(excluded::contains) &&
+									// has parent node 1
+									(
+										Objects.equals(1, categoryId) ||
+											parentItems
+												.stream()
+												.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()))
+									);
+						}),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products in category subtree except specified subtrees without affecting root node")
+	@UseDataSet(THOUSAND_PRODUCTS)
+	@Test
+	void shouldReturnProductsInCategorySubtreeExceptSpecifiedSubtreesWithoutAffectingRootNode(Evita evita, List<SealedEntity> originalProductEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> excluded = new HashSet<>(Arrays.asList(2, 43, 34, 53));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							hierarchyWithin(
+								Entities.CATEGORY,
+								entityPrimaryKeyInSet(1),
+								excluding(
+									or(
+										entityPrimaryKeyInSet(1), // this should not exclude the root node
+										entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))
+									)
+								)
 							)
 						),
 						require(
