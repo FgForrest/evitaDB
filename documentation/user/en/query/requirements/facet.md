@@ -20,7 +20,7 @@ and also provide accurate, on-the-spot, real-time feedback about the number of r
 the current selection when another facet is selected.
 
 Facets are usually displayed as a list of checkboxes, radio buttons, drop-down menus, or sliders, and are organized into 
-groups.The options within a group usually expand the current selection (logical disjunction), and the groups are usually 
+groups. The options within a group usually expand the current selection (logical disjunction), and the groups are usually 
 combined with logical conjunction. Some of the facets can be negated (logical negation) to exclude results that match 
 the facet option.
 

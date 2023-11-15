@@ -230,9 +230,9 @@ facetHaving(
         the name of the [entity reference](../../use/schema.md#reference) that will be subject to the filtering 
         constraints in the second and subsequent arguments
     </dd>
-    <dt>filterConstraint:any+</dt>
+    <dt>filterConstraint:any*</dt>
     <dd>
-        one or more filter constraints that identify the facet (reference) that must be present on the entities in 
+        zero or more filter constraints that identify the facet (reference) that must be present on the entities in 
         the result set
     </dd>
 </dl>
@@ -249,7 +249,7 @@ To demonstrate the cooperation between the `facetHaving` constraint inside `user
 requirement, let's query for products in category *e-readers* and request the facet summary for reference `brand`.
 At the same time, let's pretend that the user has already checked the *amazon* facet:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet having example](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql)
 
@@ -276,6 +276,22 @@ Because the facet summary JSON is quite long and not very readable, we will only
 summary result in this documentation. As you can see, the selected facet is checked and the predicted numbers have
 changed accordingly:
 
+<LanguageSpecific to="evitaql,java,csharp">
+
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql.string.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>

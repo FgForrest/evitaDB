@@ -1,0 +1,50 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "e-readers"
+        }
+      },
+      userFilter: [
+        {
+          facetBrandHaving: [
+            {
+              entityHaving: {
+                attributeCodeInSet: [
+                  "amazon"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        brand {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

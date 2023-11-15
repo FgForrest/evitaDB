@@ -283,10 +283,10 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		if (outputFormat.equals("md")) {
 			return generateMarkDownTable(session, query, response);
 		} else if (outputFormat.equals("string")) {
-			final String sourceVariable = outputSnippet.sourceVariable();
+			final String sourceVariable = ofNullable(outputSnippet).map(OutputSnippet::sourceVariable).orElse(null);
 			return generateMarkDownStringBlock(response, sourceVariable);
 		} else if (outputFormat.equals("json")) {
-			final String sourceVariable = outputSnippet.sourceVariable();
+			final String sourceVariable = ofNullable(outputSnippet).map(OutputSnippet::sourceVariable).orElse(null);
 			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);

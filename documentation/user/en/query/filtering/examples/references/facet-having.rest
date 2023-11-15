@@ -1,0 +1,36 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "e-readers"
+      }
+    },
+    "userFilter" : [
+      {
+        "facetBrandHaving" : [
+          {
+            "entityHaving" : {
+              "attributeCodeInSet" : [
+                "amazon"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "require" : {
+    "facetBrandSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}
