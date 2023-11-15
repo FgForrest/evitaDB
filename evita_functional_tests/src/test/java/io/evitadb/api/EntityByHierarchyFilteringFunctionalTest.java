@@ -480,7 +480,64 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
 						collection(Entities.CATEGORY),
-						filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1), having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))))),
+						filterBy(
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(1),
+								having(entityPrimaryKeyInSet(included.toArray(new Integer[0])))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Set<Integer> includedAndRoot = Stream.concat(
+						Stream.of(1),
+						included.stream()
+					)
+					.collect(Collectors.toSet());
+
+				assertResultIs(
+					originalCategoryEntities,
+					sealedEntity -> {
+						final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString());
+						return
+							// is directly excluded node
+							includedAndRoot.contains(sealedEntity.getPrimaryKey()) &&
+								// has included parent node
+								parentItems
+									.stream()
+									.map(it -> Integer.parseInt(it.getCode()))
+									.allMatch(it -> includedAndRoot.contains(it) || Objects.equals(1, it));
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return subtree categories only of specified subtrees except root")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCategorySubtreeOnlyOfSpecifiedSubtreesExceptRoot(Evita evita, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> included = new HashSet<>(Arrays.asList(6, 13, 20, 25));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(1),
+								having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))),
+								excludingRoot()
+							)
+						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
