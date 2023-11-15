@@ -397,7 +397,12 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		@Nullable ProductInterface product,
 		@Nullable Locale filteredLocale
 	) {
-		final Collection<Locale> locales = product.getLocales();
+		final Set<Locale> allLocales = product.allLocales();
+		final Set<Locale> expectedAllLocales = originalProduct.getAllLocales();
+		assertEquals(expectedAllLocales.size(), allLocales.size());
+		allLocales.forEach(locale -> assertTrue(expectedAllLocales.contains(locale)));
+
+		final Set<Locale> locales = product.locales();
 		final Set<Locale> expectedLocales = filteredLocale == null ? originalProduct.getLocales() : Set.of(filteredLocale);
 		assertEquals(expectedLocales.size(), locales.size());
 		locales.forEach(locale -> assertTrue(expectedLocales.contains(locale)));
@@ -405,6 +410,8 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 
 	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
 		assertNotNull(product);
+		assertEquals(originalProduct.version(), product.version());
+		assertEquals(Entities.PRODUCT, product.entitySchema().getName());
 		assertEquals(originalProduct.getPrimaryKey(), product.getPrimaryKey());
 		assertEquals(originalProduct.getPrimaryKey(), product.getId());
 		assertEquals(Entities.PRODUCT, product.getType());

@@ -23,15 +23,18 @@
 
 package io.evitadb.api.proxy.impl.entity;
 
+import io.evitadb.api.proxy.WithLocales;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import one.edee.oss.proxycian.DirectMethodClassification;
+import one.edee.oss.proxycian.util.ReflectionUtils;
 import one.edee.oss.proxycian.utils.GenericsUtils;
 import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,7 +57,7 @@ public class GetLocalesMethodClassifier extends DirectMethodClassification<Objec
 	private static final Locale[] EMPTY_LOCALE_ARRAY = new Locale[0];
 
 	/**
-	 * Tries to identify primary key request from the class field related to the constructor parameter.
+	 * Tries to identify locale request from the class field related to the constructor parameter.
 	 *
 	 * @param expectedType class the constructor belongs to
 	 * @param parameter constructor parameter
@@ -113,23 +116,30 @@ public class GetLocalesMethodClassifier extends DirectMethodClassification<Objec
 				// to match the method by its name
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 
-				if (Collection.class.equals(returnType) || Set.class.equals(returnType)) {
-					@SuppressWarnings("rawtypes") final Class wrappedGenericType = getMethodReturnType(proxyState.getProxyClass(), method);
-					if (Locale.class.equals(wrappedGenericType)) {
-						// method matches - provide implementation
+				if (ReflectionUtils.isMatchingMethodPresentOn(method, WithLocales.class)) {
+					if ("allLocales".equals(method.getName())) {
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getAllLocales();
+					} else if ("locales".equals(method.getName())) {
 						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales();
 					}
-				} else if (List.class.equals(returnType)) {
-					@SuppressWarnings("rawtypes") final Class wrappedGenericType = getMethodReturnType(proxyState.getProxyClass(), method);
-					if (Locale.class.equals(wrappedGenericType)) {
+				} else if (Modifier.isAbstract(method.getModifiers())) {
+					if (Collection.class.equals(returnType) || Set.class.equals(returnType)) {
+						@SuppressWarnings("rawtypes") final Class wrappedGenericType = getMethodReturnType(proxyState.getProxyClass(), method);
+						if (Locale.class.equals(wrappedGenericType)) {
+							// method matches - provide implementation
+							return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales();
+						}
+					} else if (List.class.equals(returnType)) {
+						@SuppressWarnings("rawtypes") final Class wrappedGenericType = getMethodReturnType(proxyState.getProxyClass(), method);
+						if (Locale.class.equals(wrappedGenericType)) {
+							// method matches - provide implementation
+							return (entityClassifier, theMethod, args, theState, invokeSuper) -> new ArrayList<>(theState.getEntity().getLocales());
+						}
+					} else if (returnType.isArray() && Locale.class.equals(returnType.getComponentType())) {
 						// method matches - provide implementation
-						return (entityClassifier, theMethod, args, theState, invokeSuper) -> new ArrayList<>(theState.getEntity().getLocales());
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales().toArray(EMPTY_LOCALE_ARRAY);
 					}
-				} else if (returnType.isArray() && Locale.class.equals(returnType.getComponentType())) {
-					// method matches - provide implementation
-					return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales().toArray(EMPTY_LOCALE_ARRAY);
 				}
-
 
 				// this method is not classified by this implementation
 				return null;

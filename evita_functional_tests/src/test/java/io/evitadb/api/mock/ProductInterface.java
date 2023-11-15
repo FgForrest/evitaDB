@@ -26,6 +26,9 @@ package io.evitadb.api.mock;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.proxy.WithEntitySchema;
+import io.evitadb.api.proxy.WithLocales;
+import io.evitadb.api.proxy.WithVersion;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
@@ -52,12 +55,10 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @EntityRef(Entities.PRODUCT)
-public interface ProductInterface extends EntityClassifier {
+public interface ProductInterface extends EntityClassifier, WithEntitySchema, WithLocales, WithVersion {
 
 	@PrimaryKeyRef
 	int getId();
-
-	Collection<Locale> getLocales();
 
 	@Nonnull
 	TestEntity getEntityType();
