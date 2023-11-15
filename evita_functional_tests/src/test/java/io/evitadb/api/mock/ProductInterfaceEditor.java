@@ -63,10 +63,18 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setName(Locale locale, @Nonnull String name);
 
+	@AttributeRef(DataGenerator.ATTRIBUTE_NAME)
+	@RemoveWhenExists
+	ProductInterfaceEditor removeName(Locale locale);
+
 	ProductInterfaceEditor setQuantity(@Nonnull BigDecimal quantity);
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
 	ProductInterfaceEditor setPriority(Long priority);
+
+	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
+	@RemoveWhenExists
+	ProductInterfaceEditor removePriority();
 
 	ProductInterfaceEditor setEnum(TestEnum testEnum);
 
@@ -125,10 +133,18 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);
 
+	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
+	@RemoveWhenExists
+	ProductInterfaceEditor removeLabels(Locale locale);
+
 	ProductInterfaceEditor setMarkets(String[] markets);
 
 	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
 	ProductInterfaceEditor setMarketsAsVarArg(String... markets);
+
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	@RemoveWhenExists
+	ProductInterfaceEditor removeMarkets();
 
 	ProductInterfaceEditor setMarketsAsList(List<String> marketsAsList);
 

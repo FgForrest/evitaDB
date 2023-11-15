@@ -34,6 +34,7 @@ import io.evitadb.api.proxy.impl.entity.EntityContractAdvice;
 import io.evitadb.api.proxy.impl.entity.GetAssociatedDataMethodClassifier;
 import io.evitadb.api.proxy.impl.entity.GetAttributeMethodClassifier;
 import io.evitadb.api.proxy.impl.entity.GetEntityTypeMethodClassifier;
+import io.evitadb.api.proxy.impl.entity.GetLocalesMethodClassifier;
 import io.evitadb.api.proxy.impl.entity.GetParentEntityMethodClassifier;
 import io.evitadb.api.proxy.impl.entity.GetPriceMethodClassifier;
 import io.evitadb.api.proxy.impl.entity.GetPrimaryKeyMethodClassifier;
@@ -367,6 +368,15 @@ public class ProxycianFactory implements ProxyFactory {
 						);
 					if (pkFct != null) {
 						argumentExtractors[i] = pkFct;
+						score++;
+						continue;
+					}
+					final ExceptionRethrowingFunction<EntityContract, Object> localeFct =
+						GetLocalesMethodClassifier.getExtractorIfPossible(
+							expectedType, parameters[i]
+						);
+					if (localeFct != null) {
+						argumentExtractors[i] = localeFct;
 						score++;
 						continue;
 					}

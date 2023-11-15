@@ -57,6 +57,8 @@ public interface ProductInterface extends EntityClassifier {
 	@PrimaryKeyRef
 	int getId();
 
+	Collection<Locale> getLocales();
+
 	@Nonnull
 	TestEntity getEntityType();
 
