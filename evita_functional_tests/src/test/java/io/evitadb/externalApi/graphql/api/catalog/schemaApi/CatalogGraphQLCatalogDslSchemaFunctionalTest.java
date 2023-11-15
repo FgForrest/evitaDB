@@ -23,14 +23,30 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
-import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLSchemaTester;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-import javax.annotation.Nonnull;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Ancestor for tests for GraphQL catalog endpoint.
+ * Tests for GraphQL DSL schema of catalog APIs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public abstract class CatalogGraphQLSchemaEndpointFunctionalTest extends GraphQLEndpointFunctionalTest {
+public class CatalogGraphQLCatalogDslSchemaFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return DSL of GraphQL schema")
+	void shouldReturnDslOfCatalogGraphQLSchema(GraphQLSchemaTester tester) {
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/schema")
+			.executeAndExpectOkAndThen()
+			.body(not(emptyOrNullString()));
+	}
 }

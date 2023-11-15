@@ -21,20 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
-import io.evitadb.externalApi.http.MimeTypes;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLSchemaTester;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.not;
 
 /**
- * Extension of HTTP MIME types supported by GraphQL API.
+ * Tests for GraphQL DSL schema of data APIs.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class GraphQLMimeTypes extends MimeTypes {
+public class CatalogGraphQLDslSchemaFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-    public static final String APPLICATION_GRAPHQL_RESPONSE_JSON = "application/graphql-response+json";
-    public static final String APPLICATION_GRAPHQL = "application/graphql";
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return DSL of GraphQL schema")
+	void shouldReturnDslOfCatalogGraphQLSchema(GraphQLSchemaTester tester) {
+		tester.test(TEST_CATALOG)
+			.executeAndExpectOkAndThen()
+			.body(not(emptyOrNullString()));
+	}
 }
