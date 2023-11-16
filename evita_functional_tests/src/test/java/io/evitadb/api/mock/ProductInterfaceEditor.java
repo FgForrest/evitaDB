@@ -133,6 +133,14 @@ public interface ProductInterfaceEditor extends ProductInterface, InstanceEditor
 
 	@ReferenceRef(Entities.CATEGORY)
 	@RemoveWhenExists
+	List<Integer> removeAllProductCategoriesAndReturnTheirIds();
+
+	@ReferenceRef(Entities.CATEGORY)
+	@RemoveWhenExists
+	List<ProductCategoryInterfaceEditor> removeAllProductCategoriesAndReturnTheirBodies();
+
+	@ReferenceRef(Entities.CATEGORY)
+	@RemoveWhenExists
 	ProductCategoryInterface removeProductCategoryByIdAndReturnItsBody(int categoryId);
 
 	ProductInterfaceEditor setLabels(Labels labels, Locale locale);

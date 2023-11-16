@@ -55,8 +55,10 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -656,100 +658,88 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param referenceSchema the reference schema to use
 	 * @return the method implementation
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeReference(
 		@Nonnull SealedEntityProxyState proxyState,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull Class<?> returnType,
+		@Nonnull ResolvedParameter resolvedParameter,
 		boolean entityRecognizedInReturnType
 	) {
-		if (returnType.equals(proxyState.getProxyClass())) {
+		final Class<?> returnType = resolvedParameter.resolvedType();
+		if (Collection.class.equals(resolvedParameter.mainType()) || List.class.equals(resolvedParameter.mainType())) {
+			if (Number.class.isAssignableFrom(returnType)) {
+				return (proxy, theMethod, args, theState, invokeSuper) -> {
+					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
+					references.forEach(it -> entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey()));
+					return references.stream()
+						.map(it -> it.getReferenceKey().primaryKey())
+						.toList();
+				};
+			} else {
+				return removeReferencesAndReturnTheirProxies(referenceSchema, returnType, entityRecognizedInReturnType);
+			}
+		} else if (returnType.equals(void.class)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.getEntityBuilder();
 				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-				if (references.isEmpty()) {
-					// do nothing
-				} else if (references.size() == 1) {
-					entityBuilder.removeReference(
-						referenceSchema.getName(),
-						references.iterator().next().getReferencedPrimaryKey()
-					);
-				} else {
-					throw new EvitaInvalidUsageException(
-						"Cannot remove reference `" + referenceSchema.getName() +
-							"` from entity `" + theState.getEntitySchema().getName() + "` " +
-							"because there is more than single reference!"
-					);
-				}
-				return proxy;
-			};
-		} else if (Number.class.isAssignableFrom(returnType)) {
-			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				final EntityBuilder entityBuilder = theState.getEntityBuilder();
-				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-				if (references.isEmpty()) {
-					// do nothing
-					return null;
-				} else if (references.size() == 1) {
-					final int referencedPrimaryKey = references.iterator().next().getReferencedPrimaryKey();
-					entityBuilder.removeReference(
-						referenceSchema.getName(),
-						referencedPrimaryKey
-					);
-					return EvitaDataTypes.toTargetType(referencedPrimaryKey, (Class) returnType);
-				} else {
-					throw new EvitaInvalidUsageException(
-						"Cannot remove reference `" + referenceSchema.getName() +
-							"` from entity `" + theState.getEntitySchema().getName() + "` " +
-							"because there is more than single reference!"
-					);
-				}
+				references.forEach(it -> entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey()));
+				return null;
 			};
 		} else if (Boolean.class.isAssignableFrom(returnType)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.getEntityBuilder();
 				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-				if (references.isEmpty()) {
-					// do nothing
-					return null;
-				} else if (references.size() == 1) {
-					final int referencedPrimaryKey = references.iterator().next().getReferencedPrimaryKey();
-					entityBuilder.removeReference(
-						referenceSchema.getName(),
-						referencedPrimaryKey
-					);
-					return true;
-				} else {
-					throw new EvitaInvalidUsageException(
-						"Cannot remove reference `" + referenceSchema.getName() +
-							"` from entity `" + theState.getEntitySchema().getName() + "` " +
-							"because there is more than single reference!"
-					);
-				}
-			};
-		} else if (returnType.equals(void.class)) {
-			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				final EntityBuilder entityBuilder = theState.getEntityBuilder();
-				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
-				if (references.isEmpty()) {
-					// do nothing
-				} else if (references.size() == 1) {
-					entityBuilder.removeReference(
-						referenceSchema.getName(),
-						references.iterator().next().getReferencedPrimaryKey()
-					);
-				} else {
-					throw new EvitaInvalidUsageException(
-						"Cannot remove reference `" + referenceSchema.getName() +
-							"` from entity `" + theState.getEntitySchema().getName() + "` " +
-							"because there is more than single reference!"
-					);
-				}
-				return null;
+				references.forEach(it -> entityBuilder.removeReference(referenceSchema.getName(), it.getReferencedPrimaryKey()));
+				return !references.isEmpty();
 			};
 		} else {
-			return removeReferenceAndReturnItsProxy(referenceSchema, returnType, entityRecognizedInReturnType);
+			if (returnType.equals(proxyState.getProxyClass())) {
+				return (proxy, theMethod, args, theState, invokeSuper) -> {
+					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
+					if (references.isEmpty()) {
+						// do nothing
+					} else if (references.size() == 1) {
+						entityBuilder.removeReference(
+							referenceSchema.getName(),
+							references.iterator().next().getReferencedPrimaryKey()
+						);
+					} else {
+						throw new EvitaInvalidUsageException(
+							"Cannot remove reference `" + referenceSchema.getName() +
+								"` from entity `" + theState.getEntitySchema().getName() + "` " +
+								"because there is more than single reference!"
+						);
+					}
+					return proxy;
+				};
+			} else if (Number.class.isAssignableFrom(returnType)) {
+				return (proxy, theMethod, args, theState, invokeSuper) -> {
+					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceSchema.getName());
+					if (references.isEmpty()) {
+						// do nothing
+						return null;
+					} else if (references.size() == 1) {
+						final int referencedPrimaryKey = references.iterator().next().getReferencedPrimaryKey();
+						entityBuilder.removeReference(
+							referenceSchema.getName(),
+							referencedPrimaryKey
+						);
+						//noinspection unchecked,rawtypes
+						return EvitaDataTypes.toTargetType(referencedPrimaryKey, (Class) returnType);
+					} else {
+						throw new EvitaInvalidUsageException(
+							"Cannot remove reference `" + referenceSchema.getName() +
+								"` from entity `" + theState.getEntitySchema().getName() + "` " +
+								"because there is more than single reference!"
+						);
+					}
+				};
+			} else {
+				return removeReferenceAndReturnItsProxy(referenceSchema, returnType, entityRecognizedInReturnType);
+			}
 		}
 	}
 
@@ -800,6 +790,54 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 						"` from entity `" + theState.getEntitySchema().getName() + "` " +
 						"because there is more than single reference!"
 				);
+			}
+		};
+	}
+
+	/**
+	 * Method implementation that removes the multiple references if they exist and returns all the removed reference
+	 * proxies.
+	 *
+	 * @param referenceSchema              the reference schema to use
+	 * @param returnType                   the return type
+	 * @param entityRecognizedInReturnType true if the entity annotation is recognized in the return type
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeReferencesAndReturnTheirProxies(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Class<?> returnType,
+		boolean entityRecognizedInReturnType
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final String referenceName = referenceSchema.getName();
+			final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+			if (references.isEmpty()) {
+				// do nothing
+				return Collections.emptyList();
+			} else {
+				final List<Object> removedReferences = new ArrayList<>(references.size());
+				for (ReferenceContract referenceToRemove : references) {
+					if (entityRecognizedInReturnType) {
+						if (referenceToRemove.getReferencedEntity().isPresent()) {
+							final SealedEntity referencedEntity = referenceToRemove.getReferencedEntity().get();
+							removedReferences.add(
+								theState.getOrCreateReferencedEntityProxy(
+									returnType, referencedEntity, ProxyType.REFERENCED_ENTITY
+								)
+							);
+						} else {
+							throw ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName);
+						}
+					} else {
+						removedReferences.add(
+							theState.getOrCreateEntityReferenceProxy(returnType, referenceToRemove)
+						);
+					}
+					entityBuilder.removeReference(referenceName, referenceToRemove.getReferencedPrimaryKey());
+				}
+				return removedReferences;
 			}
 		};
 	}
@@ -1823,10 +1861,14 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 
 				if (parameterCount == 0) {
 					if (method.isAnnotationPresent(RemoveWhenExists.class)) {
-						//noinspection unchecked
 						return removeReference(
 							proxyState, referenceSchema,
-							entityRecognizedIn.map(it -> it.entityContract().resolvedType()).orElse(returnType),
+							entityRecognizedIn
+								.map(RecognizedContext::entityContract)
+								.orElseGet(() -> {
+									final Class<?> methodReturnType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
+									return new ResolvedParameter(method.getReturnType(), methodReturnType);
+								}),
 							isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.RETURN_TYPE)
 						);
 					} else if (isEntityRecognizedIn(entityRecognizedIn, EntityRecognizedIn.RETURN_TYPE)) {

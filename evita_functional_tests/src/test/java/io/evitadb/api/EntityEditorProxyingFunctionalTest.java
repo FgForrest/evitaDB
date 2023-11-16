@@ -2695,4 +2695,106 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 		);
 	}
 
+	@DisplayName("Should remove all references and return their ids")
+	@Order(43)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllReferences(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
+
+		getProductByCode(evita, "product-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithPricesAndReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final ProductInterfaceEditor product1 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final List<Integer> removedCategories = product1.removeAllProductCategoriesAndReturnTheirIds();
+				assertEquals(2, removedCategories.size());
+				assertTrue(removedCategories.contains(categoryId1));
+				assertTrue(removedCategories.contains(categoryId2));
+
+				final Optional<EntityMutation> mutation = product1.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(2, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product1.toInstance();
+				assertTrue(modifiedInstance.getProductCategories().isEmpty());
+
+				product1.upsertVia(evitaSession);
+
+				final SealedEntity product1SE = evitaSession.getEntity(
+					Entities.PRODUCT, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertNotNull(product1SE.getReference(Entities.PARAMETER, parameterId).orElse(null));
+				assertNull(product1SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
+				assertNull(product1SE.getReference(Entities.CATEGORY, categoryId1).orElse(null));
+			}
+		);
+	}
+
+	@DisplayName("Should remove all references and return their bodies")
+	@Order(44)
+	@Test
+	@UseDataSet(HUNDRED_PRODUCTS)
+	void shouldRemoveAllReferencesAndReturnTheirBodies(EvitaContract evita) {
+		final int parameterId = createParameterEntityIfMissing(evita);
+		final int categoryId1 = createCategoryEntityIfMissing(evita, 1);
+		final int categoryId2 = createCategoryEntityIfMissing(evita, 2);
+
+		getProductByCode(evita, "product-1")
+			.ifPresent(it -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.deleteEntity(it.getType(), it.getPrimaryKey());
+				}
+			));
+		shouldCreateNewCustomProductWithPricesAndReferences(evita);
+
+		evita.updateCatalog(
+			TEST_CATALOG,
+			evitaSession -> {
+				final EntityReference product1Ref = getProductByCode(evita, "product-1").orElseThrow();
+				final ProductInterfaceEditor product1 = evitaSession.getEntity(
+					ProductInterfaceEditor.class, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				final List<ProductCategoryInterfaceEditor> removedCategories = product1.removeAllProductCategoriesAndReturnTheirBodies();
+				assertEquals(2, removedCategories.size());
+				assertTrue(removedCategories.stream().anyMatch(it -> it.getPrimaryKey() == categoryId1));
+				assertTrue(removedCategories.stream().anyMatch(it -> it.getPrimaryKey() == categoryId2));
+
+				final Optional<EntityMutation> mutation = product1.toMutation();
+				assertTrue(mutation.isPresent());
+				assertEquals(2, mutation.get().getLocalMutations().size());
+
+				final ProductInterface modifiedInstance = product1.toInstance();
+				assertTrue(modifiedInstance.getProductCategories().isEmpty());
+
+				product1.upsertVia(evitaSession);
+
+				final SealedEntity product1SE = evitaSession.getEntity(
+					Entities.PRODUCT, product1Ref.primaryKey(), entityFetchAllContent()
+				).orElseThrow();
+
+				assertNotNull(product1SE.getReference(Entities.PARAMETER, parameterId).orElse(null));
+				assertNull(product1SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
+				assertNull(product1SE.getReference(Entities.CATEGORY, categoryId1).orElse(null));
+			}
+		);
+	}
+
 }
