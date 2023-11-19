@@ -205,7 +205,16 @@ class EvitaEntitySchemaCache {
 		@Nonnull Supplier<CatalogSchemaContract> catalogSchemaSupplier
 	) {
 		return getEntitySchema(entityType, version, schemaAccessor)
-			.map(it -> new EntitySchemaDecorator(catalogSchemaSupplier, it))
+			.map(it -> {
+				// if currently observed latest entity schema is older than the fetched one, remove it
+				getLatestEntitySchema(entityType, schemaAccessor, catalogSchemaSupplier)
+					.ifPresent(latestSchema -> {
+						if (latestSchema.version() < version) {
+							removeLatestEntitySchema(entityType);
+						}
+					});
+				return new EntitySchemaDecorator(catalogSchemaSupplier, it);
+			})
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
 	}
 

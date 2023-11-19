@@ -47,14 +47,14 @@ import java.util.Optional;
  * is in the database at the time update request arrives.
  */
 @NotThreadSafe
-public interface InstanceEditor<T extends Serializable> extends Serializable {
+public interface InstanceEditor<READ_INTERFACE extends Serializable> extends Serializable {
 
 	/**
 	 * Returns the contract class of model entity that is being edited.
 	 * @return class of the model entity
 	 */
 	@Nonnull
-	Class<T> getContract();
+	Class<READ_INTERFACE> getContract();
 
 	/**
 	 * Returns object that contains set of {@link LocalMutation} instances describing
@@ -75,7 +75,7 @@ public interface InstanceEditor<T extends Serializable> extends Serializable {
 	 * This method is particularly useful for tests.
 	 */
 	@Nonnull
-	T toInstance();
+	READ_INTERFACE toInstance();
 
 	/**
 	 * The method is a shortcut for calling {@link EvitaSessionContract#upsertEntity(Serializable)} the other
