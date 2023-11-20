@@ -28,9 +28,17 @@ priceType(
     </dd>
 </dl>
 
+<LanguageSpecific to="java,evitaql,rest,graphql">
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass> requirement 
 controls which price type is used when calculating the sales price and filtering or sorting by it. If no such 
 requirement is specified, **the price with tax is used by default**.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The <SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass> requirement 
+controls which price type is used when calculating the sales price and filtering or sorting by it. If no such 
+requirement is specified, **the price with tax is used by default**.
+</LanguageSpecific>
+
 
 To demonstrate the effect of this requirement, let's say the user wants to find all products with a selling price 
 between `100€` and `105€`. The following query will do that:
@@ -56,7 +64,7 @@ The result contains some products, which you can see in the following table:
 </Note>
 
 But if the user is a legal entity and can subtract the sales tax from the price, he probably wants to find all products
-in this range with the price without tax. To do this, we need to modify the query and add the `priceType' requirement:
+in this range with the price without tax. To do this, we need to modify the query and add the `priceType` requirement:
 
 <SourceCodeTabs langSpecificTabOnly>
 

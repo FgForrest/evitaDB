@@ -29,6 +29,7 @@ page(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The `page` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>) requirement
 controls the number and slice of entities returned in the query response. If no page requirement is used in the query,
 the default page `1` with the default page size `20` is used. If the requested page exceeds the number of available
@@ -37,9 +38,23 @@ or the page size is set to zero. By automatically returning the first page resul
 we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. In case of the `page` constraint, 
-the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> is used as data chunk 
+in a so-called data chunk object. In case of the `page` constraint,
+the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> is used as data chunk
 object. The data chunk object contains the following information:
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `page` (<SourceClass>EvitaDB.Client/Queries/Requires/Page.cs</SourceClass>) requirement
+controls the number and slice of entities returned in the query response. If no page requirement is used in the query,
+the default page `1` with the default page size `20` is used. If the requested page exceeds the number of available
+pages, a result with the first page is returned. An empty result is only returned if the query returns no result at all
+or the page size is set to zero. By automatically returning the first page result when the requested page is exceeded,
+we try to avoid the need to issue a secondary request to fetch the data.
+
+The information about the actual returned page and data statistics can be found in the query response, which is wrapped
+in a so-called data chunk object. In case of the `page` constraint,
+the <SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass> is used as data chunk
+object. The data chunk object contains the following information:
+</LanguageSpecific>
 
 <dl>
     <dt>pageNumber</dt>
@@ -153,6 +168,7 @@ strip(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The `strip` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>) requirement
 controls the number and slice of entities returned in the query response. If the requested strip exceeds the number of
 available records, a result from the zero offset with retained limit is returned. An empty result is only returned if
@@ -163,6 +179,20 @@ The information about the actual returned page and data statistics can be found 
 in a so-called data chunk object. In case of the `strip` constraint,
 the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass> is used as data chunk
 object. The data chunk object contains the following information:
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `strip` (<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>) requirement
+controls the number and slice of entities returned in the query response. If the requested strip exceeds the number of
+available records, a result from the zero offset with retained limit is returned. An empty result is only returned if
+the query returns no result at all or the limit is set to zero. By automatically returning the first strip result when
+the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
+
+The information about the actual returned page and data statistics can be found in the query response, which is wrapped
+in a so-called data chunk object. In case of the `strip` constraint,
+the <SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass> is used as data chunk
+object. The data chunk object contains the following information:
+</LanguageSpecific>
+
 
 <dl>
     <dt>offset</dt>

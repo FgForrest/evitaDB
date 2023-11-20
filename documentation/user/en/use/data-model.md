@@ -548,8 +548,8 @@ The price has the following structure:
         words, it makes no sense to have multiple concurrently valid prices for the same entity that are rooted in the 
         same price list.
     </dd>
-    <dt>[Currency](https://github.com/FgForrest/evitaDB-C-Sharp-client/blob/master/EvitaDB.Client/DataTypes/Currency.cs) 
-        `Currency`
+    <dt>
+        [Currency](https://github.com/FgForrest/evitaDB-C-Sharp-client/blob/master/EvitaDB.Client/DataTypes/Currency.cs) `Currency`
     </dt>
     <dd>
         Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
@@ -561,22 +561,19 @@ The price has the following structure:
         to distinguish the projected prices of the subordinate products in the product that represents them.
     </dd>
     <dt>
-        [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)
-        `PriceWithoutTax`
+        [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) `PriceWithoutTax`
     </dt>
     <dd>
         Price without tax.
     </dd>
     <dt>
-        [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)
-        `PriceWithTax`
+        [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) `PriceWithTax`
     </dt>
     <dd>
         Price with tax.
     </dd>
     <dt>
-        [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal)
-        `TaxRate`
+        [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) `TaxRate`
     </dt>
     <dd>
         Tax percentage (i.e. for 19% it'll be 19.00)
