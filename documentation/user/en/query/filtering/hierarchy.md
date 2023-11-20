@@ -34,14 +34,18 @@ There could be at most one single `hierarchyWithin` or `hierarchyRoot` filter co
 
 <LanguageSpecific to="evitaql,java,rest,graphql">
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyWithin.java</SourceClass> 
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyWithin.cs</SourceClass> 
-</LanguageSpecific>
 allows you to restrict the search to only those entities that are part of the hierarchy tree starting with the root 
 node identified by the first argument of this constraint. In e-commerce systems the typical representative of 
 a hierarchical entity is a *category*, which will be used in all of our examples. The examples in this chapter will
 focus on the category *Accessories* in our [demo dataset](../../get-started/query-our-dataset) with following layout:
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyWithin.cs</SourceClass> 
+allows you to restrict the search to only those entities that are part of the hierarchy tree starting with the root 
+node identified by the first argument of this constraint. In e-commerce systems the typical representative of 
+a hierarchical entity is a *category*, which will be used in all of our examples. The examples in this chapter will
+focus on the category *Accessories* in our [demo dataset](../../get-started/query-our-dataset) with following layout:
+</LanguageSpecific>
 
 ![Accessories category listing](assets/accessories-category-listing.png "Accessories category listing")
 
@@ -241,12 +245,14 @@ address this shortcoming.
 
 <LanguageSpecific to="evitaql,java,rest,graphql">
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyWithinRoot.java</SourceClass>
+allows you to restrict the search to only those entities that are part of the entire hierarchy tree. In e-commerce
+systems the typical representative of a hierarchical entity is a *category*, which will be used in all of our examples.
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
 The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyWithinRoot.cs</SourceClass>
-</LanguageSpecific>
 allows you to restrict the search to only those entities that are part of the entire hierarchy tree. In e-commerce
 systems the typical representative of a hierarchical entity is a *category*, which will be used in all of our examples.
+</LanguageSpecific>
 
 The single difference to [hierarchyWithin constraint](#hierarchy-within) is that it doesn't accept a root node 
 specification. Because evitaDB accepts multiple root nodes in your entity hierarchy, it may be helpful to imagine
@@ -389,15 +395,20 @@ The query returns the first page of a total of 212 pages of items:
 
 <LanguageSpecific to="evitaql,java,rest,graphql">
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyDirectRelation.java</SourceClass>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyDirectRelation.cs</SourceClass>
-</LanguageSpecific>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply 
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return 
 all hierarchy children of the parent node or entities that are transitively or directly related to them and the parent 
 node itself. If the `directRelation` is used as a sub-constraint, this behavior changes and only direct descendants or 
 directly referencing entities are matched.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyDirectRelation.cs</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply 
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return 
+all hierarchy children of the parent node or entities that are transitively or directly related to them and the parent 
+node itself. If the `directRelation` is used as a sub-constraint, this behavior changes and only direct descendants or 
+directly referencing entities are matched.
+</LanguageSpecific>
 
 ```evitaql-syntax
 directRelation()
@@ -532,15 +543,20 @@ some of its subcategories. Let's try the *Smartwatches* subcategory:
 
 <LanguageSpecific to="evitaql,java,rest,graphql">
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcludingRoot.java</SourceClass>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyExcludingRoot.cs</SourceClass>
-</LanguageSpecific>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
 all hierarchy children of the parent node or entities that are transitively or directly related to them and the parent 
 node itself. When the `excludingRoot` is used as a sub-constraint, this behavior changes and the parent node itself or the
 entities directly related to that parent node are be excluded from the result.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyExcludingRoot.cs</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children of the parent node or entities that are transitively or directly related to them and the parent 
+node itself. When the `excludingRoot` is used as a sub-constraint, this behavior changes and the parent node itself or the
+entities directly related to that parent node are be excluded from the result.
+</LanguageSpecific>
 
 ```evitaql-syntax
 excludingRoot()
@@ -639,14 +655,18 @@ assigned to *Exotic keyboards*:
 
 <LanguageSpecific to="evitaql,java,rest,graphql">
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyHaving.java</SourceClass>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyHaving.cs</SourceClass>
-</LanguageSpecific>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
 all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
 node itself.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyHaving.cs</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
+node itself.
+</LanguageSpecific>
 
 The `having` constraint allows you to set a constraint that must be fulfilled by all categories in the category scope
 in order to be accepted by hierarchy within filter. This constraint is especially useful if you want to conditionally 
@@ -830,14 +850,18 @@ of the tree.
 
 <LanguageSpecific to="evitaql,java,rest,graphql">
 The constraint <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/HierarchyExcluding.java</SourceClass>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyExcluding.cs</SourceClass>
-</LanguageSpecific>
 is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
 makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
 all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
 node itself.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The constraint <SourceClass>EvitaDB.Client/Queries/Filter/HierarchyExcluding.cs</SourceClass>
+is a constraint that can only be used within `hierarchyWithin` or `hierarchyWithinRoot` parent constraints. It simply
+makes no sense anywhere else because it changes the default behavior of those constraints. Hierarchy constraints return
+all hierarchy children of the parent node or entities that are transitively or directly related to them, and the parent
+node itself.
+</LanguageSpecific>
 
 The `excluding` constraint allows you to exclude one or more subtrees from the scope of the filter. This constraint is
 the exact opposite of the [`having`](#having) constraint. If the constraint is true for a hierarchy entity, it and all

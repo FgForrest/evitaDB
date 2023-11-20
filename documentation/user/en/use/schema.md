@@ -96,6 +96,7 @@ Each named data object - [catalog](#catalog), [entity](#entity), [attribute](#at
 [associated data](#associated-data) and [reference](#reference) must be uniquely identifiable by its name within its
 parent scope.
 
+<LanguageSpecific to="java,evitaql,rest,graphql">
 The name validation logic and reserved words are present in the class 
 <SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass>.
 
@@ -103,6 +104,16 @@ There is also a special property called `nameVariants` in the schema of each nam
 of the object name in different "developer" notations such as *camelCase*, *PascalCase*, *snake_case* and so on. See
 <SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/catalog/schemaApi/model/NameVariantsDescriptor.java</SourceClass>
 for a complete listing.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The name validation logic and reserved words are present in the class
+<SourceClass>EvitaDB.Client/Utils/ClassifierUtils.cs</SourceClass>.
+
+There is also a special property called `nameVariants` in the schema of each named object. It contains variants
+of the object name in different "developer" notations such as *camelCase*, *PascalCase*, *snake_case* and so on. See
+<SourceClass>NamingConvention.cs</SourceClass> for a complete listing.
+</LanguageSpecific>
+
 </Note>
 
 <Note type="info">
@@ -112,8 +123,9 @@ for a complete listing.
 ##### List of mutations related to catalog
 </NoteTitle>
 
-Top level mutations:
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
+Top level mutations:
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateCatalogSchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/RemoveCatalogSchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaMutation.java</SourceClass>**
@@ -122,8 +134,12 @@ Within `ModifyCatalogSchemaMutation` you can use mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass>**
+
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
+
+Top level mutations:
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/CreateCatalogSchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/RemoveCatalogSchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaMutation.cs</SourceClass>**
@@ -137,8 +153,17 @@ Within `ModifyCatalogSchemaMutation` you can use mutations:
 And [entity top level mutations](#entity).
 
 <LanguageSpecific to="java">
+
 The catalog schema is described by:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="csharp">
+
+The catalog schema is described by:
+<SourceClass>EvitaDB.Client/Models/Schemas/ICatalogSchema.cs</SourceClass>
+
 </LanguageSpecific>
 
 </Note>
@@ -175,24 +200,27 @@ and thus share its complete definition.
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/CreateGlobalAttributeSchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/UseGlobalAttributeSchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaGloballyUniqueMutation.java</SourceClass>**
 
-And of course all [standard attribute mutations](#attribute).
+And of course all [standard attribute mutations](#attributes).
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
+
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/CreateGlobalAttributeSchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/UseGlobalAttributeSchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaGloballyUniqueMutation.cs</SourceClass>**
 
-And of course all [standard attribute mutations](#attribute).
+And of course all [standard attribute mutations](#attributes).
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
 The global attribute schema is described by:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/GlobalAttributeSchemaContract.java</SourceClass>
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
 The global attribute schema is described by:
 <SourceClass>EvitaDB.Client/Models/Schemas/IGlobalAttributeSchema.cs</SourceClass>
@@ -223,6 +251,7 @@ Entity schema can be made *deprecated*, which will be propagated to generated we
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Top level entity mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/CreateEntitySchemaMutation.java</SourceClass>**
@@ -234,8 +263,11 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/ModifyEntitySchemaDescriptionMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/ModifyEntitySchemaDeprecationNoticeMutation.java</SourceClass>**
+
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
+
 Top level entity mutations:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/CreateEntitySchemaMutation.cs</SourceClass>**
@@ -247,6 +279,7 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/ModifyEntitySchemaDescriptionMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/ModifyEntitySchemaDeprecationNoticeMutation.cs</SourceClass>**
+
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
@@ -285,10 +318,15 @@ entity type. The primary keys generated in this way are optimal for binary opera
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/SetEntitySchemaWithGeneratedPrimaryKeyMutation.java</SourceClass>**
+
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
+
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/SetEntitySchemaWithGeneratedPrimaryKeyMutation.cs</SourceClass>**
+
 </LanguageSpecific>
 
 </Note>
@@ -320,6 +358,7 @@ There are several partial lax modes between strict and fully automatic evolution
 For example - you can strictly control the entire schema, except for new locale or currency definitions, which are
 allowed to be added automatically on first use.
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
 There are several partial lax modes between strict and fully automatic evolution mode - see
 <SourceClass>EvitaDB.Client/Models/Schemas/EvolutionMode.cs</SourceClass> for details.
@@ -335,16 +374,21 @@ allowed to be added automatically on first use.
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowEvolutionModeInEntitySchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowEvolutionModeInEntitySchemaMutation.java</SourceClass>**
+
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
+
 Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowEvolutionModeInEntitySchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowEvolutionModeInEntitySchemaMutation.cs</SourceClass>**
+
 </LanguageSpecific>
 
 </Note>
@@ -378,6 +422,7 @@ enumeration values for them and change the Web API schemas every time a price li
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowCurrencyInEntitySchemaMutation.java</SourceClass>**
@@ -385,13 +430,16 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowLocaleInEntitySchemaMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowLocaleInEntitySchemaMutation.java</SourceClass>**
 </LanguageSpecific>
+- 
 <LanguageSpecific to="csharp">
+
   Within `ModifyEntitySchemaMutation` you can use mutations:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowCurrencyInEntitySchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowCurrencyInEntitySchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowLocaleInEntitySchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowLocaleInEntitySchemaMutation.cs</SourceClass>**
+
 </LanguageSpecific>
 
 </Note>
@@ -433,12 +481,15 @@ orphan nodes (sub-trees) are also appended. In this way, the hierarchy tree even
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/SetEntitySchemaWithHierarchyMutation.java</SourceClass>**
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
-- Within `ModifyEntitySchemaMutation` you can use mutation:
+
+Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/SetEntitySchemaWithHierarchyMutation.cs</SourceClass>**
 </LanguageSpecific>
@@ -460,14 +511,11 @@ to it).For each combination of `priceList` and `currency` there is a special
 ##### List of mutations related to hierarchy placement
 </NoteTitle>
 
-<LanguageSpecific to="java,evitaql,rest,graphql">
 Within `ModifyEntitySchemaMutation` you can use mutation:
-
+<LanguageSpecific to="java,evitaql,rest,graphql">
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/SetEntitySchemaWithPriceMutation.java</SourceClass>**
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-Within `ModifyEntitySchemaMutation` you can use mutation:
-
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/SetEntitySchemaWithPriceMutation.cs</SourceClass>**
 </LanguageSpecific>
 
@@ -605,6 +653,7 @@ Sortable attribute compound schema can be made *deprecated*, which will be propa
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/CreateSortableAttributeCompoundSchemaMutation.java</SourceClass>**
@@ -614,7 +663,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/sortableAttributeCompound/ModifySortableAttributeCompoundSchemaDeprecationNoticeMutation.java</SourceClass>**
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-  Within `ModifyEntitySchemaMutation` you can use mutation:
+Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/CreateSortableAttributeCompoundSchemaMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/SortableAttributeCompounds/RemoveSortableAttributeCompoundSchemaMutation.cs</SourceClass>**
@@ -624,9 +673,12 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
+
 The sortable attribute compound schema is described by:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/SortableAttributeCompoundSchemaContract.java</SourceClass>
+
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
 The sortable attribute compound schema is described by:
 <SourceClass>EvitaDB.Client/Models/Schemas/ISortableAttributeCompoundSchema.cs</SourceClass>
@@ -658,6 +710,7 @@ Associated data schema can be made *deprecated*, which will be propagated to gen
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/CreateAssociatedDataSchemaMutation.java</SourceClass>**
@@ -668,8 +721,10 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaTypeMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaLocalizedMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaNullableMutation.java</SourceClass>**
+
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
+
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/CreateAssociatedDataSchemaMutation.cs</SourceClass>**
@@ -680,7 +735,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaTypeMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaLocalizedMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaNullableMutation.cs</SourceClass>**
-  </LanguageSpecific>
+
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
@@ -732,6 +787,7 @@ conforms to the creator's mental model.
 </NoteTitle>
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReferenceSchemaMutation.java</SourceClass>**
@@ -746,6 +802,7 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/SetReferenceSchemaFacetedMutation.java</SourceClass>**
 - **<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/ModifyReferenceAttributeSchemaMutation.java</SourceClass>**
 </LanguageSpecific>
+- 
 <LanguageSpecific to="csharp">
   Within `ModifyEntitySchemaMutation` you can use mutation:
 
@@ -760,9 +817,10 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaIndexedMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/SetReferenceSchemaFacetedMutation.cs</SourceClass>**
 - **<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/ModifyReferenceAttributeSchemaMutation.cs</SourceClass>**
+
 </LanguageSpecific>
 
-The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](#attribute).
+The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](#attributes).
 
 <LanguageSpecific to="java">
 The reference schema is described by:

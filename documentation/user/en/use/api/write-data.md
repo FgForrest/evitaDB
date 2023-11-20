@@ -8,7 +8,7 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-<LanguageSpecific to="java,graphql,rest,csharp">
+<LanguageSpecific to="java,graphql,rest">
 
 ## Indexing modes
 
@@ -37,6 +37,38 @@ If the database crashes during this initial bulk indexing, the state and consist
 corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the 
 one writing the data, we can afford to do this.
 
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+<LanguageSpecific to="java,graphql,rest,csharp">
+
+## Indexing modes
+
+evitaDB assumes that it will not be the primary data store for your data. Because evitaDB is a relatively new database
+implementation, it's wise to store your primary data in a mature, time-tested and proven technology such as a relational
+database. evitaDB brings you the necessary low-latency and e-commerce-optimized feature as a secondary fast-read index
+where you mirror/transform the data from your primary data store. We would like to become your primary data store one
+day, but let's be honest - we're not there yet.
+
+This reasoning led us to design two different types of [entity data](../data-model.md) ingestion and corresponding
+catalog states:
+
+- [bulk indexing](#bulk-indexing), state: `Warmup`
+- [incremental indexing](#incremental-indexing), state `Alive`
+
+### Bulk indexing
+
+Bulk indexing is used to quickly index large amounts of source data. It's used for initial catalog creation from
+external (primary) data stores. It doesn't need to support transactions and allows only a single session (single thread)
+to be opened from the client side. The catalog is in a so-called `Warmup` state
+(<SourceClass>EvitaDB.Client/Session/CatalogState.cs</SourceClass>). The client can both write and
+query the written data, but no other client can open another session because the consistency of the data could not be
+guaranteed for them. The goal here is to index hundreds or thousands of entities per second.
+
+If the database crashes during this initial bulk indexing, the state and consistency of the data must be considered
+corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the
+one writing the data, we can afford to do this.
+
+</LanguageSpecific>
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
