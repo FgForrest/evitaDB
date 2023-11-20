@@ -49,7 +49,12 @@ attributeHistogram(
     </dd>
 </dl>
 
-The <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/AttributeHistogram.java</SourceClass> 
+<LanguageSpecific to="java,evitaql,rest,graphql">
+The <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/AttributeHistogram.java</SourceClass>
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The <SourceClass>EvitaDB.Client/Models/ExtraResults/AttributeHistogram.cs</SourceClass>
+</LanguageSpecific>
 can be computed from any [filterable attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
 whose type is numeric. The histogram is computed only from the attributes of elements that match the current mandatory 
 part of the filter. The interval related constraints - i.e. [`attributeBetween`](../filtering/comparable.md#attribute-between) 
@@ -99,7 +104,12 @@ priceHistogram(
     </dd>
 </dl>
 
+<LanguageSpecific to="java,evitaql,rest,graphql">
 The <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/PriceHistogram.java</SourceClass>
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The <SourceClass>EvitaDB.Client/Models/ExtraResults/PriceHistogram.cs</SourceClass>
+</LanguageSpecific>
 is computed from the [price for sale](../filtering/price.md). The interval related constraints - i.e. 
 [`attributeBetween`](../filtering/comparable.md#attribute-between) and [`priceBetween`](../filtering/price.md#price-between) 
 in the [`userFilter`](../filtering/behavioral.md#user-filter) part are excluded for the sake of histogram calculation. 

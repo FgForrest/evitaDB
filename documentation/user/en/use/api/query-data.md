@@ -277,8 +277,8 @@ The query is automatically cleaned and unnecessary constraints are removed befor
 
 ### Query manipulation
 
-There are several handy visitors (more will be added) that allow you to work with the query. They are placed in the
-<SourceClass>EvitaDB.Client/Queries/Visitor/</SourceClass> directory and some have shortcut methods
+There are several handy visitors (more will be added) that allow you to work with the query. They are placed under the
+`EvitaDB.Client.Queries.Visitor` namespace and some have shortcut methods
 in the <SourceClass>EvitaDB.Client/Utils/QueryUtils.cs</SourceClass> class.
 
 The query can be "pretty-printed" by using the `PrettyPrint` method on the
@@ -321,7 +321,7 @@ Although there are simpler variants for querying entities, the typical method is
   the form of <SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass> or
   <SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass>
 - [Dictionary](https://learn.microsoft.com/cs-cz/dotnet/api/system.collections.idictionary) of extra results indexed by their
-  type (`IDictionary<Class<Type>, IEvitaResponseExtraResult>`)
+  type (`IDictionary<Type, IEvitaResponseExtraResult>`)
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 

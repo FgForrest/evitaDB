@@ -64,15 +64,29 @@ entityFetch(
     </dd>
 </dl>
 
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql,java,csharp,rest">
 The `entityFetch` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EntityFetch.java</SourceClass>)
 requirement is used to trigger loading one or more entity data containers from the disk by its primary key.
 This operation requires a disk access unless the entity is already loaded in the database cache (frequently fetched
 entities have higher chance to stay in the cache).
+</LanguageSpecific>
 
+<LanguageSpecific to="csharp">
+The `entityFetch` (<SourceClass>EvitaDB.Client/Queries/Requires/EntityFetch.cs</SourceClass>)
+requirement is used to trigger loading one or more entity data containers from the disk by its primary key.
+This operation requires a disk access unless the entity is already loaded in the database cache (frequently fetched
+entities have higher chance to stay in the cache).
+
+In the C# client, including the `entityFetch` requirement in the query changes the output type in the response container.
+Instead of returning a <SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass>
+for each entity, the <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>
+type is returned.
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
-In the Java API including the `entityFetch` requirement in the query changes the output type in the response container.
+In the Java API, including the `entityFetch` requirement in the query changes the output type in the response container.
 Instead of returning a <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
 for each entity, the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
 type is returned.
@@ -142,7 +156,12 @@ attributeContent(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest">
 The `attributeContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass>)
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `attributeContent` (<SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass>)
+</LanguageSpecific>
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
 are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
 filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
@@ -343,7 +362,12 @@ associatedDataContent(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest">
 The `associatedDataContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AssociatedDataContent.java</SourceClass>)
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `associatedDataContent` (<SourceClass>EvitaDB.Client/Queries/Requires/AssociatedDataContent.cs</SourceClass>)
+</LanguageSpecific>
 requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data).
 [Localized associated data](../../use/data-model.md#localized-associated-data) are only fetched if
 there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
@@ -543,8 +567,14 @@ dataInLocales(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest">
 The `dataInLocales` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DataInLocales.java</SourceClass>)
 requirement is used in two scenarios:
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `dataInLocales` (<SourceClass>EvitaDB.Client/Queries/Requires/DataInLocales.cs</SourceClass>)
+requirement is used in two scenarios:
+</LanguageSpecific>
 
 1. there is no *locale context* in the filter part of the query, because you don't want to exclude entities without
    the requested locale from the result, but you want to fetch the localized data in one or more languages if they
@@ -698,8 +728,14 @@ hierarchyContent(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest">
 The `hierarchyContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyContent.java</SourceClass>)
 requirement allows you to access the information about the hierarchical placement of the entity.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `hierarchyContent` (<SourceClass>EvitaDB.Client/Queries/Requires/HierarchyContent.cs</SourceClass>)
+requirement allows you to access the information about the hierarchical placement of the entity.
+</LanguageSpecific>
 
 If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root of
 a hierarchy tree. You can limit the size of the chain by using a `stopAt` constraint - for example, if you're only
@@ -859,12 +895,22 @@ priceContent(
 <dl>
     <dt>argument:enum(NONE|RESPECTING_FILTER|ALL)</dt>
     <dd>
+        <LanguageSpecific to="evitaql,java,rest">
         optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContentMode.java</SourceClass>
         enum allowing you to specify whether to fetch all, selected or no price records for the entity:
 
         - **NONE**: no prices will be fetched for the entity (even if the filter contains a price constraint) 
         - **RESPECTING_FILTER**: only a prices in price lists selected by a filter constraint will be fetched
         - **ALL**: all prices of the entity will be fetched (regardless of the price constraint in a filter)
+        </LanguageSpecific>
+        <LanguageSpecific to="csharp">
+        optional argument of type <SourceClass>EvitaDB.Client/Queries/Requires/PriceContentMode.cs</SourceClass>
+        enum allowing you to specify whether to fetch all, selected or no price records for the entity:
+
+        - **None**: no prices will be fetched for the entity (even if the filter contains a price constraint) 
+        - **RespectingFilter**: only a prices in price lists selected by a filter constraint will be fetched
+        - **All**: all prices of the entity will be fetched (regardless of the price constraint in a filter)
+        </LanguageSpecific>
     </dd>
     <dt>argument:string*</dt>
     <dd>
@@ -873,8 +919,14 @@ priceContent(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest">
 The `priceContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
 requirement allows you to access the information about the prices of the entity.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `priceContent` (<SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass>)
+requirement allows you to access the information about the prices of the entity.
+</LanguageSpecific>
 
 If the `RESPECTING_FILTER` mode is used, the `priceContent` requirement will only retrieve the prices selected by 
 the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint. If the enum `NONE` is specified, no 
@@ -934,9 +986,16 @@ priceContent(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest">
 The `priceContentRespectingFilter` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
 requirement allows you to access the information about the prices of the entity. It fetches only the prices selected by
 the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `priceContentRespectingFilter` (<SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass>)
+requirement allows you to access the information about the prices of the entity. It fetches only the prices selected by
+the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint.
+</LanguageSpecific>
 
 You can also add additional price lists to the list of price lists passed in the `priceInPriceLists` constraint by
 specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
@@ -983,9 +1042,16 @@ the price in the *reference* price lists requested by the `priceContent` require
 priceContentAll()
 ```
 
+<LanguageSpecific to="evitaql,java,rest">
 The `priceContentAll` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass>)
 requirement allows you to access all of the entity's price information regardless of the filtering constraints specified
 in the query.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `priceContentAll` (<SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass>)
+requirement allows you to access all of the entity's price information regardless of the filtering constraints specified
+in the query.
+</LanguageSpecific>
 
 This requirement is only a variation of the generic [`priceContent`](#price-content) requirement.
 
@@ -1214,11 +1280,20 @@ referenceContent(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The `referenceContent` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
 requirement allows you to access the information about the references the entity has towards other entities (either
 managed by evitaDB itself or by any other external system). This variant of `referenceContent` doesn't return 
 the attributes set on the reference itself - if you need those attributes, use the [`referenceContentWithAttributes`](#reference-content-with-attributes)
 variant of it.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `referenceContent` (<SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass>)
+requirement allows you to access the information about the references the entity has towards other entities (either
+managed by evitaDB itself or by any other external system). This variant of `referenceContent` doesn't return 
+the attributes set on the reference itself - if you need those attributes, use the [`referenceContentWithAttributes`](#reference-content-with-attributes)
+variant of it.
+</LanguageSpecific>
 
 To get an entity with reference to categories and brand, use the following query:
 
@@ -1393,7 +1468,7 @@ query:
 ##### The result of an entity fetched with referenced parameter ordered by name
 </NoteTitle>
 
-The returned `Product' entity will contain a list of all parameters in the expected order:
+The returned `Product` entity will contain a list of all parameters in the expected order:
 
 <LanguageSpecific to="evitaql,java,csharp">
 
@@ -1446,11 +1521,20 @@ referenceContentAll(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The `referenceContentAll` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
 system). The `referenceContentAll` is a shortcut that simply targets all references defined for the entity. It can be
 used to quickly discover all the possible references of an entity.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `referenceContentAll` (<SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system). The `referenceContentAll` is a shortcut that simply targets all references defined for the entity. It can be
+used to quickly discover all the possible references of an entity.
+</LanguageSpecific>
 
 For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
 
@@ -1532,11 +1616,20 @@ referenceContentWithAttributes(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The `referenceContentWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
 system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list 
 of attributes to fetch, but by default it fetches all attributes on the reference.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `referenceContentWithAttributes` (<SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list 
+of attributes to fetch, but by default it fetches all attributes on the reference.
+</LanguageSpecific>
 
 For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
 
@@ -1618,6 +1711,7 @@ referenceContentAllWithAttributes(
     </dd>
 </dl>
 
+<LanguageSpecific to="evitaql,java,rest,graphql">
 The `referenceContentAllWithAttributes` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
@@ -1625,6 +1719,17 @@ system) and the attributes set on those references. The `referenceContentAllWith
 of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify 
 the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
 shared by all of the references. This constraint is only useful in exploration scenarios.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+The `referenceContentAllWithAttributes` (<SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass>)
+is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
+about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
+system) and the attributes set on those references. The `referenceContentAllWithAttributes` allows you to specify the list
+of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify 
+the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
+shared by all of the references. This constraint is only useful in exploration scenarios.
+</LanguageSpecific>
+
 
 For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
 
