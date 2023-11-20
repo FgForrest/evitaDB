@@ -121,12 +121,12 @@ facetSummary(
     </dd>
 </dl>
 
-<LanguagesSpecific to="java,evitaql,rest,graphql">
+<LanguageSpecific to="java,evitaql,rest,graphql">
 The request triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
-</LanguagesSpecific>
-<LanguagesSpecific to="csharp">
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
 The request triggers the calculation of the <SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass>
-</LanguagesSpecific>
+</LanguageSpecific>
 containing the facet summary calculation. The calculated facet summary will contain all entity references marked as 
 `faceted` in the [entity schema](../../use/schema.md). The facet summary can be further modified by the 
 [facet summary of reference](#facet-summary-of-reference) constraint, which allows you to override the general facet 
@@ -216,20 +216,20 @@ calculation, which contains the following data:
   </dd>
 </dl>
 
-<LanguagesSpecific to="java,evitaql,rest,graphql">
+<LanguageSpecific to="java,evitaql,rest,graphql">
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummary.java</SourceClass> requirement 
 triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
 extra result. The facet summary is always computed as a side result of the main entity query and respects any filtering 
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
-</LanguagesSpecific>
-<LanguagesSpecific to="csharp">
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
 The <SourceClass>EvitaDB.Client/Queries/Requires/FacetSummary.cs</SourceClass> requirement 
 triggers the calculation of the <SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass>
 extra result. The facet summary is always computed as a side result of the main entity query and respects any filtering 
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
-</LanguagesSpecific>
+</LanguageSpecific>
 
 <SourceCodeTabs langSpecificTabOnly>
 

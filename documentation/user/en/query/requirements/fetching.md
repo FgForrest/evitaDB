@@ -73,7 +73,7 @@ This operation requires a disk access unless the entity is already loaded in the
 entities have higher chance to stay in the cache).
 </LanguageSpecific>
 
-<LanguageSpecific to="csharp>
+<LanguageSpecific to="csharp">
 The `entityFetch` (<SourceClass>EvitaDB.Client/Queries/Requires/EntityFetch.cs</SourceClass>)
 requirement is used to trigger loading one or more entity data containers from the disk by its primary key.
 This operation requires a disk access unless the entity is already loaded in the database cache (frequently fetched

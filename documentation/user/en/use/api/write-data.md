@@ -920,7 +920,7 @@ its `Require` argument. If you remove only the root node without removing its ch
 </NoteTitle>
 
 No data is actually removed once it is created and stored. If you remove the reference/attribute/whatever, it remains 
-in the entity and is just marked as `dropped'. See the 
+in the entity and is just marked as `dropped`. See the 
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Droppable.java</SourceClass> interface 
 implementations.
 
@@ -929,8 +929,8 @@ There are a few reasons for this decision:
 1. it's good to have the last known version of the data around when things go wrong, so we can still recover to the 
    previous state.
 2. it allows us to track the changes in the entity through its lifecycle for debugging purposes
-3. it is consistent with our *append-only* storage approach where we need to write 
-   [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
+3. it is consistent with our *append-only* storage approach where we need to write [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
+
 </Note>
 
 </LanguageSpecific>
@@ -944,7 +944,7 @@ There are a few reasons for this decision:
 </NoteTitle>
 
 No data is actually removed once it is created and stored. If you remove the reference/attribute/whatever, it remains
-in the entity and is just marked as `Dropped'. See the
+in the entity and is just marked as `Dropped`. See the
 <SourceClass>EvitaDB.Client/Models/Data/IDroppable.cs</SourceClass> interface implementations.
 
 There are a few reasons for this decision:
@@ -952,9 +952,9 @@ There are a few reasons for this decision:
 1. it's good to have the last known version of the data around when things go wrong, so we can still recover to the
    previous state.
 2. it allows us to track the changes in the entity through its lifecycle for debugging purposes
-3. it is consistent with our *append-only* storage approach where we need to write
-   [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
-   </Note>
+3. it is consistent with our *append-only* storage approach where we need to write [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
+
+</Note>
 
 </LanguageSpecific>
 

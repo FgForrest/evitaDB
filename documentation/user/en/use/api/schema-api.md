@@ -1,7 +1,7 @@
 ---
 title: Schema API
 perex: |
-    Currently, you can define the schema using the Java, REST, and GraphQL APIs. All three approaches are covered in 
+    Currently, you can define the schema using the Java, C#, REST, and GraphQL APIs. All three approaches are covered in 
     this chapter.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
@@ -209,6 +209,10 @@ for the collection `Product` using a REST mutation of the selected collection li
 </LanguageSpecific>
 
 <LanguageSpecific to="csharp">
+
+Unlike the Java approach, the C# client supports only an imperative schema definition. 
+The schema is defined using builder pattern, that is provided by <SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchemaBuilder.cs</SourceClass> interface. 
+Behind the scenes, instance of such builder is converted to the collection of mutations, that are sent to the server. 
 
 ## Imperative schema definition
 

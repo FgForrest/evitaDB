@@ -251,7 +251,7 @@ priceValidIn(
 )
 ```
 
-<LanguagesSpecific to="java,evitaql,rest,graphql">
+<LanguageSpecific to="java,evitaql,rest,graphql">
 <dl>
     <dt>argument:offsetDateTime!</dt>
     <dd>
@@ -263,8 +263,8 @@ priceValidIn(
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass> excludes all
 entities that don't have a valid price for sale at the specified date and time. If the price doesn't have a validity
 property specified, it passes all validity checks.
-</LanguagesSpecific>
-<LanguagesSpecific to="csharp">
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
 <dl>
     <dt>argument:dateTimeOffset!</dt>
     <dd>
@@ -276,7 +276,7 @@ property specified, it passes all validity checks.
 The <SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass> excludes all
 entities that don't have a valid price for sale at the specified date and time. If the price doesn't have a validity
 property specified, it passes all validity checks.
-</LanguagesSpecific>
+</LanguageSpecific>
 
 To demonstrate the effect of validity constraints, let's create a query that lists products in the *Christmas 
 Electronics* category and tries to access prices in their *Christmas Price List*, with a fallback to the *Basic Price 
@@ -353,7 +353,7 @@ typically set by the user interface to allow the user to filter products by pric
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
 the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
 </LanguageSpecific>
-<LanguagesSpecific to="csharp">
+<LanguageSpecific to="csharp">
 <dl>
     <dt>argument:decimal!</dt>
     <dd>
@@ -372,7 +372,7 @@ restricts the result set to items that have a price for sale within the specifie
 typically set by the user interface to allow the user to filter products by price, and should be nested inside
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
 the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
-</LanguagesSpecific>
+</LanguageSpecific>
 
 To demonstrate the price range constraint, let's create a query that lists products in the *E-readers* category and
 filters only those between `150€` and `170.5€`:
