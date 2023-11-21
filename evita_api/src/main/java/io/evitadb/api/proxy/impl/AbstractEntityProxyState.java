@@ -368,12 +368,13 @@ abstract class AbstractEntityProxyState implements
 	 */
 	@Nonnull
 	public <T> T createNewReferenceProxy(
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntityContract entity,
 		@Nonnull ReferenceContract reference
 	) {
 		return ProxycianFactory.createEntityReferenceProxy(
-			expectedType, recipes, collectedRecipes,
+			mainType, expectedType, recipes, collectedRecipes,
 			entity, this::getPrimaryKey,
 			referencedEntitySchemas, reference, getReflectionLookup(),
 			this.generatedProxyObjects
@@ -398,7 +399,7 @@ abstract class AbstractEntityProxyState implements
 	) {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> new ProxyWithUpsertCallback(
 			ProxycianFactory.createEntityReferenceProxy(
-				expectedType, recipes, collectedRecipes,
+				this.getProxyClass(), expectedType, recipes, collectedRecipes,
 				entity, this::getPrimaryKey,
 				referencedEntitySchemas, reference, getReflectionLookup(),
 				this.generatedProxyObjects

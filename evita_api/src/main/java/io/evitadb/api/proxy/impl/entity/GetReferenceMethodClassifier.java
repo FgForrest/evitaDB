@@ -149,7 +149,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			} else if (entityRefInstance != null) {
 				return getReferencedEntity(schema, referenceSchema, entityRefInstance.value(), collectionType, itemType, proxyFactory);
 			} else {
-				return getReference(referencedEntitySchemas, referenceName, collectionType, itemType, proxyReferenceFactory);
+				return getReference(referencedEntitySchemas, referenceName, collectionType, expectedType, itemType, proxyReferenceFactory);
 			}
 		}
 	}
@@ -870,6 +870,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> singleReferenceResult(
 		@Nonnull String referenceName,
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<?> itemType,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
@@ -882,7 +883,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 					.findFirst();
 				return firstReference.map(
 						referenceContract -> proxyReferenceFactory.createEntityReferenceProxy(
-							itemType, sealedEntity, referencedEntitySchemas, referenceContract
+							mainType, itemType, sealedEntity, referencedEntitySchemas, referenceContract
 						)
 					)
 					.orElse(null);
@@ -946,6 +947,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> listOfReferenceResult(
 		@Nonnull String referenceName,
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<?> itemType,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
@@ -955,7 +957,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
 					.toList();
 			} else {
 				return Collections.emptyList();
@@ -1015,6 +1017,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> setOfReferenceResult(
 		@Nonnull String referenceName,
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<?> itemType,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
@@ -1024,7 +1027,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
 					.collect(CollectorUtils.toUnmodifiableLinkedHashSet());
 			} else {
 				return Collections.emptySet();
@@ -1061,6 +1064,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	@Nonnull
 	private static ExceptionRethrowingFunction<EntityContract, Object> arrayOfReferenceResult(
 		@Nonnull String referenceName,
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<?> itemType,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
@@ -1070,7 +1074,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return sealedEntity.getReferences(referenceName)
 					.stream()
 					.filter(Droppable::exists)
-					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(itemType, sealedEntity, referencedEntitySchemas, it))
+					.map(it -> proxyReferenceFactory.createEntityReferenceProxy(mainType, itemType, sealedEntity, referencedEntitySchemas, it))
 					.toArray(count -> (Object[]) Array.newInstance(itemType, count));
 			} else {
 				return null;
@@ -1326,17 +1330,18 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull String referenceName,
 		@Nullable Class<?> collectionType,
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<?> itemType,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory
 	) {
 		if (collectionType == null) {
-			return singleReferenceResult(referenceName, itemType, proxyReferenceFactory, referencedEntitySchemas);
+			return singleReferenceResult(referenceName, mainType, itemType, proxyReferenceFactory, referencedEntitySchemas);
 		} else if (collectionType.isArray()) {
-			return arrayOfReferenceResult(referenceName, itemType, proxyReferenceFactory, referencedEntitySchemas);
+			return arrayOfReferenceResult(referenceName, mainType, itemType, proxyReferenceFactory, referencedEntitySchemas);
 		} else if (Set.class.isAssignableFrom(collectionType)) {
-			return setOfReferenceResult(referenceName, itemType, proxyReferenceFactory, referencedEntitySchemas);
+			return setOfReferenceResult(referenceName, mainType, itemType, proxyReferenceFactory, referencedEntitySchemas);
 		} else {
-			return listOfReferenceResult(referenceName, itemType, proxyReferenceFactory, referencedEntitySchemas);
+			return listOfReferenceResult(referenceName, mainType, itemType, proxyReferenceFactory, referencedEntitySchemas);
 		}
 	}
 

@@ -73,12 +73,17 @@ public class SealedEntityReferenceProxyState
 	 * Wrapped sealed entity reference.
 	 */
 	@Nonnull private final ReferenceContract reference;
+	/**
+	 * Proxy class of the main entity class this reference proxy belongs to.
+	 */
+	@Nonnull private Class<?> entityProxyClass;
 
 	public SealedEntityReferenceProxyState(
 		@Nonnull EntityContract entity,
 		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference,
+		@Nonnull Class<?> entityProxyClass,
 		@Nonnull Class<?> proxyClass,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
@@ -86,6 +91,7 @@ public class SealedEntityReferenceProxyState
 		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> entityInstanceCache
 	) {
 		super(entity, referencedEntitySchemas, proxyClass, recipes, collectedRecipes, reflectionLookup, entityInstanceCache);
+		this.entityProxyClass = entityProxyClass;
 		this.entityPrimaryKeySupplier = entityPrimaryKeySupplier;
 		this.reference = reference;
 	}
@@ -168,10 +174,18 @@ public class SealedEntityReferenceProxyState
 			.orElseGet(entityPrimaryKeySupplier);
 	}
 
+	/**
+	 * Returns proxy class of the main entity class this reference proxy belongs to.
+	 * @return proxy class of the entity proxy
+	 */
+	@Nonnull
+	public Class<?> getEntityProxyClass() {
+		return entityProxyClass;
+	}
+
 	@Override
 	public String toString() {
 		return reference instanceof ReferenceBuilder rb ?
 			rb.build().toString() : reference.toString();
 	}
-
 }

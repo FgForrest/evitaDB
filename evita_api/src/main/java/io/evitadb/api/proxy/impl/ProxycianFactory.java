@@ -169,6 +169,30 @@ public class ProxycianFactory implements ProxyFactory {
 	}
 
 	/**
+	 * Creates a new proxy instance for passed {@link EntityContract} and {@link ReferenceContract} instance.
+	 */
+	static <T> T createEntityReferenceProxy(
+		@Nonnull Class<?> mainType,
+		@Nonnull Class<T> expectedType,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
+		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
+		@Nonnull EntityContract entity,
+		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
+		@Nonnull ReferenceContract reference,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> instanceCache
+	) {
+		return createReferenceProxy(
+			mainType, expectedType, recipes, collectedRecipes,
+			entity, entityPrimaryKeySupplier,
+			referencedEntitySchemas, reference, reflectionLookup,
+			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE),
+			instanceCache
+		);
+	}
+
+	/**
 	 * Creates a new proxy instance for passed {@link EntityContract} instance.
 	 */
 	private static <T> T createProxy(
@@ -180,7 +204,7 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull Function<ProxyEntityCacheKey, ProxyRecipe> recipeLocator,
 		@Nullable Consumer<SealedEntityProxyState> stateInitializer
-		) {
+	) {
 		try {
 			if (expectedType.isRecord()) {
 				final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -193,7 +217,7 @@ public class ProxycianFactory implements ProxyFactory {
 				);
 			} else {
 				final String entityName = entity.getSchema().getName();
-				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, null);
+				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName);
 				if (expectedType.isInterface()) {
 					final SealedEntityProxyState proxyState = new SealedEntityProxyState(
 						entity, referencedEntitySchemas, expectedType, recipes, collectedRecipes, reflectionLookup
@@ -242,30 +266,8 @@ public class ProxycianFactory implements ProxyFactory {
 	/**
 	 * Creates a new proxy instance for passed {@link EntityContract} and {@link ReferenceContract} instance.
 	 */
-	static <T> T createEntityReferenceProxy(
-		@Nonnull Class<T> expectedType,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
-		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
-		@Nonnull EntityContract entity,
-		@Nonnull Supplier<Integer> entityPrimaryKeySupplier,
-		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
-		@Nonnull ReferenceContract reference,
-		@Nonnull ReflectionLookup reflectionLookup,
-		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> instanceCache
-	) {
-		return createReferenceProxy(
-			expectedType, recipes, collectedRecipes,
-			entity, entityPrimaryKeySupplier,
-			referencedEntitySchemas, reference, reflectionLookup,
-			theCacheKey -> collectedRecipes.computeIfAbsent(theCacheKey, DEFAULT_ENTITY_REFERENCE_RECIPE),
-			instanceCache
-		);
-	}
-
-	/**
-	 * Creates a new proxy instance for passed {@link EntityContract} and {@link ReferenceContract} instance.
-	 */
 	private static <T> T createReferenceProxy(
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<T> expectedType,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> recipes,
 		@Nonnull Map<ProxyEntityCacheKey, ProxyRecipe> collectedRecipes,
@@ -290,12 +292,13 @@ public class ProxycianFactory implements ProxyFactory {
 			} else {
 				if (expectedType.isInterface()) {
 					final String entityName = entity.getSchema().getName();
-					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
+					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, mainType, reference.getReferenceName());
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
 							entity, entityPrimaryKeySupplier,
-							referencedEntitySchemas, reference, expectedType, recipes,
+							referencedEntitySchemas, reference,
+							mainType, expectedType, recipes,
 							collectedRecipes, reflectionLookup,
 							instanceCache
 						)
@@ -307,12 +310,13 @@ public class ProxycianFactory implements ProxyFactory {
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
 					final String entityName = entity.getSchema().getName();
-					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, reference.getReferenceName());
+					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, mainType, reference.getReferenceName());
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
 							entity, entityPrimaryKeySupplier,
-							referencedEntitySchemas, reference, expectedType,
+							referencedEntitySchemas, reference,
+							mainType, expectedType,
 							recipes, collectedRecipes, reflectionLookup,
 							instanceCache
 						),
@@ -347,7 +351,7 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory
 	) {
-		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName(), null);
+		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName());
 		if (ENTITY_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingEntityConstructorWithExtractionLambda<T>) ENTITY_CONSTRUCTOR_CACHE.get(cacheKey);
@@ -479,7 +483,7 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ProxyFactory proxyFactory
 	) {
-		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName(), null);
+		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName());
 		if (REFERENCE_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
@@ -577,27 +581,30 @@ public class ProxycianFactory implements ProxyFactory {
 				new Advice[]{
 					new DelegateCallsAdvice<>(SealedEntityProxy.class, Function.identity(), true),
 					LocalDataStoreAdvice.INSTANCE,
-					EntityContractAdvice.INSTANCE
+					EntityContractAdvice.INSTANCE,
+					EntityBuilderAdvice.INSTANCE
 				},
 				recipe.getAdvices()
 			),
 			recipe.getInstantiationCallback()
 		);
-		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(type, entityName, null);
+		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(type, entityName);
 		recipes.put(key, theRecipe);
 		collectedRecipes.put(key, theRecipe);
 	}
 
 	/**
-	 * Method allows to provide explicit recipe for passed entity reference and output contract type.
+	 * Method allows to provide explicit recipe for passed entity reference and output contract referenceType.
 	 *
-	 * @param type          the proxy class for which the recipe should be used (combines with entityName and referenceName)
-	 * @param entityName    the name of the entity for which the recipe should be used (combines with type and referenceName)
-	 * @param referenceName the name of the entity reference schema for which the recipe should be used (combines with entityName and type)
+	 * @param mainType    the proxy class of the main entity type inside which the reference proxy is created
+	 * @param referenceType the proxy class for which the recipe should be used (combines with entityName and referenceName)
+	 * @param entityName    the name of the entity for which the recipe should be used (combines with referenceType and referenceName)
+	 * @param referenceName the name of the entity reference schema for which the recipe should be used (combines with entityName and referenceType)
 	 * @param recipe        the Proxycian recipe to be used
 	 */
 	public <T> void registerEntityReferenceRecipe(
-		@Nonnull Class<T> type,
+		@Nonnull Class<?> mainType,
+		@Nonnull Class<T> referenceType,
 		@Nonnull String entityName,
 		@Nonnull String referenceName,
 		@Nonnull ProxyRecipe recipe
@@ -608,13 +615,14 @@ public class ProxycianFactory implements ProxyFactory {
 				new Advice[]{
 					new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
 					LocalDataStoreAdvice.INSTANCE,
-					EntityReferenceContractAdvice.INSTANCE
+					EntityReferenceContractAdvice.INSTANCE,
+					EntityReferenceBuilderAdvice.INSTANCE,
 				},
 				recipe.getAdvices()
 			),
 			recipe.getInstantiationCallback()
 		);
-		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(type, entityName, referenceName);
+		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(referenceType, entityName, mainType, referenceName);
 		recipes.put(key, theRecipe);
 		collectedRecipes.put(key, theRecipe);
 	}
@@ -686,13 +694,20 @@ public class ProxycianFactory implements ProxyFactory {
 	 *
 	 * @param type          the proxy class
 	 * @param entityName    the name of the entity {@link EntitySchemaContract#getName()}
+	 * @param subType       the proxy class of the reference sub-type
 	 * @param referenceName the name of the entity reference schema {@link ReferenceSchemaContract#getName()}
 	 */
 	public record ProxyEntityCacheKey(
 		@Nonnull Class<?> type,
 		@Nonnull String entityName,
+		@Nullable Class<?> subType,
 		@Nullable String referenceName
 	) implements Serializable {
+
+		public ProxyEntityCacheKey(@Nonnull Class<?> type, @Nonnull String entityName) {
+			this(type, entityName, null, null);
+		}
+
 	}
 
 
@@ -730,13 +745,14 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nonnull
 		@Override
 		public <T> T createEntityReferenceProxy(
+			@Nonnull Class<?> mainType,
 			@Nonnull Class<T> expectedType,
 			@Nonnull EntityContract entity,
 			@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 			@Nonnull ReferenceContract reference
 		) throws EntityClassInvalidException {
 			return ProxycianFactory.createEntityReferenceProxy(
-				expectedType, recipes, collectedRecipes,
+				mainType, expectedType, recipes, collectedRecipes,
 				entity, () -> null,
 				referencedEntitySchemas, reference, reflectionLookup,
 				null

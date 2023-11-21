@@ -43,6 +43,7 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.function.BiFunction;
@@ -134,13 +135,19 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 							} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
 								//noinspection rawtypes
 								final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
-								//noinspection unchecked
-								return removeLocalizedAssociatedDataWithValueCollectionResult(
-									associatedDataName, associatedDataSchema.getType(),
-									ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
-										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup) :
+								if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+									//noinspection unchecked
+									return removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
+										associatedDataName, associatedDataSchema.getType(),
+										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
+									);
+								} else {
+									//noinspection unchecked
+									return removeLocalizedAssociatedDataWithValueCollectionResult(
+										associatedDataName,
 										(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
-								);
+									);
+								}
 							} else {
 								//noinspection rawtypes
 								final Class expectedType = method.getReturnType();
@@ -156,9 +163,8 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 							// now we need to identify the argument type
 							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
 							// prepare the conversion function
-							final Function<Serializable, Serializable> converterFct = ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
-								Function.identity() : it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
-							if (Collection.class.isAssignableFrom(valueParameter.getType())) {
+							if (Collection.class.isAssignableFrom(valueParameter.getType()) && !ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+								final Function<Serializable, Serializable> converterFct = it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
 								if (method.getReturnType().equals(proxyState.getProxyClass())) {
 									return setLocalizedAssociatedDataAsCollectionWithBuilderResult(
 										valueParameterPosition, localeParameterPosition.getAsInt(), associatedDataName,
@@ -171,6 +177,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 									);
 								}
 							} else {
+								final Function<Serializable, Serializable> converterFct = getConverterFunction(
+									proxyState.getProxyClass(), valueParameter, associatedDataSchema.getPlainType()
+								);
 								if (method.getReturnType().equals(proxyState.getProxyClass())) {
 									return setLocalizedAssociatedDataAsValueWithBuilderResult(
 										valueParameterPosition, localeParameterPosition.getAsInt(), associatedDataName, converterFct
@@ -196,13 +205,19 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 							} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
 								//noinspection rawtypes
 								final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
-								//noinspection unchecked
-								return removeAssociatedDataWithValueCollectionResult(
-									associatedDataName, associatedDataSchema.getType(),
-									ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
-										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup) :
+								if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+									//noinspection unchecked
+									return removeAssociatedDataWithComplexDataObjectCollectionResult(
+										associatedDataName,
+										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
+									);
+								} else {
+									//noinspection unchecked
+									return removeAssociatedDataWithValueCollectionResult(
+										associatedDataName, associatedDataSchema.getType(),
 										(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
-								);
+									);
+								}
 							} else {
 								//noinspection rawtypes
 								final Class expectedType = method.getReturnType();
@@ -222,10 +237,8 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 							// now we need to identify the argument type
 							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
 							// prepare the conversion function
-							final Function<Serializable, Serializable> converterFct = ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
-								Function.identity() : it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
-
-							if (Collection.class.isAssignableFrom(valueParameter.getType())) {
+							if (Collection.class.isAssignableFrom(valueParameter.getType()) && !ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+								final Function<Serializable, Serializable> converterFct = it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
 								if (method.getReturnType().equals(proxyState.getProxyClass())) {
 									return setAssociatedDataAsCollectionWithBuilderResult(
 										valueParameterPosition, associatedDataName,
@@ -238,6 +251,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 									);
 								}
 							} else {
+								final Function<Serializable, Serializable> converterFct = getConverterFunction(
+									proxyState.getProxyClass(), valueParameter, associatedDataSchema.getPlainType()
+								);
 								if (method.getReturnType().equals(proxyState.getProxyClass())) {
 									return setAssociatedDataAsValueWithBuilderResult(
 										valueParameterPosition, associatedDataName, converterFct
@@ -253,6 +269,37 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				}
 			}
 		);
+	}
+
+	/**
+	 * Method returns conversion function for associated data.
+	 * @param proxyClass proxy class
+	 * @param valueParameter value parameter
+	 * @param associatedSchemaType associated schema type
+	 * @return conversion function
+	 */
+	@Nonnull
+	private static Function<Serializable, Serializable> getConverterFunction(
+		@Nonnull Class<?> proxyClass,
+		@Nonnull Parameter valueParameter,
+		@Nonnull Class<? extends Serializable> associatedSchemaType
+	) {
+		final Function<Serializable, Serializable> converterFct;
+		if (ComplexDataObject.class.equals(associatedSchemaType)) {
+			if (Collection.class.isAssignableFrom(valueParameter.getType())) {
+				final Class<?> collectionType = GenericsUtils.getGenericTypeFromCollection(proxyClass, valueParameter.getParameterizedType());
+				final Object[] exampleArray = (Object[]) Array.newInstance(collectionType, 0);
+				converterFct = it -> {
+					final Collection<?> argument = (Collection<?>) it;
+					return ComplexDataObjectConverter.getSerializableForm(argument.toArray(exampleArray));
+				};
+			} else {
+				converterFct = ComplexDataObjectConverter::getSerializableForm;
+			}
+		} else {
+			converterFct = it -> EvitaDataTypes.toTargetType(it, associatedSchemaType);
+		}
+		return converterFct;
 	}
 
 	/**
@@ -478,12 +525,10 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				entityBuilder.removeAssociatedData(associatedDataName, locale);
 			} else {
 				//noinspection unchecked,rawtypes
-				entityBuilder.setAssociatedData(
-					associatedDataName, locale,
-					((Collection) value).stream()
-						.map(it -> valueConverter.apply((Serializable) value))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
+				final Object[] valueArray = ((Collection) value).stream()
+					.map(it -> valueConverter.apply((Serializable) it))
+					.toArray(cnt -> Array.newInstance(plainType, cnt));
+				entityBuilder.setAssociatedData(associatedDataName, locale, valueArray);
 			}
 			return null;
 		};
@@ -571,6 +616,24 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAssociatedDataWithValueCollectionResult(
 		@Nonnull String associatedDataName,
+		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final Object[] removedArray = (Object[]) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			return Arrays.stream(removedArray).map(it -> converter.apply((Serializable) it, theState.getReflectionLookup())).toList();
+		};
+	}
+
+	/**
+	 * Provides implementation for removing localized associated data value returning the proxy object return type allowing
+	 * to create a builder pattern in the model objects.
+	 *
+	 * @param associatedDataName name of the associated data to be set
+	 * @return implementation of the method call
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
+		@Nonnull String associatedDataName,
 		@Nonnull Class<?> schemaType,
 		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
 	) {
@@ -579,8 +642,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			"Localized associatedData `" + associatedDataName + "` must be an array in order collection could be returned!"
 		);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object[] removedArray = (Object[]) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
-			return Arrays.stream(removedArray).map(it -> converter.apply((Serializable) it, theState.getReflectionLookup())).toList();
+			final ComplexDataObject removedValue = (ComplexDataObject) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			final Serializable result = converter.apply(removedValue, theState.getReflectionLookup());
+			return result.getClass().isArray() ? Arrays.stream((Object[]) result).toList() : List.of(result);
 		};
 	}
 
@@ -696,6 +760,25 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final Object[] removedArray = (Object[]) removeAssociatedDataAndReturnIt(associatedDataName, theState);
 			return Arrays.stream(removedArray).map(it -> converter.apply((Serializable) it, theState.getReflectionLookup())).toList();
+		};
+	}
+
+	/**
+	 * Provides implementation for removing associated data value returning the proxy object return type allowing to create
+	 * a builder pattern in the model objects.
+	 *
+	 * @param associatedDataName name of the associated data to be set
+	 * @return implementation of the method call
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeAssociatedDataWithComplexDataObjectCollectionResult(
+		@Nonnull String associatedDataName,
+		@Nonnull BiFunction<Serializable, ReflectionLookup, Serializable> converter
+	) {
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			final ComplexDataObject removedValue = (ComplexDataObject) removeLocalizedAssociatedDataAndReturnIt(associatedDataName, args, theState);
+			final Serializable result = converter.apply(removedValue, theState.getReflectionLookup());
+			return result.getClass().isArray() ? Arrays.stream((Object[]) result).toList() : List.of(result);
 		};
 	}
 

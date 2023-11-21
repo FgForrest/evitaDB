@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -855,15 +856,22 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final String referenceName = referenceSchema.getName();
 		final String expectedEntityType = getReferencedType(referenceSchema, false);
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
-			Assert.isTrue(
-				expectedEntityType.equals(referencedClassifier.getType()),
-				"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
-					"doesn't match the referenced entity type: `" + expectedEntityType + "`!"
-			);
-			entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKey());
+			if (referencedClassifier == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				Assert.isTrue(
+					expectedEntityType.equals(referencedClassifier.getType()),
+					"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
+						"doesn't match the referenced entity type: `" + expectedEntityType + "`!"
+				);
+				entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKey());
+			}
 			return null;
 		};
 	}
@@ -881,15 +889,22 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final String referenceName = referenceSchema.getName();
 		final String expectedEntityType = getReferencedType(referenceSchema, false);
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
-			Assert.isTrue(
-				expectedEntityType.equals(referencedClassifier.getType()),
-				"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
-					"doesn't match the referenced entity type: `" + expectedEntityType + "`!"
-			);
-			entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKey());
+			if (referencedClassifier == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				Assert.isTrue(
+					expectedEntityType.equals(referencedClassifier.getType()),
+					"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
+						"doesn't match the referenced entity type: `" + expectedEntityType + "`!"
+				);
+				entityBuilder.setReference(referenceName, referencedClassifier.getPrimaryKey());
+			}
 			return proxy;
 		};
 	}
@@ -1021,10 +1036,20 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Serializable referencedClassifier = (Serializable) args[0];
-			entityBuilder.setReference(referenceName, EvitaDataTypes.toTargetType(referencedClassifier, int.class));
+			if (referencedClassifier == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				entityBuilder.setReference(
+					referenceName,
+					EvitaDataTypes.toTargetType(referencedClassifier, int.class)
+				);
+			}
 			return null;
 		};
 	}
@@ -1041,10 +1066,20 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Serializable referencedClassifier = (Serializable) args[0];
-			entityBuilder.setReference(referenceName, EvitaDataTypes.toTargetType(referencedClassifier, int.class));
+			if (referencedClassifier == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				entityBuilder.setReference(
+					referenceName,
+					EvitaDataTypes.toTargetType(referencedClassifier, int.class)
+				);
+			}
 			return proxy;
 		};
 	}
@@ -1156,16 +1191,25 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final String referenceName = referenceSchema.getName();
 		final String expectedEntityType = getReferencedType(referenceSchema, true);
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-			final EntityContract sealedEntity = referencedEntity.getEntity();
-			Assert.isTrue(
-				expectedEntityType.equals(sealedEntity.getType()),
-				"Entity type `" + sealedEntity.getType() + "` in passed argument " +
-					"doesn't match the referencedEntity entity type: `" + expectedEntityType + "`!"
-			);
-			entityBuilder.setReference(referenceName, sealedEntity.getPrimaryKey());
+			if (referencedEntity == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				final EntityContract sealedEntity = referencedEntity.getEntity();
+				Assert.isTrue(
+					expectedEntityType.equals(sealedEntity.getType()),
+					"Entity type `" + sealedEntity.getType() + "` in passed argument " +
+						"doesn't match the referencedEntity entity type: `" + expectedEntityType + "`!"
+				);
+				final Integer primaryKey = sealedEntity.getPrimaryKey();
+				entityBuilder.setReference(referenceName, primaryKey);
+				theState.registerReferencedEntityObject(expectedEntityType, primaryKey, referencedEntity, ProxyType.REFERENCED_ENTITY);
+			}
 			return null;
 		};
 	}
@@ -1183,18 +1227,25 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final String referenceName = referenceSchema.getName();
 		final String expectedEntityType = getReferencedType(referenceSchema, true);
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-			final EntityContract sealedEntity = referencedEntity.getEntity();
-			Assert.isTrue(
-				expectedEntityType.equals(sealedEntity.getType()),
-				"Entity type `" + sealedEntity.getType() + "` in passed argument " +
-					"doesn't match the referencedEntity entity type: `" + expectedEntityType + "`!"
-			);
-			final Integer primaryKey = sealedEntity.getPrimaryKey();
-			entityBuilder.setReference(referenceName, primaryKey);
-			theState.registerReferencedEntityObject(expectedEntityType, primaryKey, referencedEntity, ProxyType.REFERENCED_ENTITY);
+			if (referencedEntity == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				final EntityContract sealedEntity = referencedEntity.getEntity();
+				Assert.isTrue(
+					expectedEntityType.equals(sealedEntity.getType()),
+					"Entity type `" + sealedEntity.getType() + "` in passed argument " +
+						"doesn't match the referencedEntity entity type: `" + expectedEntityType + "`!"
+				);
+				final Integer primaryKey = sealedEntity.getPrimaryKey();
+				entityBuilder.setReference(referenceName, primaryKey);
+				theState.registerReferencedEntityObject(expectedEntityType, primaryKey, referencedEntity, ProxyType.REFERENCED_ENTITY);
+			}
 			return proxy;
 		};
 	}
@@ -1328,13 +1379,20 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Serializable referencedPrimaryKey = (Serializable) args[0];
-			entityBuilder.setReference(
-				referenceName,
-				EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
-			);
+			if (referencedPrimaryKey == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				entityBuilder.setReference(
+					referenceName,
+					EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
+				);
+			}
 			return null;
 		};
 	}
@@ -1351,13 +1409,20 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ReferenceSchemaContract referenceSchema
 	) {
 		final String referenceName = referenceSchema.getName();
+		final Cardinality cardinality = referenceSchema.getCardinality();
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Serializable referencedPrimaryKey = (Serializable) args[0];
-			entityBuilder.setReference(
-				referenceName,
-				EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
-			);
+			if (referencedPrimaryKey == null && cardinality == Cardinality.ZERO_OR_ONE) {
+				final Collection<ReferenceContract> references = entityBuilder.getReferences(referenceName);
+				Assert.isPremiseValid(references.size() < 2, "Cardinality is `" + cardinality + "` but there are more than one reference!");
+				references.forEach(it -> entityBuilder.removeReference(referenceName, it.getReferencedPrimaryKey()));
+			} else {
+				entityBuilder.setReference(
+					referenceName,
+					EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
+				);
+			}
 			return proxy;
 		};
 	}

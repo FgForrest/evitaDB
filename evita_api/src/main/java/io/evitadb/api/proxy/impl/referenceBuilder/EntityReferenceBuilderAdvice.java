@@ -188,7 +188,7 @@ public class EntityReferenceBuilderAdvice implements Advice<SealedEntityReferenc
 				.map(ReferenceContract.class::cast)
 				.map(
 					it -> (Object) proxyState.createNewReferenceProxy(
-						proxyState.getProxyClass(), proxyState.getEntity(), it
+						proxyState.getEntityProxyClass(), proxyState.getProxyClass(), proxyState.getEntity(), it
 					)
 				)
 				.orElse(proxy)
