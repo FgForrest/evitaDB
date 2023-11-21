@@ -469,6 +469,103 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
+	@DisplayName("Should return subtree categories only of specified subtrees")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCategorySubtreeOnlyOfSpecifiedSubtrees(Evita evita, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> included = new HashSet<>(Arrays.asList(6, 13, 20, 25));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(1),
+								having(entityPrimaryKeyInSet(included.toArray(new Integer[0])))
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				final Set<Integer> includedAndRoot = Stream.concat(
+						Stream.of(1),
+						included.stream()
+					)
+					.collect(Collectors.toSet());
+
+				assertResultIs(
+					originalCategoryEntities,
+					sealedEntity -> {
+						final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString());
+						return
+							// is directly excluded node
+							includedAndRoot.contains(sealedEntity.getPrimaryKey()) &&
+								// has included parent node
+								parentItems
+									.stream()
+									.map(it -> Integer.parseInt(it.getCode()))
+									.allMatch(it -> includedAndRoot.contains(it) || Objects.equals(1, it));
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return subtree categories only of specified subtrees except root")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCategorySubtreeOnlyOfSpecifiedSubtreesExceptRoot(Evita evita, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> included = new HashSet<>(Arrays.asList(6, 13, 20, 25));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(1),
+								having(entityPrimaryKeyInSet(included.toArray(new Integer[0]))),
+								excludingRoot()
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalCategoryEntities,
+					sealedEntity -> {
+						final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString());
+						return
+							// is directly excluded node
+							included.contains(sealedEntity.getPrimaryKey()) &&
+								// has included parent node
+								parentItems
+									.stream()
+									.map(it -> Integer.parseInt(it.getCode()))
+									.allMatch(it -> included.contains(it) || Objects.equals(1, it));
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return subtree categories except specified subtrees")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
@@ -481,6 +578,63 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					query(
 						collection(Entities.CATEGORY),
 						filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1), excluding(entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))))),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertResultIs(
+					originalCategoryEntities,
+					sealedEntity -> {
+						final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(sealedEntity.getPrimaryKey().toString());
+						return
+							// is not directly excluded node
+							!excluded.contains(sealedEntity.getPrimaryKey()) &&
+								// has no excluded parent node
+								parentItems
+									.stream()
+									.map(it -> Integer.parseInt(it.getCode()))
+									.noneMatch(excluded::contains) &&
+								// has parent node 1
+								(
+									Objects.equals(1, sealedEntity.getPrimaryKey()) ||
+										parentItems
+											.stream()
+											.anyMatch(it -> Objects.equals(String.valueOf(1), it.getCode()))
+								);
+					},
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return subtree categories except specified subtrees without affecting root node")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldReturnCategorySubtreeExceptSpecifiedSubtreesWithoutAffectingRootNode(Evita evita, List<SealedEntity> originalCategoryEntities, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		final Set<Integer> excluded = new HashSet<>(Arrays.asList(2, 43, 34, 53));
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(
+							hierarchyWithinSelf(
+								entityPrimaryKeyInSet(1),
+								excluding(
+									or(
+										entityPrimaryKeyInSet(1), // this should not exclude the root node
+										entityPrimaryKeyInSet(excluded.toArray(new Integer[0]))
+									)
+								)
+							)
+						),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
