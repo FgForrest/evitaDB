@@ -21,6 +21,7 @@ server:                                           # [see Server configuration](#
   killTimedOutShortRunningThreadsEverySeconds: 30
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
+  quiet: false
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: null
@@ -284,6 +285,16 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
            read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
     </dd>
+    <dt>quiet</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It disables logging of helper info messages (e.g.: startup info). Note that it doesn't disable the main logging
+           handled by the [Slf4j](https://www.slf4j.org/) logging facade.</p>
+         <Note type="warning">
+            This setting should not be used when running multiple server instances inside single JVM because it is currently
+            not thread-safe.            
+        </Note>
+    </dd>
 </dl>
 
 ## Storage configuration
@@ -464,11 +475,11 @@ This filter can be used as follows:
 </appender>
 ```
 
-There is also `io.evitadb.server.log.StandardLogFilter` filter to only log standard log messages. 
+There is also `io.evitadb.server.log.AppLogFilter` filter to only log standard log messages. 
 This filter can be used as follows:
 ```xml
 <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.StandardLogFilter"/>
+    <filter class="io.evitadb.server.log.AppLogFilter"/>
     <file>/evita/logs/evita_server.log</file>
     <encoder>
         <pattern>%date %level [%thread] %logger{10} [%file:%line] -%kvp- %msg%n</pattern>

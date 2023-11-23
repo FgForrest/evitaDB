@@ -55,6 +55,7 @@ import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -144,28 +145,11 @@ public class EvitaServer {
 
 		final String logMsg = initLog();
 
-		ConsoleWriter.write(
-			"""
-				\n\n            _ _        ____  ____ \s
-				  _____   _(_) |_ __ _|  _ \\| __ )\s
-				 / _ \\ \\ / / | __/ _` | | | |  _ \\\s
-				|  __/\\ V /| | || (_| | |_| | |_) |
-				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
-			ConsoleColor.DARK_GREEN
-		);
-		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("Visit us at: ");
-		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
-		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
-		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logMsg).map(it -> " (" + it + ")").orElse("") + "", ConsoleColor.DARK_GRAY);
-		ConsoleWriter.write("\n", ConsoleColor.WHITE);
-
 		final Path configFilePath = ofNullable(options.get(OPTION_EVITA_CONFIGURATION_FILE))
 			.map(it -> Paths.get("").resolve(it))
 			.orElseGet(() -> Paths.get("").resolve(DEFAULT_EVITA_CONFIGURATION_FILE));
 
-		final EvitaServer evitaServer = new EvitaServer(configFilePath, options);
+		final EvitaServer evitaServer = new EvitaServer(configFilePath, logMsg, options);
 		final ShutdownSequence shutdownSequence = new ShutdownSequence(evitaServer);
 		Runtime.getRuntime().addShutdownHook(new Thread(shutdownSequence));
 		evitaServer.run();
@@ -247,6 +231,13 @@ public class EvitaServer {
 	 * Constructor that initializes the EvitaServer.
 	 */
 	public EvitaServer(@Nonnull Path configFileLocation, @Nonnull Map<String, String> arguments) {
+		this(configFileLocation, null, arguments);
+	}
+
+	/**
+	 * Constructor that initializes the EvitaServer.
+	 */
+	public EvitaServer(@Nonnull Path configFileLocation, @Nullable String logInitializationStatus, @Nonnull Map<String, String> arguments) {
 		this.externalApiProviders = ExternalApiServer.gatherExternalApiProviders();
 		final EvitaServerConfiguration evitaServerConfig = parseConfiguration(configFileLocation, arguments);
 		this.evitaConfiguration = new EvitaConfiguration(
@@ -256,6 +247,28 @@ public class EvitaServer {
 			evitaServerConfig.cache()
 		);
 		this.apiOptions = evitaServerConfig.api();
+
+		if (this.evitaConfiguration.server().quiet()) {
+			ConsoleWriter.setQuiet(true);
+		}
+
+		ConsoleWriter.write(
+			"""
+				\n\n            _ _        ____  ____ \s
+				  _____   _(_) |_ __ _|  _ \\| __ )\s
+				 / _ \\ \\ / / | __/ _` | | | |  _ \\\s
+				|  __/\\ V /| | || (_| | |_| | |_) |
+				 \\___| \\_/ |_|\\__\\__,_|____/|____/\s\n\n""",
+			ConsoleColor.DARK_GREEN
+		);
+		ConsoleWriter.write("alpha build %s (keep calm and report bugs 😉)", new Object[]{VersionUtils.readVersion()}, ConsoleColor.LIGHT_GRAY);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("Visit us at: ");
+		ConsoleWriter.write("https://evitadb.io", ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+		ConsoleWriter.write("\n\n", ConsoleColor.WHITE);
+		ConsoleWriter.write("Log config used: " + System.getProperty(ContextInitializer.CONFIG_FILE_PROPERTY) + ofNullable(logInitializationStatus).map(it -> " (" + it + ")").orElse("") + "", ConsoleColor.DARK_GRAY);
+		ConsoleWriter.write("\n", ConsoleColor.WHITE);
+
 		ConsoleWriter.write("Server name: ", ConsoleColor.WHITE);
 		ConsoleWriter.write(this.evitaConfiguration.name(), ConsoleColor.BRIGHT_YELLOW);
 		ConsoleWriter.write("\n", ConsoleColor.WHITE);
