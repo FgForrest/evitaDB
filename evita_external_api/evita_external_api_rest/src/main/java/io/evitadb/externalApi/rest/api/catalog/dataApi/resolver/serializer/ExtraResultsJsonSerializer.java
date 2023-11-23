@@ -38,6 +38,8 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
@@ -46,6 +48,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummary
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.HierarchyDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelInfoDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.Assert;
@@ -62,6 +65,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.function.Function;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Handles serializing of Evita extra results into JSON structure
@@ -90,7 +95,8 @@ public class ExtraResultsJsonSerializer {
 	 * @return serialized entity or list of entities
 	 */
 	@Nonnull
-	public JsonNode serialize(@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults) {
+	public JsonNode serialize(@Nonnull Map<Class<? extends EvitaResponseExtraResult>, EvitaResponseExtraResult> extraResults,
+	                          @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 		for (EvitaResponseExtraResult extraResult : extraResults.values()) {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
@@ -102,16 +108,16 @@ public class ExtraResultsJsonSerializer {
 			} else if (extraResult instanceof Hierarchy hierarchyStats) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats));
 			} else if (extraResult instanceof FacetSummary facetSummary) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary));
+				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary, entitySchema));
 			}
 		}
 		return rootNode;
 	}
 
 	@Nonnull
-	private JsonNode serializeFacetSummary(@Nonnull FacetSummary facetSummary) {
+	private JsonNode serializeFacetSummary(@Nonnull FacetSummary facetSummary, @Nonnull EntitySchemaContract entitySchema) {
 		final Collection<FacetGroupStatistics> facetGroupStatistics = facetSummary.getReferenceStatistics();
-		final HashMap<String, List<FacetGroupStatistics>> groupedStats = new HashMap<>();
+		final Map<String, List<FacetGroupStatistics>> groupedStats = createHashMap(entitySchema.getReferences().size());
 		for (FacetGroupStatistics facetGroupStatistic : facetGroupStatistics) {
 			if (groupedStats.containsKey(facetGroupStatistic.getReferenceName())) {
 				groupedStats.get(facetGroupStatistic.getReferenceName()).add(facetGroupStatistic);
@@ -124,25 +130,36 @@ public class ExtraResultsJsonSerializer {
 
 		final ObjectNode facetGroupStatsNode = objectJsonSerializer.objectNode();
 		groupedStats.forEach((key, value) -> facetGroupStatsNode.putIfAbsent(StringUtils.toSpecificCase(key, NamingConvention.CAMEL_CASE),
-			serializeFacetSameGroupStatistics(value)));
+			serializeFacetSameGroupStatistics(value, entitySchema.getReference(key).orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")))));
 		return facetGroupStatsNode;
 
 	}
 
 	@Nonnull
-	private JsonNode serializeFacetSameGroupStatistics(@Nonnull List<FacetGroupStatistics> groupStatistics) {
-		final ArrayNode sameGroupStatsNode = objectJsonSerializer.arrayNode();
-		groupStatistics.forEach(stats -> sameGroupStatsNode.add(serializeFacetGroupStatistics(stats)));
-		return sameGroupStatsNode;
+	private JsonNode serializeFacetSameGroupStatistics(@Nonnull List<FacetGroupStatistics> groupStatistics,
+	                                                   @Nonnull ReferenceSchemaContract referenceSchema) {
+		if (referenceSchema.getReferencedGroupType() != null) {
+			final ArrayNode sameGroupStatsNode = objectJsonSerializer.arrayNode();
+			groupStatistics.forEach(stats -> sameGroupStatsNode.add(serializeFacetGroupStatistics(stats, referenceSchema)));
+			return sameGroupStatsNode;
+		} else {
+			Assert.isPremiseValid(
+				groupStatistics.size() == 1,
+				() -> new RestInternalError("There should be only one non-grouped facet group for reference `" + referenceSchema.getName() + "` but found `" + groupStatistics.size() + "`.")
+			);
+			return serializeFacetGroupStatistics(groupStatistics.get(0), referenceSchema);
+		}
 	}
 
 	@Nonnull
-	private JsonNode serializeFacetGroupStatistics(@Nonnull FacetGroupStatistics groupStatistics) {
+	private JsonNode serializeFacetGroupStatistics(@Nonnull FacetGroupStatistics groupStatistics, @Nonnull ReferenceSchemaContract referenceSchema) {
 		final ObjectNode groupStatsNode = objectJsonSerializer.objectNode();
 		groupStatsNode.put(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount());
 
-		groupStatsNode.putIfAbsent(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(),
-			groupStatistics.getGroupEntity() != null ? serializeEntity(groupStatistics.getGroupEntity()) : null);
+		if (referenceSchema.getReferencedGroupType() != null) {
+			groupStatsNode.putIfAbsent(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(),
+				groupStatistics.getGroupEntity() != null ? serializeEntity(groupStatistics.getGroupEntity()) : null);
+		}
 
 		final ArrayNode jsonNodes = objectJsonSerializer.arrayNode();
 		groupStatistics.getFacetStatistics().forEach(facetStats -> jsonNodes.add(serializeFacetStatistics(facetStats)));

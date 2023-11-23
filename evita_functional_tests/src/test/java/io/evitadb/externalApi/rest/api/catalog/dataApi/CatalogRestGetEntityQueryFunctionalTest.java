@@ -100,13 +100,6 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@DisplayName("Should return single product by non-localized attribute")
 	void shouldReturnSingleProductByNonLocalizedAttribute(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final int pk = findEntityPk(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute) &&
-				it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null &&
-				it.getAllLocales().contains(CZECH_LOCALE) &&
-				it.getAllLocales().contains(Locale.ENGLISH)
-		);
 
 		final EntityClassifier entity = getEntity(
 			evita,
@@ -143,13 +136,6 @@ class CatalogRestGetEntityQueryFunctionalTest extends CatalogRestDataEndpointFun
 	@DisplayName("Should return single product by non-localized attribute with locale in URL")
 	void shouldReturnSingleProductByNonLocalizedAttributeWithLocaleInUrl(Evita evita, RestTester tester, List<SealedEntity> originalProductEntities) {
 		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
-		final int pk = findEntityPk(
-			originalProductEntities,
-			it -> Objects.equals(it.getAttribute(ATTRIBUTE_CODE), codeAttribute) &&
-				it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE) != null &&
-				it.getAllLocales().contains(CZECH_LOCALE) &&
-				it.getAllLocales().contains(Locale.ENGLISH)
-		);
 
 		final EntityClassifier entity = getEntity(
 			evita,
