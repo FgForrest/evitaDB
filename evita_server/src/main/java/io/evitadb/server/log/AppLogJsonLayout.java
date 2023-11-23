@@ -25,15 +25,28 @@ package io.evitadb.server.log;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
+import ch.qos.logback.core.LayoutBase;
+import ch.qos.logback.core.util.CachingDateFormatter;
 import io.evitadb.api.ClientContext;
+
+import javax.annotation.Nonnull;
 
 
 /**
- * Implementation of {@link JsonLayout} for logging application log messages.
+ * Logs events as JSON objects for easier digestion by log aggregators like Loki. We construct the JSON manually
+ * so we don't slow down the logging process by using Jackson.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class AppLogJsonLayout extends JsonLayout {
+public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
+
+	private final CachingDateFormatter cachingDateFormatter = new CachingDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSZ", null);
+
+	private boolean logTimestamp = false;
+
+	public void setLogTimestamp(boolean logTimestamp) {
+		this.logTimestamp = logTimestamp;
+	}
 
 	@Override
 	public String doLayout(ILoggingEvent event) {
@@ -87,5 +100,16 @@ public class AppLogJsonLayout extends JsonLayout {
 		buf.append(CoreConstants.LINE_SEPARATOR);
 
 		return buf.toString();
+	}
+
+	private String escapeMessage(@Nonnull String message) {
+		return message
+			.replace("\r\n", "\\r\\n")
+			.replace("\n", "\\n")
+			.replace("\r", "\\r")
+			.replace("\f", "\\f")
+			.replace("\b", "\\b")
+			.replace("\\", "\\\\")
+			.replace("\"", "\\\"");
 	}
 }
