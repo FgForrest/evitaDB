@@ -408,7 +408,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 						uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 					),
 					hierarchyIndex,
-					facetIndex
+					facetIndex,
+					entityIndexCnt.getPrimaryKeyCardinality()
 				);
 			} else {
 				final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(

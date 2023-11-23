@@ -31,15 +31,23 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
+import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
+import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
+import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -58,6 +66,17 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	 */
 	@Delegate(types = PriceIndexContract.class)
 	private final PriceIndexContract priceIndex = VoidPriceIndex.INSTANCE;
+	/**
+	 * This index keeps information about cardinality of referenced primary keys for each owner entity primary key.
+	 * The referenced primary keys are indexed into {@link #entityIds} but they may be added to this index multiple times.
+	 * In order to know when they could be removed from {@link #entityIds} we need to know how many times they were added
+	 * and this is being tracked in this data structure.
+	 *
+	 * In order to optimize storage we keep only cardinalities that are greater than 1. The cardinality = 1 can be
+	 * determined by the presence of the referenced primary key in {@link #entityIds}.
+	 */
+	@Nonnull
+	private final TransactionalMap<Integer, Integer> primaryKeyCardinality;
 
 	public ReferencedTypeEntityIndex(
 		int primaryKey,
@@ -65,6 +84,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 		@Nonnull Supplier<EntitySchema> schemaAccessor
 	) {
 		super(primaryKey, entityIndexKey, schemaAccessor);
+		this.primaryKeyCardinality = new TransactionalMap<>(new HashMap<>());
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -76,13 +96,15 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 		@Nonnull Map<Locale, TransactionalBitmap> entityIdsByLanguage,
 		@Nonnull AttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
-		@Nonnull FacetIndex facetIndex
+		@Nonnull FacetIndex facetIndex,
+		@Nonnull Map<Integer, Integer> primaryKeyCardinality
 	) {
 		super(
 			primaryKey, entityIndexKey, version, schemaAccessor,
 			entityIds, entityIdsByLanguage,
 			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
 		);
+		this.primaryKeyCardinality = new TransactionalMap<>(primaryKeyCardinality);
 	}
 
 	@Nonnull
@@ -90,6 +112,37 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	public <S extends PriceIndexContract> S getPriceIndex() {
 		//noinspection unchecked
 		return (S) priceIndex;
+	}
+
+	@Override
+	public void resetDirty() {
+		super.resetDirty();
+	}
+
+	@Override
+	public boolean isEmpty() {
+		return super.isEmpty() &&
+			this.primaryKeyCardinality.isEmpty();
+	}
+
+	@Override
+	protected StoragePart createStoragePart(
+		boolean hierarchyIndexEmpty,
+		@Nullable Integer internalPriceIdSequence,
+		@Nonnull Set<AttributeIndexStorageKey> attributeIndexStorageKeys,
+		@Nonnull Set<PriceIndexKey> priceIndexKeys,
+		@Nonnull Set<String> facetIndexReferencedEntities
+	) {
+		return new EntityIndexStoragePart(
+			primaryKey, version, indexKey,
+			entityIds, entityIdsByLanguage,
+			attributeIndexStorageKeys,
+			internalPriceIdSequence,
+			priceIndexKeys,
+			!hierarchyIndexEmpty,
+			facetIndexReferencedEntities,
+			primaryKeyCardinality
+		);
 	}
 
 	/*
@@ -107,7 +160,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality, transaction)
 		);
 	}
 
@@ -115,6 +169,77 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
+		this.primaryKeyCardinality.removeLayer(transactionalLayer);
 	}
 
+	/**
+	 * @see #primaryKeyCardinality
+	 */
+	@Override
+	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+		throw new UnsupportedOperationException(
+			"ReferencedTypeEntityIndex doesn't support this operation, you need to call method: `insertPrimaryKeyIfMissing(int, int, WritableEntityStorageContainerAccessor)`"
+		);
+	}
+
+	/**
+	 * @see #primaryKeyCardinality
+	 */
+	@Override
+	public boolean removePrimaryKey(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+		throw new UnsupportedOperationException(
+			"ReferencedTypeEntityIndex doesn't support this operation, you need to call method: `removePrimaryKey(int, int, WritableEntityStorageContainerAccessor)`"
+		);
+	}
+
+	/**
+	 * This method delegates call to {@link #insertPrimaryKeyIfMissing(int, EntityStoragePartAccessor)} but tracks
+	 * the cardinality of the referenced primary key in {@link #primaryKeyCardinality}.
+	 *
+	 * @see #primaryKeyCardinality
+	 */
+	public void insertPrimaryKeyIfMissing(int entityPrimaryKey, int referencedEntityPrimaryKey, @Nonnull EntityStoragePartAccessor containerAccessor) {
+		final boolean added = super.insertPrimaryKeyIfMissing(referencedEntityPrimaryKey, containerAccessor);
+		if (!added) {
+			this.primaryKeyCardinality.compute(
+				entityPrimaryKey,
+				(key, oldValue) -> {
+					if (oldValue == null) {
+						return 1;
+					} else {
+						return oldValue + 1;
+					}
+				}
+			);
+			this.dirty.setToTrue();
+		}
+	}
+
+	/**
+	 * This method delegates call to {@link #removePrimaryKey(int, EntityStoragePartAccessor)} but tracks the cardinality
+	 * of the referenced primary key in {@link #primaryKeyCardinality} and removes the referenced primary key from
+	 * {@link #entityIds} only when the cardinality reaches 0.
+	 *
+	 * @see #primaryKeyCardinality
+	 */
+	public void removePrimaryKey(int entityPrimaryKey, int referencedEntityPrimaryKey, @Nonnull EntityStoragePartAccessor containerAccessor) {
+		final int result = this.primaryKeyCardinality.compute(
+			entityPrimaryKey,
+			(key, oldValue) -> {
+				if (oldValue == null) {
+					return -1;
+				} else {
+					return oldValue - 1;
+				}
+			}
+		);
+		if (result == -1) {
+			super.removePrimaryKey(referencedEntityPrimaryKey, containerAccessor);
+		} else {
+			if (result == 0) {
+				this.primaryKeyCardinality.remove(entityPrimaryKey);
+			}
+			this.dirty.setToTrue();
+		}
+	}
 }

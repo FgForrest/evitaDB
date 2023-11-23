@@ -709,10 +709,36 @@ public class ExistingEntityBuilder implements EntityBuilder {
 										)
 									)
 							),
-							// we don't need to insert the reference, since it was there before the removal
 							changeSet
 								.stream()
-								.filter(it -> !(it instanceof InsertReferenceMutation))
+								.filter(it -> {
+									if (it instanceof InsertReferenceMutation) {
+										// we don't need to insert the reference, since it was there before the removal
+										return false;
+									} else if (it instanceof SetReferenceGroupMutation referenceGroupMutation) {
+										// we don't need to reset the group if the group is the same as the previous one
+										final Boolean groupSameAsPreviousOne = this.baseEntity.getReference(referenceGroupMutation.getReferenceKey())
+											.flatMap(ReferenceContract::getGroup)
+											.map(group -> Objects.equals(group.getPrimaryKey(), referenceGroupMutation.getGroupPrimaryKey()))
+											.orElse(false);
+										return !groupSameAsPreviousOne;
+									} else if (it instanceof ReferenceAttributeMutation referenceAttributeMutation) {
+										// we don't need to reset the attribute if the attribute is the same as the previous one
+										final AttributeMutation attributeMutation = referenceAttributeMutation.getAttributeMutation();
+										final AttributeKey attributeKey = attributeMutation.getAttributeKey();
+										if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
+											final boolean attributeSameAsPreviousOne = this.baseEntity.getReference(referenceAttributeMutation.getReferenceKey())
+												.flatMap(ref -> ref.getAttributeValue(attributeKey))
+												.map(attribute -> Objects.equals(attribute.value(), upsertAttributeMutation.getAttributeValue()))
+												.orElse(false);
+											return !attributeSameAsPreviousOne;
+										} else {
+											return true;
+										}
+									} else {
+										return true;
+									}
+								})
 						)
 						.collect(Collectors.toList())
 				);
