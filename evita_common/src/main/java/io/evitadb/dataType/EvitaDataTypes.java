@@ -559,16 +559,18 @@ public class EvitaDataTypes {
 	 * is returned in response.
 	 */
 	public static Class<? extends Serializable> toWrappedForm(@Nonnull Class<?> type) {
-		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
-		if (typeToCheck.isPrimitive()) {
-			//noinspection unchecked
-			return type.isArray() ?
-				(Class<? extends Serializable>) Array.newInstance(getWrappingPrimitiveClass(typeToCheck), 0).getClass() :
-				getWrappingPrimitiveClass(typeToCheck);
-		} else {
-			//noinspection unchecked
-			return (Class<? extends Serializable>) type;
+		if (!void.class.equals(type)) {
+			@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
+			if (typeToCheck.isPrimitive()) {
+				//noinspection unchecked
+				return type.isArray() ?
+					(Class<? extends Serializable>) Array.newInstance(getWrappingPrimitiveClass(typeToCheck), 0).getClass() :
+					getWrappingPrimitiveClass(typeToCheck);
+			}
 		}
+
+		//noinspection unchecked
+		return (Class<? extends Serializable>) type;
 	}
 
 	/**

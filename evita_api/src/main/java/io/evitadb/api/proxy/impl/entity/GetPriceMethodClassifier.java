@@ -708,7 +708,7 @@ public class GetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 
 				// and verify that the return type is valid
-				if (proxyState.getProxyClass().equals(itemType)) {
+				if (void.class.equals(itemType) || proxyState.getProxyClass().equals(itemType)) {
 					// the method probably represents a mutation (setter)
 					return null;
 				} else {

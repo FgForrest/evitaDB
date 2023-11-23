@@ -176,6 +176,287 @@ public class ReflectionLookup {
 		return interfaces;
 	}
 
+	private static void registerMethods(Map<Method, List<Annotation>> cachedInformations, Set<MethodAnnotationKey> foundMethodAnnotations, Class<?> tmpClass) {
+		for (Method method : tmpClass.getDeclaredMethods()) {
+			final Annotation[] someAnnotation = method.getAnnotations();
+			if (someAnnotation != null && someAnnotation.length > 0) {
+				method.setAccessible(true);
+				for (Annotation annotation : someAnnotation) {
+					final MethodAnnotationKey methodAnnotationKey = new MethodAnnotationKey(method.getName(), annotation);
+					if (!foundMethodAnnotations.contains(methodAnnotationKey)) {
+						List<Annotation> cachedAnnotations = cachedInformations.computeIfAbsent(method, k -> new LinkedList<>());
+						cachedAnnotations.add(annotation);
+						foundMethodAnnotations.add(methodAnnotationKey);
+					}
+				}
+			}
+		}
+	}
+
+	@Nullable
+	private static <T extends Annotation> Class<?> getRepeatableContainerAnnotation(Class<T> annotationType) {
+		final Class<?> containerAnnotation;
+		final Repeatable repeatable = annotationType.getAnnotation(Repeatable.class);
+		if (repeatable != null) {
+			containerAnnotation = repeatable.value();
+		} else {
+			containerAnnotation = null;
+		}
+		return containerAnnotation;
+	}
+
+	private static <T extends Annotation> void addAnnotationIfMatches(Class<T> annotationType, Class<?> containerAnnotation, List<T> fieldResult, Annotation annotation) {
+		if (annotationType.isInstance(annotation)) {
+			//noinspection unchecked
+			fieldResult.add((T) annotation);
+		}
+		if (ofNullable(containerAnnotation).map(it -> containerAnnotation.isInstance(annotation)).orElse(false)) {
+			final Annotation[] wrappedAnnotations;
+			try {
+				wrappedAnnotations = (Annotation[]) annotation.getClass().getMethod("value").invoke(annotation);
+			} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+				throw new IllegalArgumentException("Repeatable annotation unwind error: " + e.getMessage(), e);
+			}
+			for (Annotation wrappedAnnotation : wrappedAnnotations) {
+				//noinspection unchecked
+				fieldResult.add((T) wrappedAnnotation);
+			}
+		}
+	}
+
+	private static <T extends Annotation> T getAnnotation(Class<T> searchedAnnotationType, Class<?> type, Deque<Class<? extends Annotation>> processedAnnotations) {
+		final Annotation[] annotations = type.getAnnotations();
+		for (Annotation annItem : annotations) {
+			if (searchedAnnotationType.isInstance(annItem)) {
+				//noinspection unchecked
+				return (T) annItem;
+			}
+			final Class<? extends Annotation> annType = annItem.annotationType();
+			try {
+				processedAnnotations.push(annType);
+				final T innerAnnotation = annType.getAnnotation(searchedAnnotationType);
+				if (innerAnnotation == null) {
+					if (!processedAnnotations.contains(annType)) {
+						return getAnnotation(searchedAnnotationType, annType, processedAnnotations);
+					}
+				} else {
+					return innerAnnotation;
+				}
+			} finally {
+				processedAnnotations.pop();
+			}
+		}
+		return null;
+	}
+
+	private static List<Annotation> expand(Annotation[] annotation) {
+		if (ArrayUtils.isEmpty(annotation)) {
+			return emptyList();
+		} else {
+			final List<Annotation> allAnnotations = new LinkedList<>();
+			for (Annotation annItem : annotation) {
+				if (!annItem.annotationType().getName().startsWith("java.lang.annotation")) {
+					allAnnotations.add(annItem);
+					allAnnotations.addAll(expand(annItem.annotationType().getAnnotations()));
+				}
+			}
+			return allAnnotations;
+		}
+	}
+
+	private static Map<String, PropertyDescriptor> mapGettersAndSetters(Class<?> onClass) {
+		final Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
+		if (onClass.isRecord()) {
+			final RecordComponent[] recordComponents = onClass.getRecordComponents();
+			for (RecordComponent recordComponent : recordComponents) {
+				final String propertyName = recordComponent.getName();
+				final Field propertyField = mapField(onClass, propertyName);
+				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, false, propertyField);
+			}
+		} else {
+			final Method[] methods = onClass.getMethods();
+			for (Method method : methods) {
+				final String methodName = method.getName();
+				final String propertyName;
+				final boolean isGetter;
+				if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
+					propertyName = StringUtils.uncapitalize(methodName.substring(3));
+					isGetter = true;
+				} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
+					propertyName = StringUtils.uncapitalize(methodName.substring(2));
+					isGetter = true;
+				} else if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && void.class.equals(method.getReturnType()) && method.getParameterCount() == 1) {
+					propertyName = StringUtils.uncapitalize(methodName.substring(3));
+					isGetter = false;
+				} else {
+					continue;
+				}
+
+				final Field propertyField = mapField(onClass, propertyName);
+				registerPropertyDescriptor(result, method, propertyName, isGetter, propertyField);
+			}
+		}
+		return result;
+	}
+
+	private static Map<ConstructorKey, Constructor<?>> mapConstructors(Class<?> onClass) {
+		final HashMap<ConstructorKey, Constructor<?>> mappedConstructors = new HashMap<>();
+		for (Constructor<?> constructor : onClass.getConstructors()) {
+			try {
+				final Parameter[] parameters = constructor.getParameters();
+				Assert.isTrue(
+					parameters.length == constructor.getParameterTypes().length,
+					"Source file was not compiled with -parameters option. There are no names for constructor arguments!"
+				);
+				final LinkedHashSet<ArgumentKey> arguments = new LinkedHashSet<>(parameters.length);
+				for (final Parameter parameter : parameters) {
+					arguments.add(
+						new ArgumentKey(
+							parameter.getName(),
+							parameter.getType()
+						)
+					);
+				}
+				mappedConstructors.put(
+					new ConstructorKey(onClass, arguments),
+					constructor
+				);
+			} catch (Exception ex) {
+				log.error(
+					"Constructor " + constructor.toGenericString() + " on class " + onClass +
+						" is unusable for reflection access due to: " + ex.getMessage()
+				);
+			}
+		}
+		return mappedConstructors;
+	}
+
+	/**
+	 * Returns getter method for all setters and also getters that return value injected by constructor. If there are
+	 * multiple constructors only "best" one is returned - i.e. the one that allows to inject biggest count of properties
+	 * without setters. If there are multiple such constructors - none is used, because it represents ambiguous situation.
+	 */
+	@Nullable
+	private static List<Method> getGettersForSettersAndBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesWithoutSetter, List<WeightedConstructorKey> constructorsByBestFit, WeightedConstructorKey bestConstructor, long bestFitWeight) {
+		if (constructorsByBestFit.size() == 1) {
+			return returnMethodsForBestConstructor(
+				simplePropertiesWithSetter, propertiesWithoutSetter, bestConstructor
+			);
+		} else {
+			final Set<WeightedConstructorKey> collidingConstructors = new HashSet<>(constructorsByBestFit.size());
+			collidingConstructors.add(bestConstructor);
+			for (int i = 1; i < constructorsByBestFit.size(); i++) {
+				final WeightedConstructorKey weightedConstructorKey = constructorsByBestFit.get(i);
+				if (weightedConstructorKey.weight() == bestFitWeight) {
+					collidingConstructors.add(weightedConstructorKey);
+				} else {
+					return returnMethodsForBestConstructor(
+						simplePropertiesWithSetter, propertiesWithoutSetter, bestConstructor
+					);
+				}
+			}
+
+			log.error(
+				"Multiple constructors fit to read-only getters: " +
+					collidingConstructors
+						.stream()
+						.map(WeightedConstructorKey::toString)
+						.collect(Collectors.joining(", "))
+			);
+		}
+		return null;
+	}
+
+	/**
+	 * Method returns all getter methods that match properties injected by constructor arguments along with all getter
+	 * methods that have corresponding setter method.
+	 */
+	@Nonnull
+	private static List<Method> returnMethodsForBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesInjectedByConstructor, WeightedConstructorKey bestConstructor) {
+		final Set<String> constructorArgs = bestConstructor.constructorKey().arguments()
+			.stream()
+			.map(ArgumentKey::getName)
+			.collect(Collectors.toSet());
+
+		final Stream<Method> propertiesWithConstructor = propertiesInjectedByConstructor
+			.entrySet()
+			.stream()
+			.filter(it -> constructorArgs.contains(it.getKey()))
+			.map(Entry::getValue);
+
+		return Stream.concat(
+			simplePropertiesWithSetter,
+			propertiesWithConstructor
+		).collect(Collectors.toList());
+	}
+
+	/**
+	 * Finds field on passed class. If field is not found, it traverses through super classes to find it.
+	 */
+	private static Field mapField(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
+		try {
+			return onClass.getDeclaredField(propertyName);
+		} catch (NoSuchFieldException e) {
+			if (Object.class.equals(onClass) || onClass.getSuperclass() == null) {
+				return null;
+			} else {
+				return mapField(onClass.getSuperclass(), propertyName);
+			}
+		}
+	}
+
+	/**
+	 * Goes through inheritance chain and looks up for annotations.
+	 */
+	private static void getFieldAnnotationsThroughSuperClasses(Map<Field, List<Annotation>> annotations, Set<String> foundFields, Class<?> examinedClass) {
+		do {
+			for (Field field : examinedClass.getDeclaredFields()) {
+				final Annotation[] someAnnotation = field.getAnnotations();
+				if (someAnnotation != null && someAnnotation.length > 0 && !foundFields.contains(field.getName())) {
+					field.setAccessible(true);
+					annotations.put(field, expand(someAnnotation));
+					foundFields.add(field.getName());
+				}
+			}
+			examinedClass = examinedClass.getSuperclass();
+		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
+	}
+
+	private static void processRepeatableAnnotations(Set<Annotation> annotations, Set<Class<?>> alreadyDetectedAnnotations, Set<Class<?>> addedAnnotationsInThisRound, Annotation annotation) {
+		final Class<?> containerAnnotation = getRepeatableContainerAnnotation(annotation.annotationType());
+		if (!alreadyDetectedAnnotations.contains(annotation.annotationType()) && (containerAnnotation == null || !alreadyDetectedAnnotations.contains(containerAnnotation))) {
+			annotations.add(annotation);
+			addedAnnotationsInThisRound.add(annotation.annotationType());
+			ofNullable(containerAnnotation).ifPresent(addedAnnotationsInThisRound::add);
+		}
+	}
+
+	/**
+	 * Registers property descriptor.
+	 */
+	private static void registerPropertyDescriptor(Map<String, PropertyDescriptor> result, Method method, String propertyName, boolean isGetter, Field propertyField) {
+		final PropertyDescriptor existingTuple = result.get(propertyName);
+		if (existingTuple == null) {
+			result.put(
+				propertyName,
+				new PropertyDescriptor(
+					propertyField,
+					isGetter ? method : null,
+					isGetter ? null : method
+				)
+			);
+		} else {
+			result.put(
+				propertyName,
+				new PropertyDescriptor(
+					propertyField,
+					isGetter ? method : existingTuple.getter(),
+					isGetter ? existingTuple.setter() : method
+				)
+			);
+		}
+	}
+
 	/**
 	 * Method finds default (non-arg) constructor of the target class.
 	 */
@@ -469,11 +750,11 @@ public class ReflectionLookup {
 				// try to find annotation on opposite method
 				if (isGetter(method.getName())) {
 					return ofNullable(findSetter(method.getDeclaringClass(), method))
-						.map(setter -> hasAnnotationForPropertyInSamePackage(setter, annotation))
+						.map(setter -> hasAnnotationForPropertyInSamePackageShallow(setter, annotation))
 						.orElse(false);
 				} else if (isSetter(method.getName())) {
 					return ofNullable(findGetter(method.getDeclaringClass(), method))
-						.map(getter -> hasAnnotationForPropertyInSamePackage(getter, annotation))
+						.map(getter -> hasAnnotationForPropertyInSamePackageShallow(getter, annotation))
 						.orElse(false);
 				} else {
 					return false;
@@ -712,94 +993,6 @@ public class ReflectionLookup {
 		return ifaces;
 	}
 
-	private static void registerMethods(Map<Method, List<Annotation>> cachedInformations, Set<MethodAnnotationKey> foundMethodAnnotations, Class<?> tmpClass) {
-		for (Method method : tmpClass.getDeclaredMethods()) {
-			final Annotation[] someAnnotation = method.getAnnotations();
-			if (someAnnotation != null && someAnnotation.length > 0) {
-				method.setAccessible(true);
-				for (Annotation annotation : someAnnotation) {
-					final MethodAnnotationKey methodAnnotationKey = new MethodAnnotationKey(method.getName(), annotation);
-					if (!foundMethodAnnotations.contains(methodAnnotationKey)) {
-						List<Annotation> cachedAnnotations = cachedInformations.computeIfAbsent(method, k -> new LinkedList<>());
-						cachedAnnotations.add(annotation);
-						foundMethodAnnotations.add(methodAnnotationKey);
-					}
-				}
-			}
-		}
-	}
-
-	@Nullable
-	private static <T extends Annotation> Class<?> getRepeatableContainerAnnotation(Class<T> annotationType) {
-		final Class<?> containerAnnotation;
-		final Repeatable repeatable = annotationType.getAnnotation(Repeatable.class);
-		if (repeatable != null) {
-			containerAnnotation = repeatable.value();
-		} else {
-			containerAnnotation = null;
-		}
-		return containerAnnotation;
-	}
-
-	private static <T extends Annotation> void addAnnotationIfMatches(Class<T> annotationType, Class<?> containerAnnotation, List<T> fieldResult, Annotation annotation) {
-		if (annotationType.isInstance(annotation)) {
-			//noinspection unchecked
-			fieldResult.add((T) annotation);
-		}
-		if (ofNullable(containerAnnotation).map(it -> containerAnnotation.isInstance(annotation)).orElse(false)) {
-			final Annotation[] wrappedAnnotations;
-			try {
-				wrappedAnnotations = (Annotation[]) annotation.getClass().getMethod("value").invoke(annotation);
-			} catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-				throw new IllegalArgumentException("Repeatable annotation unwind error: " + e.getMessage(), e);
-			}
-			for (Annotation wrappedAnnotation : wrappedAnnotations) {
-				//noinspection unchecked
-				fieldResult.add((T) wrappedAnnotation);
-			}
-		}
-	}
-
-	private static <T extends Annotation> T getAnnotation(Class<T> searchedAnnotationType, Class<?> type, Deque<Class<? extends Annotation>> processedAnnotations) {
-		final Annotation[] annotations = type.getAnnotations();
-		for (Annotation annItem : annotations) {
-			if (searchedAnnotationType.isInstance(annItem)) {
-				//noinspection unchecked
-				return (T) annItem;
-			}
-			final Class<? extends Annotation> annType = annItem.annotationType();
-			try {
-				processedAnnotations.push(annType);
-				final T innerAnnotation = annType.getAnnotation(searchedAnnotationType);
-				if (innerAnnotation == null) {
-					if (!processedAnnotations.contains(annType)) {
-						return getAnnotation(searchedAnnotationType, annType, processedAnnotations);
-					}
-				} else {
-					return innerAnnotation;
-				}
-			} finally {
-				processedAnnotations.pop();
-			}
-		}
-		return null;
-	}
-
-	private static List<Annotation> expand(Annotation[] annotation) {
-		if (ArrayUtils.isEmpty(annotation)) {
-			return emptyList();
-		} else {
-			final List<Annotation> allAnnotations = new LinkedList<>();
-			for (Annotation annItem : annotation) {
-				if (!annItem.annotationType().getName().startsWith("java.lang.annotation")) {
-					allAnnotations.add(annItem);
-					allAnnotations.addAll(expand(annItem.annotationType().getAnnotations()));
-				}
-			}
-			return allAnnotations;
-		}
-	}
-
 	/**
 	 * Applies logic in `extractor` lambda and caches result if caching is enabled for the combination of
 	 * the `modelClass` and `cacheKey`.
@@ -818,47 +1011,31 @@ public class ReflectionLookup {
 		}
 	}
 
+	/**
+	 * Returns true if method has at least one annotation in the same package as the passed annotation.
+	 * The shallow implementation avoids stack overflow when called from {@link #hasAnnotationForPropertyInSamePackage(Method, Class)}.
+	 */
+	private boolean hasAnnotationForPropertyInSamePackageShallow(@Nonnull Method method, @Nonnull Class<? extends Annotation> annotation) {
+		if (hasAnnotationInSamePackage(method, annotation)) {
+			return true;
+		} else {
+			final Optional<String> propertyName = getPropertyNameFromMethodNameIfPossible(method.getName());
+			if (propertyName.isPresent()) {
+				final Field propertyField = findPropertyField(method.getDeclaringClass(), propertyName.get());
+				if (propertyField != null && hasAnnotationInSamePackage(propertyField, annotation)) {
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+
 	private Map<String, PropertyDescriptor> mapAndCacheGettersAndSetters(@Nonnull Class<?> onClass) {
 		final Map<String, PropertyDescriptor> index = mapGettersAndSetters(onClass);
 		if (cachingBehaviour == ReflectionCachingBehaviour.CACHE) {
 			propertiesCache.put(onClass, index);
 		}
 		return index;
-	}
-
-	private static Map<String, PropertyDescriptor> mapGettersAndSetters(Class<?> onClass) {
-		final Map<String, PropertyDescriptor> result = new LinkedHashMap<>();
-		if (onClass.isRecord()) {
-			final RecordComponent[] recordComponents = onClass.getRecordComponents();
-			for (RecordComponent recordComponent : recordComponents) {
-				final String propertyName = recordComponent.getName();
-				final Field propertyField = mapField(onClass, propertyName);
-				registerPropertyDescriptor(result, recordComponent.getAccessor(), propertyName, false, propertyField);
-			}
-		} else {
-			final Method[] methods = onClass.getMethods();
-			for (Method method : methods) {
-				final String methodName = method.getName();
-				final String propertyName;
-				final boolean isGetter;
-				if (methodName.startsWith("get") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
-					propertyName = StringUtils.uncapitalize(methodName.substring(3));
-					isGetter = true;
-				} else if (methodName.startsWith("is") && methodName.length() > 2 && Character.isUpperCase(methodName.charAt(2)) && !void.class.equals(method.getReturnType()) && method.getParameterCount() == 0) {
-					propertyName = StringUtils.uncapitalize(methodName.substring(2));
-					isGetter = true;
-				} else if (methodName.startsWith("set") && methodName.length() > 3 && Character.isUpperCase(methodName.charAt(3)) && void.class.equals(method.getReturnType()) && method.getParameterCount() == 1) {
-					propertyName = StringUtils.uncapitalize(methodName.substring(3));
-					isGetter = false;
-				} else {
-					continue;
-				}
-
-				final Field propertyField = mapField(onClass, propertyName);
-				registerPropertyDescriptor(result, method, propertyName, isGetter, propertyField);
-			}
-		}
-		return result;
 	}
 
 	private Map<ConstructorKey, Constructor<?>> mapAndCacheConstructors(@Nonnull Class<?> onClass) {
@@ -872,38 +1049,6 @@ public class ReflectionLookup {
 		} else {
 			return cachedResult;
 		}
-	}
-
-	private static Map<ConstructorKey, Constructor<?>> mapConstructors(Class<?> onClass) {
-		final HashMap<ConstructorKey, Constructor<?>> mappedConstructors = new HashMap<>();
-		for (Constructor<?> constructor : onClass.getConstructors()) {
-			try {
-				final Parameter[] parameters = constructor.getParameters();
-				Assert.isTrue(
-					parameters.length == constructor.getParameterTypes().length,
-					"Source file was not compiled with -parameters option. There are no names for constructor arguments!"
-				);
-				final LinkedHashSet<ArgumentKey> arguments = new LinkedHashSet<>(parameters.length);
-				for (final Parameter parameter : parameters) {
-					arguments.add(
-						new ArgumentKey(
-							parameter.getName(),
-							parameter.getType()
-						)
-					);
-				}
-				mappedConstructors.put(
-					new ConstructorKey(onClass, arguments),
-					constructor
-				);
-			} catch (Exception ex) {
-				log.error(
-					"Constructor " + constructor.toGenericString() + " on class " + onClass +
-						" is unusable for reflection access due to: " + ex.getMessage()
-				);
-			}
-		}
-		return mappedConstructors;
 	}
 
 	/**
@@ -951,42 +1096,6 @@ public class ReflectionLookup {
 	}
 
 	/**
-	 * Returns getter method for all setters and also getters that return value injected by constructor. If there are
-	 * multiple constructors only "best" one is returned - i.e. the one that allows to inject biggest count of properties
-	 * without setters. If there are multiple such constructors - none is used, because it represents ambiguous situation.
-	 */
-	@Nullable
-	private static List<Method> getGettersForSettersAndBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesWithoutSetter, List<WeightedConstructorKey> constructorsByBestFit, WeightedConstructorKey bestConstructor, long bestFitWeight) {
-		if (constructorsByBestFit.size() == 1) {
-			return returnMethodsForBestConstructor(
-				simplePropertiesWithSetter, propertiesWithoutSetter, bestConstructor
-			);
-		} else {
-			final Set<WeightedConstructorKey> collidingConstructors = new HashSet<>(constructorsByBestFit.size());
-			collidingConstructors.add(bestConstructor);
-			for (int i = 1; i < constructorsByBestFit.size(); i++) {
-				final WeightedConstructorKey weightedConstructorKey = constructorsByBestFit.get(i);
-				if (weightedConstructorKey.weight() == bestFitWeight) {
-					collidingConstructors.add(weightedConstructorKey);
-				} else {
-					return returnMethodsForBestConstructor(
-						simplePropertiesWithSetter, propertiesWithoutSetter, bestConstructor
-					);
-				}
-			}
-
-			log.error(
-				"Multiple constructors fit to read-only getters: " +
-					collidingConstructors
-						.stream()
-						.map(WeightedConstructorKey::toString)
-						.collect(Collectors.joining(", "))
-			);
-		}
-		return null;
-	}
-
-	/**
 	 * Method will assign weight for each constructor. Weight is simple count of all arguments of the constructor argument
 	 * that match properties without setter method. All types of the arguments must match and there must not be any other
 	 * non-paired argument.
@@ -1019,61 +1128,6 @@ public class ReflectionLookup {
 	}
 
 	/**
-	 * Method returns all getter methods that match properties injected by constructor arguments along with all getter
-	 * methods that have corresponding setter method.
-	 */
-	@Nonnull
-	private static List<Method> returnMethodsForBestConstructor(Stream<Method> simplePropertiesWithSetter, Map<String, Method> propertiesInjectedByConstructor, WeightedConstructorKey bestConstructor) {
-		final Set<String> constructorArgs = bestConstructor.constructorKey().arguments()
-			.stream()
-			.map(ArgumentKey::getName)
-			.collect(Collectors.toSet());
-
-		final Stream<Method> propertiesWithConstructor = propertiesInjectedByConstructor
-			.entrySet()
-			.stream()
-			.filter(it -> constructorArgs.contains(it.getKey()))
-			.map(Entry::getValue);
-
-		return Stream.concat(
-			simplePropertiesWithSetter,
-			propertiesWithConstructor
-		).collect(Collectors.toList());
-	}
-
-	/**
-	 * Finds field on passed class. If field is not found, it traverses through super classes to find it.
-	 */
-	private static Field mapField(@Nonnull Class<?> onClass, @Nonnull String propertyName) {
-		try {
-			return onClass.getDeclaredField(propertyName);
-		} catch (NoSuchFieldException e) {
-			if (Object.class.equals(onClass) || onClass.getSuperclass() == null) {
-				return null;
-			} else {
-				return mapField(onClass.getSuperclass(), propertyName);
-			}
-		}
-	}
-
-	/**
-	 * Goes through inheritance chain and looks up for annotations.
-	 */
-	private static void getFieldAnnotationsThroughSuperClasses(Map<Field, List<Annotation>> annotations, Set<String> foundFields, Class<?> examinedClass) {
-		do {
-			for (Field field : examinedClass.getDeclaredFields()) {
-				final Annotation[] someAnnotation = field.getAnnotations();
-				if (someAnnotation != null && someAnnotation.length > 0 && !foundFields.contains(field.getName())) {
-					field.setAccessible(true);
-					annotations.put(field, expand(someAnnotation));
-					foundFields.add(field.getName());
-				}
-			}
-			examinedClass = examinedClass.getSuperclass();
-		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
-	}
-
-	/**
 	 * Goes through inheritance chain and looks up for annotations.
 	 */
 	private void getClassAnnotationsThroughSuperClasses(Set<Annotation> annotations, Class<?> examinedClass, Set<Class<?>> alreadyDetectedAnnotations) {
@@ -1095,41 +1149,6 @@ public class ReflectionLookup {
 			alreadyDetectedAnnotations.addAll(addedAnnotationsInThisRound);
 			examinedClass = examinedClass.getSuperclass();
 		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
-	}
-
-	private static void processRepeatableAnnotations(Set<Annotation> annotations, Set<Class<?>> alreadyDetectedAnnotations, Set<Class<?>> addedAnnotationsInThisRound, Annotation annotation) {
-		final Class<?> containerAnnotation = getRepeatableContainerAnnotation(annotation.annotationType());
-		if (!alreadyDetectedAnnotations.contains(annotation.annotationType()) && (containerAnnotation == null || !alreadyDetectedAnnotations.contains(containerAnnotation))) {
-			annotations.add(annotation);
-			addedAnnotationsInThisRound.add(annotation.annotationType());
-			ofNullable(containerAnnotation).ifPresent(addedAnnotationsInThisRound::add);
-		}
-	}
-
-	/**
-	 * Registers property descriptor.
-	 */
-	private static void registerPropertyDescriptor(Map<String, PropertyDescriptor> result, Method method, String propertyName, boolean isGetter, Field propertyField) {
-		final PropertyDescriptor existingTuple = result.get(propertyName);
-		if (existingTuple == null) {
-			result.put(
-				propertyName,
-				new PropertyDescriptor(
-					propertyField,
-					isGetter ? method : null,
-					isGetter ? null : method
-				)
-			);
-		} else {
-			result.put(
-				propertyName,
-				new PropertyDescriptor(
-					propertyField,
-					isGetter ? method : existingTuple.getter(),
-					isGetter ? existingTuple.setter() : method
-				)
-			);
-		}
 	}
 
 	private record MethodAnnotationKey(String methodName, Annotation annotation) {

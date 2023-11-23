@@ -103,7 +103,7 @@ public class ProxycianFactory implements ProxyFactory {
 	 * Function that creates a default {@link ProxyRecipe} for an entity reference.
 	 */
 	final static Function<ProxyEntityCacheKey, ProxyRecipe> DEFAULT_ENTITY_REFERENCE_RECIPE = cacheKey -> new ProxyRecipe(
-		new Class<?>[]{cacheKey.type()},
+		new Class<?>[]{cacheKey.subType()},
 		new Advice[]{
 			new DelegateCallsAdvice<>(SealedEntityReferenceProxy.class, Function.identity(), true),
 			LocalDataStoreAdvice.INSTANCE,
@@ -206,9 +206,11 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nullable Consumer<SealedEntityProxyState> stateInitializer
 	) {
 		try {
+			final String entityName = entity.getSchema().getName();
+			final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName);
 			if (expectedType.isRecord()) {
 				final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, entity.getSchema(), referencedEntitySchemas, reflectionLookup,
+					cacheKey, entity.getSchema(), referencedEntitySchemas, reflectionLookup,
 					new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),
 					new DirectProxyReferenceFactory(recipes, collectedRecipes, reflectionLookup)
 				);
@@ -216,8 +218,6 @@ public class ProxycianFactory implements ProxyFactory {
 					bestMatchingConstructor.constructorArguments(entity)
 				);
 			} else {
-				final String entityName = entity.getSchema().getName();
-				final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName);
 				if (expectedType.isInterface()) {
 					final SealedEntityProxyState proxyState = new SealedEntityProxyState(
 						entity, referencedEntitySchemas, expectedType, recipes, collectedRecipes, reflectionLookup
@@ -231,7 +231,7 @@ public class ProxycianFactory implements ProxyFactory {
 					);
 				} else if (!isFinal(expectedType)) {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, entity.getSchema(), referencedEntitySchemas, reflectionLookup,
+						cacheKey, entity.getSchema(), referencedEntitySchemas, reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),
 						new DirectProxyReferenceFactory(recipes, collectedRecipes, reflectionLookup)
 					);
@@ -249,7 +249,7 @@ public class ProxycianFactory implements ProxyFactory {
 					);
 				} else {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, entity.getSchema(), referencedEntitySchemas, reflectionLookup,
+						cacheKey, entity.getSchema(), referencedEntitySchemas, reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup),
 						new DirectProxyReferenceFactory(recipes, collectedRecipes, reflectionLookup)
 					);
@@ -280,9 +280,11 @@ public class ProxycianFactory implements ProxyFactory {
 		@Nullable Map<ProxyInstanceCacheKey, ProxyWithUpsertCallback> instanceCache
 	) {
 		try {
+			final String entityName = entity.getSchema().getName();
+			final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(mainType, entityName, expectedType, reference.getReferenceName());
 			if (expectedType.isRecord()) {
 				final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-					expectedType, entity.getSchema(), referencedEntitySchemas,
+					cacheKey, entity.getSchema(), referencedEntitySchemas,
 					reference.getReferenceSchemaOrThrow(), reflectionLookup,
 					new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 				);
@@ -291,8 +293,6 @@ public class ProxycianFactory implements ProxyFactory {
 				);
 			} else {
 				if (expectedType.isInterface()) {
-					final String entityName = entity.getSchema().getName();
-					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, mainType, reference.getReferenceName());
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
@@ -305,12 +305,10 @@ public class ProxycianFactory implements ProxyFactory {
 					);
 				} else if (isAbstract(expectedType)) {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, entity.getSchema(), referencedEntitySchemas,
+						cacheKey, entity.getSchema(), referencedEntitySchemas,
 						reference.getReferenceSchemaOrThrow(), reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
-					final String entityName = entity.getSchema().getName();
-					final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, entityName, mainType, reference.getReferenceName());
 					return ByteBuddyProxyGenerator.instantiate(
 						recipeLocator.apply(cacheKey),
 						new SealedEntityReferenceProxyState(
@@ -325,7 +323,7 @@ public class ProxycianFactory implements ProxyFactory {
 					);
 				} else {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
-						expectedType, entity.getSchema(), referencedEntitySchemas,
+						cacheKey, entity.getSchema(), referencedEntitySchemas,
 						reference.getReferenceSchemaOrThrow(), reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
@@ -344,14 +342,14 @@ public class ProxycianFactory implements ProxyFactory {
 	 * type. It tries to find a constructor with most of the arguments matching the schema fields.
 	 */
 	private static <T> BestMatchingEntityConstructorWithExtractionLambda<T> findBestMatchingConstructor(
-		@Nonnull Class<T> expectedType,
+		@Nonnull ProxyEntityCacheKey cacheKey,
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ProxyFactory proxyFactory,
 		@Nonnull ProxyReferenceFactory proxyReferenceFactory
 	) {
-		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName());
+		final Class<?> expectedType = cacheKey.type();
 		if (ENTITY_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingEntityConstructorWithExtractionLambda<T>) ENTITY_CONSTRUCTOR_CACHE.get(cacheKey);
@@ -476,14 +474,14 @@ public class ProxycianFactory implements ProxyFactory {
 	 * type. It tries to find a constructor with most of the arguments matching the schema fields.
 	 */
 	private static <T> BestMatchingReferenceConstructorWithExtractionLambda<T> findBestMatchingConstructor(
-		@Nonnull Class<T> expectedType,
+		@Nonnull ProxyEntityCacheKey cacheKey,
 		@Nonnull EntitySchemaContract schema,
 		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ProxyFactory proxyFactory
 	) {
-		final ProxyEntityCacheKey cacheKey = new ProxyEntityCacheKey(expectedType, schema.getName());
+		final Class<?> expectedType = cacheKey.subType();
 		if (REFERENCE_CONSTRUCTOR_CACHE.containsKey(cacheKey)) {
 			//noinspection unchecked
 			return (BestMatchingReferenceConstructorWithExtractionLambda<T>) REFERENCE_CONSTRUCTOR_CACHE.get(cacheKey);
@@ -622,7 +620,7 @@ public class ProxycianFactory implements ProxyFactory {
 			),
 			recipe.getInstantiationCallback()
 		);
-		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(referenceType, entityName, mainType, referenceName);
+		final ProxyEntityCacheKey key = new ProxyEntityCacheKey(mainType, entityName, referenceType, referenceName);
 		recipes.put(key, theRecipe);
 		collectedRecipes.put(key, theRecipe);
 	}

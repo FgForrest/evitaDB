@@ -36,16 +36,19 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate.ExistsPredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
@@ -225,6 +228,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		return baseEntity.getPrimaryKey();
 	}
 
+	@Override
+	public boolean parentAvailable() {
+		return baseEntity.parentAvailable();
+	}
+
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
@@ -242,59 +250,6 @@ public class ExistingEntityBuilder implements EntityBuilder {
 				() -> this.baseEntityDecorator == null ?
 					this.baseEntity.getParentEntity() : this.baseEntityDecorator.getParentEntity()
 			);
-	}
-
-	@Override
-	public boolean parentAvailable() {
-		return baseEntity.parentAvailable();
-	}
-
-	@Override
-	public boolean attributesAvailable() {
-		return baseEntityDecorator == null ?
-			baseEntity.attributesAvailable() : baseEntityDecorator.attributesAvailable();
-	}
-
-	@Override
-	public boolean attributesAvailable(@Nonnull Locale locale) {
-		return baseEntityDecorator == null ?
-			baseEntity.attributesAvailable(locale) : baseEntityDecorator.attributesAvailable(locale);
-	}
-
-	@Override
-	public boolean attributeAvailable(@Nonnull String attributeName) {
-		return baseEntityDecorator == null ?
-			baseEntity.attributeAvailable(attributeName) : baseEntityDecorator.attributeAvailable(attributeName);
-	}
-
-	@Override
-	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
-		return baseEntityDecorator == null ?
-			baseEntity.attributeAvailable(attributeName, locale) : baseEntityDecorator.attributeAvailable(attributeName, locale);
-	}
-
-	@Override
-	public boolean associatedDataAvailable() {
-		return baseEntityDecorator == null ?
-			baseEntity.associatedDataAvailable() : baseEntityDecorator.associatedDataAvailable();
-	}
-
-	@Override
-	public boolean associatedDataAvailable(@Nonnull Locale locale) {
-		return baseEntityDecorator == null ?
-			baseEntity.associatedDataAvailable(locale) : baseEntityDecorator.associatedDataAvailable(locale);
-	}
-
-	@Override
-	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
-		return baseEntityDecorator == null ?
-			baseEntity.associatedDataAvailable(associatedDataName) : baseEntityDecorator.associatedDataAvailable(associatedDataName);
-	}
-
-	@Override
-	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
-		return baseEntityDecorator == null ?
-			baseEntity.associatedDataAvailable(associatedDataName, locale) : baseEntityDecorator.associatedDataAvailable(associatedDataName, locale);
 	}
 
 	@Override
@@ -386,6 +341,54 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			)
 			.filter(localePredicate)
 			.collect(Collectors.toSet());
+	}
+
+	@Override
+	public boolean attributesAvailable() {
+		return baseEntityDecorator == null ?
+			baseEntity.attributesAvailable() : baseEntityDecorator.attributesAvailable();
+	}
+
+	@Override
+	public boolean attributesAvailable(@Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributesAvailable(locale) : baseEntityDecorator.attributesAvailable(locale);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributeAvailable(attributeName) : baseEntityDecorator.attributeAvailable(attributeName);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributeAvailable(attributeName, locale) : baseEntityDecorator.attributeAvailable(attributeName, locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable() {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable() : baseEntityDecorator.associatedDataAvailable();
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(locale) : baseEntityDecorator.associatedDataAvailable(locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(associatedDataName) : baseEntityDecorator.associatedDataAvailable(associatedDataName);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(associatedDataName, locale) : baseEntityDecorator.associatedDataAvailable(associatedDataName, locale);
 	}
 
 	@Nonnull
@@ -652,10 +655,11 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		}
 		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
 		final Optional<ReferenceContract> existingReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
+		final List<ReferenceMutation<?>> changeSet = referenceBuilder.buildChangeSet().collect(Collectors.toList());
 		if (existingReference.isEmpty()) {
 			this.referenceMutations.put(
 				referenceKey,
-				referenceBuilder.buildChangeSet().collect(Collectors.toList())
+				changeSet
 			);
 		} else {
 			final Optional<ReferenceContract> referenceInBaseEntity = this.baseEntity.getReference(referenceKey)
@@ -663,23 +667,41 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			if (referenceInBaseEntity.map(it -> it.exists() && !removedReferences.contains(referenceKey)).orElse(true)) {
 				this.referenceMutations.put(
 					referenceKey,
-					referenceBuilder.buildChangeSet().collect(Collectors.toList())
+					changeSet
 				);
 			} else {
+				boolean groupUpserted = false;
+				Set<AttributeKey> attributesUpserted = new HashSet<>();
+				for (ReferenceMutation<?> referenceMutation : changeSet) {
+					if (referenceMutation instanceof SetReferenceGroupMutation) {
+						groupUpserted = true;
+					} else if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributeMutation) {
+						if (referenceAttributeMutation.getAttributeMutation() instanceof UpsertAttributeMutation) {
+							attributesUpserted.add(referenceAttributeMutation.getAttributeMutation().getAttributeKey());
+						}
+					}
+				}
 				this.referenceMutations.put(
 					referenceKey,
 					Stream.concat(
 							Stream.concat(
-								referenceInBaseEntity
-									.flatMap(ReferenceContract::getGroup)
-									.filter(Droppable::exists)
-									.stream()
-									.map(it -> new RemoveReferenceGroupMutation(referenceKey)),
+								// if the group was not upserted we need to remove it (because the entire reference was
+								// removed before
+								groupUpserted ?
+									Stream.<ReferenceMutation<?>>empty() :
+									referenceInBaseEntity
+										.flatMap(ReferenceContract::getGroup)
+										.filter(Droppable::exists)
+										.stream()
+										.map(it -> (ReferenceMutation<?>) new RemoveReferenceGroupMutation(referenceKey)),
+								// if the attribute was not upserted we need to remove it (because the entire reference
+								// was removed before
 								referenceInBaseEntity
 									.map(AttributesContract::getAttributeValues)
 									.orElse(Collections.emptyList())
 									.stream()
 									.filter(Droppable::exists)
+									.filter(it -> !attributesUpserted.contains(it.key()))
 									.map(it ->
 										new ReferenceAttributeMutation(
 											referenceKey,
@@ -687,7 +709,10 @@ public class ExistingEntityBuilder implements EntityBuilder {
 										)
 									)
 							),
-							referenceBuilder.buildChangeSet()
+							// we don't need to insert the reference, since it was there before the removal
+							changeSet
+								.stream()
+								.filter(it -> !(it instanceof InsertReferenceMutation))
 						)
 						.collect(Collectors.toList())
 				);
