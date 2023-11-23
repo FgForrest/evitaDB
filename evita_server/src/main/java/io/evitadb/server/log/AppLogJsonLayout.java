@@ -28,6 +28,7 @@ import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
 import io.evitadb.api.ClientContext;
+import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
 
@@ -39,6 +40,9 @@ import javax.annotation.Nonnull;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
+
+	private static final String[] ESCAPED_CHARS = new String[] { "\r\n", "\n", "\r", "\f", "\b", "\\", "\"" };
+	private static final String[] REPLACEMENTS_FOR_ESCAPED_CHARS = new String[] { "\\r\\n", "\\n", "\\r", "\\f", "\\b", "\\\\", "\\\"" };
 
 	private final CachingDateFormatter cachingDateFormatter = new CachingDateFormatter("yyyy-MM-dd'T'HH:mm:ss.SSSZ", null);
 
@@ -103,13 +107,6 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 	}
 
 	private String escapeMessage(@Nonnull String message) {
-		return message
-			.replace("\r\n", "\\r\\n")
-			.replace("\n", "\\n")
-			.replace("\r", "\\r")
-			.replace("\f", "\\f")
-			.replace("\b", "\\b")
-			.replace("\\", "\\\\")
-			.replace("\"", "\\\"");
+		return StringUtils.replaceEach(message, ESCAPED_CHARS, REPLACEMENTS_FOR_ESCAPED_CHARS);
 	}
 }
