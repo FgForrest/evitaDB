@@ -636,6 +636,7 @@ that the `entityGroupFetch` refers to the related group entity schema specified 
 [reference schema](../../use/schema.md#reference), and is named `entityGroupFetch` instead of `entityFetch` to 
 distinguish the requirements for referenced (facet) entity and referenced (facet) entity group.
 
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 The `groupEntity` field used within the facet group object in the [`facetSummary`](#facet-summary) has same meaning
