@@ -158,6 +158,11 @@ standard tools. However, below are our recommendations for tools etc. that we us
 
 ### Recommended IDEs
 
+We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with usefull tools (e.g. data visualisations).
+It also has other useful tools for exploring evitaDB instances, not just using GraphQL API.
+Therefore, this is our recommened chose of IDE for our APIs.
+
+However if you want to use a generic GraphQL tool, we have recommendations for that too.
 During development, we have come across and tried several tools for consuming GraphQL APIs, but there are only a few that we can recommend.
 
 For a desktop IDE to test and explore GraphQL APIs, the [Altair](https://altairgraphql.dev/) client proved to be a great help. It is a

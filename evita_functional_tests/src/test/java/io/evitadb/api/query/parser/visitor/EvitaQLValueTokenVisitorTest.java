@@ -183,6 +183,10 @@ class EvitaQLValueTokenVisitorTest {
         assertEquals(String.class, value1.getType());
         assertEquals("hello all", value1.asString());
 
+        final Value value3 = parseValueUnsafe("\"hello all\"");
+        assertEquals(String.class, value3.getType());
+        assertEquals("hello all", value3.asString());
+
         final Value value2 = parseValueUnsafe(formatValue("hello all"));
         assertEquals(String.class, value2.getType());
         assertEquals("hello all", value2.asString());
@@ -193,7 +197,7 @@ class EvitaQLValueTokenVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("'hello all'"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("'hello all'", int.class));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("hello all"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("\"hello\""));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseValueUnsafe("'hello\""));
     }
 
     @Test

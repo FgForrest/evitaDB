@@ -28,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Arrays;
 
 import static java.util.Optional.ofNullable;
@@ -38,6 +39,18 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class ConsoleWriter {
+
+	private static boolean isQuiet = false;
+
+	/**
+	 * Sets quiet mode. If true, no output is written to console.
+	 *
+	 * <b>Note:</b> this is not thread safe.
+	 */
+	public static void setQuiet(boolean quiet) {
+		isQuiet = quiet;
+	}
+
 	/**
 	 * Declaring ANSI_RESET so that we can reset the color
 	 */
@@ -124,6 +137,10 @@ public class ConsoleWriter {
 	 * @param color
 	 */
 	public static void write(@Nonnull String theString, @Nullable Object[] arguments, @Nullable ConsoleColor color, @Nullable ConsoleDecoration... decoration) {
+		if (Boolean.TRUE.equals(isQuiet)) {
+			return;
+		}
+
 		ofNullable(color).ifPresent(it -> System.out.print(it.getControlChar()));
 		ofNullable(decoration).stream().flatMap(Arrays::stream).forEach(it -> System.out.print(it.getControlChar()));
 		System.out.printf(theString, arguments);
