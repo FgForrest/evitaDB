@@ -205,12 +205,12 @@ Facet contains the statistics for that facet option:
 
 <LanguageSpecific to="evitaql,java,csharp,rest">
 And optionally the body of the facet (referenced) entity if the [`entityFetch`](#entity-fetch) requirement is specified.
-If the `IMPACT` statistics depth is requested in the facet summary, the statistics will also include the `requestImpact` 
+If the `IMPACT` statistics depth is requested in the facet summary, the statistics will also include the impact analysis 
 calculation, which contains the following data:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 And optionally the body of the facet (referenced) entity if the `facetEntity` field is specified.
-If the `impact` object is requested in the facet summary, the statistics will also include the `requestImpact` 
+If the `impact` object is requested in the facet summary, the statistics will also include the impact analysis
 calculation, which can contains the following data:
 </LanguageSpecific>
 
@@ -236,13 +236,19 @@ calculation, which can contains the following data:
   </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LanguageSpecific to="evitaql,java,csharp">
 
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummary.java</SourceClass> requirement 
 triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
 extra result. The facet summary is always computed as a side result of the main entity query and respects any filtering 
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
+
+</SourceCodeTabs>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -256,19 +262,22 @@ example:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-The `facetSummary` field with specific references inside the `extraResults` field is specified, it triggers the calculation
+When the `facetSummary` field with specific references inside the `extraResults` field is specified, it triggers the calculation
 of the facet summary extra result.
 The facet summary is always computed as a side result of the main entity query and respects any filtering
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
 
 </LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
+[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql)
 
 </SourceCodeTabs>
+
+</LanguageSpecific>
 
 <Note type="info">
 
@@ -288,7 +297,7 @@ includes the facet summary calculation:
 </LanguageSpecific>
 <LanguageSpecific to="rest,graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -642,7 +651,7 @@ distinguish the requirements for referenced (facet) entity and referenced (facet
 The `groupEntity` field used within the facet group object in the [`facetSummary`](#facet-summary) has same meaning
 as [standard entity fetching](fetching.md#entity-fetch). The only difference is
 that the `groupEntity` refers to the related group entity schema specified by the faceted
-[reference schema](../../use/schema.md#reference)
+[reference schema](../../use/schema.md#reference).
 
 </LanguageSpecific>
 
