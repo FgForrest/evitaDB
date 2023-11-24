@@ -960,7 +960,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			COUNTS, "a", "b", "c", "d"
 		);
 		assertEquals(
-			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint11
 		);
 
@@ -1048,7 +1048,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			"parameter", COUNTS, "a", "b", "c", "d"
 		);
 		assertEquals(
-			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint11
 		);
 

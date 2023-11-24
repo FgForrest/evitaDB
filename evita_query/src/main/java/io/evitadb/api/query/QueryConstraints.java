@@ -11917,6 +11917,126 @@ public interface QueryConstraints {
 	@Nonnull
 	static FacetSummary facetSummary(
 		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, filterBy, null, null, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, null, null, orderBy, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return facetSummary(statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
+	}
+
+	@Nonnull
+	static FacetSummary facetSummary(
+		@Nullable FacetStatisticsDepth statisticsDepth,
 		@Nullable FilterGroupBy facetGroupFilterBy,
 		@Nullable OrderGroupBy facetGroupOrderBy,
 		@Nullable EntityRequire... requirements
@@ -12272,6 +12392,150 @@ public interface QueryConstraints {
 	) {
 		return referenceName == null ? null :
 			facetSummaryOfReference(referenceName, statisticsDepth, facetFilterBy, null, facetOrderBy, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, facetGroupOrderBy, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, facetGroupFilterBy, null, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, facetGroupOrderBy, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, null, orderBy, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, null, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, null, null, facetGroupOrderBy, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterGroupBy facetGroupFilterBy,
+		@Nullable OrderBy orderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, null, facetGroupFilterBy, orderBy, null, requirements);
+	}
+
+	@Nullable
+	static FacetSummaryOfReference facetSummaryOfReference(
+		@Nullable String referenceName,
+		@Nullable FacetStatisticsDepth statisticsDepth,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderGroupBy facetGroupOrderBy,
+		@Nullable EntityRequire... requirements
+	) {
+		return referenceName == null ? null :
+			facetSummaryOfReference(referenceName, statisticsDepth, filterBy, null, null, facetGroupOrderBy, requirements);
 	}
 
 	@Nullable

@@ -232,11 +232,11 @@ public class CShell {
 
         // This is here for debugging purposes of future added tests
 
-		/*System.out.println("\""+commandToSend+"\"" + "\n");
+		System.out.println("\""+commandToSend+"\"" + "\n");
 		System.out.println("\""+outputFormat+"\"" + "\n");
 		if (sourceVariable != null) {
 			System.out.println("\""+sourceVariable+"\"" + "\n");
-		}*/
+		}
 
         // Redirect the standard output to be read by the Java application
         processBuilder.redirectErrorStream(true);

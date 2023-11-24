@@ -97,7 +97,7 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	 * once per JVM run.
 	 */
 	static {
-		CShell.clearDownloadedValidator();
+		//CShell.clearDownloadedValidator();
 	}
 
 	/**
