@@ -37,6 +37,19 @@ public class NumberUtils {
 	}
 
 	/**
+	 * Method returns true if the parameter type represents a number convertible to an integer.
+	 * @param parameterType parameter type
+	 * @return true if the parameter type represents a number convertible to an integer
+	 */
+	public static boolean isIntConvertibleNumber(@Nonnull Class<?> parameterType) {
+		return int.class.equals(parameterType) ||
+			long.class.equals(parameterType) ||
+			short.class.equals(parameterType) ||
+			byte.class.equals(parameterType) ||
+			Number.class.isAssignableFrom(parameterType);
+	}
+
+	/**
 	 * This method sums two numbers. The target number type is derived from the number `a`, number `b` is automatically
 	 * converted to the same type and applied. Method checks that there is no loss of precision during sum.
 	 */

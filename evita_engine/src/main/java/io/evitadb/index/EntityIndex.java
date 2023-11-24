@@ -495,7 +495,8 @@ public abstract class EntityIndex<T extends EntityIndex<T>> implements
 			internalPriceIdSequence,
 			priceIndexKeys,
 			!hierarchyIndexEmpty,
-			facetIndexReferencedEntities
+			facetIndexReferencedEntities,
+			null
 		);
 	}
 

@@ -45,7 +45,7 @@ import java.util.Set;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT, ElementType.PARAMETER})
 public @interface ReferencedEntityGroup {
 	Set<String> POSSIBLE_ARGUMENT_NAMES = Set.of("groupPrimaryKey", "entityGroupPrimaryKey", "groupPk", "groupId");
 

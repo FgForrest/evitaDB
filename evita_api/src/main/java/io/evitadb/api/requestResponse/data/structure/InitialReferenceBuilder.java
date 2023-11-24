@@ -66,7 +66,7 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 	@Serial private static final long serialVersionUID = 2225492596172273289L;
 
 	private final EntitySchemaContract entitySchema;
-	@Getter private final ReferenceKey referenceKey;
+	@Getter private ReferenceKey referenceKey;
 	@Getter private final Cardinality referenceCardinality;
 	@Getter private final String referencedEntityType;
 	@Delegate(types = AttributesContract.class)
@@ -272,6 +272,11 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 		return this;
 	}
 
+	@Override
+	public boolean hasChanges() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public Stream<? extends ReferenceMutation<?>> buildChangeSet() {
@@ -305,6 +310,16 @@ public class InitialReferenceBuilder implements ReferenceBuilder {
 			attributesBuilder.build(),
 			false
 		);
+	}
+
+	/**
+	 * This method allows to lazily set / or reset the referenced entity primary key. This method is considered as
+	 * a part of internal API and should not be used outside of the EvitaDB core.
+	 *
+	 * @param referencedEntityPrimaryKey primary key of the referenced entity
+	 */
+	public void setReferencedEntityPrimaryKey(int referencedEntityPrimaryKey) {
+		this.referenceKey = new ReferenceKey(this.referenceKey.referenceName(), referencedEntityPrimaryKey);
 	}
 
 }
