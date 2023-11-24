@@ -244,7 +244,7 @@ extra result. The facet summary is always computed as a side result of the main 
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql)
 
@@ -271,7 +271,7 @@ example:
 </LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql)
 
@@ -292,7 +292,7 @@ includes the facet summary calculation:
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest,graphql">
@@ -335,7 +335,7 @@ request [`facetEntity`](#entity-fetch) or [`groupEntity`](#entity-group-fetch) f
 the example to fetch the facet summary along with the codes of the facets and their groups:
 </LanguageSpecific>
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation with bodies for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.evitaql)
 
@@ -371,7 +371,7 @@ of the facets and their respective groups:
 If you add the desired locale to the query and also list localized names, you'll get a result that's very close to 
 the version you want to see in the user interface:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.evitaql)
 
@@ -431,7 +431,7 @@ It's hard to find a good example for filtering a generic facet summary even for 
 a bit artificial. Let's say we want to display only the facet options whose *code* attribute contains the substring 
 *ar*, and only those that are within groups with *code* starting with the letter *o*:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.evitaql)
 
@@ -495,7 +495,7 @@ the source entity that are specific to a relationship with the target entity.
 
 Let's sort both facet groups and facets alphabetically by their English names:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Sort facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.evitaql)
 
@@ -612,7 +612,7 @@ ordered by name in alphabetical order, and the facets within the `parameterValue
 `order` attribute, both at the group level and at the facet level. Only the facets inside facet groups (`parameter`) 
 with `isVisible` attribute equal to `TRUE` should be calculated for the summary:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Calculate facet summary for selected references](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql)
 
@@ -709,7 +709,7 @@ reference (let's say `groups`) and pretend that the user has already requested (
 want to calculate the `IMPACT` analysis for the rest of the facets in the group, we will see that changing the default
 behavior changes the numbers produced:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet groups conjunction example](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql)
 
@@ -792,7 +792,7 @@ reference (let's say `parameterValues`) and pretend that the user has already re
 Now, if we want to calculate the `IMPACT` analysis for the other group in the facet summary, we will see that instead of 
 reducing the numbers, the impact analysis predicts their expansion:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet groups disjunction example](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.evitaql)
 
@@ -864,7 +864,7 @@ don't have a reference to it.
 To demonstrate this effect, we need a query that targets some reference (let's say `parameterValues`) and makes some of 
 the listed group as negated.
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet groups disjunction example](/documentation/user/en/query/requirements/examples/facet/facet-groups-negation.evitaql)
 
