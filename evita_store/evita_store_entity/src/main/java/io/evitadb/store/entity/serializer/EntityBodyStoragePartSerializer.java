@@ -32,6 +32,7 @@ import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -53,21 +54,20 @@ public class EntityBodyStoragePartSerializer extends Serializer<EntityBodyStorag
 
 		final Set<Locale> locales = object.getLocales();
 		output.writeVarInt(locales.size(), true);
-		for (Locale locale : locales) {
-			kryo.writeObject(output, locale);
-		}
+		// the locales are always sorted to ensure the same order of attributes in the serialized form
+		locales.stream().sorted(Comparator.comparing(Locale::toLanguageTag)).forEach(locale -> kryo.writeObject(output, locale));
 
 		final Set<Locale> attributeLocales = object.getAttributeLocales();
 		output.writeVarInt(attributeLocales.size(), true);
-		for (Locale locale : attributeLocales) {
-			kryo.writeObject(output, locale);
-		}
+		// the attribute locales are always sorted to ensure the same order of attributes in the serialized form
+		attributeLocales.stream().sorted(Comparator.comparing(Locale::toLanguageTag)).forEach(locale -> kryo.writeObject(output, locale));
 
 		final Set<AssociatedDataKey> associatedDataKeys = object.getAssociatedDataKeys();
 		output.writeVarInt(associatedDataKeys.size(), true);
-		for (AssociatedDataKey associatedDataKey : associatedDataKeys) {
-			output.writeVarInt(keyCompressor.getId(associatedDataKey), true);
-		}
+		// the associated data are always sorted to ensure the same order of attributes in the serialized form
+		// the attribute locales are always sorted to ensure the same order of attributes in the serialized form
+		associatedDataKeys.stream().sorted()
+			.forEach(associatedDataKey -> output.writeVarInt(keyCompressor.getId(associatedDataKey), true));
 	}
 
 	@Override

@@ -62,7 +62,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +106,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(@Nonnull EntitySchemaContract schema) {
@@ -116,7 +116,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(@Nonnull String type, @Nullable Integer primaryKey) {
@@ -126,7 +126,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(@Nonnull EntitySchemaContract schema, @Nullable Integer primaryKey) {
@@ -136,7 +136,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(
@@ -204,7 +204,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 			.collect(
 				Collectors.toMap(
 					ReferenceContract::getReferenceKey,
-					Function.identity()
+					Function.identity(),
+					(o, o2) -> {
+						throw new IllegalStateException("Duplicate key " + o);
+					},
+					LinkedHashMap::new
 				)
 			);
 	}

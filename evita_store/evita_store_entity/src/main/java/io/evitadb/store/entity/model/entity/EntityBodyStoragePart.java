@@ -68,6 +68,10 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	private final boolean initialRevision;
 	/**
+	 * Contains set of all associated data keys that are used in this entity.
+	 */
+	@Getter @Nonnull private final Set<AssociatedDataKey> associatedDataKeys;
+	/**
 	 * See {@link Entity#version()}.
 	 */
 	private int version;
@@ -79,10 +83,6 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * See {@link Entity#getLocales()}.
 	 */
 	@Getter @Nonnull private Set<Locale> locales;
-	/**
-	 * Contains set of all associated data keys that are used in this entity.
-	 */
-	@Getter @Nonnull private final Set<AssociatedDataKey> associatedDataKeys;
 	/**
 	 * Contains true if anything changed in this container.
 	 */
@@ -107,7 +107,14 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 		this.initialRevision = true;
 	}
 
-	public EntityBodyStoragePart(int version, @Nonnull Integer primaryKey, @Nonnull Integer parent, @Nonnull Set<Locale> locales, @Nonnull Set<Locale> attributeLocales, @Nonnull Set<AssociatedDataKey> associatedDataKeys) {
+	public EntityBodyStoragePart(
+		int version,
+		@Nonnull Integer primaryKey,
+		@Nonnull Integer parent,
+		@Nonnull Set<Locale> locales,
+		@Nonnull Set<Locale> attributeLocales,
+		@Nonnull Set<AssociatedDataKey> associatedDataKeys
+	) {
 		this.version = version;
 		this.primaryKey = primaryKey;
 		this.parent = parent;
@@ -232,13 +239,13 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 * Updates set of locales of all localized attributes of this entity.
 	 */
 	private boolean recomputeLocales() {
-		final Set<Locale> recomputedLocales = Stream.concat(
+		final LinkedHashSet<Locale> recomputedLocales = Stream.concat(
 				attributeLocales.stream(),
 				associatedDataKeys.stream()
 					.map(AssociatedDataKey::locale)
 					.filter(Objects::nonNull)
 			)
-			.collect(Collectors.toSet());
+			.collect(Collectors.toCollection(LinkedHashSet::new));
 
 		if (!this.locales.equals(recomputedLocales)) {
 			this.locales = recomputedLocales;

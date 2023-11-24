@@ -68,6 +68,16 @@ public class ReferenceAttributes extends Attributes<AttributeSchemaContract> {
 		this.referenceSchema = referenceSchema;
 	}
 
+	public ReferenceAttributes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Map<AttributeKey, AttributeValue> attributeValues,
+		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
+	) {
+		super(entitySchema, attributeValues, attributeTypes);
+		this.referenceSchema = referenceSchema;
+	}
+
 	@Nonnull
 	@Override
 	protected AttributeNotFoundException createAttributeNotFoundException(@Nonnull String attributeName) {
