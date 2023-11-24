@@ -86,9 +86,9 @@ class ClassifierUtilsTest {
 	void shouldNotAcceptKeywords() {
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primaryKey"));
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PRIMARY_KEY"));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primarykey"));
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary-key"));
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary_key"));
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PrimaryKey"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primarykey"));
 	}
 }
