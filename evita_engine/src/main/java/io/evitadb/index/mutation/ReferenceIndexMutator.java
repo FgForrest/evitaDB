@@ -182,7 +182,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey
 	) {
 		// we need to index referenced entity primary key into the reference type index
-		referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey(), executor.getContainerAccessor());
+		referenceTypeIndex.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey(), executor.getContainerAccessor());
 
 		// add facet to global index
 		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey);
@@ -210,7 +210,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceKey referenceKey
 	) {
 		// we need to remove referenced entity primary key from the reference type index
-		referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey(), executor.getContainerAccessor());
+		referenceTypeIndex.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey(), executor.getContainerAccessor());
 
 		// remove facet from global and index
 		removeFacetInIndex(entityIndex, referenceKey, executor, entityType, entityPrimaryKey);

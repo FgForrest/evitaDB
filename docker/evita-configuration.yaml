@@ -9,6 +9,7 @@ server:
   killTimedOutShortRunningThreadsEverySeconds: ${server.killTimedOutShortRunningThreadsEverySeconds:30}
   closeSessionsAfterSecondsOfInactivity: ${server.closeSessionsAfterSecondsOfInactivity:60}
   readOnly: ${server.readOnly:false}
+  quiet: ${server.quiet:false}
 
 storage:
   storageDirectory: ${storage.storageDirectory:null}

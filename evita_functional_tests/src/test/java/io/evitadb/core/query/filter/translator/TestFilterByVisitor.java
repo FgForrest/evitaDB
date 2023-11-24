@@ -27,6 +27,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -65,9 +66,9 @@ import java.util.stream.Stream;
 public class TestFilterByVisitor extends FilterByVisitor {
 	@Getter private final EntitySchemaContract schema;
 	@Getter private final EvitaRequest evitaRequest;
-	private final Map<Integer, Entity> entities;
+	private final Map<Integer, SealedEntity> entities;
 
-	public TestFilterByVisitor(CatalogSchemaContract catalogSchema, EntitySchemaContract entitySchema, Query query, Map<Integer, Entity> entities) {
+	public TestFilterByVisitor(CatalogSchemaContract catalogSchema, EntitySchemaContract entitySchema, Query query, Map<Integer, SealedEntity> entities) {
 		super(
 			new ProcessingScope<>(
 				EntityIndex.class,
@@ -114,7 +115,7 @@ public class TestFilterByVisitor extends FilterByVisitor {
 	public List<EntityDecorator> getPrefetchedEntities() {
 		return this.entities.values().stream().map(
 			it -> Entity.decorate(
-				it,
+				toEntity(it),
 				getSchema(),
 				null,
 				new LocaleSerializablePredicate(evitaRequest),
@@ -127,6 +128,17 @@ public class TestFilterByVisitor extends FilterByVisitor {
 				null
 			)
 		).toList();
+	}
+
+	@Nonnull
+	private Entity toEntity(@Nonnull SealedEntity sealedEntity) {
+		if (sealedEntity instanceof Entity entity) {
+			return entity;
+		} else if (sealedEntity instanceof EntityDecorator entityDecorator) {
+			return entityDecorator.getDelegate();
+		} else {
+			throw new IllegalStateException("Unknown entity type");
+		}
 	}
 
 	@Override

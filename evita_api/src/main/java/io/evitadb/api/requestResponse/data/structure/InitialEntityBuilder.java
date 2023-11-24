@@ -431,6 +431,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
+	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+		references.put(referenceBuilder.getReferenceKey(), referenceBuilder.build());
+	}
+
+	@Override
 	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
 		this.references.remove(new ReferenceKey(referenceName, referencedPrimaryKey));
 		return this;

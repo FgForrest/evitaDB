@@ -98,9 +98,11 @@ public interface CategoryInterface extends EntityClassifier {
 	@Nonnull
 	String getName(@Nonnull Locale locale);
 
+	@Nonnull
 	@AttributeRef(DataGenerator.ATTRIBUTE_PRIORITY)
 	Long getPriority();
 
+	@Nullable
 	@AttributeRef(DataGenerator.ATTRIBUTE_VALIDITY)
 	DateTimeRange getValidity();
 

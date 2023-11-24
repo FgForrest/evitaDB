@@ -88,7 +88,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * doesn't represent one, it is converted to {@link ComplexDataObject} automatically.
 	 */
 	public static Serializable getSerializableForm(@Nonnull Serializable container) {
-		if (EvitaDataTypes.isSupportedTypeOrItsArray(container.getClass())) {
+		if (container instanceof ComplexDataObject || container instanceof ComplexDataObject[]) {
+			return container;
+		} else if (EvitaDataTypes.isSupportedTypeOrItsArray(container.getClass())) {
 			return container;
 		} else {
 			return new ComplexDataObjectConverter<>(container).getSerializableForm();
@@ -104,10 +106,15 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		@Nonnull Class<T> requestedClass,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		//noinspection unchecked
-		return EvitaDataTypes.isSupportedType(container.getClass()) ?
-			(T) container :
-			new ComplexDataObjectConverter<>(requestedClass, reflectionLookup).getOriginalForm(container);
+		if (requestedClass.isInstance(container)) {
+			//noinspection unchecked
+			return (T) container;
+		} else {
+			//noinspection unchecked
+			return EvitaDataTypes.isSupportedType(container.getClass()) ?
+				(T) container :
+				new ComplexDataObjectConverter<>(requestedClass, reflectionLookup).getOriginalForm(container);
+		}
 	}
 
 	/**
@@ -136,7 +143,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * doesn't represent one, it is converted to {@link ComplexDataObject} automatically.
 	 */
 	public Serializable getSerializableForm() {
-		if (container instanceof ComplexDataObject) {
+		if (container instanceof ComplexDataObject || container instanceof ComplexDataObject[]) {
 			return container;
 		} else {
 			final Class<?> type = container.getClass().isArray() ?
@@ -301,7 +308,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			} else {
 				return new DataItemValue(propertyValue.toString());
 			}
-		} else if (propertyClass.isAssignableFrom(Set.class)) {
+		} else if (Set.class.isAssignableFrom(propertyClass)) {
 			if (propertyValue == null) {
 				final Class<? extends Serializable> valueType = reflectionLookup.extractGenericType(propertyType, 0);
 				assertSerializable(valueType);
@@ -313,7 +320,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			} else {
 				return serializeSet(propertyName, propertyType, reflectionLookup, (Set<?>) propertyValue);
 			}
-		} else if (propertyClass.isAssignableFrom(List.class)) {
+		} else if (List.class.isAssignableFrom(propertyClass)) {
 			if (propertyValue == null) {
 				final Class<? extends Serializable> valueType = reflectionLookup.extractGenericType(propertyType, 0);
 				assertSerializable(valueType);
@@ -324,17 +331,6 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				return new DataItemArray(EMPTY_DATA_ITEMS);
 			} else {
 				return serializeList(propertyName, propertyType, reflectionLookup, (List<?>) propertyValue);
-			}
-		} else if (propertyClass.isAssignableFrom(Object[].class)) {
-			final Class<?> arrayType = propertyClass.getComponentType();
-			assertSerializable(arrayType);
-			if (propertyValue == null) {
-				return null;
-			} else if (Array.getLength(propertyValue) == 0) {
-				return new DataItemArray(EMPTY_DATA_ITEMS);
-			} else {
-				//noinspection unchecked
-				return serializeArray(propertyName, (Class<? extends Serializable>) arrayType, reflectionLookup, (Object[]) propertyValue);
 			}
 		} else if (propertyClass.isArray()) {
 			final Class<?> arrayType = propertyClass.getComponentType();
@@ -347,7 +343,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				//noinspection unchecked
 				return serializePrimitiveArray(propertyName, (Class<? extends Serializable>) arrayType, reflectionLookup, propertyValue);
 			}
-		} else if (propertyClass.isAssignableFrom(Map.class)) {
+		} else if (Map.class.isAssignableFrom(propertyClass)) {
 			if (propertyValue == null) {
 				return null;
 			} else if (((Map<?, ?>) propertyValue).isEmpty()) {

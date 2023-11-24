@@ -39,6 +39,7 @@ import io.evitadb.utils.MemoryMeasuringConstants;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -216,8 +217,8 @@ public interface EntityContract extends EntityClassifierWithParent,
 		if (PricesContract.anyPriceDifferBetween(this, otherEntity)) return true;
 		if (!getLocales().equals(otherEntity.getLocales())) return true;
 
-		final Collection<ReferenceContract> thisReferences = getReferences();
-		final Collection<ReferenceContract> otherReferences = otherEntity.getReferences();
+		final Collection<ReferenceContract> thisReferences = referencesAvailable() ? getReferences() : Collections.emptyList();
+		final Collection<ReferenceContract> otherReferences = otherEntity.referencesAvailable() ? otherEntity.getReferences() : Collections.emptyList();
 		if (thisReferences.size() != otherReferences.size()) return true;
 		for (ReferenceContract thisReference : thisReferences) {
 			final ReferenceKey thisKey = thisReference.getReferenceKey();

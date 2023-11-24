@@ -52,6 +52,13 @@ public class ContextMissingException extends EvitaInvalidUsageException {
 		);
 	}
 
+	public static ContextMissingException hierarchyEntityContextMissing() {
+		return new ContextMissingException(
+			"Parent entity was not fetched along with the entity. You need to use `hierarchyContent` with `entityFetch` " +
+				"requirement in your `require` part of the query."
+		);
+	}
+
 	public static ContextMissingException attributeContextMissing() {
 		return new ContextMissingException(
 			"No attributes were fetched along with the entity. You need to use `attributeContent` requirement in " +
@@ -162,6 +169,22 @@ public class ContextMissingException extends EvitaInvalidUsageException {
 		return new ContextMissingException(
 			"Reference `" + referenceName + "` was not fetched along with the entity. You need to use `referenceContent` requirement in " +
 				"your `require` part of the query."
+		);
+	}
+
+	public static ContextMissingException referencedEntityContextMissing(@Nonnull String entityName, @Nonnull String referenceName) {
+		return new ContextMissingException(
+			"Entity `" + entityName + "` references of type `" +
+				referenceName + "` were not fetched with `entityFetch` requirement. " +
+				"Related entity body is not available."
+		);
+	}
+
+	public static ContextMissingException referencedEntityGroupContextMissing(@Nonnull String entityName, @Nonnull String referenceName) {
+		return new ContextMissingException(
+			"Entity `" + entityName + "` references of type `" +
+				referenceName + "` were not fetched with `entityGroupFetch` requirement. " +
+				"Related entity group body is not available."
 		);
 	}
 

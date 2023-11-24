@@ -367,12 +367,10 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 	}
 
 	@Test
-	void shouldFailRemovingNonExistingAttribute() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
-				.addMutation(new RemoveAttributeMutation("abc"))
-		);
+	void shouldIgnoreInvalidMutation() {
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes);
+		builder.addMutation(new RemoveAttributeMutation("abc"));
+		assertEquals(0L, builder.buildChangeSet().count());
 	}
 
 	@Test

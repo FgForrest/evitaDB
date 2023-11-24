@@ -28,8 +28,10 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * Interface is used to create proxy instances of sealed entity references when client code calls query method on
@@ -43,17 +45,21 @@ public interface ProxyReferenceFactory {
 	 * Creates proxy instance of sealed entity that implements `expectedType` contract. Entity proxy respects
 	 * request context used in the query that fetched {@link SealedEntity}.
 	 *
-	 * @param expectedType contract that the proxy should implement
-	 * @param entity       owner entity
-	 * @param reference    reference instance to create proxy for
-	 * @param <T>          type of contract that the proxy should implement
+	 * @param mainType                contract of the main entity proxy
+	 * @param expectedType            contract that the proxy should implement
+	 * @param entity                  owner entity
+	 * @param referencedEntitySchemas the entity schemas of entities that might be referenced by the reference schema
+	 * @param reference               reference instance to create proxy for
+	 * @param <T>                     type of contract that the proxy should implement
 	 * @return proxy instance of sealed entity
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
 	 */
 	@Nonnull
 	<T> T createEntityReferenceProxy(
+		@Nonnull Class<?> mainType,
 		@Nonnull Class<T> expectedType,
 		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas,
 		@Nonnull ReferenceContract reference
 	) throws EntityClassInvalidException;
 

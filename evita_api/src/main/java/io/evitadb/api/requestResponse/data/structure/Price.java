@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.proxy.impl.entityBuilder.SetPriceMethodClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -122,6 +123,50 @@ public record Price(
 		this(version, priceKey, innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, sellable, false);
 	}
 
+	/**
+	 * This constructor is used by {@link SetPriceMethodClassifier}.
+	 *
+	 * @param priceId         the identification of the price in the external systems
+	 * @param priceList       identification of the price list in the external system
+	 * @param currency        identification of the currency
+	 * @param innerRecordId   some special products (such as master products, or product sets) may contain prices of all "subordinate" products
+	 * @param priceWithoutTax price without tax
+	 * @param taxRate         tax rate percentage (i.e. for 19% it'll be 19.00)
+	 * @param priceWithTax    price with tax
+	 * @param validity        date and time interval for which the price is valid (inclusive)
+	 * @param sellable        controls whether price is subject to filtering / sorting logic
+	 */
+	public Price(
+		int priceId, //0
+		@Nonnull String priceList, //1
+		@Nonnull Currency currency, //2
+		@Nullable Integer innerRecordId, //3
+		@Nonnull BigDecimal priceWithoutTax, //4
+		@Nonnull BigDecimal taxRate, //5
+		@Nonnull BigDecimal priceWithTax, //6
+		@Nullable DateTimeRange validity, //7
+		boolean sellable //8
+	) {
+		this(0, new PriceKey(priceId, priceList, currency), innerRecordId, priceWithoutTax, taxRate, priceWithTax, validity, sellable, false);
+	}
+
+	@Override
+	public int priceId() {
+		return priceKey.priceId();
+	}
+
+	@Nonnull
+	@Override
+	public String priceList() {
+		return priceKey.priceList();
+	}
+
+	@Nonnull
+	@Override
+	public Currency currency() {
+		return priceKey.currency();
+	}
+
 	@Override
 	public int estimateSize() {
 		return MemoryMeasuringConstants.OBJECT_HEADER_SIZE +
@@ -145,23 +190,6 @@ public record Price(
 			3 * (MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.BIG_DECIMAL_SIZE) +
 			// validity
 			MemoryMeasuringConstants.REFERENCE_SIZE + ofNullable(validity).stream().mapToInt(EvitaDataTypes::estimateSize).sum();
-	}
-
-	@Override
-	public int priceId() {
-		return priceKey.priceId();
-	}
-
-	@Nonnull
-	@Override
-	public String priceList() {
-		return priceKey.priceList();
-	}
-
-	@Nonnull
-	@Override
-	public Currency currency() {
-		return priceKey.currency();
 	}
 
 	@Override
@@ -252,8 +280,8 @@ public record Price(
 	 */
 	@NoArgsConstructor(access = AccessLevel.PRIVATE)
 	public static class PriceIdFirstPriceKeyComparator implements Comparator<PriceKey>, Serializable {
-		@Serial private static final long serialVersionUID = -1011508715822385723L;
 		public static final PriceIdFirstPriceKeyComparator INSTANCE = new PriceIdFirstPriceKeyComparator();
+		@Serial private static final long serialVersionUID = -1011508715822385723L;
 
 		@Override
 		public int compare(PriceKey o1, PriceKey o2) {

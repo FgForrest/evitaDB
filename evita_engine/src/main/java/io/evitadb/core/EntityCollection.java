@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -380,7 +381,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 
 	@Override
 	@Nonnull
-	public EntityDecorator enrichEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+	public EntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		final ReferenceFetcher referenceFetcher;
 		try (final QueryContext queryContext = createQueryContext(evitaRequest, session)) {
@@ -393,20 +394,20 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 					referenceEntityFetch,
 					evitaRequest.getDefaultReferenceRequirement(),
 					queryContext,
-					sealedEntity
+					entity
 				);
 		}
 
 		return enrichEntity(
-			referenceFetcher.initReferenceIndex((EntityDecorator) sealedEntity, this),
+			referenceFetcher.initReferenceIndex((EntityDecorator) entity, this),
 			evitaRequest, referenceFetcher
 		);
 	}
 
 	@Override
 	@Nonnull
-	public SealedEntity limitEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
-		final EntityDecorator widerEntity = (EntityDecorator) sealedEntity;
+	public SealedEntity limitEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		final EntityDecorator widerEntity = (EntityDecorator) entity;
 		final LocaleSerializablePredicate newLocalePredicate = new LocaleSerializablePredicate(evitaRequest, widerEntity.getLocalePredicate());
 		final HierarchySerializablePredicate newHierarchyPredicate = new HierarchySerializablePredicate(evitaRequest, widerEntity.getHierarchyPredicate());
 		final AttributeValueSerializablePredicate newAttributePredicate = new AttributeValueSerializablePredicate(evitaRequest, widerEntity.getAttributePredicate());
@@ -431,7 +432,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 			// show / hide price information
 			newPricePredicate,
 			// propagate original date time
-			((EntityDecorator) sealedEntity).getAlignedNow()
+			((EntityDecorator) entity).getAlignedNow()
 		);
 	}
 
@@ -659,7 +660,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 		}
-		return getSchema();
+
+		final SealedEntitySchema schemaResult = getSchema();
+		this.catalogAccessor.get().entitySchemaUpdated(schemaResult);
+		return schemaResult;
 	}
 
 	@Override
@@ -1046,7 +1050,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		if (entity instanceof EntityClassifier entityClassifier) {
 			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
 		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
-			return Objects.requireNonNull(sealedEntityProxy.getSealedEntity().getPrimaryKey());
+			return Objects.requireNonNull(sealedEntityProxy.getEntity().getPrimaryKey());
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
