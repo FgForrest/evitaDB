@@ -14,8 +14,7 @@ query(
         facetSummaryOfReference(
             'groups',
             IMPACT,
-            entityFetch(attributeContent('code')),
-            entityGroupFetch(attributeContent('code'))
+            entityFetch(attributeContent('code'))
         ),
         facetGroupsConjunction('groups')
     )

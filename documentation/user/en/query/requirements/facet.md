@@ -325,21 +325,33 @@ the references, facet groups, and facets - to get them we would have to add [the
 ### Fetching facet (group) bodies
 
 <LanguageSpecific to="evitaql,java,csharp,rest">
+
 The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
 add [`entityFetch`](#entity-fetch) or [`entityGroupFetch`](#entity-group-fetch) requirement to the query. Let's modify 
 the example to fetch the facet summary along with the codes of the facets and their groups:
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
-The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
-request [`facetEntity`](#entity-fetch) or [`groupEntity`](#entity-group-fetch) fields. Let's modify 
-the example to fetch the facet summary along with the codes of the facets and their groups:
-</LanguageSpecific>
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation with bodies for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.evitaql)
 
 </SourceCodeTabs>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
+request [`facetEntity`](#entity-fetch) or [`groupEntity`](#entity-group-fetch) fields. Let's modify 
+the example to fetch the facet summary along with the codes of the facets and their groups:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet summary calculation with bodies for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.evitaql)
+
+</SourceCodeTabs>
+
+
+</LanguageSpecific>
 
 <Note type="info">
 
@@ -359,23 +371,36 @@ of the facets and their respective groups:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 If you add the desired locale to the query and also list localized names, you'll get a result that's very close to 
 the version you want to see in the user interface:
 
+<LanguageSpecific to="evitaql,java,csharp">
+
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Facet summary calculation with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.evitaql)
 
 </SourceCodeTabs>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Facet summary calculation with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-localized-bodies.evitaql)
+
+</SourceCodeTabs>
+
+</LanguageSpecific>
 
 <LanguageSpecific to="evitaql,java,csharp">
 
@@ -384,12 +409,12 @@ the version you want to see in the user interface:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-localized-bodies.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summary with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-localized-bodies.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -893,7 +918,7 @@ with default behavior predicts only a dozen of them:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summarization with negated facet relation behavior in the group](/documentation/user/en/query/requirements/examples/facet/facet-groups-negation.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summarization with negated facet relation behavior in the group](/documentation/user/en/query/requirements/examples/facet/facet-groups-negation.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
