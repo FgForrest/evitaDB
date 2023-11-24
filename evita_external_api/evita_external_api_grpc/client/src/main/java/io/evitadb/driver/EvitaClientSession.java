@@ -41,6 +41,7 @@ import io.evitadb.api.exception.UnexpectedResultException;
 import io.evitadb.api.exception.UnexpectedTransactionStateException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
+import io.evitadb.api.proxy.SealedEntityReferenceProxy;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -58,10 +59,13 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.InstanceEditor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -77,13 +81,13 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.DataChunk;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.driver.requestResponse.schema.ClientCatalogSchemaDecorator;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.data.EntityConverter;
@@ -110,8 +114,10 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -121,6 +127,8 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
@@ -155,18 +163,18 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Function that extracts the entityType from the entity class in an optimized (memoized) way.
 	 */
-	private static final BiFunction<ReflectionLookup, Class<?>, String> ENTITY_TYPE_EXTRACTOR = (reflectionLookup, theClass) -> reflectionLookup.extractFromClass(
+	private static final BiFunction<ReflectionLookup, Class<?>, Optional<String>> ENTITY_TYPE_EXTRACTOR = (reflectionLookup, theClass) -> reflectionLookup.extractFromClass(
 		theClass, EntityRef.class,
 		clazz -> {
 			final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
 			if (entityRef != null) {
-				return entityRef.value();
+				return of(entityRef.value());
 			}
 			final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
 			if (entity != null) {
-				return entity.name();
+				return of(entity.name());
 			}
-			return null;
+			return empty();
 		}
 	);
 
@@ -281,37 +289,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 	}
 
-	/**
-	 * This method is internal and is a special form of {@link #getCatalogSchema()} that can handle the situation when
-	 * this particular session is already closed and opens a new temporary one for accessing the schemas on the server
-	 * side when necessary.
-	 *
-	 * @param evita - reference to the {@link EvitaClient} instance that is used to open a new temporary session when necessary
-	 * @return {@link SealedCatalogSchema} of the catalog targeted by this session
-	 */
-	@Nonnull
-	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
-		assertActive();
-		return schemaCache.getLatestCatalogSchema(
-			() -> isActive() ?
-				this.fetchCatalogSchema() :
-				evita.queryCatalog(
-					catalogName,
-					session -> {
-						return ((EvitaClientSession)session).fetchCatalogSchema();
-					}
-				),
-			entityType -> isActive() ?
-				this.getEntitySchema(entityType).orElse(null) :
-				evita.queryCatalog(
-					catalogName,
-					session -> {
-						return session.getEntitySchema(entityType).orElse(null);
-					}
-				)
-		);
-	}
-
 	@Nonnull
 	@Override
 	public String getCatalogName() {
@@ -413,7 +390,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
-		return getEntitySchema(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass));
+		return getEntitySchema(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
+		);
 	}
 
 	@Nonnull
@@ -427,7 +407,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull Class<?> modelClass) throws CollectionNotFoundException, EntityClassInvalidException {
-		return getEntitySchemaOrThrow(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass));
+		return getEntitySchemaOrThrow(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
+		);
 	}
 
 	@Nonnull
@@ -449,8 +432,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-			this.proxyFactory::createEntityProxy
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType).orElse(null),
+			this::createEntityProxy
 		);
 		return queryOneInternal(query, expectedType, evitaRequest);
 	}
@@ -462,8 +445,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			query,
 			OffsetDateTime.now(),
 			expectedType,
-			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-			this.proxyFactory::createEntityProxy
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType).orElse(null),
+			this::createEntityProxy
 		);
 		return queryListInternal(query, expectedType, evitaRequest);
 	}
@@ -473,7 +456,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
-		final String entityTypeByExpectedType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType);
+		final String entityTypeByExpectedType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+			.orElse(null);
 
 		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
@@ -504,7 +488,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						OffsetDateTime.now(),
 						EntityReference.class,
 						null,
-						this.proxyFactory::createEntityProxy
+						this::createEntityProxy
 					)
 				)
 			);
@@ -521,7 +505,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 							OffsetDateTime.now(),
 							expectedType,
 							entityTypeByExpectedType,
-							this.proxyFactory::createEntityProxy
+							this::createEntityProxy
 						),
 						(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrow(
 							entityType, schemaVersion, this::fetchEntitySchema, this::getCatalogSchema
@@ -531,6 +515,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			} else {
 				// parse the entities
+				//noinspection unchecked
 				recordPage = ResponseConverter.convertToDataChunk(
 					grpcResponse,
 					grpcRecordPage -> grpcRecordPage.getBinaryEntitiesList()
@@ -551,7 +536,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						OffsetDateTime.now(),
 						expectedType,
 						entityTypeByExpectedType,
-						this.proxyFactory::createEntityProxy
+						this::createEntityProxy
 					)
 				)
 			);
@@ -589,7 +574,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			OffsetDateTime.now(),
 			SealedEntity.class,
 			null,
-			this.proxyFactory::createEntityProxy
+			this::createEntityProxy
 		);
 		return getEntityInternal(entityType, SealedEntity.class, primaryKey, evitaRequest, require);
 	}
@@ -597,7 +582,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> getEntity(@Nonnull Class<T> expectedType, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
-		final String entityType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType);
+		final String entityType = ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+			.orElseThrow(() -> new CollectionNotFoundException(expectedType));
 		final EvitaRequest evitaRequest = new EvitaRequest(
 			Query.query(
 				collection(entityType),
@@ -607,8 +593,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-			this.proxyFactory::createEntityProxy
+			entityType,
+			this::createEntityProxy
 		);
 		return getEntityInternal(entityType, expectedType, primaryKey, evitaRequest, require);
 	}
@@ -625,8 +611,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			entityType = entityClassifier.getType();
 			entityPk = entityClassifier.getPrimaryKey();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.getSealedEntity().getType();
-			entityPk = sealedEntityProxy.getSealedEntity().getPrimaryKey();
+			entityType = sealedEntityProxy.getEntity().getType();
+			entityPk = sealedEntityProxy.getEntity().getPrimaryKey();
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
@@ -645,8 +631,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-			this.proxyFactory::createEntityProxy
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+				.orElse(null),
+			this::createEntityProxy
 		);
 
 		//noinspection unchecked
@@ -666,8 +653,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			entityType = entityClassifier.getType();
 			entityPk = entityClassifier.getPrimaryKey();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.getSealedEntity().getType();
-			entityPk = sealedEntityProxy.getSealedEntity().getPrimaryKey();
+			entityType = sealedEntityProxy.getEntity().getType();
+			entityPk = sealedEntityProxy.getEntity().getPrimaryKey();
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
@@ -687,8 +674,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 			),
 			OffsetDateTime.now(),
 			expectedType,
-			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-			this.proxyFactory::createEntityProxy
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+				.orElse(null),
+			this::createEntityProxy
 		);
 
 		//noinspection unchecked
@@ -800,7 +788,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Override
 	public boolean deleteCollection(@Nonnull Class<?> modelClass) throws EntityClassInvalidException {
-		return deleteCollection(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass));
+		return deleteCollection(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass))
+		);
 	}
 
 	@Override
@@ -877,6 +868,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
+	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType) {
+		assertActive();
+		final EntityBuilder entityBuilder = createNewEntity(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+				.orElseThrow(() -> new CollectionNotFoundException(expectedType))
+		);
+		return this.proxyFactory.createEntityProxy(expectedType, entityBuilder, getEntitySchemaIndex());
+	}
+
+	@Nonnull
+	@Override
 	public EntityBuilder createNewEntity(@Nonnull String entityType, int primaryKey) {
 		assertActive();
 		return executeInTransactionIfPossible(
@@ -896,10 +898,106 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public EntityReference upsertEntity(@Nonnull EntityBuilder entityBuilder) {
-		return entityBuilder.toMutation()
-			.map(this::upsertEntity)
-			.orElseGet(() -> new EntityReference(entityBuilder.getType(), entityBuilder.getPrimaryKey()));
+	public <S extends Serializable> S createNewEntity(@Nonnull Class<S> expectedType, int primaryKey) {
+		assertActive();
+		final EntityBuilder entityBuilder = createNewEntity(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+				.orElseThrow(() -> new CollectionNotFoundException(expectedType)),
+			primaryKey
+		);
+		return this.proxyFactory.createEntityProxy(expectedType, entityBuilder, getEntitySchemaIndex());
+	}
+
+	@Nonnull
+	@Override
+	public <S extends Serializable> EntityReference upsertEntity(@Nonnull S customEntity) {
+		if (customEntity instanceof InstanceEditor<?> ie && EntityContract.class.isAssignableFrom(ie.getContract())) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.orElseGet(() -> {
+					// no modification occurred, we can return the reference to the original entity
+					// the `toInstance` method should be cost-free in this case, as no modifications occurred
+					final EntityContract entity = (EntityContract) ie.toInstance();
+					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+				});
+		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			return sealedEntityProxy.getEntityBuilderWithCallback()
+				.map(entityMutation -> {
+					final EntityReference entityReference = upsertEntity(entityMutation.builder());
+					entityMutation.updateEntityReference(entityReference);
+					return entityReference;
+				})
+				.orElseGet(() -> {
+					// no modification occurred, we can return the reference to the original entity
+					// the `toInstance` method should be cost-free in this case, as no modifications occurred
+					final EntityContract entity = sealedEntityProxy.getEntity();
+					return new EntityReference(entity.getType(), entity.getPrimaryKey());
+				});
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntity` expects an instance of InstanceEditor, " +
+					"yet the provided instance is of type `" + customEntity.getClass() + "` doesn't implement it!",
+				"Invalid usage of method `upsertEntity`!"
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public <S extends Serializable> List<EntityReference> upsertEntityDeeply(@Nonnull S customEntity) {
+		if (customEntity instanceof SealedEntityReferenceProxy sealedEntityReferenceProxy) {
+			return Stream.concat(
+					// we need first to store the referenced entities (deep wise)
+					sealedEntityReferenceProxy.getReferencedEntityBuildersWithCallback()
+						.map(entityBuilderWithCallback -> {
+							final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+							entityBuilderWithCallback.updateEntityReference(entityReference);
+							return entityReference;
+						}),
+					// and then the reference itself
+					sealedEntityReferenceProxy
+						.getReferenceBuilderIfPresent()
+						.stream()
+						.map(it -> {
+								final EntityClassifier entityClassifier = sealedEntityReferenceProxy.getEntityClassifier();
+								final EntityUpsertMutation entityUpsertMutation = new EntityUpsertMutation(
+									entityClassifier.getType(),
+									entityClassifier.getPrimaryKey(),
+									EntityExistence.MUST_EXIST,
+									it.buildChangeSet().collect(Collectors.toList())
+								);
+								final EntityReference entityReference = this.upsertEntity(entityUpsertMutation);
+								sealedEntityReferenceProxy.notifyBuilderUpserted();
+								return entityReference;
+							}
+						)
+				)
+				.toList();
+		} else if (customEntity instanceof SealedEntityProxy sealedEntityProxy) {
+			return Stream.concat(
+					// we need first to store the referenced entities (deep wise)
+					sealedEntityProxy.getReferencedEntityBuildersWithCallback(),
+					// then the entity itself
+					sealedEntityProxy.getEntityBuilderWithCallback().stream()
+				)
+				.map(entityBuilderWithCallback -> {
+					final EntityReference entityReference = upsertEntity(entityBuilderWithCallback.builder());
+					entityBuilderWithCallback.updateEntityReference(entityReference);
+					return entityReference;
+				})
+				.toList();
+		} else if (customEntity instanceof InstanceEditor<?> ie) {
+			return ie.toMutation()
+				.map(this::upsertEntity)
+				.map(List::of)
+				.orElse(Collections.emptyList());
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Method `upsertEntity` expects an instance of InstanceEditor, " +
+					"yet the provided instance is of type `" + customEntity.getClass() + "` doesn't implement it!",
+				"Invalid usage of method `upsertEntity`!"
+			);
+		}
 	}
 
 	@Nonnull
@@ -969,7 +1067,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 					OffsetDateTime.now(),
 					SealedEntity.class,
 					null,
-					this.proxyFactory::createEntityProxy
+					this::createEntityProxy
 				),
 				grpcResponse.getEntity(),
 				SealedEntity.class
@@ -996,7 +1094,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Override
 	public boolean deleteEntity(@Nonnull Class<?> modelClass, int primaryKey) throws EntityClassInvalidException {
-		return deleteEntity(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass), primaryKey);
+		return deleteEntity(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			primaryKey
+		);
 	}
 
 	@Nonnull
@@ -1008,7 +1110,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EntityClassInvalidException {
-		return deleteEntityInternal(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass), modelClass, primaryKey, require);
+		return deleteEntityInternal(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			modelClass, primaryKey, require
+		);
 	}
 
 	@Override
@@ -1037,7 +1143,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Nonnull
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull Class<T> modelClass, int primaryKey, EntityContentRequire... require) throws EvitaInvalidUsageException, EntityClassInvalidException {
-		return deleteEntityHierarchyInternal(ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass), modelClass, primaryKey, require);
+		return deleteEntityHierarchyInternal(
+			ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, modelClass)
+				.orElseThrow(() -> new CollectionNotFoundException(modelClass)),
+			modelClass, primaryKey, require
+		);
 	}
 
 	@Override
@@ -1073,7 +1183,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				OffsetDateTime.now(),
 				SealedEntity.class,
 				null,
-				this.proxyFactory::createEntityProxy
+				this::createEntityProxy
 			);
 			final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 			final GrpcDeleteEntitiesResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
@@ -1171,6 +1281,37 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
+	 * This method is internal and is a special form of {@link #getCatalogSchema()} that can handle the situation when
+	 * this particular session is already closed and opens a new temporary one for accessing the schemas on the server
+	 * side when necessary.
+	 *
+	 * @param evita - reference to the {@link EvitaClient} instance that is used to open a new temporary session when necessary
+	 * @return {@link SealedCatalogSchema} of the catalog targeted by this session
+	 */
+	@Nonnull
+	public SealedCatalogSchema getCatalogSchema(@Nonnull EvitaClient evita) {
+		assertActive();
+		return schemaCache.getLatestCatalogSchema(
+			() -> isActive() ?
+				this.fetchCatalogSchema() :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return ((EvitaClientSession) session).fetchCatalogSchema();
+					}
+				),
+			entityType -> isActive() ?
+				this.getEntitySchema(entityType).orElse(null) :
+				evita.queryCatalog(
+					catalogName,
+					session -> {
+						return session.getEntitySchema(entityType).orElse(null);
+					}
+				)
+		);
+	}
+
+	/**
 	 * Method internally closes the session
 	 */
 	public void closeInternally() {
@@ -1180,6 +1321,34 @@ public class EvitaClientSession implements EvitaSessionContract {
 			ofNullable(onTerminationCallback)
 				.ifPresent(it -> it.accept(this));
 		}
+	}
+
+	/**
+	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
+	 *
+	 * @param contract contract of the entity to be created
+	 * @param sealedEntity sealed entity to be used as a source of data
+	 * @return new instance of the entity proxy
+	 * @param <S> type of the entity
+	 */
+	@Nonnull
+	private <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
+		return this.proxyFactory.createEntityProxy(contract, sealedEntity, getEntitySchemaIndex());
+	}
+
+	/**
+	 * Returns map with current catalog {@link EntitySchemaContract entity schema} instances indexed by their
+	 * {@link EntitySchemaContract#getName() name}.
+	 * @return map with current catalog {@link EntitySchemaContract entity schema} instances
+	 * @see EvitaEntitySchemaCache#getLatestEntitySchemaIndex(Supplier, Function, Supplier)
+	 */
+	@Nonnull
+	private Map<String, EntitySchemaContract> getEntitySchemaIndex() {
+		return schemaCache.getLatestEntitySchemaIndex(
+			this::getAllEntityTypes,
+			this::fetchEntitySchema,
+			this::getCatalogSchema
+		);
 	}
 
 	@Nonnull
@@ -1263,6 +1432,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				);
 			} else {
 				// parse the entities
+				//noinspection unchecked
 				return grpcResponse.getBinaryEntitiesList()
 					.stream()
 					.map(EntityConverter::parseBinaryEntity)
@@ -1422,8 +1592,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-							this.proxyFactory::createEntityProxy
+							ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+								.orElse(null),
+							this::createEntityProxy
 						),
 						grpcResponse.getEntity(),
 						expectedType
@@ -1474,8 +1645,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 							),
 							OffsetDateTime.now(),
 							expectedType,
-							ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType),
-							this.proxyFactory::createEntityProxy
+							ENTITY_TYPE_EXTRACTOR.apply(reflectionLookup, expectedType)
+								.orElse(null),
+							this::createEntityProxy
 						),
 						grpcResponse.getDeletedRootEntity(),
 						expectedType
@@ -1602,6 +1774,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private <T> T executeInTransactionIfPossible(Function<EvitaSessionContract, T> logic) {
 		if (transactionAccessor.get() == null && getCatalogState() == CatalogState.ALIVE) {
+			//noinspection unused
 			try (final EvitaClientTransaction newTransaction = createAndInitTransaction()) {
 				try {
 					return logic.apply(this);

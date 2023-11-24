@@ -25,6 +25,10 @@ package io.evitadb.api.mock;
 
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
 import io.evitadb.api.AbstractHundredProductsFunctionalTest.TestEnum;
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.proxy.WithEntitySchema;
+import io.evitadb.api.proxy.WithLocales;
+import io.evitadb.api.proxy.WithVersion;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.annotation.*;
@@ -35,6 +39,7 @@ import io.evitadb.test.generator.DataGenerator.Labels;
 import io.evitadb.test.generator.DataGenerator.ReferencedFileSet;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -50,7 +55,7 @@ import java.util.Set;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @EntityRef(Entities.PRODUCT)
-public interface ProductInterface extends EntityClassifier {
+public interface ProductInterface extends EntityClassifier, WithEntitySchema, WithLocales, WithVersion {
 
 	@PrimaryKeyRef
 	int getId();
@@ -60,14 +65,14 @@ public interface ProductInterface extends EntityClassifier {
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_CODE)
 	@Nonnull
-	String getCode();
+	String getCode() throws ContextMissingException;
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_NAME)
 	@Nonnull
-	String getName();
+	String getName() throws ContextMissingException;
 
 	@Nonnull
-	String getName(@Nonnull Locale locale);
+	String getName(@Nonnull Locale locale) throws ContextMissingException;
 
 	@Nonnull
 	default String getEan() {
@@ -76,24 +81,24 @@ public interface ProductInterface extends EntityClassifier {
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_EAN)
 	@Nonnull
-	String getEanAsDifferentProperty();
+	String getEanAsDifferentProperty() throws ContextMissingException;
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_QUANTITY)
 	@Nonnull
-	BigDecimal getQuantity();
+	BigDecimal getQuantity() throws ContextMissingException;
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_QUANTITY)
 	@Nonnull
-	BigDecimal getQuantityAsDifferentProperty();
+	BigDecimal getQuantityAsDifferentProperty() throws ContextMissingException;
 
 	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_ENUM)
-	TestEnum getEnum();
+	TestEnum getEnum() throws ContextMissingException;
 
 	@Attribute(name = DataGenerator.ATTRIBUTE_ALIAS)
-	boolean isAlias();
+	boolean isAlias() throws ContextMissingException;
 
 	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
-	boolean isOptionallyAvailable();
+	boolean isOptionallyAvailable() throws ContextMissingException;
 
 	@Attribute(name = AbstractHundredProductsFunctionalTest.ATTRIBUTE_OPTIONAL_AVAILABILITY)
 	Optional<Boolean> getOptionallyAvailable();
@@ -105,126 +110,150 @@ public interface ProductInterface extends EntityClassifier {
 	Optional<List<String>> getMarketsAssociatedDataIfAvailable();
 
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
-	ReferencedFileSet getReferencedFileSet();
+	ReferencedFileSet getReferencedFileSet() throws ContextMissingException;
 
 	@AssociatedData(name = DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
 	Optional<ReferencedFileSet> getReferencedFileSetIfPresent();
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES)
-	ReferencedFileSet getReferencedFileSetAsDifferentProperty();
+	ReferencedFileSet getReferencedFileSetAsDifferentProperty() throws ContextMissingException;
+
+	@ReferenceRef(Entities.BRAND)
+	BrandInterface getBrand() throws ContextMissingException;
+
+	@ReferenceRef(Entities.BRAND)
+	Integer getBrandId() throws ContextMissingException;
+
+	@ReferenceRef(Entities.PARAMETER)
+	ProductParameterInterface getParameter() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Collection<Integer> getCategoryIds();
+	Collection<Integer> getCategoryIds() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	List<Integer> getCategoryIdsAsList();
+	List<Integer> getCategoryIdsAsList() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Set<Integer> getCategoryIdsAsSet();
+	Set<Integer> getCategoryIdsAsSet() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	int[] getCategoryIdsAsArray();
+	int[] getCategoryIdsAsArray() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Collection<EntityReference> getCategoryReferences();
+	Collection<EntityReference> getCategoryReferences() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	List<EntityReference> getCategoryReferencesAsList();
+	List<EntityReference> getCategoryReferencesAsList() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Set<EntityReference> getCategoryReferencesAsSet();
+	Set<EntityReference> getCategoryReferencesAsSet() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	EntityReference[] getCategoryReferencesAsArray();
+	EntityReference[] getCategoryReferencesAsArray() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Collection<ProductCategoryInterface> getProductCategories();
+	Collection<ProductCategoryInterface> getProductCategories() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	List<ProductCategoryInterface> getProductCategoriesAsList();
+	List<ProductCategoryInterface> getProductCategoriesAsList() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Set<ProductCategoryInterface> getProductCategoriesAsSet();
+	Set<ProductCategoryInterface> getProductCategoriesAsSet() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	ProductCategoryInterface[] getProductCategoriesAsArray();
+	ProductCategoryInterface[] getProductCategoriesAsArray() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Collection<CategoryInterface> getCategories();
+	Collection<CategoryInterface> getCategories() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
 	Optional<Collection<CategoryInterface>> getCategoriesIfFetched();
 
 	@ReferenceRef(Entities.CATEGORY)
-	List<CategoryInterface> getCategoriesAsList();
+	List<CategoryInterface> getCategoriesAsList() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	Set<CategoryInterface> getCategoriesAsSet();
+	Set<CategoryInterface> getCategoriesAsSet() throws ContextMissingException;
 
 	@ReferenceRef(Entities.CATEGORY)
-	CategoryInterface[] getCategoriesAsArray();
+	CategoryInterface[] getCategoriesAsArray() throws ContextMissingException;
+
+	@ReferenceRef(Entities.CATEGORY)
+	ProductCategoryInterface getCategoryById(int parameterId) throws ContextMissingException;
+
+	@ReferenceRef(Entities.PARAMETER)
+	ProductParameterInterface getParameterById(int parameterId) throws ContextMissingException;
 
 	@PriceForSale
-	PriceContract getPriceForSale();
+	PriceContract getPriceForSale() throws ContextMissingException;
 
 	@PriceForSale
 	Optional<PriceContract> getPriceForSaleIfPresent();
 
 	@PriceForSale
-	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency);
+	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency) throws ContextMissingException;
 
 	@PriceForSale
-	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency, @Nonnull OffsetDateTime validNow);
+	PriceContract getPriceForSale(@Nonnull String priceList, @Nonnull Currency currency, @Nonnull OffsetDateTime validNow) throws ContextMissingException;
 
 	@PriceForSaleRef
-	PriceContract[] getAllPricesForSale();
+	PriceContract[] getAllPricesForSale() throws ContextMissingException;
 
 	@PriceForSaleRef
-	PriceContract[] getAllPricesForSale(@Nonnull String priceList);
+	PriceContract[] getAllPricesForSale(@Nonnull String priceList) throws ContextMissingException;
 
 	@PriceForSaleRef
-	PriceContract[] getAllPricesForSale(@Nonnull Currency currency);
+	PriceContract[] getAllPricesForSale(@Nonnull Currency currency) throws ContextMissingException;
 
 	@PriceForSaleRef
-	PriceContract[] getAllPricesForSale(@Nonnull String priceList, @Nonnull Currency currency);
+	PriceContract[] getAllPricesForSale(@Nonnull String priceList, @Nonnull Currency currency) throws ContextMissingException;
 
 	@Price(priceList = "basic")
-	PriceContract getBasicPrice();
+	PriceContract getBasicPrice() throws ContextMissingException;
 
 	@Price(priceList = "basic")
 	Optional<PriceContract> getBasicPriceIfPresent();
 
 	@Price
-	Collection<PriceContract> getAllPrices();
+	Collection<PriceContract> getAllPrices() throws ContextMissingException;
 
 	@Price
-	List<PriceContract> getAllPricesAsList();
+	List<PriceContract> getAllPricesAsList() throws ContextMissingException;
 
 	@Price
-	Set<PriceContract> getAllPricesAsSet();
+	Set<PriceContract> getAllPricesAsSet() throws ContextMissingException;
 
 	@Price
-	PriceContract[] getAllPricesAsArray();
+	PriceContract[] getAllPricesAsArray() throws ContextMissingException;
 
 	@AssociatedDataRef(DataGenerator.ASSOCIATED_DATA_LABELS)
-	Labels getLabels();
+	Labels getLabels() throws ContextMissingException;
 
 	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
-	String[] getMarkets();
+	String[] getMarkets() throws ContextMissingException;
 
 	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
-	Set<String> getMarketsAsSet();
+	Set<String> getMarketsAsSet() throws ContextMissingException;
 
-	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
-	List<String> getMarketsAsList();
-
-	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
-	String[] getMarketsAttribute();
+	@AssociatedDataRef(AbstractHundredProductsFunctionalTest.ASSOCIATED_DATA_MARKETS)
+	List<String> getMarketsAsList() throws ContextMissingException;
 
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
-	Set<String> getMarketsAttributeAsSet();
+	String[] getMarketsAttribute() throws ContextMissingException;
 
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
-	List<String> getMarketsAttributeAsList();
+	Set<String> getMarketsAttributeAsSet() throws ContextMissingException;
 
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_MARKETS)
+	List<String> getMarketsAttributeAsList() throws ContextMissingException;
+
+	@Price
+	@Nullable
+	PriceContract getPrice(String priceListName, Currency currency, int priceId) throws ContextMissingException;
+
+	@ReferenceRef(Entities.STORE)
+	int[] getStores() throws ContextMissingException;
+
+	@ReferenceRef(Entities.STORE)
+	StoreInterface getStoreById(int storeId) throws ContextMissingException;
 }

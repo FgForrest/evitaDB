@@ -97,7 +97,7 @@ public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Ob
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (entity != null || entityRef != null || (
-					!reflectionLookup.hasAnnotationInSamePackage(method, Entity.class) &&
+					!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Entity.class) &&
 						(returnType.isEnum() || String.class.isAssignableFrom(returnType)) &&
 						ClassUtils.isAbstract(method) &&
 						propertyName
