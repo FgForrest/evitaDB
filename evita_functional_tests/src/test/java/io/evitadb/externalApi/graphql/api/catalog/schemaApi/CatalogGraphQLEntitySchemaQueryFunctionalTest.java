@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
+public class CatalogGraphQLEntitySchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String PRODUCT_SCHEMA_PATH = "data.getProductSchema";
 	private static final Function<String, EntitySchemaContract> FAIL_ON_CALL = s -> {

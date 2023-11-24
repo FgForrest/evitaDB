@@ -36,7 +36,7 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class StandardLogFilter extends AbstractMatcherFilter<ILoggingEvent> {
+public class AppLogFilter extends AbstractMatcherFilter<ILoggingEvent> {
 
 	@Override
 	public FilterReply decide(ILoggingEvent event) {

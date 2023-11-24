@@ -391,7 +391,10 @@ POSITIONAL_PARAMETER : '?' ;
 // special generic literal that is resolved to actual value after parsing from external map of values
 NAMED_PARAMETER : '@' [a-z] [a-zA-Z0-9]* ;
 
-STRING : '\'' .*? '\'' ;
+STRING
+    : '\'' .*? '\''
+    | '"' .*? '"'
+    ;
 
 INT : '-'? [0-9]+ ;
 
