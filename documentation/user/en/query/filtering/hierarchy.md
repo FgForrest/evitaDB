@@ -249,12 +249,12 @@ your entity hierarchy and this virtual top root is targeted by this constraint.
 
 ```evitaql-syntax
 hierarchyWithinRoot(
-    filterConstraint:(directRelation|excluding)*
+    filterConstraint:(directRelation|having|excluding)*
 )
 ```
 
 <dl>
-    <dt>filterConstraint:(directRelation|excluding)*</dt>
+    <dt>filterConstraint:(directRelation|having|excluding)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:

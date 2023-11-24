@@ -24,12 +24,15 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.AbstractHundredProductsFunctionalTest;
+import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.requestResponse.data.SealedInstance;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.test.generator.DataGenerator;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -40,40 +43,48 @@ import java.util.OptionalLong;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface ProductCategoryInterface {
+public interface ProductCategoryInterface extends Serializable, SealedInstance<ProductCategoryInterface, ProductCategoryInterfaceEditor> {
 
 	@ReferencedEntity
 	int getPrimaryKey();
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
-	Long getOrderInCategory();
+	Long getOrderInCategory() throws ContextMissingException;
+
+	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_SHADOW)
+	boolean isShadow() throws ContextMissingException;
 
 	@AttributeRef(DataGenerator.ATTRIBUTE_CATEGORY_PRIORITY)
 	OptionalLong getOrderInCategoryIfPresent();
 
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
-	String getLabel();
+	String getLabel() throws ContextMissingException;
 
 	@AttributeRef(AbstractHundredProductsFunctionalTest.ATTRIBUTE_CATEGORY_LABEL)
-	String getLabel(@Nonnull Locale locale);
+	String getLabel(@Nonnull Locale locale) throws ContextMissingException;
 
 	@ReferencedEntity
 	@Nonnull
-	CategoryInterface getCategory();
-	@ReferencedEntity
-	@Nonnull
-	Optional<CategoryInterface> getCategoryIfPresent();
+	CategoryInterface getCategory() throws ContextMissingException;
 
 	@ReferencedEntity
 	@Nonnull
-	EntityReference getCategoryReference();
+	Optional<CategoryInterface> getCategoryIfPresentAndFetched();
+
+	@ReferencedEntity
+	@Nonnull
+	Optional<CategoryInterface> getCategoryIfPresent() throws ContextMissingException;
+
+	@ReferencedEntity
+	@Nonnull
+	EntityReference getCategoryReference() throws ContextMissingException;
 
 	@ReferencedEntity
 	@Nonnull
 	Optional<EntityReference> getCategoryReferenceIfPresent();
 
 	@ReferencedEntity
-	int getCategoryReferencePrimaryKey();
+	int getCategoryReferencePrimaryKey() throws ContextMissingException;
 
 	@ReferencedEntity
 	OptionalInt getCategoryReferencePrimaryKeyIfPresent();

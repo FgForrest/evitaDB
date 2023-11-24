@@ -131,7 +131,8 @@ public class InitialPricesBuilder implements PricesBuilder {
 
 	@Override
 	public PricesBuilder removeAllNonTouchedPrices() {
-		throw new UnsupportedOperationException("This method has no sense when new entity is being created!");
+		// do nothing - every price in initial prices builder is touched
+		return this;
 	}
 
 	@Nonnull

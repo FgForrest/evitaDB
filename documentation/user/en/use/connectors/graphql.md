@@ -37,16 +37,19 @@ ones.
    <dl>
       <dt>catalog data API</dt>
       <dd>
-         A GraphQL API instance that provides ways to query and update actual data (typically entities and related data)
-        of a single catalog.
+         <p>A GraphQL API instance that provides ways to query and update actual data (typically entities and related data)
+         of a single catalog.</p>
+         <p>URL pattern: `/gql/{catalog name}`</p>
       </dd>
       <dt>catalog schema API</dt>
       <dd>
-         A GraphQL API instance that provides ways to fetch and modify the internal structure of a single catalog.
+         <p>A GraphQL API instance that provides ways to fetch and modify the internal structure of a single catalog.</p>
+         <p>URL pattern: `/gql/{catalog name}/schema`</p>
       </dd>
       <dt>system API</dt>
       <dd>
-         A GraphQL API instance that provides ways to manage evitaDB itself.
+         <p>A GraphQL API instance that provides ways to manage evitaDB itself.</p>
+         <p>URL pattern: `/gql/system`</p>
       </dd>
    </dl>
 </UsedTerms>
@@ -65,24 +68,6 @@ The <Term>catalog schema API</Term> is more of an "introspection" API, as it all
 schemas, which in turn affects the GraphQL API schema.
 
 Each GraphQL API instance supports only `POST` HTTP method for executing queries and mutations.
-
-<Note type="example">
-
-<NoteTitle toggles="true">
-
-##### What URLs will be exposed for a set of defined catalogs?
-</NoteTitle>
-
-Suppose you have catalogs `fashion` and `electronics`. evitaDB would expose the following GraphQL API instances, each 
-with its own relevant GraphQL schema:
-
-- `/gql/fashion` - a <Term>catalog data API</Term> to query or update the actual data of the `fashion` catalog
-- `/gql/fashion/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `fashion` catalog
-- `/gql/electronic` - a <Term>catalog data API</Term> to query or update the actual data of the `electronic` catalog
-- `/gql/electronic/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronic` catalog
-- `/gql/system` - the <Term>system API</Term> to manage evitaDB itself
-
-</Note>
 
 ### GraphQL schema fetching
 
@@ -105,6 +90,24 @@ We are aware that this implementation is not the right way of using `GET` method
 However, we opted for this implementation because we use the same approach for fetching the OpenAPI specifications of REST API.
 Also, we don't plan to support executing queries and mutations using `GET` method anyway, because it involves unnecessary
 escaping of the query string and so on.
+
+</Note>
+
+<Note type="example">
+
+<NoteTitle toggles="true">
+
+##### What URLs will be exposed for a set of defined catalogs?
+</NoteTitle>
+
+Suppose you have catalogs `fashion` and `electronics`. evitaDB would expose the following GraphQL API instances, each
+with its own relevant GraphQL schema:
+
+- `/gql/fashion` - a <Term>catalog data API</Term> to query or update the actual data of the `fashion` catalog
+- `/gql/fashion/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `fashion` catalog
+- `/gql/electronic` - a <Term>catalog data API</Term> to query or update the actual data of the `electronic` catalog
+- `/gql/electronic/schema` - a <Term>catalog schema API</Term> to view and modify the internal structure of the `electronic` catalog
+- `/gql/system` - the <Term>system API</Term> to manage evitaDB itself
 
 </Note>
 
@@ -155,6 +158,11 @@ standard tools. However, below are our recommendations for tools etc. that we us
 
 ### Recommended IDEs
 
+We've developed our own GUI tool called [evitaLab](https://evitadb.io/blog/09-our-new-web-client-evitalab) which supports GraphQL with usefull tools (e.g. data visualisations).
+It also has other useful tools for exploring evitaDB instances, not just using GraphQL API.
+Therefore, this is our recommened chose of IDE for our APIs.
+
+However if you want to use a generic GraphQL tool, we have recommendations for that too.
 During development, we have come across and tried several tools for consuming GraphQL APIs, but there are only a few that we can recommend.
 
 For a desktop IDE to test and explore GraphQL APIs, the [Altair](https://altairgraphql.dev/) client proved to be a great help. It is a

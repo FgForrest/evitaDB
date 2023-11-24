@@ -50,6 +50,9 @@ public class EntityContractAdvice implements Advice<SealedEntityProxy> {
 	private static final List<MethodClassification<?, SealedEntityProxy>> METHOD_CLASSIFICATION = Arrays.asList(
 		new MethodClassification[]{
 			GetPrimaryKeyMethodClassifier.INSTANCE,
+			GetLocalesMethodClassifier.INSTANCE,
+			GetEntitySchemaMethodClassifier.INSTANCE,
+			GetVersionMethodClassifier.INSTANCE,
 			GetEntityTypeMethodClassifier.INSTANCE,
 			GetAttributeMethodClassifier.INSTANCE,
 			GetAssociatedDataMethodClassifier.INSTANCE,

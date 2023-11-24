@@ -127,8 +127,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			this.associatedDataMutations.put(associatedDataKey, upsertAssociatedDataMutation);
 		} else if (localMutation instanceof RemoveAssociatedDataMutation removeAssociatedDataMutation) {
 			final AssociatedDataKey associatedDataKey = removeAssociatedDataMutation.getAssociatedDataKey();
-			verifyAssociatedDataExists(associatedDataKey);
-			this.associatedDataMutations.put(associatedDataKey, removeAssociatedDataMutation);
+			if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+				this.associatedDataMutations.remove(associatedDataKey);
+			} else {
+				this.associatedDataMutations.put(associatedDataKey, removeAssociatedDataMutation);
+			}
 		} else {
 			throw new EvitaInternalError("Unknown Evita price mutation: `" + localMutation.getClass() + "`!");
 		}
@@ -138,11 +141,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		verifyAssociatedDataExists(associatedDataKey);
-		associatedDataMutations.put(
-			associatedDataKey,
-			new RemoveAssociatedDataMutation(associatedDataKey)
-		);
+		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+			this.associatedDataMutations.remove(associatedDataKey);
+		} else {
+			this.associatedDataMutations.put(associatedDataKey, new RemoveAssociatedDataMutation(associatedDataKey));
+		}
 		return this;
 	}
 
@@ -187,11 +190,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-		verifyAssociatedDataExists(associatedDataKey);
-		associatedDataMutations.put(
-			associatedDataKey,
-			new RemoveAssociatedDataMutation(associatedDataKey)
-		);
+		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+			this.associatedDataMutations.remove(associatedDataKey);
+		} else {
+			this.associatedDataMutations.put(associatedDataKey, new RemoveAssociatedDataMutation(associatedDataKey));
+		}
 		return this;
 	}
 
@@ -443,16 +446,6 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			return baseAssociatedData;
 		}
-	}
-
-	/**
-	 * Method verifies whether the removed attribute exists in the builder (or throws exception).
-	 */
-	private void verifyAssociatedDataExists(AssociatedDataKey associatedDataKey) {
-		Assert.isTrue(
-			baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isPresent() || associatedDataMutations.get(associatedDataKey) instanceof UpsertAssociatedDataMutation,
-			"Associated data `" + associatedDataKey + "` doesn't exist!"
-		);
 	}
 
 	/**

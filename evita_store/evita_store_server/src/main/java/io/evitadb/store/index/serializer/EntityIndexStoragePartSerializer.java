@@ -43,13 +43,13 @@ import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link EntityIndex} from/to binary format.
@@ -108,6 +108,17 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		for (String referencedEntity : facetIndexes) {
 			output.writeVarInt(keyCompressor.getId(referencedEntity), true);
 		}
+
+		final Map<Integer, Integer> primaryKeyCardinality = entityIndex.getPrimaryKeyCardinality();
+		if (primaryKeyCardinality == null) {
+			output.writeInt(-1);
+		} else {
+			output.writeInt(primaryKeyCardinality.size());
+			for (Entry<Integer, Integer> entry : primaryKeyCardinality.entrySet()) {
+				output.writeVarInt(entry.getKey(), false);
+				output.writeVarInt(entry.getValue(), true);
+			}
+		}
 	}
 
 	@Override
@@ -131,7 +142,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		}
 
 		final int attributeIndexesCount = input.readVarInt(true);
-		final Set<AttributeIndexStorageKey> attributeIndexes = new HashSet<>(attributeIndexesCount);
+		final Set<AttributeIndexStorageKey> attributeIndexes = createHashSet(attributeIndexesCount);
 		for (int i = 0; i < attributeIndexesCount; i++) {
 			final AttributeIndexType attributeIndexType = kryo.readObject(input, AttributeIndexType.class);
 			final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
@@ -141,7 +152,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final Integer internalPriceIdSequenceSeed = kryo.readObjectOrNull(input, Integer.class);
 
 		final int priceIndexesCount = input.readVarInt(true);
-		final Set<PriceIndexKey> priceIndexes = new HashSet<>(priceIndexesCount);
+		final Set<PriceIndexKey> priceIndexes = createHashSet(priceIndexesCount);
 		for (int i = 0; i < priceIndexesCount; i++) {
 			final CompressiblePriceKey priceKey = keyCompressor.getKeyForId(input.readVarInt(true));
 			final PriceInnerRecordHandling innerRecordHandling = PriceInnerRecordHandling.values()[input.readVarInt(true)];
@@ -153,10 +164,24 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		final boolean hierarchyIndex = input.readBoolean();
 
 		final int facetIndexesCount = input.readVarInt(true);
-		final Set<String> facetIndexes = new HashSet<>(facetIndexesCount);
+		final Set<String> facetIndexes = createHashSet(facetIndexesCount);
 		for (int i = 0; i < facetIndexesCount; i++) {
 			final String entityType = keyCompressor.getKeyForId(input.readVarInt(true));
 			facetIndexes.add(entityType);
+		}
+
+		final int primaryKeyCardinalityCount = input.readInt();
+		final Map<Integer, Integer> primaryKeyCardinality;
+		if (primaryKeyCardinalityCount == -1) {
+			primaryKeyCardinality = null;
+		} else {
+			primaryKeyCardinality = createHashMap(primaryKeyCardinalityCount);
+			for (int i = 0; i < primaryKeyCardinalityCount; i++) {
+				primaryKeyCardinality.put(
+					input.readVarInt(false),
+					input.readVarInt(true)
+				);
+			}
 		}
 
 		return new EntityIndexStoragePart(
@@ -164,7 +189,7 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			entityIds, entityIdsByLocale,
 			attributeIndexes,
 			internalPriceIdSequenceSeed, priceIndexes,
-			hierarchyIndex, facetIndexes
+			hierarchyIndex, facetIndexes, primaryKeyCardinality
 		);
 	}
 }

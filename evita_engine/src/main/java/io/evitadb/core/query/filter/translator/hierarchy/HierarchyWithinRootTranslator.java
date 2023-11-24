@@ -87,6 +87,7 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 						hierarchyWithinRoot,
 						() -> createFormulaFromHierarchyIndex(
 							createAndStoreHavingPredicate(
+								null,
 								queryContext,
 								of(new FilterBy(hierarchyWithinRoot.getHavingChildrenFilter()))
 									.filter(ConstraintContainer::isApplicable)

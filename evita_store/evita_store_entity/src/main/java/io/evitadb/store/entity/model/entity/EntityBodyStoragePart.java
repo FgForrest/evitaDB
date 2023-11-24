@@ -92,6 +92,11 @@ public class EntityBodyStoragePart implements EntityStoragePart {
 	 */
 	@Getter
 	private boolean markedForRemoval;
+	/**
+	 * If set to TRUE the consistenci of the {@link #initialRevision} was successfully performed.
+	 */
+	@Getter @Setter
+	private boolean validated;
 
 	public EntityBodyStoragePart(int primaryKey) {
 		this.primaryKey = primaryKey;

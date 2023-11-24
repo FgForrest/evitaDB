@@ -61,6 +61,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
+		@Nullable Integer parentId,
 		@Nonnull QueryContext queryContext,
 		@Nullable FilterBy havingFilter,
 		@Nullable FilterBy exclusionFilter,
@@ -79,12 +80,14 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 			final HierarchyFilteringPredicate predicate;
 			if (havingNotPresent) {
 				predicate = new FilteringFormulaHierarchyEntityPredicate(
+					parentId, false,
 					queryContext,
 					exclusionFilter,
 					referenceSchema
 				).negate();
 			} else {
 				predicate = new FilteringFormulaHierarchyEntityPredicate(
+					parentId, true,
 					queryContext,
 					havingFilter,
 					referenceSchema
