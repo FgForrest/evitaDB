@@ -203,11 +203,11 @@ Facet contains the statistics for that facet option:
   </dd>
 </dl>
 
-<LanugageSpecific to="evitaql,java,csharp,rest">
+<LanguageSpecific to="evitaql,java,csharp,rest">
 And optionally the body of the facet (referenced) entity if the [`entityFetch`](#entity-fetch) requirement is specified.
 If the `IMPACT` statistics depth is requested in the facet summary, the statistics will also include the `requestImpact` 
 calculation, which contains the following data:
-</LanugageSpecific>
+</LanguageSpecific>
 <LanguageSpecific to="graphql">
 And optionally the body of the facet (referenced) entity if the `facetEntity` field is specified.
 If the `impact` object is requested in the facet summary, the statistics will also include the `requestImpact` 
@@ -729,21 +729,21 @@ part of any group.
 You can see that instead of increasing the number of results in the final set, the impact analysis predicts their
 reduction:
 
-<LanugageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summarization with inverted facet relation behavior](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.evitaql.string.md)</MDInclude>
 
-</LanugageSpecific>
-<LanugageSpecific to="graphql">
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
 
 <MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summarization with inverted facet relation behavior](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.graphql.json.md)</MDInclude>
 
-</LanugageSpecific>
-<LanugageSpecific to="rest">
+</LanguageSpecific>
+<LanguageSpecific to="rest">
 
 <MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summarization with inverted facet relation behavior](/documentation/user/en/query/requirements/examples/facet/facet-groups-conjunction.rest.json.md)</MDInclude>
 
-</LanugageSpecific>
+</LanguageSpecific>
 
 </Note>
 
@@ -804,21 +804,21 @@ reducing the numbers, the impact analysis predicts their expansion:
 You can see that instead of reducing the number of results in the final set, the impact analysis predicts their 
 expansion:
 
-<LanugageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summarization with inverted facet group relation behavior](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.evitaql.string.md)</MDInclude>
 
-</LanugageSpecific>
-<LanugageSpecific to="graphql">
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
 
 <MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summarization with inverted facet group relation behavior](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.graphql.json.md)</MDInclude>
 
-</LanugageSpecific>
-<LanugageSpecific to="rest">
+</LanguageSpecific>
+<LanguageSpecific to="rest">
 
 <MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summarization with inverted facet group relation behavior](/documentation/user/en/query/requirements/examples/facet/facet-groups-disjunction.rest.json.md)</MDInclude>
 
-</LanugageSpecific>
+</LanguageSpecific>
 
 </Note>
 
