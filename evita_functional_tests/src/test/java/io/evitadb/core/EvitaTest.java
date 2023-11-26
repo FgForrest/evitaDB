@@ -127,58 +127,6 @@ class EvitaTest implements EvitaTestSupport {
 		cleanTestSubDirectoryWithRethrow(DIR_EVITA_TEST);
 	}
 
-	void foo() {
-		final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
-			"evita",
-			session -> {
-				return session.querySealedEntity(
-					query(
-						collection("Product"),
-						filterBy(
-							hierarchyWithin(
-								"categories",
-								attributeEquals("code", "e-readers")
-							),
-							attributeEquals("status", "ACTIVE"),
-							entityLocaleEquals(Locale.forLanguageTag("en"))
-						),
-						require(
-							facetSummaryOfReference(
-								"brand",
-								FacetStatisticsDepth.COUNTS,
-								orderBy(
-									attributeNatural("name", OrderDirection.ASC)
-								),
-								entityFetch(
-									attributeContent("name")
-								)
-							),
-							facetSummaryOfReference(
-								"parameterValues",
-								FacetStatisticsDepth.COUNTS,
-								filterGroupBy(
-									attributeEquals("isVisibleInFilter", true)
-								),
-								orderBy(
-									attributeNatural("order", OrderDirection.ASC)
-								),
-								orderGroupBy(
-									attributeNatural("order", OrderDirection.ASC)
-								),
-								entityFetch(
-									attributeContent("name")
-								),
-								entityGroupFetch(
-									attributeContent("name")
-								)
-							)
-						)
-					)
-				);
-			}
-		);
-	}
-
 	@Test
 	void shouldPreventOpeningParallelSessionsInWarmUpState() {
 		assertThrows(
