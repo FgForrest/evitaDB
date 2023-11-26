@@ -23,18 +23,12 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.query.require.PriceContentMode;
-import io.evitadb.api.requestResponse.data.AssociatedDataContract;
-import io.evitadb.api.requestResponse.data.AttributesContract;
-import io.evitadb.api.requestResponse.data.Droppable;
-import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
+import io.evitadb.api.requestResponse.data.*;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
-import io.evitadb.api.requestResponse.data.PricesContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
-import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -42,16 +36,19 @@ import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.AssociatedDataMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.entity.ParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.entity.RemoveParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.entity.SetParentMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.PriceMutation;
 import io.evitadb.api.requestResponse.data.mutation.price.SetPriceInnerRecordHandlingMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate.ExistsPredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.AssociatedDataValueSerializablePredicate;
@@ -80,6 +77,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -119,9 +117,10 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Getter private final PriceContractSerializablePredicate pricePredicate;
 
 	private final Entity baseEntity;
-	@Delegate(types = AttributesContract.class)
+	private final EntityDecorator baseEntityDecorator;
+	@Delegate(types = AttributesContract.class, excludes = AttributesAvailabilityChecker.class)
 	private final ExistingEntityAttributesBuilder attributesBuilder;
-	@Delegate(types = AssociatedDataContract.class)
+	@Delegate(types = AssociatedDataContract.class, excludes = AssociatedDataAvailabilityChecker.class)
 	private final ExistingAssociatedDataBuilder associatedDataBuilder;
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
 	private final ExistingPricesBuilder pricesBuilder;
@@ -138,6 +137,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull EntityDecorator baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity.getDelegate();
+		this.baseEntityDecorator = baseEntity;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, baseEntity.getAttributePredicate());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, baseEntity.getAssociatedDataPredicate());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, baseEntity.getPricePredicate());
@@ -159,6 +159,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	public ExistingEntityBuilder(@Nonnull Entity baseEntity, @Nonnull Collection<LocalMutation<?, ?>> localMutations) {
 		this.baseEntity = baseEntity;
+		this.baseEntityDecorator = null;
 		this.attributesBuilder = new ExistingEntityAttributesBuilder(this.baseEntity.schema, this.baseEntity.attributes, ExistsPredicate.instance());
 		this.associatedDataBuilder = new ExistingAssociatedDataBuilder(this.baseEntity.schema, this.baseEntity.associatedData, ExistsPredicate.instance());
 		this.pricesBuilder = new ExistingPricesBuilder(this.baseEntity.schema, this.baseEntity.prices, new PriceContractSerializablePredicate());
@@ -235,28 +236,40 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<EntityClassifierWithParent> getParentEntity() {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
 		return ofNullable(hierarchyMutation)
 			.map(it ->
 				it.mutateLocal(this.baseEntity.schema, this.baseEntity.getParent())
 					.stream()
 					.mapToObj(pId -> (EntityClassifierWithParent) new EntityReferenceWithParent(getType(), pId, null))
 					.findFirst()
-			).orElseGet(this.baseEntity::getParentEntity);
+			)
+			.orElseGet(
+				() -> this.baseEntityDecorator == null ?
+					this.baseEntity.getParentEntity() : this.baseEntityDecorator.getParentEntity()
+			);
 	}
 
 	@Override
 	public boolean referencesAvailable() {
-		return baseEntity.referencesAvailable();
+		return baseEntityDecorator == null ?
+			baseEntity.referencesAvailable() : baseEntityDecorator.referencesAvailable();
 	}
 
 	@Override
 	public boolean referencesAvailable(@Nonnull String referenceName) {
-		return baseEntity.referencesAvailable(referenceName);
+		return baseEntityDecorator == null ?
+			baseEntity.referencesAvailable(referenceName) : baseEntityDecorator.referencesAvailable(referenceName);
 	}
 
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences() {
+		if (!referencesAvailable()) {
+			throw ContextMissingException.referenceContextMissing();
+		}
 		return Stream.concat(
 				baseEntity.getReferences()
 					.stream()
@@ -281,6 +294,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Collection<ReferenceContract> getReferences(@Nonnull String referenceName) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		return getReferences()
 			.stream()
 			.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
@@ -290,11 +306,15 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public Optional<ReferenceContract> getReference(@Nonnull String referenceName, int referencedEntityId) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		final ReferenceKey entityReferenceContract = new ReferenceKey(referenceName, referencedEntityId);
 		final Optional<ReferenceContract> reference = baseEntity.getReference(referenceName, referencedEntityId)
 			.map(it -> ofNullable(this.referenceMutations.get(entityReferenceContract))
 				.map(mutations -> evaluateReferenceMutations(it, mutations))
-				.orElse(it)
+				.orElseGet(() -> baseEntityDecorator == null ?
+					it : baseEntityDecorator.getReference(referenceName, referencedEntityId).orElse(it))
 			)
 			.or(() ->
 				ofNullable(this.referenceMutations.get(entityReferenceContract))
@@ -323,9 +343,60 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			.collect(Collectors.toSet());
 	}
 
+	@Override
+	public boolean attributesAvailable() {
+		return baseEntityDecorator == null ?
+			baseEntity.attributesAvailable() : baseEntityDecorator.attributesAvailable();
+	}
+
+	@Override
+	public boolean attributesAvailable(@Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributesAvailable(locale) : baseEntityDecorator.attributesAvailable(locale);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributeAvailable(attributeName) : baseEntityDecorator.attributeAvailable(attributeName);
+	}
+
+	@Override
+	public boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.attributeAvailable(attributeName, locale) : baseEntityDecorator.attributeAvailable(attributeName, locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable() {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable() : baseEntityDecorator.associatedDataAvailable();
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(locale) : baseEntityDecorator.associatedDataAvailable(locale);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(associatedDataName) : baseEntityDecorator.associatedDataAvailable(associatedDataName);
+	}
+
+	@Override
+	public boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		return baseEntityDecorator == null ?
+			baseEntity.associatedDataAvailable(associatedDataName, locale) : baseEntityDecorator.associatedDataAvailable(associatedDataName, locale);
+	}
+
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
 			"Attribute " + attributeName + " was not fetched and cannot be removed. Please enrich the entity first or load it with attributes."
@@ -337,6 +408,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
 			"Attributes were not fetched and cannot be updated. Please enrich the entity first or load it with attributes. Please enrich the entity first or load it with attributes."
@@ -348,6 +422,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nullable T[] attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName), -1)),
 			"Attributes were not fetched and cannot be updated. Please enrich the entity first or load it with attributes. Please enrich the entity first or load it with attributes."
@@ -359,6 +436,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
 			"Attribute " + attributeName + " in locale " + locale + " was not fetched and cannot be removed. Please enrich the entity first or load it with attributes."
@@ -370,6 +450,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
 			"Attributes in locale " + locale + " were not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
@@ -381,6 +464,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable T[] attributeValue) {
+		if (!attributeAvailable(attributeName)) {
+			throw ContextMissingException.attributeContextMissing(attributeName);
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(new AttributeKey(attributeName, locale), -1)),
 			"Attributes in locale " + locale + " were not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
@@ -392,6 +478,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
+		if (!attributeAvailable(mutation.getAttributeKey().attributeName())) {
+			throw ContextMissingException.attributeContextMissing(mutation.getAttributeKey().attributeName());
+		}
 		Assert.isTrue(
 			attributePredicate.test(new AttributeValue(mutation.getAttributeKey(), -1)),
 			"Attribute " + mutation.getAttributeKey() + " was not fetched and cannot be updated. Please enrich the entity first or load it with attributes."
@@ -403,6 +492,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be removed. Please enrich the entity first or load it with the associated data."
@@ -414,6 +506,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nullable T associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -425,6 +520,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull T[] associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -436,6 +534,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be removed. Please enrich the entity first or load it with the associated data."
@@ -447,6 +548,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -458,6 +562,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public <T extends Serializable> EntityBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T[] associatedDataValue) {
+		if (!associatedDataAvailable(associatedDataName)) {
+			throw ContextMissingException.associatedDataContextMissing(associatedDataName);
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(new AssociatedDataKey(associatedDataName, locale), -1)),
 			"Associated data " + associatedDataName + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -469,6 +576,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	@Nonnull
 	@Override
 	public EntityBuilder mutateAssociatedData(@Nonnull AssociatedDataMutation mutation) {
+		if (!associatedDataAvailable(mutation.getAssociatedDataKey().associatedDataName())) {
+			throw ContextMissingException.associatedDataContextMissing(mutation.getAssociatedDataKey().associatedDataName());
+		}
 		Assert.isTrue(
 			associatedDataPredicate.test(new AssociatedDataValue(mutation.getAssociatedDataKey(), -1)),
 			"Associated data " + mutation.getAssociatedDataKey() + " was not fetched and cannot be updated. Please enrich the entity first or load it with the associated data."
@@ -479,6 +589,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setParent(int parentPrimaryKey) {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
 		this.hierarchyMutation = !Objects.equals(this.baseEntity.getParent(), OptionalInt.of(parentPrimaryKey)) ?
 			new SetParentMutation(parentPrimaryKey) : null;
 		return this;
@@ -486,6 +599,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder removeParent() {
+		if (!parentAvailable()) {
+			throw ContextMissingException.hierarchyContextMissing();
+		}
 		Assert.notNull(baseEntity.getParent(), "Cannot remove parent that is not present!");
 		this.hierarchyMutation = this.baseEntity.getParent().isPresent() ? new RemoveParentMutation() : null;
 		return this;
@@ -509,6 +625,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setReference(@Nonnull String referenceName, @Nonnull String referencedEntityType, @Nonnull Cardinality cardinality, int referencedPrimaryKey, @Nullable Consumer<ReferenceBuilder> whichIs) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		Assert.isTrue(
 			referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referencedEntityType, cardinality, null)),
 			"References were not fetched and cannot be updated. Please enrich the entity first or load it with the references."
@@ -525,30 +644,64 @@ public class ExistingEntityBuilder implements EntityBuilder {
 				)
 			);
 		ofNullable(whichIs).ifPresent(it -> it.accept(referenceBuilder));
-		if (existingReference.isPresent()) {
-			final Optional<ReferenceContract> referenceInBaseEntity = this.baseEntity.getReference(referencedEntityType, referencedPrimaryKey)
+		addOrReplaceReferenceMutations(referenceBuilder);
+		return this;
+	}
+
+	@Override
+	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+		if (!referencesAvailable(referenceBuilder.getReferenceName())) {
+			throw ContextMissingException.referenceContextMissing(referenceBuilder.getReferenceName());
+		}
+		final ReferenceKey referenceKey = referenceBuilder.getReferenceKey();
+		final Optional<ReferenceContract> existingReference = baseEntity.getReferenceWithoutSchemaCheck(referenceKey);
+		final List<ReferenceMutation<?>> changeSet = referenceBuilder.buildChangeSet().collect(Collectors.toList());
+		if (existingReference.isEmpty()) {
+			this.referenceMutations.put(
+				referenceKey,
+				changeSet
+			);
+		} else {
+			final Optional<ReferenceContract> referenceInBaseEntity = this.baseEntity.getReference(referenceKey)
 				.filter(Droppable::exists);
-			final List<ReferenceMutation<?>> changeSet = referenceBuilder.buildChangeSet().collect(Collectors.toList());
 			if (referenceInBaseEntity.map(it -> it.exists() && !removedReferences.contains(referenceKey)).orElse(true)) {
 				this.referenceMutations.put(
 					referenceKey,
 					changeSet
 				);
 			} else {
+				boolean groupUpserted = false;
+				Set<AttributeKey> attributesUpserted = new HashSet<>();
+				for (ReferenceMutation<?> referenceMutation : changeSet) {
+					if (referenceMutation instanceof SetReferenceGroupMutation) {
+						groupUpserted = true;
+					} else if (referenceMutation instanceof ReferenceAttributeMutation referenceAttributeMutation) {
+						if (referenceAttributeMutation.getAttributeMutation() instanceof UpsertAttributeMutation) {
+							attributesUpserted.add(referenceAttributeMutation.getAttributeMutation().getAttributeKey());
+						}
+					}
+				}
 				this.referenceMutations.put(
 					referenceKey,
 					Stream.concat(
 							Stream.concat(
-								referenceInBaseEntity
-									.flatMap(ReferenceContract::getGroup)
-									.filter(Droppable::exists)
-									.stream()
-									.map(it -> new RemoveReferenceGroupMutation(referenceKey)),
+								// if the group was not upserted we need to remove it (because the entire reference was
+								// removed before
+								groupUpserted ?
+									Stream.<ReferenceMutation<?>>empty() :
+									referenceInBaseEntity
+										.flatMap(ReferenceContract::getGroup)
+										.filter(Droppable::exists)
+										.stream()
+										.map(it -> (ReferenceMutation<?>) new RemoveReferenceGroupMutation(referenceKey)),
+								// if the attribute was not upserted we need to remove it (because the entire reference
+								// was removed before
 								referenceInBaseEntity
 									.map(AttributesContract::getAttributeValues)
 									.orElse(Collections.emptyList())
 									.stream()
 									.filter(Droppable::exists)
+									.filter(it -> !attributesUpserted.contains(it.key()))
 									.map(it ->
 										new ReferenceAttributeMutation(
 											referenceKey,
@@ -556,22 +709,48 @@ public class ExistingEntityBuilder implements EntityBuilder {
 										)
 									)
 							),
-							changeSet.stream()
+							changeSet
+								.stream()
+								.filter(it -> {
+									if (it instanceof InsertReferenceMutation) {
+										// we don't need to insert the reference, since it was there before the removal
+										return false;
+									} else if (it instanceof SetReferenceGroupMutation referenceGroupMutation) {
+										// we don't need to reset the group if the group is the same as the previous one
+										final Boolean groupSameAsPreviousOne = this.baseEntity.getReference(referenceGroupMutation.getReferenceKey())
+											.flatMap(ReferenceContract::getGroup)
+											.map(group -> Objects.equals(group.getPrimaryKey(), referenceGroupMutation.getGroupPrimaryKey()))
+											.orElse(false);
+										return !groupSameAsPreviousOne;
+									} else if (it instanceof ReferenceAttributeMutation referenceAttributeMutation) {
+										// we don't need to reset the attribute if the attribute is the same as the previous one
+										final AttributeMutation attributeMutation = referenceAttributeMutation.getAttributeMutation();
+										final AttributeKey attributeKey = attributeMutation.getAttributeKey();
+										if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
+											final boolean attributeSameAsPreviousOne = this.baseEntity.getReference(referenceAttributeMutation.getReferenceKey())
+												.flatMap(ref -> ref.getAttributeValue(attributeKey))
+												.map(attribute -> Objects.equals(attribute.value(), upsertAttributeMutation.getAttributeValue()))
+												.orElse(false);
+											return !attributeSameAsPreviousOne;
+										} else {
+											return true;
+										}
+									} else {
+										return true;
+									}
+								})
 						)
 						.collect(Collectors.toList())
 				);
 			}
-		} else {
-			this.referenceMutations.put(
-				referenceKey,
-				referenceBuilder.buildChangeSet().collect(Collectors.toList())
-			);
 		}
-		return this;
 	}
 
 	@Override
 	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
+		if (!referencesAvailable(referenceName)) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		}
 		final ReferenceSchemaContract referenceSchema = getReferenceSchemaOrThrowException(referenceName);
 		Assert.isTrue(
 			referencePredicate.test(new Reference(getSchema(), referenceName, referencedPrimaryKey, referenceSchema.getReferencedEntityType(), referenceSchema.getCardinality(), null)),
@@ -599,6 +778,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -609,6 +789,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -619,6 +800,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -629,6 +811,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder setPrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency, @Nullable Integer innerRecordId, @Nonnull BigDecimal priceWithoutTax, @Nonnull BigDecimal taxRate, @Nonnull BigDecimal priceWithTax, @Nullable DateTimeRange validity, boolean sellable) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -639,6 +822,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 
 	@Override
 	public EntityBuilder removePrice(int priceId, @Nonnull String priceList, @Nonnull Currency currency) {
+		assertPricesFetched(pricePredicate);
 		Assert.isTrue(
 			pricePredicate.test(new Price(new PriceKey(priceId, priceList, currency), 1, BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ONE, null, false)),
 			"Price " + priceId + ", " + priceList + ", " + currency + " was not fetched and cannot be updated. Please enrich the entity first or load it with the prices."
@@ -695,7 +879,7 @@ public class ExistingEntityBuilder implements EntityBuilder {
 		if (mutations.isEmpty()) {
 			return Optional.empty();
 		} else {
-			return Optional.of(
+			return of(
 				new EntityUpsertMutation(
 					baseEntity.getType(),
 					Objects.requireNonNull(baseEntity.getPrimaryKey()),
@@ -714,12 +898,39 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			.orElse(baseEntity);
 	}
 
+	@Nullable
 	private ReferenceContract evaluateReferenceMutations(@Nullable ReferenceContract reference, @Nonnull List<ReferenceMutation<?>> mutations) {
 		ReferenceContract mutatedReference = reference;
 		for (ReferenceMutation<?> mutation : mutations) {
 			mutatedReference = mutation.mutateLocal(this.baseEntity.schema, mutatedReference);
 		}
-		return mutatedReference != null && mutatedReference.differsFrom(reference) ? mutatedReference : reference;
+		final ReferenceContract theReference = mutatedReference != null && mutatedReference.differsFrom(reference) ? mutatedReference : reference;
+		if (this.baseEntityDecorator != null && theReference != null) {
+			final Optional<ReferenceContract> originalReference = this.baseEntityDecorator.getReference(
+				theReference.getReferencedEntityType(), theReference.getReferencedPrimaryKey()
+			);
+			final Optional<SealedEntity> originalReferencedEntity = originalReference
+				.flatMap(ReferenceContract::getReferencedEntity);
+			final Optional<SealedEntity> originalReferencedEntityGroup = originalReference
+				.flatMap(ReferenceContract::getGroupEntity);
+			final Boolean entityValid = originalReferencedEntity
+				.map(EntityContract::getPrimaryKey)
+				.map(it -> it == theReference.getReferencedPrimaryKey())
+				.orElse(false);
+			final Boolean entityGroupValid = originalReferencedEntityGroup
+				.map(EntityContract::getPrimaryKey)
+				.map(it -> theReference.getGroup().map(group -> Objects.equals(it, group.getPrimaryKey())).orElse(false))
+				.orElse(false);
+			if (entityValid || entityGroupValid) {
+				return new ReferenceDecorator(
+					theReference,
+					entityValid ? originalReferencedEntity.get() : null,
+					entityGroupValid ? originalReferencedEntityGroup.get() : null,
+					referencePredicate.getAttributePredicate(theReference.getReferenceName())
+				);
+			}
+		}
+		return theReference;
 	}
 
 	@Nonnull

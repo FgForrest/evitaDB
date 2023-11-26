@@ -439,7 +439,8 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 						.stream()
 						.map(ReferenceContract::getReferenceName)
 						.distinct()
-						.count() == expectedReferenceCount
+						.count() == expectedReferenceCount &&
+					it.getPrices().stream().anyMatch(PriceContract::sellable)
 			)
 			.findFirst()
 			.orElseThrow();

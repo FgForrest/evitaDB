@@ -27,17 +27,19 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Reference;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.utils.CollectionUtils;
 import lombok.RequiredArgsConstructor;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -65,9 +67,9 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		});
 		final Collection<AttributeValue> attributes = reference.getAttributeValues();
 		output.writeVarInt(attributes.size(), true);
-		for (AttributeValue attribute : attributes) {
-			kryo.writeObject(output, attribute);
-		}
+		// the attributes locales are always sorted to ensure the same order of attributes in the serialized form
+		attributes.stream().sorted(Comparator.comparing(AttributeValue::key))
+			.forEach(attribute -> kryo.writeObject(output, attribute));
 	}
 
 	@Override
@@ -92,9 +94,10 @@ public class ReferenceSerializer extends Serializer<Reference> {
 		final ReferenceSchemaContract reference = schema.getReferenceOrThrowException(referenceName);
 
 		final int attributeCount = input.readVarInt(true);
-		final List<AttributeValue> attributes = new ArrayList<>(attributeCount);
+		final LinkedHashMap<AttributeKey, AttributeValue> attributes = CollectionUtils.createLinkedHashMap(attributeCount);
 		for (int i = 0; i < attributeCount; i++) {
-			attributes.add(kryo.readObject(input, AttributeValue.class));
+			final AttributeValue attributeValue = kryo.readObject(input, AttributeValue.class);
+			attributes.put(attributeValue.key(), attributeValue);
 		}
 
 		return new Reference(

@@ -229,6 +229,10 @@ you can still use the `enrichEntity` method on the
 will be fully fetched again. However, we plan to optimize this scenario in the future.
 </Note>
 
+#### Custom contracts
+
+TODO JNO - document me
+
 ### Caching considerations
 
 If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration), 

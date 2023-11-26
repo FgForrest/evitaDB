@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -150,6 +149,26 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	 */
 	ExistingAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<AttributeValue> attributes,
+		@Nonnull Map<String, S> attributeTypes,
+		boolean suppressVerification,
+		@Nonnull Collection<AttributeMutation> attributeMutations
+	) {
+		this.entitySchema = entitySchema;
+		this.attributeMutations = new HashMap<>();
+		for (AttributeMutation attributeMutation : attributeMutations) {
+			this.attributeMutations.put(attributeMutation.getAttributeKey(), attributeMutation);
+		}
+		this.baseAttributes = createAttributesContainer(entitySchema, attributes, attributeTypes);
+		this.suppressVerification = suppressVerification;
+		this.attributePredicate = Droppable::exists;
+	}
+
+	/**
+	 * AttributesBuilder constructor that will be used for building brand new {@link Attributes} container.
+	 */
+	ExistingAttributesBuilder(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Attributes<S> baseAttributes,
 		boolean suppressVerification
 	) {
@@ -178,7 +197,6 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			this.attributeMutations.put(attributeKey, upsertAttributeMutation);
 		} else if (localMutation instanceof RemoveAttributeMutation removeAttributeMutation) {
 			final AttributeKey attributeKey = removeAttributeMutation.getAttributeKey();
-			verifyAttributeExists(attributeKey);
 			if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
 				this.attributeMutations.remove(attributeKey);
 			} else {
@@ -215,11 +233,11 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName);
-		verifyAttributeExists(attributeKey);
-		attributeMutations.put(
-			attributeKey,
-			new RemoveAttributeMutation(attributeKey)
-		);
+		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
+			this.attributeMutations.remove(attributeKey);
+		} else {
+			this.attributeMutations.put(attributeKey, new RemoveAttributeMutation(attributeName));
+		}
 		//noinspection unchecked
 		return (T) this;
 	}
@@ -270,11 +288,11 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	@Nonnull
 	public T removeAttribute(@Nonnull String attributeName, @Nonnull Locale locale) {
 		final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
-		verifyAttributeExists(attributeKey);
-		attributeMutations.put(
-			attributeKey,
-			new RemoveAttributeMutation(attributeKey)
-		);
+		if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
+			this.attributeMutations.remove(attributeKey);
+		} else {
+			this.attributeMutations.put(attributeKey, new RemoveAttributeMutation(attributeKey));
+		}
 		//noinspection unchecked
 		return (T) this;
 	}
@@ -523,16 +541,6 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 					.map(it -> true)
 			)
 			.anyMatch(it -> it);
-	}
-
-	/**
-	 * Method verifies whether the removed attribute exists in the builder (or throws exception).
-	 */
-	private void verifyAttributeExists(AttributeKey attributeKey) {
-		Assert.isTrue(
-			baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isPresent() || attributeMutations.get(attributeKey) instanceof UpsertAttributeMutation,
-			"Attribute `" + attributeKey + "` doesn't exist!"
-		);
 	}
 
 	/**

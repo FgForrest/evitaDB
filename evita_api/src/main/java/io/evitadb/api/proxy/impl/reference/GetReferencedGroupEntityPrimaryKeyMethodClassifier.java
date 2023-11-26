@@ -24,11 +24,14 @@
 package io.evitadb.api.proxy.impl.reference;
 
 import io.evitadb.api.proxy.impl.ProxyUtils;
+import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.function.ExceptionRethrowingBiFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -38,7 +41,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.Parameter;
 import java.util.Optional;
-import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getWrappedGenericType;
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
@@ -90,7 +92,11 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 			"getReferencedEntityGroupPrimaryKey",
 			(method, proxyState) -> {
 				// we are interested only in abstract methods without parameters
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (
+					!ClassUtils.isAbstractOrDefault(method) ||
+						method.getParameterCount() > 0 ||
+						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						method.isAnnotationPresent(RemoveWhenExists.class)) {
 					return null;
 				}
 
@@ -100,7 +106,7 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 				final ReferencedEntityGroup referencedEntityGroup = reflectionLookup.getAnnotationInstanceForProperty(method, ReferencedEntityGroup.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				@SuppressWarnings("rawtypes") final Class wrappedGenericType = getWrappedGenericType(method, proxyState.getProxyClass());
-				final UnaryOperator<Object> resultWrapper = ProxyUtils.createOptionalWrapper(wrappedGenericType);
+				final ResultWrapper resultWrapper = ProxyUtils.createOptionalWrapper(method, wrappedGenericType);
 				@SuppressWarnings("rawtypes") final Class valueType = wrappedGenericType == null ? returnType : wrappedGenericType;
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (Number.class.isAssignableFrom(toWrappedForm(valueType)) && referencedEntityGroup != null || (
@@ -113,8 +119,8 @@ public class GetReferencedGroupEntityPrimaryKeyMethodClassifier extends DirectMe
 				) {
 					// method matches - provide implementation
 					//noinspection unchecked
-					return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-						toTargetType(
+					return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+						() -> toTargetType(
 							theState.getReference().getGroup().map(GroupEntityReference::getPrimaryKey).orElse(null),
 							valueType
 						)

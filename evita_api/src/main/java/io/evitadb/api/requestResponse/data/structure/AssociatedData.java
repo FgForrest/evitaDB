@@ -44,7 +44,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.TreeMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -54,6 +54,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.empty;
@@ -131,19 +132,18 @@ public class AssociatedData implements AssociatedDataContract {
 	 */
 	public AssociatedData(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable Collection<AssociatedDataValue> associatedDataValues
+		@Nullable Stream<AssociatedDataValue> associatedDataValues
 	) {
 		this.entitySchema = entitySchema;
 		this.associatedDataValues = ofNullable(associatedDataValues)
-			.map(it -> it.stream()
-				.collect(
+			.map(it -> it.collect(
 					Collectors.toMap(
 						AssociatedDataValue::key,
 						Function.identity(),
 						(attributeValue, attributeValue2) -> {
 							throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
 						},
-						() -> (Map<AssociatedDataKey, AssociatedDataValue>) new TreeMap<AssociatedDataKey, AssociatedDataValue>()
+						() -> (Map<AssociatedDataKey, AssociatedDataValue>) new LinkedHashMap<AssociatedDataKey, AssociatedDataValue>()
 					)
 				)
 			)
@@ -151,6 +151,23 @@ public class AssociatedData implements AssociatedDataContract {
 		this.associatedDataTypes = entitySchema.getAssociatedData();
 	}
 
+	/**
+	 * Constructor should be used only when associated data are reconstructed in APIs.
+	 */
+	public AssociatedData(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull LinkedHashMap<AssociatedDataKey, AssociatedDataValue> associatedDataValues
+	) {
+		this.entitySchema = entitySchema;
+		this.associatedDataValues = associatedDataValues;
+		this.associatedDataTypes = entitySchema.getAssociatedData();
+	}
+
+	/**
+	 * Constructor should be used when new associated data are added to the entity.
+	 *
+	 * @param entitySchema entity schema
+	 */
 	public AssociatedData(@Nonnull EntitySchemaContract entitySchema) {
 		this.entitySchema = entitySchema;
 		this.associatedDataValues = Collections.emptyMap();

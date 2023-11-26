@@ -321,7 +321,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(it, new ExampleFilter[]{ExampleFilter.EVITAQL, ExampleFilter.JAVA});
+					final List<DynamicTest> tests = this.createTests(it, ExampleFilter.values());
 					if (tests.isEmpty()) {
 						return null;
 					} else {
@@ -392,7 +392,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		while (sourceCodeMatcher.find()) {
 			final String format = sourceCodeMatcher.groupCount() > 2 ? sourceCodeMatcher.group(1) : "plain";
 			final String content = sourceCodeMatcher.groupCount() > 2 ? sourceCodeMatcher.group(2) : sourceCodeMatcher.group(1);
-			if (!(format.isBlank() || NOT_TESTED_LANGUAGES.contains(format)) && filteredExtensions.contains(format)) {
+			if (!(format.isBlank() || NOT_TESTED_LANGUAGES.contains(format))) {
 				codeSnippets.add(
 					new CodeSnippet(
 						"Example #" + index.incrementAndGet(),
@@ -443,7 +443,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			if (ofNullable(sourceCodeTabsMatcher.group(2)).map(it -> it.contains("ignoreTest")).orElse(false)) {
 				continue;
 			}
-			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension) && filteredExtensions.contains(referencedFileExtension)) {
+			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
 					.map(
 						requires -> Arrays.stream(requires.split(","))
@@ -462,8 +462,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						.stream()
 						.map(relatedFile -> {
 							final String relatedFileExtension = getFileNameExtension(relatedFile);
-							return filteredExtensions.contains(relatedFileExtension) ?
-								new CodeSnippet(
+							return new CodeSnippet(
 									"Example `" + relatedFile.getFileName() + "`",
 									relatedFileExtension,
 									relatedFile.normalize(),
@@ -483,9 +482,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 										).orElse(Collections.emptyList()),
 										createSnippets
 									)
-								) : null;
+								);
 						})
-						.filter(Objects::nonNull)
 						.toArray(CodeSnippet[]::new),
 					convertToRunnable(
 						referencedFileExtension,
@@ -518,6 +516,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 								ofNullable(it.relatedSnippets()).stream().flatMap(Arrays::stream)
 							)
 						)
+						.filter(it -> filteredExtensions.contains(it.format()))
 						.map(
 							codeSnippet ->
 								dynamicTest(

@@ -423,7 +423,7 @@ public final class EntitySchema implements EntitySchemaContract {
 						(a, b) -> {
 							throw new IllegalStateException("Duplicate key " + a);
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);
@@ -438,7 +438,7 @@ public final class EntitySchema implements EntitySchemaContract {
 						(a, b) -> {
 							throw new IllegalStateException("Duplicate key " + a.getName());
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);
@@ -453,7 +453,7 @@ public final class EntitySchema implements EntitySchemaContract {
 						(a, b) -> {
 							throw new IllegalStateException("Duplicate key " + a.getName());
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);

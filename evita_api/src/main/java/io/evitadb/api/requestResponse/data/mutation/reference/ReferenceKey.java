@@ -59,9 +59,9 @@ public record ReferenceKey(@Nonnull String referenceName, int primaryKey) implem
 
 	@Override
 	public int compareTo(ReferenceKey o) {
-		final int primaryComparison = Integer.compare(primaryKey(), o.primaryKey());
+		final int primaryComparison = referenceName().compareTo(o.referenceName());
 		if (primaryComparison == 0) {
-			return referenceName().compareTo(o.referenceName());
+			return Integer.compare(primaryKey(), o.primaryKey());
 		} else {
 			return primaryComparison;
 		}

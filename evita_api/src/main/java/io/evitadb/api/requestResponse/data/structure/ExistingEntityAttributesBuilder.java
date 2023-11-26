@@ -53,23 +53,8 @@ public class ExistingEntityAttributesBuilder extends ExistingAttributesBuilder<E
 		this.location = "`" + entitySchema.getName() + "`";
 	}
 
-	public ExistingEntityAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nonnull Collection<AttributeValue> attributes, @Nonnull Map<String, EntityAttributeSchemaContract> attributeTypes) {
-		super(entitySchema, attributes, attributeTypes);
-		this.location = "`" + entitySchema.getName() + "`";
-	}
-
 	public ExistingEntityAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nonnull Attributes<EntityAttributeSchemaContract> baseAttributes, @Nonnull SerializablePredicate<AttributeValue> attributePredicate) {
 		super(entitySchema, baseAttributes, attributePredicate);
-		this.location = "`" + entitySchema.getName() + "`";
-	}
-
-	public ExistingEntityAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nonnull Collection<AttributeValue> attributes, @Nonnull Map<String, EntityAttributeSchemaContract> attributeTypes, boolean suppressVerification) {
-		super(entitySchema, attributes, attributeTypes, suppressVerification);
-		this.location = "`" + entitySchema.getName() + "`";
-	}
-
-	public ExistingEntityAttributesBuilder(@Nonnull EntitySchemaContract entitySchema, @Nonnull Attributes<EntityAttributeSchemaContract> baseAttributes, boolean suppressVerification) {
-		super(entitySchema, baseAttributes, suppressVerification);
 		this.location = "`" + entitySchema.getName() + "`";
 	}
 

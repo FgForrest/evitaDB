@@ -669,6 +669,10 @@ containing only entity type and (possibly assigned) primary key information. You
 method, which inserts or creates the entity and returns its body in the form and size you specify in your `require` 
 argument.
 
+#### Custom contracts
+
+TODO JNO - DOCUMENT ME
+
 #### Creating entities in detached mode
 
 Entity instances can be created even if no EvitaDB instance is available:

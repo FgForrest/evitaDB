@@ -23,9 +23,12 @@
 
 package io.evitadb.api.proxy;
 
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
  * This interface is implemented by all proxy types that wrap a sealed entity reference and provide access to
@@ -33,7 +36,14 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityReferenceProxy extends EvitaProxy {
+public interface SealedEntityReferenceProxy extends EvitaProxy, ReferencedEntityBuilderProvider {
+
+	/**
+	 * Returns entity classifier of the underlying sealed entity.
+	 * @return entity classifier
+	 */
+	@Nonnull
+	EntityClassifier getEntityClassifier();
 
 	/**
 	 * Returns the underlying sealed entity reference that is wrapped into a requested proxy type.
@@ -41,5 +51,28 @@ public interface SealedEntityReferenceProxy extends EvitaProxy {
 	 */
 	@Nonnull
 	ReferenceContract getReference();
+
+	/**
+	 * Returns the reference builder on internally wrapped entity {@link #getReference()} or creates new.
+	 *
+	 * @return the reference builder
+	 */
+	@Nonnull
+	ReferenceBuilder getReferenceBuilder();
+
+	/**
+	 * Returns the reference builder that is created on demand by calling mutation method on internally wrapped entity
+	 * {@link #getReference()}.
+	 *
+	 * @return the reference builder
+	 */
+	@Nonnull
+	Optional<ReferenceBuilder> getReferenceBuilderIfPresent();
+
+	/**
+	 * Method is called when the wrapped entity is upserted and thus the changes in the {@link #getReferenceBuilder()}
+	 * should be marked as persisted.
+	 */
+	void notifyBuilderUpserted();
 
 }

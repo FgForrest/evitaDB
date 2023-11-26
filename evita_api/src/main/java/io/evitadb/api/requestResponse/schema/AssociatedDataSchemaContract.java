@@ -60,6 +60,12 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	Class<? extends Serializable> getType();
 
 	/**
+	 * Returns attribute type that represents non-array type class. I.e. method just unwraps array types to plain ones.
+	 */
+	@Nonnull
+	Class<? extends Serializable> getPlainType();
+
+	/**
 	 * Localized associated data has to be ALWAYS used in connection with specific {@link Locale}. In other
 	 * words - it cannot be stored unless associated locale is also provided.
 	 */
