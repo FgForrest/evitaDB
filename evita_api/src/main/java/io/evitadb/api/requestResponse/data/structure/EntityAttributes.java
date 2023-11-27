@@ -43,6 +43,14 @@ public class EntityAttributes extends Attributes<EntityAttributeSchemaContract> 
 
 	public EntityAttributes(
 		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Map<AttributeKey, AttributeValue> attributeValues,
+		@Nonnull Map<String, EntityAttributeSchemaContract> attributeTypes
+	) {
+		super(entitySchema, attributeValues, attributeTypes);
+	}
+
+	public EntityAttributes(
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Collection<AttributeValue> attributeValues,
 		@Nonnull Map<String, EntityAttributeSchemaContract> attributeTypes
 	) {

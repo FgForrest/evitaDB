@@ -27,6 +27,7 @@ import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
+import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -34,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Helper methods for manipulating classifiers (entity types, attribute names, reference names, ...).
@@ -95,8 +97,25 @@ public class ClassifierUtils {
 			"self" // field in hierarchy parents and statistics extra result in GraphQL API, would collide with hierarchy references
 		)
 	);
-
+	/**
+	 * Normalized version of {@link #RESERVED_KEYWORDS} that is case and separator insensitive. This is so that we
+	 * don't have to compute it for every case for every checked classifier.
+	 */
+	private static final Map<ClassifierType, Set<Keyword>> NORMALIZED_RESERVED_KEYWORDS;
 	private static final Pattern SUPPORTED_FORMAT_PATTERN = Pattern.compile("(^[\\p{Alpha}][\\p{Alnum}_.\\-~]{0,254}$)");
+
+	static {
+		NORMALIZED_RESERVED_KEYWORDS = RESERVED_KEYWORDS.entrySet()
+			.stream()
+			.map(entry -> Map.entry(
+				entry.getKey(),
+				entry.getValue()
+					.stream()
+					.map(ClassifierUtils::normalizeClassifier)
+					.collect(Collectors.toUnmodifiableSet())
+			))
+			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+	}
 
 	/**
 	 * Validates format of passed classifier. Classifier is considered valid if is not empty, doesn't have leading or
@@ -137,18 +156,53 @@ public class ClassifierUtils {
 		if (classifier.isBlank()) {
 			return false;
 		}
-		return Optional.ofNullable(RESERVED_KEYWORDS.get(classifierType))
-			.map(keywords -> keywords.stream()
-				.flatMap(keyword -> Arrays.stream(NamingConvention.values())
-					.map(namingConvention -> StringUtils.toSpecificCase(keyword, namingConvention)))
-				.anyMatch(keyword -> keyword.equals(classifier) ||
-					keyword.equals(StringUtils.toCamelCase(classifier)) ||
-					keyword.equals(StringUtils.toPascalCase(classifier)) ||
-					keyword.equals(StringUtils.toSnakeCase(classifier)) ||
-					keyword.equals(StringUtils.toUpperSnakeCase(classifier)) ||
-					keyword.equals(StringUtils.toKebabCase(classifier))
-				))
+		final Keyword normalizedClassifier = normalizeClassifier(classifier);
+		return Optional.ofNullable(NORMALIZED_RESERVED_KEYWORDS.get(classifierType))
+			.map(keywords -> keywords.contains(normalizedClassifier))
 			.orElse(false);
+	}
+
+	/**
+	 * Converts classifier to comparable format (lower case, no separators).
+	 */
+	@Nonnull
+	private static Keyword normalizeClassifier(@Nonnull String classifier) {
+		final LongHashFunction xx3 = LongHashFunction.xx3();
+		final String[] words = StringUtils.splitStringWithCaseIntoWords(classifier)
+			.stream()
+			.map(String::toLowerCase)
+			.toArray(String[]::new);
+		final long hash = xx3.hashLongs(
+			Arrays.stream(words)
+				.mapToLong(xx3::hashChars)
+				.toArray()
+		);
+		return new Keyword(hash, words);
+	}
+
+	/**
+	 * The keyword represents an internal keyword split by camel-case containing the has for quick comparison.
+	 */
+	private record Keyword(
+		long hash,
+		@Nonnull String[] words
+	) {
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (o == null || getClass() != o.getClass()) return false;
+
+			Keyword keyword = (Keyword) o;
+
+			if (hash != keyword.hash) return false;
+			return Arrays.equals(words, keyword.words);
+		}
+
+		@Override
+		public int hashCode() {
+			return Long.hashCode(hash);
+		}
 	}
 
 }
