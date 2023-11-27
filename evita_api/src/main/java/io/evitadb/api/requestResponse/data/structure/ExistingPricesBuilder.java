@@ -81,7 +81,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 	private final Map<PriceKey, PriceMutation> priceMutations;
 	private final EntitySchemaContract entitySchema;
 	private final Prices basePrices;
-	private SetPriceInnerRecordHandlingMutation priceInnerRecordHandlingEntityMutation;
+	@Nullable private SetPriceInnerRecordHandlingMutation priceInnerRecordHandlingEntityMutation;
 	private boolean removeAllNonModifiedPrices;
 
 	public ExistingPricesBuilder(
@@ -316,7 +316,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 		}
 		if (removeAllNonModifiedPrices) {
 			return Stream.concat(
-					Objects.equals(basePrices.getPriceInnerRecordHandling(), priceInnerRecordHandlingEntityMutation.getPriceInnerRecordHandling()) ?
+					priceInnerRecordHandlingEntityMutation == null || Objects.equals(basePrices.getPriceInnerRecordHandling(), priceInnerRecordHandlingEntityMutation.getPriceInnerRecordHandling()) ?
 						Stream.empty() : Stream.of(priceInnerRecordHandlingEntityMutation),
 					Stream.concat(
 						priceMutations.values()

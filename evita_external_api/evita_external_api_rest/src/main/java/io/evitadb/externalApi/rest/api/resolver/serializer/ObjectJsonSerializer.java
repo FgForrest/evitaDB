@@ -50,6 +50,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Serializes Java object or Collections of objects into JsonNode
@@ -105,6 +106,7 @@ public class ObjectJsonSerializer {
 		if (value instanceof LocalTime localTime) return jsonNodeFactory.textNode(serialize(localTime));
 		if (value instanceof ComplexDataObject complexDataObject) return serialize(complexDataObject);
 		if (value instanceof Range<?> range) return serialize(range);
+		if (value instanceof UUID uuid) return jsonNodeFactory.textNode(serialize(uuid));
 		if (value instanceof Predecessor predecessor) return jsonNodeFactory.numberNode(serialize(predecessor));
 		if (value instanceof PriceContract price) return serialize(price);
 		if (value.getClass().isEnum()) return jsonNodeFactory.textNode(serialize((Enum<?>) value));
@@ -205,6 +207,11 @@ public class ObjectJsonSerializer {
 	@Nonnull
 	private String serialize(@Nonnull Enum<?> e) {
 		return e.name();
+	}
+
+	@Nonnull
+	private static String serialize(@Nonnull UUID uuid) {
+		return uuid.toString();
 	}
 
 	private JsonNode serialize(@Nonnull ComplexDataObject complexDataObject) {

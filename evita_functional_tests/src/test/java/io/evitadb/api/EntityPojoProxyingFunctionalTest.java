@@ -68,6 +68,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -485,7 +486,8 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 						.stream()
 						.map(ReferenceContract::getReferenceName)
 						.distinct()
-						.count() == expectedReferenceCount
+						.count() == expectedReferenceCount &&
+					!it.getPrices(PRICE_LIST_BASIC).isEmpty()
 			)
 			.findFirst()
 			.orElseThrow();

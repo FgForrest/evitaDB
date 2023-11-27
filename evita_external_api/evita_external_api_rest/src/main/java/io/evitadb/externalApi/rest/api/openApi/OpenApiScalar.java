@@ -307,11 +307,11 @@ public class OpenApiScalar implements OpenApiSimpleType {
 	 */
 	@Nonnull
 	private static Schema<?> createPredecessorSchema() {
-		final Schema<?> uuidSchema = new IntegerSchema();
-		uuidSchema
+		final Schema<?> predecessorSchema = new IntegerSchema();
+		predecessorSchema
 			.format(FORMAT_INT_32)
 			.example("44872");
-		return uuidSchema;
+		return predecessorSchema;
 	}
 
 	/**
