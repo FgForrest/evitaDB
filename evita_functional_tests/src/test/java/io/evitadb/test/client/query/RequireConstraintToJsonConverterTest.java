@@ -25,11 +25,21 @@ package io.evitadb.test.client.query;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.FacetGroupsDisjunction;
+import io.evitadb.api.query.require.FacetGroupsNegation;
+import io.evitadb.api.query.require.PriceType;
+import io.evitadb.api.query.require.Require;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
+import javax.annotation.Nonnull;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,16 +51,34 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest {
 
-	private RequireConstraintToJsonConverter converter;
+	@Nonnull private static final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
+		Require.class,
+		FacetGroupsConjunction.class,
+		FacetGroupsDisjunction.class,
+		FacetGroupsNegation.class,
+		PriceType.class
+	);
+
+	private RequireConstraintToJsonConverter baseConverter;
+	private RequireConstraintToJsonConverter limitedConverter;
 
 	@BeforeEach
 	void init() {
 		super.init();
-		this.converter = new RequireConstraintToJsonConverter(catalogSchema);
+		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
+		this.baseConverter = new RequireConstraintToJsonConverter(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintToJsonConverter)
+		);
+		this.limitedConverter = new RequireConstraintToJsonConverter(
+			catalogSchema,
+			allowedRequireConstraints::contains,
+			new AtomicReference<>(filterConstraintToJsonConverter)
+		);
 	}
 
 	@Test
-	void shouldResolveValueRequireConstraint() {
+	void shouldConvertRequireConstraintWithLimitedConverter() {
 		final ObjectNode facetBrandGroupsConjunction = jsonNodeFactory.objectNode();
 
 		final ObjectNode filterBy = jsonNodeFactory.objectNode();
@@ -64,7 +92,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 
 		assertEquals(
 			new JsonConstraint("facetBrandGroupsConjunction", facetBrandGroupsConjunction),
-			converter.convert(
+			limitedConverter.convert(
 				new EntityDataLocator(Entities.PRODUCT),
 				facetGroupsConjunction(Entities.BRAND, filterBy(entityPrimaryKeyInSet(1, 2)))
 			).get()
@@ -72,7 +100,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 	}
 
 	@Test
-	void shouldResolveRequireConstraintWithAdditionalChildConstraint() {
+	void shouldConvertRequireConstraintWithAdditionalChildConstraint() {
 		final ObjectNode stopAt = jsonNodeFactory.objectNode();
 		final ObjectNode node = jsonNodeFactory.objectNode();
 		final ObjectNode filterBy = jsonNodeFactory.objectNode();
@@ -88,7 +116,7 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 
 		assertEquals(
 			new JsonConstraint("stopAt", stopAt),
-			converter.convert(
+			baseConverter.convert(
 				new HierarchyDataLocator(Entities.PRODUCT),
 				new HierarchyDataLocator(Entities.PRODUCT),
 				stopAt(
