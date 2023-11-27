@@ -284,11 +284,22 @@ the references, facet groups, and facets - to get them we would have to add [the
 
 ### Fetching facet (group) bodies
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LanguageSpecific to="evitaql,java,csharp">
 
 The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
 add [`entityFetch`](#entity-fetch) or [`entityGroupFetch`](#entity-group-fetch) requirement to the query. Let's modify 
 the example to fetch the facet summary along with the codes of the facets and their groups:
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
+request [`facetEntity`](#entity-fetch) or [`groupEntity`](#entity-group-fetch) fields. Let's modify 
+the example to fetch the facet summary along with the codes of the facets and their groups:
+
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql,java,csharp">
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -297,19 +308,13 @@ the example to fetch the facet summary along with the codes of the facets and th
 </SourceCodeTabs>
 
 </LanguageSpecific>
-
-<LanguageSpecific to="graphql">
-
-The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
-request [`facetEntity`](#entity-fetch) or [`groupEntity`](#entity-group-fetch) fields. Let's modify 
-the example to fetch the facet summary along with the codes of the facets and their groups:
+<LanguageSpecific to="graphql,rest">
 
 <SourceCodeTabs langSpecificTabOnly>
 
 [Facet summary calculation with bodies for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.evitaql)
 
 </SourceCodeTabs>
-
 
 </LanguageSpecific>
 
