@@ -73,18 +73,9 @@
 				<groupId>com.google.code.maven-replacer-plugin</groupId>
 				<artifactId>replacer</artifactId>
 				<version>1.5.3</version>
-				<executions>
-					<execution>
-						<id>3</id>
-						<phase>generate-sources</phase>
-						<goals>
-							<goal>replace</goal>
-						</goals>
-					</execution>
-				</executions>
 				<configuration>
 					<filesToInclude>${basedir}/src/main/java/io/evitadb/api/query/parser/grammar/*.java</filesToInclude>
-					<regexFlags>MULTILINE</regexFlags>
+					<regexFlags>MULTILINE,DOTALL</regexFlags>
 					<replacements>
 						<replacement>
 							<token>(// Generated from*[\S\s]*?)package io.evitadb.api.query.parser.grammar;</token>

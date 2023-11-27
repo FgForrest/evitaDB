@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.structure;
 
+import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -56,16 +57,6 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 	public ExistingReferenceAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull Attributes<AttributeSchemaContract> baseAttributes
-	) {
-		super(entitySchema, baseAttributes);
-		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
-	}
-
-	public ExistingReferenceAttributesBuilder(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Collection<AttributeValue> attributes,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes
 	) {
@@ -77,33 +68,12 @@ public class ExistingReferenceAttributesBuilder extends ExistingAttributesBuilde
 	public ExistingReferenceAttributesBuilder(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull Attributes<AttributeSchemaContract> baseAttributes,
-		@Nonnull SerializablePredicate<AttributeValue> attributePredicate
-	) {
-		super(entitySchema, baseAttributes, attributePredicate);
-		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
-	}
-
-	public ExistingReferenceAttributesBuilder(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Collection<AttributeValue> attributes,
 		@Nonnull Map<String, AttributeSchemaContract> attributeTypes,
-		boolean suppressVerification
-	) {
-		super(entitySchema, attributes, attributeTypes, suppressVerification);
-		this.referenceSchema = referenceSchema;
-		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
-	}
-
-	public ExistingReferenceAttributesBuilder(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull Attributes<AttributeSchemaContract> baseAttributes,
-		boolean suppressVerification
-	) {
-		super(entitySchema, baseAttributes, suppressVerification);
+		boolean suppressVerification,
+		@Nonnull Collection<AttributeMutation> attributeMutations
+		) {
+		super(entitySchema, attributes, attributeTypes, suppressVerification, attributeMutations);
 		this.referenceSchema = referenceSchema;
 		this.location = "`" + entitySchema.getName() + "` reference `" + referenceSchema.getName() + "`";
 	}

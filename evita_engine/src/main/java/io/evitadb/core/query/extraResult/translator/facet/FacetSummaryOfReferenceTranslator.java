@@ -241,7 +241,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 
 		facetSummaryProducer.requireReferenceFacetSummary(
 			referenceSchema,
-			facetSummaryOfReference.getFacetStatisticsDepth(),
+			facetSummaryOfReference.getStatisticsDepth(),
 			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),

@@ -26,6 +26,7 @@ package io.evitadb.api.exception;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
@@ -38,6 +39,13 @@ public class CollectionNotFoundException extends EvitaInvalidUsageException {
 
 	public CollectionNotFoundException(@Nonnull String entityType) {
 		super("No collection found for entity type `" + entityType + "`!");
+	}
+
+	public CollectionNotFoundException(@Nullable Class<?> modelClass) {
+		super(
+			"Entity type cannot be resolved. Neither `@Entity` no `@EntityRef` " +
+				"annotation was found on model class: `" + modelClass.getName() + "`!"
+		);
 	}
 
 	public CollectionNotFoundException(int entityTypePrimaryKey) {

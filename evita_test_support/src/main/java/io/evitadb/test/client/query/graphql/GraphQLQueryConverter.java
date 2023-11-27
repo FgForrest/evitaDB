@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -64,6 +65,7 @@ public class GraphQLQueryConverter {
 	private static final String DEFAULT_CATALOG_NAME = "evita";
 
 	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
+		Require.class,
 		FacetGroupsConjunction.class,
 		FacetGroupsDisjunction.class,
 		FacetGroupsNegation.class,
@@ -107,24 +109,29 @@ public class GraphQLQueryConverter {
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			allowedRequireConstraints::contains
+			allowedRequireConstraints::contains,
+			new AtomicReference<>(filterConstraintToJsonConverter),
+			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);
 		if (query.getFilterBy() != null) {
 			rootConstraints.add(
 				filterConstraintToJsonConverter.convert(new EntityDataLocator(entityType), query.getFilterBy())
+					.filter(it -> !it.value().isEmpty())
 					.orElseThrow(() -> new IllegalStateException("Root JSON filter constraint cannot be null if original query has filter constraint."))
 			);
 		}
 		if (query.getOrderBy() != null) {
 			rootConstraints.add(
 				orderConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getOrderBy())
+					.filter(it -> !it.value().isEmpty())
 					.orElseThrow(() -> new IllegalStateException("Root JSON order constraint cannot be null if original query has order constraint."))
 			);
 		}
 		if (query.getRequire() != null) {
 			requireConstraintToJsonConverter.convert(new GenericDataLocator(entityType), query.getRequire())
+				.filter(it -> !it.value().isEmpty())
 				.ifPresent(rootConstraints::add);
 		}
 

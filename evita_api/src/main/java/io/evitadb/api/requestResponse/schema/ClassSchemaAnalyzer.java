@@ -382,7 +382,7 @@ public class ClassSchemaAnalyzer {
 	 * Attempts to retrieve default value from a getter with default implementation.
 	 */
 	@Nullable
-	private static Serializable extractDefaultValue(@Nonnull Class<?> definingClass, @Nonnull Method getter) {
+	public static Serializable extractDefaultValue(@Nonnull Class<?> definingClass, @Nonnull Method getter) {
 		try {
 
 			final Constructor<Lookup> constructor = Lookup.class.getDeclaredConstructor(Class.class);

@@ -35,6 +35,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Common ancestor for GraphQL require constraint converters with helper methods and common converters.
@@ -57,7 +58,11 @@ abstract class RequireConverter {
 		this.jsonNodeFactory = new JsonNodeFactory(true);
 		this.filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		this.orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
-		this.requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(catalogSchema);
+		this.requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
+			catalogSchema,
+			new AtomicReference<>(this.filterConstraintToJsonConverter),
+			new AtomicReference<>(this.orderConstraintToJsonConverter)
+		);
 	}
 
 	@Nonnull

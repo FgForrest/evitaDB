@@ -48,6 +48,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -159,7 +160,7 @@ public class Reference implements ReferenceContract {
 			reference.orElseGet(
 				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
 			),
-			Collections.emptyList(),
+			Collections.emptyMap(),
 			reference
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap())
@@ -189,7 +190,7 @@ public class Reference implements ReferenceContract {
 			reference.orElseGet(
 				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
 			),
-			Collections.emptyList(),
+			Collections.emptyMap(),
 			reference
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap())
@@ -215,6 +216,37 @@ public class Reference implements ReferenceContract {
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
 		this.attributes = attributes;
+		this.dropped = dropped;
+	}
+
+	public Reference(
+		@Nonnull EntitySchemaContract entitySchema,
+		int version,
+		@Nonnull String referenceName,
+		int referencedEntityPrimaryKey,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality,
+		@Nullable GroupEntityReference group,
+		@Nonnull Map<AttributeKey, AttributeValue> attributes,
+		boolean dropped
+	) {
+		this.entitySchema = entitySchema;
+		this.version = version;
+		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
+		this.referenceCardinality = cardinality;
+		this.referencedEntityType = referencedEntityType;
+		this.group = group;
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
+		this.attributes = new ReferenceAttributes(
+			entitySchema,
+			reference.orElseGet(
+				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
+			),
+			attributes,
+			reference
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap())
+		);
 		this.dropped = dropped;
 	}
 

@@ -32,6 +32,8 @@ import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
 
 import static java.util.Optional.ofNullable;
@@ -54,6 +56,8 @@ public class AttributesStoragePartSerializer extends Serializer<AttributesStorag
 
 		final AttributeValue[] attributes = object.getAttributes();
 		output.writeVarInt(attributes.length, true);
+		// the attributes are always sorted to ensure the same order of attributes in the serialized form
+		Arrays.sort(attributes, Comparator.comparing(AttributeValue::key));
 		for (AttributeValue attribute : attributes) {
 			kryo.writeObject(output, attribute);
 		}

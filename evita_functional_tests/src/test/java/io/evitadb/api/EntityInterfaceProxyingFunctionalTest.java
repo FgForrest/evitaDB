@@ -182,14 +182,15 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 
 		if (externalEntities) {
 			assertCategory(productCategory.getCategory(), sealedEntity, locale);
-			assertTrue(productCategory.getCategoryIfPresent().isPresent());
+			assertTrue(productCategory.getCategoryIfPresentAndFetched().isPresent());
 			assertEquals(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey()), productCategory.getCategoryReference());
 			assertTrue(productCategory.getCategoryReferenceIfPresent().isPresent());
 			assertEquals(sealedEntity.getPrimaryKey(), productCategory.getCategoryReferencePrimaryKey());
 			assertTrue(productCategory.getCategoryReferencePrimaryKeyIfPresent().isPresent());
 		} else {
-			assertNull(productCategory.getCategory());
-			assertEquals(empty(), productCategory.getCategoryIfPresent());
+			assertThrows(ContextMissingException.class, productCategory::getCategory);
+			assertEquals(empty(), productCategory.getCategoryIfPresentAndFetched());
+			assertThrows(ContextMissingException.class, productCategory::getCategoryIfPresent);
 			assertEquals(of(new EntityReference(Entities.CATEGORY, sealedEntity.getPrimaryKey())), productCategory.getCategoryReferenceIfPresent());
 			assertEquals(OptionalInt.of(sealedEntity.getPrimaryKey()), productCategory.getCategoryReferencePrimaryKeyIfPresent());
 		}
@@ -262,6 +263,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		boolean externalEntities
 	) {
 		assertProductBasicData(originalProduct, product);
+		assertProductLocales(originalProduct, product, locale);
 		assertProductAttributes(originalProduct, product, locale);
 		assertProductAssociatedData(originalProduct, product, locale);
 
@@ -390,8 +392,26 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		}
 	}
 
+	private static void assertProductLocales(
+		@Nonnull SealedEntity originalProduct,
+		@Nullable ProductInterface product,
+		@Nullable Locale filteredLocale
+	) {
+		final Set<Locale> allLocales = product.allLocales();
+		final Set<Locale> expectedAllLocales = originalProduct.getAllLocales();
+		assertEquals(expectedAllLocales.size(), allLocales.size());
+		allLocales.forEach(locale -> assertTrue(expectedAllLocales.contains(locale)));
+
+		final Set<Locale> locales = product.locales();
+		final Set<Locale> expectedLocales = filteredLocale == null ? originalProduct.getLocales() : Set.of(filteredLocale);
+		assertEquals(expectedLocales.size(), locales.size());
+		locales.forEach(locale -> assertTrue(expectedLocales.contains(locale)));
+	}
+
 	private static void assertProductBasicData(@Nonnull SealedEntity originalProduct, @Nullable ProductInterface product) {
 		assertNotNull(product);
+		assertEquals(originalProduct.version(), product.version());
+		assertEquals(Entities.PRODUCT, product.entitySchema().getName());
 		assertEquals(originalProduct.getPrimaryKey(), product.getPrimaryKey());
 		assertEquals(originalProduct.getPrimaryKey(), product.getId());
 		assertEquals(Entities.PRODUCT, product.getType());
@@ -673,7 +693,15 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final Query query = query(
 			collection(Entities.PRODUCT),
 			filterBy(entityPrimaryKeyInSet(1)),
-			require(entityFetchAll())
+			require(
+				entityFetch(
+					attributeContentAll(), hierarchyContent(),
+					associatedDataContentAll(), priceContentAll(),
+					referenceContentAllWithAttributes(
+						entityFetchAll(), entityGroupFetchAll()
+					), dataInLocalesAll()
+				)
+			)
 		);
 
 		final ProductInterface product = evitaSession.queryOne(query, ProductInterface.class)

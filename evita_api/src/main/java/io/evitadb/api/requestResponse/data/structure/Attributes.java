@@ -46,6 +46,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -53,7 +55,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -133,7 +134,7 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 					(attributeValue, attributeValue2) -> {
 						throw new EvitaInvalidUsageException("Duplicated attribute " + attributeValue.key() + "!");
 					},
-					TreeMap::new
+					LinkedHashMap::new
 				)
 			);
 		this.attributeTypes = attributeTypes;
@@ -141,7 +142,26 @@ public abstract class Attributes<S extends AttributeSchemaContract> implements A
 			.filter(Droppable::exists)
 			.map(it -> it.key().locale())
 			.filter(Objects::nonNull)
-			.collect(Collectors.toSet());
+			.collect(Collectors.toCollection(LinkedHashSet::new));
+	}
+
+	/**
+	 * Constructor should be used only when attributes are loaded from persistent storage.
+	 * Constructor is meant to be internal to the Evita engine.
+	 */
+	protected Attributes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Map<AttributeKey, AttributeValue> attributeValues,
+		@Nonnull Map<String, S> attributeTypes
+	) {
+		this.entitySchema = entitySchema;
+		this.attributeValues = attributeValues;
+		this.attributeTypes = attributeTypes;
+		this.attributeLocales = attributeValues.values().stream()
+			.filter(Droppable::exists)
+			.map(it -> it.key().locale())
+			.filter(Objects::nonNull)
+			.collect(Collectors.toCollection(LinkedHashSet::new));
 	}
 
 	@Override

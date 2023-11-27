@@ -547,20 +547,30 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns true if type (may be array type) is directly supported by evitaDB or Java enum.
+	 */
+	public static boolean isSupportedTypeOrItsArrayOrEnum(@Nonnull Class<?> type) {
+		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
+		return EvitaDataTypes.isSupportedType(typeToCheck) || typeToCheck.isEnum();
+	}
+
+	/**
 	 * If passed type is a primitive type or array of primitive types, the wrapper type or array of wrapper types
 	 * is returned in response.
 	 */
 	public static Class<? extends Serializable> toWrappedForm(@Nonnull Class<?> type) {
-		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
-		if (typeToCheck.isPrimitive()) {
-			//noinspection unchecked
-			return type.isArray() ?
-				(Class<? extends Serializable>) Array.newInstance(getWrappingPrimitiveClass(typeToCheck), 0).getClass() :
-				getWrappingPrimitiveClass(typeToCheck);
-		} else {
-			//noinspection unchecked
-			return (Class<? extends Serializable>) type;
+		if (!void.class.equals(type)) {
+			@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
+			if (typeToCheck.isPrimitive()) {
+				//noinspection unchecked
+				return type.isArray() ?
+					(Class<? extends Serializable>) Array.newInstance(getWrappingPrimitiveClass(typeToCheck), 0).getClass() :
+					getWrappingPrimitiveClass(typeToCheck);
+			}
 		}
+
+		//noinspection unchecked
+		return (Class<? extends Serializable>) type;
 	}
 
 	/**
@@ -590,7 +600,7 @@ public class EvitaDataTypes {
 	}
 
 	/**
-	 * Method converts unknown object to the requested type supported by by Evita.
+	 * Method converts unknown object to the requested type supported by Evita.
 	 *
 	 * @return unknownObject converted to requested type
 	 * @throws UnsupportedDataTypeException when unknownObject cannot be converted to any of Evita supported types

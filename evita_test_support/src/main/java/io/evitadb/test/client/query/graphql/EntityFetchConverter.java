@@ -76,7 +76,7 @@ public class EntityFetchConverter extends RequireConverter {
 	                    @Nullable String entityType,
 						@Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
-		final Optional<EntitySchemaContract> entitySchema = catalogSchema.getEntitySchema(entityType);
+		final Optional<EntitySchemaContract> entitySchema = Optional.ofNullable(entityType).flatMap(catalogSchema::getEntitySchema);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
 

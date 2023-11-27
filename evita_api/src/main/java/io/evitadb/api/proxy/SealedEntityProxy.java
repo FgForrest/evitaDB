@@ -23,9 +23,18 @@
 
 package io.evitadb.api.proxy;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * This interface is implemented by all proxy types that wrap a sealed entity and provide access to an instance of
@@ -33,13 +42,61 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityProxy extends EvitaProxy {
+public interface SealedEntityProxy extends EvitaProxy, ReferencedEntityBuilderProvider {
+
+	/**
+	 * Returns the primary key of the underlying sealed entity. The primary key might be null if the entity hasn't been
+	 * yet upserted to the database.
+	 *
+	 * @return the primary key of the underlying sealed entity
+	 */
+	@Nullable
+	Integer getPrimaryKey();
 
 	/**
 	 * Returns the underlying sealed entity that is wrapped into a requested proxy type.
+	 *
 	 * @return the underlying sealed entity
 	 */
 	@Nonnull
-	SealedEntity getSealedEntity();
+	EntityContract getEntity();
+
+	/**
+	 * Returns the entity mutation that contains all the {@link LocalMutation} related to the wrapped
+	 * {@link #getEntity()} opened for write.
+	 *
+	 * @return the entity mutation or empty value if no mutations were performed
+	 */
+	@Nonnull
+	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback();
+
+	/**
+	 * Types of generated proxies.
+	 */
+	enum ProxyType {
+		PARENT,
+		REFERENCE,
+		REFERENCED_ENTITY
+	}
+
+	/**
+	 * Record wrapping {@link EntityBuilder} and callback that is called when the builder mutations is applied via
+	 * {@link EvitaSessionContract#upsertEntityDeeply(Serializable)} method.
+	 */
+	record EntityBuilderWithCallback(
+		@Nonnull EntityBuilder builder,
+		@Nullable Consumer<EntityReference> upsertCallback
+	) {
+
+		/**
+		 * Method invokes the {@link #upsertCallback} callback if it is present.
+		 */
+		public void updateEntityReference(@Nonnull EntityReference entityReference) {
+			if (upsertCallback != null) {
+				upsertCallback.accept(entityReference);
+			}
+		}
+
+	}
 
 }

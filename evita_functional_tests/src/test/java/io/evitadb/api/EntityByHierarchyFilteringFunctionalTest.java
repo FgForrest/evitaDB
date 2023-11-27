@@ -64,6 +64,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -85,6 +86,7 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * This test verifies whether entities can be filtered by hierarchy constraints.
@@ -930,7 +932,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					EntityReference.class
 				);
 
-				final Set<Integer> allowedParents = Stream.of(5, 9, 30, 53).collect(Collectors.toSet());
+				final Set<Integer> allowedParents = Stream.concat(
+						categoryHierarchy.getParentItems("53").stream().map(it -> Integer.parseInt(it.getCode())),
+						Stream.of(53)
+					)
+					.collect(Collectors.toSet());
 				final TestHierarchyPredicate filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate scopePredicate =
 					(entity, parentItems) ->
@@ -995,7 +1001,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					EntityReference.class
 				);
 
-				final Set<Integer> allowedParents = Stream.of(5, 9, 30, 53).collect(Collectors.toSet());
+				final Set<Integer> allowedParents = Stream.concat(
+						categoryHierarchy.getParentItems("53").stream().map(it -> Integer.parseInt(it.getCode())),
+						Stream.of(53)
+					)
+					.collect(Collectors.toSet());
 				final TestHierarchyPredicate filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate scopePredicate =
 					(entity, parentItems) ->
@@ -1031,7 +1041,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
-	@DisplayName("Should return parents with filtered siblings for categories for requested category 53")
+	@DisplayName("Should return parents with filtered siblings for categories for requested category 43")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@ParameterizedTest
 	@MethodSource("statisticTypeVariants")
@@ -1039,8 +1049,25 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Set<Integer> allowedParents = Stream.of(5, 9, 30, 53).collect(Collectors.toSet());
-				final Set<Integer> disallowedParents = Stream.of(2, 14, 26).collect(Collectors.toSet());
+				final Set<Integer> allowedParents = Stream.concat(
+						categoryHierarchy.getParentItems("43").stream().map(it -> Integer.parseInt(it.getCode())),
+						Stream.of(53)
+					)
+					.collect(Collectors.toSet());
+
+				final AtomicInteger cnt = new AtomicInteger(1);
+				final Set<Integer> disallowedParents =
+					categoryHierarchy.getChildItems(
+							categoryHierarchy.getParentItem(
+								categoryHierarchy.getParentItem("43").getCode()
+							).getCode()
+						)
+						.stream()
+						.map(it -> Integer.parseInt(it.getCode()))
+						.filter(it -> !allowedParents.contains(it) && cnt.getAndIncrement() % 2 == 0)
+						.collect(Collectors.toSet());
+
+				assertTrue(disallowedParents.size() > 1);
 
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
@@ -1049,7 +1076,7 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 							and(
 								entityLocaleEquals(CZECH_LOCALE),
 								hierarchyWithinSelf(
-									entityPrimaryKeyInSet(53),
+									entityPrimaryKeyInSet(43),
 									excluding(entityPrimaryKeyInSet(disallowedParents.toArray(Integer[]::new)))
 								)
 							)
@@ -1092,11 +1119,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					categoryCardinalities -> new HierarchyStatisticsTuple(
 						"megaMenu",
 						computeParents(
-							session, 53, categoryHierarchy,
+							session, 43, categoryHierarchy,
 							categoryCardinalities, entity -> !disallowedParents.contains(entity.getPrimaryKey()),
 							statisticsType.contains(StatisticsType.CHILDREN_COUNT),
 							statisticsType.contains(StatisticsType.QUERIED_ENTITY_COUNT),
-							53
+							43
 						)
 					)
 				);
@@ -1147,7 +1174,11 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					EntityReference.class
 				);
 
-				final Set<Integer> allowedParents = Stream.of(5, 9, 30).collect(Collectors.toSet());
+				final Set<Integer> allowedParents = Stream.concat(
+						categoryHierarchy.getParentItems("30").stream().map(it -> Integer.parseInt(it.getCode())),
+						Stream.of(30)
+					)
+					.collect(Collectors.toSet());
 				final TestHierarchyPredicate filterPredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate scopePredicate =
 					(entity, parentItems) -> {
@@ -2690,12 +2721,12 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		one.edee.oss.pmptt.model.Hierarchy categoryHierarchy,
 		Map<Integer, SealedEntity> categoryIndex,
 		TestHierarchyPredicate filterPredicate,
-		TestHierarchyPredicate treePredicate
+		TestHierarchyPredicate scopePredicate
 	) {
 		final Set<Integer> categoriesWithValidPath = new HashSet<>();
 		for (SealedEntity category : categoryIndex.values()) {
 			final List<HierarchyItem> parentItems = categoryHierarchy.getParentItems(String.valueOf(category.getPrimaryKey()));
-			if (treePredicate.test(category, parentItems)) {
+			if (scopePredicate.test(category, parentItems)) {
 				categoriesWithValidPath.add(category.getPrimaryKey());
 			}
 		}

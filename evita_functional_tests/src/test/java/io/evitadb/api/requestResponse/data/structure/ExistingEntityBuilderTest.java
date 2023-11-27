@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -64,7 +65,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 	private Entity initialEntity;
 	private ExistingEntityBuilder builder;
 
-	public static void assertPrice(Entity updatedInstance, int priceId, String priceList, Currency currency, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
+	public static void assertPrice(SealedEntity updatedInstance, int priceId, String priceList, Currency currency, BigDecimal priceWithoutTax, BigDecimal taxRate, BigDecimal priceWithTax, boolean indexed) {
 		final PriceContract price = updatedInstance.getPrice(priceId, priceList, currency).orElseGet(() -> fail("Price not found!"));
 		assertEquals(priceWithoutTax, price.priceWithoutTax());
 		assertEquals(taxRate, price.taxRate());
@@ -74,7 +75,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@BeforeEach
 	void setUp() {
-		initialEntity = new InitialEntityBuilder("product", 1)
+		final SealedEntity sealedEntity = new InitialEntityBuilder("product", 1)
 			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -88,6 +89,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			.setAssociatedData("int", Locale.ENGLISH, 1)
 			.setAssociatedData("bigDecimal", Locale.ENGLISH, BigDecimal.ONE)
 			.toInstance();
+		initialEntity = (Entity) sealedEntity;
 		this.builder = new ExistingEntityBuilder(initialEntity);
 	}
 
@@ -174,7 +176,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAddNewAttributes() {
-		final Entity updatedInstance = builder
+		final SealedEntity updatedInstance = builder
 			.setAttribute("newAttribute", "someValue")
 			.toInstance();
 
@@ -183,7 +185,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAddNewAssociatedData() {
-		final Entity updatedInstance = builder
+		final SealedEntity updatedInstance = builder
 			.setAssociatedData("newAttribute", "someValue")
 			.toInstance();
 
@@ -192,16 +194,16 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSetNewParent() {
-		final Entity updatedInstance = builder
+		final SealedEntity updatedInstance = builder
 			.setParent(2)
 			.toInstance();
 
-		assertEquals(2, updatedInstance.getParent().orElseThrow());
+		assertEquals(2, updatedInstance.getParentEntity().orElseThrow().getPrimaryKey());
 	}
 
 	@Test
 	void shouldSetNewReference() {
-		final Entity updatedInstance = builder
+		final SealedEntity updatedInstance = builder
 			.setReference(
 				"stock", "stock", Cardinality.ZERO_OR_MORE, 2,
 				whichIs -> whichIs.setAttribute("newAttribute", "someValue")
@@ -218,7 +220,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldOverwritePrices() {
-		final Entity updatedInstance = builder
+		final SealedEntity updatedInstance = builder
 			.setPrice(1, "basic", CZK, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.TEN, true)
 			.removePrice(2, "reference", CZK)
 			.setPrice(5, "vip", EUR, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
@@ -245,7 +247,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalEntityInstanceWhenNothingHasChanged() {
-		final Entity newEntity = new ExistingEntityBuilder(initialEntity)
+		final SealedEntity newEntity = new ExistingEntityBuilder(initialEntity)
 			.setParent(5)
 			.setPriceInnerRecordHandling(PriceInnerRecordHandling.FIRST_OCCURRENCE)
 			.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)

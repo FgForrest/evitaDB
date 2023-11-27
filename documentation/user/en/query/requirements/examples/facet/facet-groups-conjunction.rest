@@ -1,0 +1,32 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "userFilter" : [
+      {
+        "facetGroupsHaving" : [
+          {
+            "entityHaving" : {
+              "attributeCodeInSet" : [
+                "sale"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "require" : {
+    "facetGroupsSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    },
+    "facetGroupsGroupsConjunction" : { }
+  }
+}
