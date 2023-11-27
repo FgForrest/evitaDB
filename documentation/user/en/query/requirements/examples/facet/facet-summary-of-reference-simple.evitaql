@@ -4,18 +4,14 @@ query(
         hierarchyWithin(
             'categories',
             attributeEquals('code', 'e-readers')
-        )
+        ),
+        attributeEquals('status', 'ACTIVE'),
         entityLocaleEquals('en')
     ),
     require(
-        facetSummary(
-            COUNTS,
-            entityFetch(
-                attributeContent('name')
-            ),
-            entityGroupFetch(
-                attributeContent('name')
-            )
+        facetSummaryOfReference(
+          'brand',
+          COUNTS
         )
     )
 )

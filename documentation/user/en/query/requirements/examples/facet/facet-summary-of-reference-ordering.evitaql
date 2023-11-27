@@ -9,7 +9,8 @@ query(
         entityLocaleEquals('en')
     ),
     require(
-        facetSummary(
+        facetSummaryOfReference(
+            'parameterValues',
             COUNTS,
             orderBy(attributeNatural('name', ASC)),
             orderGroupBy(attributeNatural('name', ASC)),

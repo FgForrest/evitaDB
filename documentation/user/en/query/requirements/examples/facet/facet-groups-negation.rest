@@ -1,0 +1,37 @@
+POST /rest/evita/Product/query
+
+{
+  "require" : {
+    "facetParameterValuesSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      },
+      "filterBy" : {
+        "attributeCodeContains" : "4"
+      },
+      "filterGroupBy" : {
+        "attributeCodeInSet" : [
+          "ram-memory",
+          "rom-memory"
+        ]
+      }
+    },
+    "facetParameterValuesGroupsNegation" : {
+      "filterBy" : {
+        "attributeCodeInSet" : [
+          "ram-memory"
+        ]
+      }
+    }
+  }
+}

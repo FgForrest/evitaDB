@@ -1,0 +1,74 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "e-readers"
+        }
+      },
+      attributeStatusEquals: "ACTIVE",
+      entityLocaleEquals: en
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        brand {
+          count
+          groupEntity {
+            primaryKey
+          }
+          facetStatistics(
+            orderBy: [
+              {
+                attributeNameNatural: ASC
+              }
+            ]
+          ) {
+            requested
+            count
+            facetEntity {
+              primaryKey
+              attributes {
+                name
+              }
+            }
+          }
+        }
+        parameterValues(
+          filterGroupBy: {
+            attributeIsVisibleInFilterEquals: true
+          }
+          orderGroupBy: [
+            {
+              attributeOrderNatural: ASC
+            }
+          ]
+        ) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              name
+            }
+          }
+          facetStatistics(
+            orderBy: [
+              {
+                attributeOrderNatural: ASC
+              }
+            ]
+          ) {
+            requested
+            count
+            facetEntity {
+              primaryKey
+              attributes {
+                name
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -7,11 +7,11 @@ POST /rest/evita/Product/query
         "attributeCodeEquals" : "e-readers"
       }
     },
-    "entityLocaleEquals" : "en",
-    "attributeStatusEquals" : "ACTIVE"
+    "attributeStatusEquals" : "ACTIVE",
+    "entityLocaleEquals" : "en"
   },
   "require" : {
-    "facetSummary" : {
+    "facetParameterValuesSummary" : {
       "statisticsDepth" : "COUNTS",
       "requirements" : {
         "entityFetch" : {
@@ -24,7 +24,17 @@ POST /rest/evita/Product/query
             "name"
           ]
         }
-      }
+      },
+      "orderBy" : [
+        {
+          "attributeNameNatural" : "ASC"
+        }
+      ],
+      "orderGroupBy" : [
+        {
+          "attributeNameNatural" : "ASC"
+        }
+      ]
     }
   }
 }

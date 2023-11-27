@@ -42,6 +42,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Converts {@link Query} into REST equivalent query string.
@@ -97,7 +98,11 @@ public class RestQueryConverter implements AutoCloseable {
 	private String convertBody(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull Query query, @Nonnull String entityType) {
 		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
-		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(catalogSchema);
+		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
+			catalogSchema,
+			new AtomicReference<>(filterConstraintToJsonConverter),
+			new AtomicReference<>(orderConstraintToJsonConverter)
+		);
 
 		final ObjectNode body = jsonNodeFactory.objectNode();
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);
