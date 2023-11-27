@@ -59,7 +59,7 @@ The visualization is organized in the same way as the facet summary itself:
 
 <LanguageSpecific to="evitaql,java,csharp,rest">
 
-<MDInclude>[Syntax of constraint facetSummary](facet-summary-syntax.md)</MDInclude>
+<MDInclude>[Syntax of constraint facetSummary](./assets/facet-summary-syntax.md)</MDInclude>
 
 The request triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass> 
 containing the facet summary calculation. The calculated facet summary will contain all entity references marked as 
@@ -79,7 +79,7 @@ each reference can have its own behaviour defined.
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude>[Syntax of constraint facetSummaryOfReference](facet-summary-of-reference-syntax.md)</MDInclude>
+<MDInclude>[Syntax of constraint facetSummaryOfReference](./assets/facet-summary-of-reference-syntax.md)</MDInclude>
 
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummaryOfReference.java</SourceClass>
 requirement triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
@@ -544,7 +544,7 @@ You can see that the facet summary is now sorted where appropriate:
 
 ## Facet summary of reference
 
-<MDInclude>[Syntax of constraint facetSummaryOfReference](facet-summary-of-reference-syntax.md)</MDInclude>
+<MDInclude>[Syntax of constraint facetSummaryOfReference](./assets/facet-summary-of-reference-syntax.md)</MDInclude>
 
 The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummaryOfReference.java</SourceClass> 
 requirement triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass> 
