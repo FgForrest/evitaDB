@@ -284,7 +284,7 @@ the references, facet groups, and facets - to get them we would have to add [the
 
 ### Fetching facet (group) bodies
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,csharp,rest">
 
 The facet summary makes little sense without the bodies of the facet groups and facets. To get those bodies, you need to 
 add [`entityFetch`](#entity-fetch) or [`entityGroupFetch`](#entity-group-fetch) requirement to the query. Let's modify 
