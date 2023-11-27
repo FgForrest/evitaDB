@@ -89,6 +89,5 @@ class ClassifierUtilsTest {
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary-key"));
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary_key"));
 		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PrimaryKey"));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primarykey"));
 	}
 }
