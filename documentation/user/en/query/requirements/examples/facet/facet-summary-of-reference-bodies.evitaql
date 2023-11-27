@@ -1,13 +1,16 @@
 query(
     collection('Product'),
     filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'e-readers')
+        ),
         attributeEquals('status', 'ACTIVE')
     ),
     require(
-        facetSummary(
+        facetSummaryOfReference(
+            'parameterValues',
             COUNTS,
-            filterBy(attributeContains('code', 'ar')),
-            filterGroupBy(attributeStartsWith('code', 'o')),
             entityFetch(attributeContent('code')),
             entityGroupFetch(attributeContent('code'))
         )

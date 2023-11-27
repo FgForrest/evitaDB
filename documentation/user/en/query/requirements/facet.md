@@ -456,11 +456,24 @@ It's hard to find a good example for filtering a generic facet summary even for 
 a bit artificial. Let's say we want to display only the facet options whose *code* attribute contains the substring 
 *ar*, and only those that are within groups with *code* starting with the letter *o*:
 
+<LanguageSpecific to="evitaql,java,csharp">
+
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.evitaql)
 
 </SourceCodeTabs>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.evitaql)
+
+</SourceCodeTabs>
+
+</LanguageSpecific>
 
 <Note type="info">
 
@@ -479,12 +492,12 @@ We don't limit the search to a specific hierarchy because the filter is quite se
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-filtering.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-reference-filtering.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -520,11 +533,24 @@ the source entity that are specific to a relationship with the target entity.
 
 Let's sort both facet groups and facets alphabetically by their English names:
 
+<LanguageSpecific to="evitaql,java,csharp">
+
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Sort facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.evitaql)
 
 </SourceCodeTabs>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Sort facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.evitaql)
+
+</SourceCodeTabs>
+
+</LanguageSpecific>
 
 <Note type="info">
 
@@ -543,12 +569,12 @@ You can see that the facet summary is now sorted where appropriate:
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary sorting](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary sorting](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary sorting](/documentation/user/en/query/requirements/examples/facet/facet-summary-ordering.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary sorting](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

@@ -51,6 +51,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -108,7 +109,8 @@ public class GraphQLQueryConverter {
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			allowedRequireConstraints::contains
+			allowedRequireConstraints::contains,
+			new AtomicReference<>(filterConstraintToJsonConverter)
 		);
 
 		final List<JsonConstraint> rootConstraints = new ArrayList<>(3);

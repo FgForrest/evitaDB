@@ -10,6 +10,7 @@ query(
     ),
     require(
         facetSummary(
+            'parameterValues',
             COUNTS,
             orderBy(attributeNatural('name', ASC)),
             orderGroupBy(attributeNatural('name', ASC)),

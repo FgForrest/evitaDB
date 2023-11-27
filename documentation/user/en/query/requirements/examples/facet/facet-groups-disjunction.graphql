@@ -1,0 +1,69 @@
+{
+  queryProduct(
+    filterBy: {
+      userFilter: [
+        {
+          facetParameterValuesHaving: [
+            {
+              entityHaving: {
+                attributeCodeInSet: [
+                  "ram-memory-64"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    require: {
+      facetParameterValuesGroupsDisjunction: {
+        filterBy: {
+          attributeCodeInSet: [
+            "ram-memory",
+            "rom-memory"
+          ]
+        }
+      }
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        parameterValues(
+          filterGroupBy: {
+            attributeCodeInSet: [
+              "ram-memory",
+              "rom-memory"
+            ]
+          }
+        ) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+          facetStatistics(
+            filterBy: {
+              attributeCodeContains: "4"
+            }
+          ) {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

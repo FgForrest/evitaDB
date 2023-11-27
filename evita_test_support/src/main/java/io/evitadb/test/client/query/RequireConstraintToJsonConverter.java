@@ -26,10 +26,13 @@ package io.evitadb.test.client.query;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptorProvider;
+import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.require.Require;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 /**
@@ -39,13 +42,15 @@ import java.util.function.Predicate;
  */
 public class RequireConstraintToJsonConverter extends ConstraintToJsonConverter {
 
-	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema) {
-		super(catalogSchema);
+	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                                        @Nonnull AtomicReference<FilterConstraintToJsonConverter> filterConstraintToJsonConverter) {
+		super(catalogSchema, Map.of(ConstraintType.FILTER, filterConstraintToJsonConverter));
 	}
 
 	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                                        @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
-		super(catalogSchema, constraintPredicate);
+	                                        @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate,
+	                                        @Nonnull AtomicReference<FilterConstraintToJsonConverter> filterConstraintToJsonConverter) {
+		super(catalogSchema, constraintPredicate, Map.of(ConstraintType.FILTER, filterConstraintToJsonConverter));
 	}
 
 	@Nonnull

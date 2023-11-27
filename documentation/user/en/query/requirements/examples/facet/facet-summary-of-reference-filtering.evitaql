@@ -4,7 +4,8 @@ query(
         attributeEquals('status', 'ACTIVE')
     ),
     require(
-        facetSummary(
+        facetSummaryOfReference(
+            'parameterValues',
             COUNTS,
             filterBy(attributeContains('code', 'ar')),
             filterGroupBy(attributeStartsWith('code', 'o')),
