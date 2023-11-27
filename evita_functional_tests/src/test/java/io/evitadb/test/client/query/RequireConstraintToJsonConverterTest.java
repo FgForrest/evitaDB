@@ -66,14 +66,17 @@ class RequireConstraintToJsonConverterTest extends ConstraintToJsonConverterTest
 	void init() {
 		super.init();
 		final FilterConstraintToJsonConverter filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
+		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		this.baseConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			new AtomicReference<>(filterConstraintToJsonConverter)
+			new AtomicReference<>(filterConstraintToJsonConverter),
+			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 		this.limitedConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
 			allowedRequireConstraints::contains,
-			new AtomicReference<>(filterConstraintToJsonConverter)
+			new AtomicReference<>(filterConstraintToJsonConverter),
+			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 	}
 
