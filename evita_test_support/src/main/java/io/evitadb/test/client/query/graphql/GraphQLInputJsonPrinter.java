@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 public class GraphQLInputJsonPrinter {
 
 	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(-[A-Z]{2})?)\"");
+	private final static Pattern CURRENCY_PATTERN = Pattern.compile("\"(CZK|EUR|USD)\"");
 
 	private final static Set<Class<? extends Enum<?>>> KNOWN_ENUMS = Set.of(
 		AttributeSpecialValue.class, OrderDirection.class, EmptyHierarchicalEntityBehaviour.class, FacetStatisticsDepth.class, PriceContentMode.class, QueryPriceMode.class, StatisticsBase.class, StatisticsType.class
@@ -86,6 +87,7 @@ public class GraphQLInputJsonPrinter {
 		}
 		graphQLJson = correctEnumValues(graphQLJson);
 		graphQLJson = correctLocaleValues(graphQLJson);
+		graphQLJson = correctCurrencyValues(graphQLJson);
 		return graphQLJson;
 	}
 
@@ -99,6 +101,12 @@ public class GraphQLInputJsonPrinter {
 	private String correctLocaleValues(@Nonnull String graphQLJson) {
 		final Matcher localeMatcher = LOCALE_PATTERN.matcher(graphQLJson);
 		return localeMatcher.replaceAll(mr -> mr.group(1).replace("-", "_"));
+	}
+
+	@Nonnull
+	private String correctCurrencyValues(@Nonnull String graphQLJson) {
+		final Matcher currencyMatcher = CURRENCY_PATTERN.matcher(graphQLJson);
+		return currencyMatcher.replaceAll(mr -> mr.group(1));
 	}
 
 	private class CustomPrettyPrinter extends DefaultPrettyPrinter {
