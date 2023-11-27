@@ -7,6 +7,7 @@ perex: |
   development or unit testing, when you can use the embedded database and switch to the remote database in production. 
 date: '26.10.2023'
 author: 'Ing. Jan Novotný'
+preferredLang: java
 ---
 
 Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
