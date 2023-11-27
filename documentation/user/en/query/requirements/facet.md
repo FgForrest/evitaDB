@@ -57,7 +57,7 @@ The visualization is organized in the same way as the facet summary itself:
 
 ## Facet summary
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude>[Syntax of constraint facetSummary](/documentation/user/en/query/requirements/assets/facet-summary-syntax.md)</MDInclude>
 
