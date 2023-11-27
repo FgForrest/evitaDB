@@ -100,7 +100,8 @@ public class RestQueryConverter implements AutoCloseable {
 		final OrderConstraintToJsonConverter orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		final RequireConstraintToJsonConverter requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			new AtomicReference<>(filterConstraintToJsonConverter)
+			new AtomicReference<>(filterConstraintToJsonConverter),
+			new AtomicReference<>(orderConstraintToJsonConverter)
 		);
 
 		final ObjectNode body = jsonNodeFactory.objectNode();

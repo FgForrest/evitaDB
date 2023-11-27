@@ -43,14 +43,29 @@ import java.util.function.Predicate;
 public class RequireConstraintToJsonConverter extends ConstraintToJsonConverter {
 
 	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                                        @Nonnull AtomicReference<FilterConstraintToJsonConverter> filterConstraintToJsonConverter) {
-		super(catalogSchema, Map.of(ConstraintType.FILTER, filterConstraintToJsonConverter));
+	                                        @Nonnull AtomicReference<FilterConstraintToJsonConverter> filterConstraintToJsonConverter,
+	                                        @Nonnull AtomicReference<OrderConstraintToJsonConverter> orderConstraintToJsonConverter) {
+		super(
+			catalogSchema,
+			Map.of(
+				ConstraintType.FILTER, filterConstraintToJsonConverter,
+				ConstraintType.ORDER, orderConstraintToJsonConverter
+			)
+		);
 	}
 
 	public RequireConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                                        @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate,
-	                                        @Nonnull AtomicReference<FilterConstraintToJsonConverter> filterConstraintToJsonConverter) {
-		super(catalogSchema, constraintPredicate, Map.of(ConstraintType.FILTER, filterConstraintToJsonConverter));
+	                                        @Nonnull AtomicReference<FilterConstraintToJsonConverter> filterConstraintToJsonConverter,
+	                                        @Nonnull AtomicReference<OrderConstraintToJsonConverter> orderConstraintToJsonConverter) {
+		super(
+			catalogSchema,
+			constraintPredicate,
+			Map.of(
+				ConstraintType.FILTER, filterConstraintToJsonConverter,
+				ConstraintType.ORDER, orderConstraintToJsonConverter
+			)
+		);
 	}
 
 	@Nonnull

@@ -60,7 +60,8 @@ abstract class RequireConverter {
 		this.orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
 		this.requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
 			catalogSchema,
-			new AtomicReference<>(this.filterConstraintToJsonConverter)
+			new AtomicReference<>(this.filterConstraintToJsonConverter),
+			new AtomicReference<>(this.orderConstraintToJsonConverter)
 		);
 	}
 
