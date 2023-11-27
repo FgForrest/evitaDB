@@ -1,0 +1,39 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeStatusEquals: "ACTIVE"
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        parameterValues(
+          filterGroupBy: {
+            attributeCodeStartsWith: "o"
+          }
+        ) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+          facetStatistics(
+            filterBy: {
+              attributeCodeContains: ar
+            }
+          ) {
+            requested
+            count
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
