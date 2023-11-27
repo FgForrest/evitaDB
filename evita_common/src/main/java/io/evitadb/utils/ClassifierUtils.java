@@ -196,7 +196,6 @@ public class ClassifierUtils {
 			Keyword keyword = (Keyword) o;
 
 			if (hash != keyword.hash) return false;
-			// Probably incorrect - comparing Object[] arrays with Arrays.equals
 			return Arrays.equals(words, keyword.words);
 		}
 
