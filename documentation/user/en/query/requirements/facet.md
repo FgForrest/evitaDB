@@ -462,7 +462,7 @@ We don't limit the search to a specific hierarchy because the filter is quite se
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-reference-filtering.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
