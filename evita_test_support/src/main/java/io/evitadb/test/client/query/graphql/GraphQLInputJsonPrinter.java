@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  */
 public class GraphQLInputJsonPrinter {
 
-	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(-[A-Z]{2})?)\"");
+	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"(cs|en|de)\"");
 	private final static Pattern CURRENCY_PATTERN = Pattern.compile("\"(CZK|EUR|USD)\"");
 
 	private final static Set<Class<? extends Enum<?>>> KNOWN_ENUMS = Set.of(

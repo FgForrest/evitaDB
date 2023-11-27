@@ -20,7 +20,7 @@
           }
           facetStatistics(
             filterBy: {
-              attributeCodeContains: ar
+              attributeCodeContains: "ar"
             }
           ) {
             requested

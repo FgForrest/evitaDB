@@ -127,11 +127,11 @@ summary behavior specified in the generic facet summary require constraint.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-The facet summary can be requested with `facetSummary` field inside extra results. This request triggers the calculation
-of the facet summary object containing the facet summary calculation. 
+The facet summary can be requested with the `facetSummary` field within extra results. This request triggers the calculation
+of the facet summary object, which contains the facet summary calculation. 
 The calculated facet summary can contain all entity references marked as
-`faceted` in the [entity schema](../../use/schema.md). Facet summary calculation is requested separately for each reference, and thus,
-each reference can have defined its own behaviour.
+`faceted` in the [entity schema](../../use/schema.md). The facet summary calculation is requested separately for each reference, so
+each reference can have its own behaviour defined.
 
 </LanguageSpecific>
 
@@ -255,16 +255,16 @@ example:
 
 The `facetSummary` requirement
 triggers the calculation of the `FacetSummary`
-extra result. The facet summary is always computed as a side result of the main entity query and respects any filtering
+extra result. The facet summary is always computed as a side result of the main entity query, and respects any filter
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-When the `facetSummary` field with specific references inside the `extraResults` field is specified, it triggers the calculation
+When the `facetSummary` field is specified with specific references within the `extraResults` field is specified, it triggers the calculation
 of the facet summary extra result.
-The facet summary is always computed as a side result of the main entity query and respects any filtering
+The facet summary is always computed as a side result of the main entity query, and respects any filter
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
 
@@ -273,7 +273,7 @@ example:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql)
+[Facet summary calculation for products in "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-simple.evitaql)
 
 </SourceCodeTabs>
 
@@ -295,9 +295,14 @@ includes the facet summary calculation:
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.evitaql.string.md)</MDInclude>
 
 </LanguageSpecific>
-<LanguageSpecific to="rest,graphql">
+<LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-simple.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-simple.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -431,8 +436,8 @@ facet group instead of individual facets) constraints.
 <LanguageSpecific to="graphql">
 
 The `filterGroupBy` can be specified on each reference field returning facet groups. The `filterBy` can be specified 
-deeper in the facet summary structure, specifically inside the group definition on `facetStatistics` field returning actual
-facet options.
+deeper in the facet summary structure, specifically within the group definition on the `facetStatistics` field, which 
+returns the actual facet options.
 
 </LanguageSpecific>
 
