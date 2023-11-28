@@ -38,6 +38,7 @@ import io.evitadb.index.mutation.AttributeIndexMutator.EntityAttributeValueSuppl
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -532,6 +533,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case UNIQUE -> UniqueIndexStoragePart.class;
 			case SORT -> SortIndexStoragePart.class;
 			case CHAIN -> ChainIndexStoragePart.class;
+			case CARDINALITY -> CardinalityIndexStoragePart.class;
 		};
 		final AttributeKey checkedAttributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		for (StoragePart changedStoragePart : changedStorageParts) {
@@ -557,6 +559,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case UNIQUE -> UniqueIndexStoragePart.class;
 			case SORT -> SortIndexStoragePart.class;
 			case CHAIN -> ChainIndexStoragePart.class;
+			case CARDINALITY -> CardinalityIndexStoragePart.class;
 		};
 		final AttributeKey checkedAttributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		for (StoragePart changedStoragePart : changedStorageParts) {

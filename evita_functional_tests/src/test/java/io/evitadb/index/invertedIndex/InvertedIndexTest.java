@@ -1,13 +1,13 @@
 /*
  *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
+ *                         _ _        ____  ____  
+ *               _____   _(_) |_ __ _|  _ \| __ ) 
+ *              / _ \ \ / / | __/ _` | | | |  _ \ 
  *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
+ *              \___| \_/ |_|\__\__,_|____/|____/ 
+ *            
  *   Copyright (c) 2023
- *
+ *  
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.histogram;
+package io.evitadb.index.invertedIndex;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -65,6 +65,15 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		tested.addRecord(15, 2);
 		tested.addRecord(15, 4);
 		tested.addRecord(20, 5);
+	}
+
+	@Test
+	void shouldReturnValuesForRecord() {
+		tested.addRecord(50, 1);
+		tested.addRecord(100, 3);
+
+		assertArrayEquals(tested.getValuesForRecord(1, Integer.class), new Integer[]{5, 50});
+		assertArrayEquals(tested.getValuesForRecord(3, Integer.class), new Integer[]{10, 100});
 	}
 
 	@Test
@@ -590,6 +599,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 100;
 		final Map<Long, List<Integer>> mapToCompare = new HashMap<>();
+		final Map<Integer, Set<Long>> recordValues = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
 		final Set<Long> uniqueValues = new TreeSet<>();
 
@@ -635,6 +645,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 									} while (currentRecordSet.contains(newRecId));
 
 									mapToCompare.computeIfAbsent(newValue, aLong -> new ArrayList<>()).add(newRecId);
+									recordValues.computeIfAbsent(newRecId, integer -> new HashSet<>()).add(newValue);
 									currentRecordSet.add(newRecId);
 									uniqueValues.add(newValue);
 
@@ -662,6 +673,13 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 										}
 									}
 									currentRecordSet.remove(recordToRemove);
+
+									final Set<Long> theRecordValues = recordValues.get(recordToRemove);
+									theRecordValues.remove(valueToRemove);
+									if (theRecordValues.isEmpty()) {
+										recordValues.remove(recordToRemove);
+									}
+
 									final int expectedIndex = indexOf(uniqueValues, valueToRemove);
 									if (mapToCompare.get(valueToRemove).isEmpty()) {
 										uniqueValues.remove(valueToRemove);
@@ -680,6 +698,17 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 					},
 					(original, committed) -> {
 						final int[] expected = currentRecordSet.stream().mapToInt(it -> it).sorted().toArray();
+						for (Entry<Integer, Set<Long>> entry : recordValues.entrySet()) {
+							final Set<Long> values = entry.getValue();
+							final Long[] actual = committed.getValuesForRecord(entry.getKey(), Long.class);
+							assertArrayEquals(
+								values.stream().mapToLong(it -> it).sorted().toArray(),
+								Arrays.stream(actual).mapToLong(it -> it).sorted().toArray(),
+								"\nExpected: " + Arrays.toString(values.toArray()) + "\n" +
+									"Actual:   " + Arrays.toString(actual) + "\n\n" +
+									codeBuffer
+							);
+						}
 						assertArrayEquals(
 							expected,
 							committed.getSortedRecords().getRecordIds().getArray(),

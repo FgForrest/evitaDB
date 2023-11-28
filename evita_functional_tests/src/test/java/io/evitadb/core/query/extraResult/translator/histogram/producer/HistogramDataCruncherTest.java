@@ -25,7 +25,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
 import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;

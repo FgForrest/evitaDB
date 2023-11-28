@@ -21,15 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.histogram.suppliers;
+package io.evitadb.index.invertedIndex.suppliers;
 
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.histogram.InvertedIndex;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 

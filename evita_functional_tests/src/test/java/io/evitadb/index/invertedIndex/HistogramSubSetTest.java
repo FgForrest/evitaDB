@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.histogram;
+package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -34,13 +34,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 /**
- * This test verifies contract of {@link HistogramSubSet}.
+ * This test verifies contract of {@link InvertedIndexSubSet}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class HistogramSubSetTest {
 	@SuppressWarnings({"unchecked", "rawtypes"})
-	private final HistogramSubSet<Integer> tested = new HistogramSubSet<>(
+	private final InvertedIndexSubSet<Integer> tested = new InvertedIndexSubSet<>(
 		1L,
 		new ValueToRecordBitmap[]{
 			new ValueToRecordBitmap(1, 1, 2),

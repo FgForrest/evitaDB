@@ -28,53 +28,40 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 /**
- * This {@link Serializer} implementation reads/writes {@link FilterIndex} from/to binary format.
+ * This {@link Serializer} implementation reads/writes {@link CardinalityIndex} from/to binary format.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class FilterIndexStoragePartSerializer extends Serializer<FilterIndexStoragePart> {
+public class CardinalityIndexStoragePartSerializer extends Serializer<CardinalityIndexStoragePart> {
 	private final KeyCompressor keyCompressor;
 
 	@Override
-	public void write(Kryo kryo, Output output, FilterIndexStoragePart filterIndex) {
+	public void write(Kryo kryo, Output output, CardinalityIndexStoragePart filterIndex) {
 		output.writeInt(filterIndex.getEntityIndexPrimaryKey());
 		final Long uniquePartId = filterIndex.getUniquePartId();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(filterIndex.getAttributeKey()), true);
 
-		kryo.writeObject(output, filterIndex.getHistogram());
-		final boolean rangeIndex = filterIndex.getRangeIndex() != null;
-		output.writeBoolean(rangeIndex);
-		if (rangeIndex) {
-			kryo.writeObject(output, filterIndex.getRangeIndex());
-		}
+		kryo.writeObject(output, filterIndex.getCardinalityIndex());
 	}
 
 	@Override
-	public FilterIndexStoragePart read(Kryo kryo, Input input, Class<? extends FilterIndexStoragePart> type) {
+	public CardinalityIndexStoragePart read(Kryo kryo, Input input, Class<? extends CardinalityIndexStoragePart> type) {
 		final int entityIndexPrimaryKey = input.readInt();
 		final long uniquePartId = input.readVarLong(true);
 		final AttributeKey attributeKey = keyCompressor.getKeyForId(input.readVarInt(true));
 
-		final InvertedIndex<?> histogramIndex = kryo.readObject(input, InvertedIndex.class);
-		final boolean hasRangeIndex = input.readBoolean();
-		if (hasRangeIndex) {
-			final RangeIndex intRangeIndex = kryo.readObject(input, RangeIndex.class);
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, histogramIndex, intRangeIndex, uniquePartId);
-		} else {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, histogramIndex, null, uniquePartId);
-		}
+		final CardinalityIndex cardinalityIndex = kryo.readObject(input, CardinalityIndex.class);
+		return new CardinalityIndexStoragePart(entityIndexPrimaryKey, attributeKey, cardinalityIndex, uniquePartId);
 	}
 
 }

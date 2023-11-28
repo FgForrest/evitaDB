@@ -41,7 +41,7 @@ import io.evitadb.core.query.algebra.price.termination.SumPriceTerminationFormul
 import io.evitadb.core.query.algebra.price.translate.PriceIdToEntityIdTranslateFormula;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.AttributeHistogramComputer;
 import io.evitadb.core.query.extraResult.translator.histogram.producer.PriceHistogramComputer;
-import io.evitadb.index.histogram.suppliers.HistogramBitmapSupplier;
+import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spike.mock.BucketsRecordState;
 import io.evitadb.spike.mock.EntityIdsWithPriceRecordsRecordState;

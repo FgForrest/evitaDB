@@ -35,6 +35,8 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.cardinality.CardinalityIndex;
+import io.evitadb.index.cardinality.CardinalityIndex.CardinalityKey;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
@@ -109,13 +111,14 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			output.writeVarInt(keyCompressor.getId(referencedEntity), true);
 		}
 
-		final Map<Integer, Integer> primaryKeyCardinality = entityIndex.getPrimaryKeyCardinality();
+		final CardinalityIndex primaryKeyCardinality = entityIndex.getPrimaryKeyCardinality();
 		if (primaryKeyCardinality == null) {
 			output.writeInt(-1);
 		} else {
-			output.writeInt(primaryKeyCardinality.size());
-			for (Entry<Integer, Integer> entry : primaryKeyCardinality.entrySet()) {
-				output.writeVarInt(entry.getKey(), false);
+			final Map<CardinalityKey, Integer> cardinalities = primaryKeyCardinality.getCardinalities();
+			output.writeInt(cardinalities.size());
+			for (Entry<CardinalityKey, Integer> entry : cardinalities.entrySet()) {
+				output.writeVarInt(entry.getKey().recordId(), false);
 				output.writeVarInt(entry.getValue(), true);
 			}
 		}
@@ -171,17 +174,19 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 		}
 
 		final int primaryKeyCardinalityCount = input.readInt();
-		final Map<Integer, Integer> primaryKeyCardinality;
+		final CardinalityIndex primaryKeyCardinality;
 		if (primaryKeyCardinalityCount == -1) {
 			primaryKeyCardinality = null;
 		} else {
-			primaryKeyCardinality = createHashMap(primaryKeyCardinalityCount);
+			final Map<CardinalityKey, Integer> index = createHashMap(primaryKeyCardinalityCount);
 			for (int i = 0; i < primaryKeyCardinalityCount; i++) {
-				primaryKeyCardinality.put(
-					input.readVarInt(false),
+				final int cardinalityPrimaryKey = input.readVarInt(false);
+				index.put(
+					new CardinalityKey(cardinalityPrimaryKey, cardinalityPrimaryKey),
 					input.readVarInt(true)
 				);
 			}
+			primaryKeyCardinality = new CardinalityIndex(Integer.class, index);
 		}
 
 		return new EntityIndexStoragePart(

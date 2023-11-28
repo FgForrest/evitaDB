@@ -602,7 +602,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns stream of indexes that should be all considered for record lookup.
 	 */
 	@Nonnull
-	public Stream<EntityIndex<?>> getEntityIndexStream() {
+	public Stream<EntityIndex> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
 		//noinspection unchecked
 		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
@@ -718,7 +718,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T, S extends EntityIndex<S>> T executeInContext(
+	public final <T, S extends EntityIndex> T executeInContext(
 		@Nonnull Class<S> indexType,
 		@Nonnull List<S> targetIndexes,
 		@Nullable EntityContentRequire requirements,
@@ -794,7 +794,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set and returns collection of all formulas.
 	 */
 	@Nonnull
-	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex<?>, Stream<? extends Formula>> formulaFunction) {
+	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex, Stream<? extends Formula>> formulaFunction) {
 		return getEntityIndexStream().flatMap(formulaFunction).toList();
 	}
 
@@ -802,7 +802,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyOnIndexes(@Nonnull Function<EntityIndex<?>, Formula> formulaFunction) {
+	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().map(formulaFunction));
 	}
 
@@ -810,7 +810,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex<?>, Stream<Formula>> formulaFunction) {
+	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex, Stream<Formula>> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().flatMap(formulaFunction));
 	}
 

@@ -155,7 +155,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public final class EntityCollection implements TransactionalLayerProducer<DataSourceChanges<EntityIndexKey, EntityIndex<?>>, EntityCollection>, EntityCollectionContract {
+public final class EntityCollection implements TransactionalLayerProducer<DataSourceChanges<EntityIndexKey, EntityIndex>, EntityCollection>, EntityCollectionContract {
 
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -202,7 +202,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	/**
 	 * Collection of search indexes prepared to handle queries.
 	 */
-	private final TransactionalMap<EntityIndexKey, EntityIndex<?>> indexes;
+	private final TransactionalMap<EntityIndexKey, EntityIndex> indexes;
 	/**
 	 * True if collection was already terminated. No other termination will be allowed.
 	 */
@@ -212,7 +212,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 *
 	 * @see DataStoreTxMemoryBuffer documentation
 	 */
-	@Getter private final DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> dataStoreBuffer;
+	@Getter private final DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> dataStoreBuffer;
 	/**
 	 * Formula supervisor is an entry point to the Evita cache. The idea is that each {@link Formula} can be identified
 	 * by its {@link Formula#computeHash(LongHashFunction)} method and when the supervisor identifies that certain
@@ -277,7 +277,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 				"Unexpected situation - global index doesn't exist but there are " +
 					entityHeader.getUsedEntityIndexIds().size() + " reduced indexes!"
 			);
-			this.indexes = new TransactionalMap<>(new HashMap<>(), EntityIndex.class, Function.identity());
+			this.indexes = new TransactionalMap<>(
+				new HashMap<>(),
+				it -> (EntityIndex) it
+			);
 		} else {
 			this.indexes = loadIndexes(entityHeader);
 		}
@@ -299,7 +302,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull AtomicInteger indexPkSequence,
 		@Nonnull CatalogPersistenceService catalogPersistenceService,
 		@Nonnull EntityCollectionPersistenceService persistenceService,
-		@Nonnull Map<EntityIndexKey, EntityIndex<?>> indexes,
+		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull CacheSupervisor cacheSupervisor
 	) {
 		this.entityTypePrimaryKey = entityTypePrimaryKey;
@@ -310,7 +313,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		this.persistenceService = persistenceService;
 		this.indexPkSequence = indexPkSequence;
 		this.dataStoreBuffer = new DataStoreTxMemoryBuffer<>(this, persistenceService);
-		this.indexes = new TransactionalMap<>(indexes, EntityIndex.class, Function.identity());
+		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		for (EntityIndex entityIndex : this.indexes.values()) {
 			entityIndex.updateReferencesTo(this);
 		}
@@ -959,7 +962,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	}
 
 	@Override
-	public DataSourceChanges<EntityIndexKey, EntityIndex<?>> createLayer() {
+	public DataSourceChanges<EntityIndexKey, EntityIndex> createLayer() {
 		return new DataSourceChanges<>();
 	}
 
@@ -976,8 +979,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 
 	@Nonnull
 	@Override
-	public EntityCollection createCopyWithMergedTransactionalMemory(@Nullable DataSourceChanges<EntityIndexKey, EntityIndex<?>> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		final DataSourceChanges<EntityIndexKey, EntityIndex<?>> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
+	public EntityCollection createCopyWithMergedTransactionalMemory(@Nullable DataSourceChanges<EntityIndexKey, EntityIndex> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		final DataSourceChanges<EntityIndexKey, EntityIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
 		if (transactionalChanges != null) {
 			final String entityName = getEntityType();
 
@@ -1133,7 +1136,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 * {@link EntityCollectionHeader#getUsedEntityIndexIds()} into a transactional map indexed by their
 	 * {@link EntityIndex#getIndexKey()}.
 	 */
-	private TransactionalMap<EntityIndexKey, EntityIndex<?>> loadIndexes(@Nonnull EntityCollectionHeader entityHeader) {
+	private TransactionalMap<EntityIndexKey, EntityIndex> loadIndexes(@Nonnull EntityCollectionHeader entityHeader) {
 		// we need to load global index first, this is the only one index containing all data
 		final GlobalEntityIndex globalIndex = (GlobalEntityIndex) this.persistenceService.readEntityIndex(
 			entityHeader.getGlobalEntityIndexId(), this::getInternalSchema,
@@ -1166,7 +1169,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 						Function.identity()
 					)
 				),
-			EntityIndex.class, Function.identity()
+			it -> (EntityIndex) it
 		);
 	}
 
@@ -1483,14 +1486,14 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	/**
 	 * This implementation just manipulates with the set of EntityIndex in entity collection.
 	 */
-	private class EntityIndexMaintainerImpl implements IndexMaintainer<EntityIndexKey, EntityIndex<?>> {
+	private class EntityIndexMaintainerImpl implements IndexMaintainer<EntityIndexKey, EntityIndex> {
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
 		 */
 		@Nonnull
 		@Override
-		public EntityIndex<?> getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
+		public EntityIndex getOrCreateIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			return doWithPersistenceService(
 				() -> EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
 					entityIndexKey,
@@ -1503,7 +1506,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 								if (eikAgain.getType() == EntityIndexType.GLOBAL) {
 									return new GlobalEntityIndex(indexPkSequence.incrementAndGet(), eikAgain, EntityCollection.this::getInternalSchema);
 								} else {
-									final EntityIndex<?> globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
+									final EntityIndex globalIndex = getIndexIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 									Assert.isPremiseValid(
 										globalIndex instanceof GlobalEntityIndex,
 										"When reduced index is created global one must already exist!"
@@ -1532,7 +1535,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		 */
 		@Nullable
 		@Override
-		public EntityIndex<?> getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
+		public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
 			return EntityCollection.this.getIndexByKeyIfExists(entityIndexKey);
 		}
 

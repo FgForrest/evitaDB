@@ -49,7 +49,6 @@ import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
@@ -91,12 +90,11 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class EntityIndex<T extends EntityIndex<T>> implements
+public abstract class EntityIndex implements
 	Index<EntityIndexKey>,
 	PriceIndexContract,
 	Versioned,
-	IndexDataStructure,
-	VoidTransactionMemoryProducer<T>
+	IndexDataStructure
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 

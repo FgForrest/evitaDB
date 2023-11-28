@@ -26,9 +26,7 @@ package io.evitadb.store.spi.model.storageParts.index;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.dataType.Range;
-import io.evitadb.index.invertedIndex.InvertedIndex;
-import io.evitadb.index.range.RangeIndex;
+import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.store.model.RecordWithCompressedId;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -36,22 +34,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Serial;
 
 /**
- * Filter index container stores index for single {@link AttributeSchema} of the single
+ * Filter index container stores cardinality index for single {@link AttributeSchema} of the single
  * {@link EntitySchema}. This container object serves only as a storage carrier for
- * {@link io.evitadb.index.attribute.FilterIndex} which is a live memory representation of the data stored in this
- * container.
+ * {@link io.evitadb.index.cardinality.CardinalityIndex} which is a live memory representation of the data stored in
+ * this container.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
 @AllArgsConstructor
 @ToString(of = {"attributeKey", "entityIndexPrimaryKey"})
-public class FilterIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
+public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, RecordWithCompressedId<AttributeKey> {
 	@Serial private static final long serialVersionUID = 6163295675316818632L;
 
 	/**
@@ -63,17 +59,10 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Getter private final AttributeKey attributeKey;
 	/**
-	 * Histogram is the main data structure that holds the information about value to record ids relation.
+	 * This map contains cardinality of the attribute values. Key is the combination of attribute value and entity id.
+	 * Value is the number of occurrences of this combination in the index.
 	 */
-	@Nonnull @Getter private final InvertedIndex<? extends Comparable<?>> histogram;
-	/**
-	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
-	 * <p>
-	 * - what records are valid at precise moment
-	 * - what records are valid until certain moment
-	 * - what records are valid after certain moment
-	 */
-	@Nullable @Getter private final RangeIndex rangeIndex;
+	@Getter private final CardinalityIndex cardinalityIndex;
 	/**
 	 * Id used for lookups in {@link io.evitadb.storage.MemTable} for this particular container.
 	 */
@@ -81,7 +70,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 
 	@Override
 	public AttributeIndexType getIndexType() {
-		return AttributeIndexType.FILTER;
+		return AttributeIndexType.CARDINALITY;
 	}
 
 	@Override

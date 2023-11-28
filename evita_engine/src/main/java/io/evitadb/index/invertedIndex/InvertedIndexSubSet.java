@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.histogram;
+package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -39,7 +39,7 @@ import java.util.function.BiFunction;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
-public class HistogramSubSet<T extends Comparable<T>> {
+public class InvertedIndexSubSet<T extends Comparable<T>> {
 	private final long indexTransactionId;
 	@Getter private final ValueToRecordBitmap<T>[] histogramBuckets;
 	private final BiFunction<Long, ValueToRecordBitmap<T>[], Formula> aggregationLambda;

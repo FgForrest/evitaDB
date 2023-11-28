@@ -66,7 +66,7 @@ public abstract class AbstractEntityStorageContainerAccessor implements EntitySt
 	/**
 	 * Contains CURRENT storage buffer that traps transactional and intermediate volatile data.
 	 */
-	@Nonnull protected final DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer;
+	@Nonnull protected final DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer;
 	/**
 	 * Function returns CURRENT {@link EntitySchema} to be used for deserialized objects.
 	 */

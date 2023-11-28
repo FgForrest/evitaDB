@@ -35,8 +35,8 @@ import io.evitadb.core.query.extraResult.translator.histogram.producer.Attribute
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.attribute.FilterIndex;
-import io.evitadb.index.histogram.HistogramSubSet;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndexSubSet;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -214,8 +214,8 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			@SuppressWarnings({"unchecked", "rawtypes"}) final ValueToRecordBitmap[][] attributeIndexes = histogramComputer
 				.getAttributeIndexes()
 				.stream()
-				.map(it -> (HistogramSubSet<T>) it.getHistogramOfAllRecords())
-				.map(HistogramSubSet::getHistogramBuckets)
+				.map(it -> (InvertedIndexSubSet<T>) it.getHistogramOfAllRecords())
+				.map(InvertedIndexSubSet::getHistogramBuckets)
 				.toArray(ValueToRecordBitmap[][]::new);
 
 			//noinspection unchecked
