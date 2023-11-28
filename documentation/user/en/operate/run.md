@@ -1,9 +1,11 @@
 ---
 title: Running
-perex:
+perex: |
+    If you want to run evitaDB as a separate service on your server, you can use Docker. This chapter describes how to
+    run evitaDB in Docker and how to configure it.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base

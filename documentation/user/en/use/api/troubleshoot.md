@@ -6,6 +6,8 @@ perex: |
     smarter about the stuff that has already happened.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 **Work in progress**

@@ -10,6 +10,7 @@ perex: |
   helping users quickly find and purchase products that meet their specific criteria.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ![Facet filter example](assets/facet-filtering.png "Facet filter example")

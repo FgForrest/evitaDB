@@ -6,6 +6,7 @@ perex: |
   time he/she accesses it.
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
+preferredLang: 'evitaql'
 ---
 
 ## Random

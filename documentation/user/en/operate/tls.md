@@ -1,9 +1,12 @@
 ---
 title: Setting up TLS
-perex:
+perex: |
+   All evitaDB APIs support the secure layer (HTTPS). The gRPC is completely based on the HTTP/2 protocol, which is 
+   binary and requires encryption. Because of this fact, all evitaDB external APIs work by default on secure protocol 
+   to keep the security uniform.
 date: '1.3.2023'
 author: 'Bc. Tomáš Pozler'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 <UsedTerms>
@@ -36,10 +39,6 @@ proofreading: 'needed'
       </dd>
    </dl>
 </UsedTerms>
-
-All evitaDB APIs support the secure layer (HTTPS). The gRPC is completely based on the HTTP/2 protocol, which is binary
-and requires encryption. Because of this fact, all evitaDB external APIs work only on secure protocol to keep the
-security uniform.
 
 <Note type="question">
 

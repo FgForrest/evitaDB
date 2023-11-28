@@ -7,7 +7,7 @@ perex: |
   make REST the most popular protocol for APIs, used extensively in cloud services, mobile services, and social networks.
 date: '24.3.2023'
 author: 'Lukáš Hornych'
-preferredLang: rest
+preferredLang: 'rest'
 ---
 
 The [REST](https://restfulapi.net/) API with an [OpenAPI schema](https://swagger.io/specification/v3/) in evitaDB has

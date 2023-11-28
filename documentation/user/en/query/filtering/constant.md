@@ -7,6 +7,7 @@ perex: |
 date: '26.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Entity primary key in set

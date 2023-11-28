@@ -3,7 +3,7 @@ title: Configuration
 perex: This article is a complete configuration guide for evitaDB instance.
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 The evitaDB server is configured in YAML format and its default settings are best described by the following code

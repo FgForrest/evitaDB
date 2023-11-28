@@ -8,6 +8,7 @@ perex: |
   experience but also streamlines the shopping process, boosting satisfaction and sales.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 This chapter contains the description of evitaDB constraints that help you to control the price for sale selection and 
