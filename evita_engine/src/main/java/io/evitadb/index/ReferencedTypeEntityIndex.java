@@ -53,6 +53,7 @@ import lombok.experimental.Delegate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -245,7 +246,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 		if (value instanceof Object[] valueArray) {
 			// for array values we need to add only new items to the index (their former cardinality was zero)
-			final Object[] onlyNewItemsValueArray = new Object[valueArray.length];
+			final Object[] onlyNewItemsValueArray = (Object[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyNewItemsValueArrayIndex = 0;
 			for (Object valueItem : valueArray) {
 				if (theCardinalityIndex.addRecord((Serializable) valueItem, recordId)) {
@@ -288,7 +289,7 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 		if (value instanceof Object[] valueArray) {
 			// for array values we need to remove only items which cardinality reaches zero
-			final Object[] onlyRemovedItemsValueArray = new Object[valueArray.length];
+			final Object[] onlyRemovedItemsValueArray = (Object[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
 			int onlyRemovedItemsValueArrayIndex = 0;
 			for (Object valueItem : valueArray) {
 				if (theCardinalityIndex.removeRecord((Serializable) valueItem, recordId)) {
