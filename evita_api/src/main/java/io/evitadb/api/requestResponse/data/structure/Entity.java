@@ -763,9 +763,9 @@ public class Entity implements SealedEntity {
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<ReferenceKey, ReferenceContract> newReferences,
 		@Nonnull ReferenceMutation<?> referenceMutation) {
-		final ReferenceContract existingReferenceValue = possibleEntity
-			.flatMap(it -> it.getReferenceWithoutSchemaCheck(referenceMutation.getReferenceKey()))
-			.orElseGet(() -> newReferences.get(referenceMutation.getReferenceKey()));
+		final ReferenceContract existingReferenceValue = ofNullable(newReferences.get(referenceMutation.getReferenceKey()))
+			.or(() -> possibleEntity.flatMap(it -> it.getReferenceWithoutSchemaCheck(referenceMutation.getReferenceKey())))
+			.orElse(null);
 		ofNullable(
 			returnIfChanged(
 				existingReferenceValue,

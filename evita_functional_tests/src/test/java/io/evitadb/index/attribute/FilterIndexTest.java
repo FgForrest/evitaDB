@@ -411,7 +411,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 						for (Entry<Integer, Set<IntegerNumberRange>> entry : recordRanges.entrySet()) {
 							final Set<IntegerNumberRange> values = entry.getValue();
 							@SuppressWarnings({"unchecked", "rawtypes", "SuspiciousArrayCast"})
-							final IntegerNumberRange[] actual = (IntegerNumberRange[]) ((InvertedIndex)committed.getHistogram())
+							final IntegerNumberRange[] actual = (IntegerNumberRange[]) ((InvertedIndex)committed.getInvertedIndex())
 								.getValuesForRecord(entry.getKey(), IntegerNumberRange.class);
 							assertArrayEquals(
 								values.stream().sorted().toArray(),
@@ -433,7 +433,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new FilterIndex(
-								committed.getHistogram(),
+								committed.getInvertedIndex(),
 								committed.getRangeIndex()
 							)
 						);

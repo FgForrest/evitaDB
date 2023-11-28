@@ -81,7 +81,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	/**
 	 * Histogram is the main data structure that holds the information about value to record ids relation.
 	 */
-	@Nonnull @Getter private final InvertedIndex<? extends Comparable<?>> histogram;
+	@Nonnull @Getter private final InvertedIndex<? extends Comparable<?>> invertedIndex;
 	/**
 	 * Range index is used only for attribute types that are assignable to {@link Range} and can answer questions like:
 	 * <p>
@@ -156,13 +156,13 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 
 	public FilterIndex(@Nonnull Class<?> attributeType) {
 		this.dirty = new TransactionalBoolean();
-		this.histogram = new InvertedIndex<>();
+		this.invertedIndex = new InvertedIndex<>();
 		this.rangeIndex = Range.class.isAssignableFrom(attributeType) ? new RangeIndex() : null;
 	}
 
-	public <T extends Comparable<T>> FilterIndex(@Nonnull InvertedIndex<T> histogram, @Nullable RangeIndex rangeIndex) {
+	public <T extends Comparable<T>> FilterIndex(@Nonnull InvertedIndex<T> invertedIndex, @Nullable RangeIndex rangeIndex) {
 		this.dirty = new TransactionalBoolean();
-		this.histogram = histogram;
+		this.invertedIndex = invertedIndex;
 		this.rangeIndex = rangeIndex;
 	}
 
@@ -170,7 +170,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns count of records in this index.
 	 */
 	public int size() {
-		return histogram.getLength();
+		return invertedIndex.getLength();
 	}
 
 	/**
@@ -243,7 +243,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		if (rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
 				// this is quite expensive operation, but we need to do it to be able to remove and add the record
-				@SuppressWarnings("SuspiciousArrayCast") final Range[] existingRanges = (Range[]) ((InvertedIndex) this.histogram).getValuesForRecord(recordId, Range.class);
+				@SuppressWarnings("SuspiciousArrayCast") final Range[] existingRanges = (Range[]) ((InvertedIndex) this.invertedIndex).getValuesForRecord(recordId, Range.class);
 				final Range[] aggregatedRanges = ArrayUtils.mergeArrays(existingRanges, valueArray);
 
 				removeRange(recordId, existingRanges);
@@ -322,7 +322,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		if (this.rangeIndex != null) {
 			if (value instanceof Range[] valueArray) {
 				// this is quite expensive operation, but we need to do it to be able to remove and add the record
-				@SuppressWarnings("SuspiciousArrayCast") final Range[] existingRanges = (Range[]) ((InvertedIndex) this.histogram).getValuesForRecord(recordId, Range.class);
+				@SuppressWarnings("SuspiciousArrayCast") final Range[] existingRanges = (Range[]) ((InvertedIndex) this.invertedIndex).getValuesForRecord(recordId, Range.class);
 				final Range[] remainingRanges = getRemainingRanges(valueArray, existingRanges);
 
 				removeRange(recordId, existingRanges);
@@ -347,7 +347,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns true if filter index contains no records.
 	 */
 	public boolean isEmpty() {
-		return this.histogram.isEmpty();
+		return this.invertedIndex.isEmpty();
 	}
 
 	/**
@@ -356,7 +356,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public <T extends Comparable<T>> Bitmap getRecordsEqualTo(@Nonnull T attributeValue) {
 		return ofNullable(getValueIndex().get(attributeValue))
-			.map(histogram::getRecordsAtIndex)
+			.map(invertedIndex::getRecordsAtIndex)
 			.orElse(EmptyBitmap.INSTANCE);
 	}
 
@@ -366,7 +366,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	public <T extends Comparable<T>> Formula getRecordsEqualToFormula(@Nonnull T attributeValue) {
 		return ofNullable(getValueIndex().get(attributeValue))
-			.map(it -> (Formula) new ConstantFormula(histogram.getRecordsAtIndex(it)))
+			.map(it -> (Formula) new ConstantFormula(invertedIndex.getRecordsAtIndex(it)))
 			.orElse(EmptyFormula.INSTANCE);
 	}
 
@@ -374,7 +374,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records present in filter index in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfAllRecords() {
-		return ((InvertedIndex) this.histogram).getSortedRecords(null, null);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(null, null);
 	}
 
 	/**
@@ -404,7 +404,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records lesser than or equals attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThanEq(@Nonnull T comparable) {
-		return ((InvertedIndex) this.histogram).getSortedRecords(null, comparable);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(null, comparable);
 	}
 
 	/**
@@ -426,7 +426,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records greater than or equals attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThanEq(@Nonnull T comparable) {
-		return ((InvertedIndex) this.histogram).getSortedRecords(comparable, null);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(comparable, null);
 	}
 
 	/**
@@ -448,7 +448,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records lesser than attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsLesserThan(@Nonnull T comparable) {
-		return ((InvertedIndex) this.histogram).getSortedRecordsExclusive(null, comparable);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(null, comparable);
 	}
 
 	/**
@@ -470,7 +470,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Returns all records greater than attribute value passed in the argument in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsGreaterThan(@Nonnull T comparable) {
-		return ((InvertedIndex) this.histogram).getSortedRecordsExclusive(comparable, null);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecordsExclusive(comparable, null);
 	}
 
 	/**
@@ -493,7 +493,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * in the form of {@link InvertedIndexSubSet}.
 	 */
 	public <T extends Comparable<T>> InvertedIndexSubSet<T> getHistogramOfRecordsBetween(@Nonnull T from, @Nonnull T to) {
-		return ((InvertedIndex) this.histogram).getSortedRecords(from, to);
+		return ((InvertedIndex) this.invertedIndex).getSortedRecords(from, to);
 	}
 
 	/**
@@ -560,7 +560,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nullable
 	public StoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull AttributeKey attribute) {
 		if (this.dirty.isTrue()) {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attribute, histogram, rangeIndex);
+			return new FilterIndexStoragePart(entityIndexPrimaryKey, attribute, invertedIndex, rangeIndex);
 		} else {
 			return null;
 		}
@@ -577,7 +577,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		// we can safely throw away dirty flag now
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
 		return new FilterIndex(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.histogram, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex, transaction),
 			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex, transaction)
 		);
 	}
@@ -589,7 +589,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.histogram.removeLayer(transactionalLayer);
+		this.invertedIndex.removeLayer(transactionalLayer);
 		ofNullable(this.rangeIndex).ifPresent(it -> it.removeLayer(transactionalLayer));
 		this.dirty.removeLayer(transactionalLayer);
 	}
@@ -627,8 +627,8 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Nonnull
 	private Map<? extends Comparable<?>, Integer> getValueIndex() {
 		if (valueIndex == null) {
-			final Map<Comparable<?>, Integer> bucketValueToPositionIndex = createHashMap(histogram.getBucketCount());
-			final ValueToRecordBitmap<? extends Comparable<?>>[] buckets = histogram.getValueToRecordBitmap();
+			final Map<Comparable<?>, Integer> bucketValueToPositionIndex = createHashMap(invertedIndex.getBucketCount());
+			final ValueToRecordBitmap<? extends Comparable<?>>[] buckets = invertedIndex.getValueToRecordBitmap();
 			for (int i = 0; i < buckets.length; i++) {
 				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
 				bucketValueToPositionIndex.put(bucket.getValue(), i);
@@ -639,12 +639,12 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	private <T extends Comparable<T>> void addRecordToHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		((InvertedIndex) this.histogram).addRecord(value, recordId);
+		((InvertedIndex) this.invertedIndex).addRecord(value, recordId);
 		this.valueIndex = null;
 	}
 
 	private <T extends Comparable<T>> void removeRecordFromHistogramAndValueIndex(int recordId, @Nonnull T value) {
-		final int removalIndex = ((InvertedIndex) this.histogram).removeRecord(value, recordId);
+		final int removalIndex = ((InvertedIndex) this.invertedIndex).removeRecord(value, recordId);
 		isTrue(removalIndex >= 0, "Sanity check - record not found!");
 		this.valueIndex = null;
 	}
