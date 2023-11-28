@@ -6,6 +6,7 @@ perex: |
   attributes specified in those relations.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Reference having

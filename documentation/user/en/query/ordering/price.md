@@ -6,6 +6,7 @@ perex: |
   allows to sort the output entities by their selling price in ascending or descending order.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Price natural

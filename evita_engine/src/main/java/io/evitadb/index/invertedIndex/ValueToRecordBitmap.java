@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.histogram;
+package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.Transaction;
 import io.evitadb.index.array.TransactionalObject;

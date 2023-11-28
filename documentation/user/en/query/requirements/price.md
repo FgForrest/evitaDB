@@ -7,6 +7,7 @@ perex: |
   aligns with their financial processes and allows them to manage tax reclaim separately.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 That's why we need to control what type of price we're working with in our queries, since it would produce different 

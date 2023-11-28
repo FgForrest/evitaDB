@@ -83,7 +83,11 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
-public class AttributeIndex implements AttributeIndexContract, TransactionalLayerProducer<AttributeIndexChanges, AttributeIndex>, IndexDataStructure, Serializable {
+public class AttributeIndex implements AttributeIndexContract,
+	TransactionalLayerProducer<AttributeIndexChanges, AttributeIndex>,
+	IndexDataStructure,
+	Serializable
+{
 	@Serial private static final long serialVersionUID = 479979988960202298L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
@@ -234,8 +238,48 @@ public class AttributeIndex implements AttributeIndexContract, TransactionalLaye
 	) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 		final FilterIndex theFilterIndex = this.filterIndex.get(lookupKey);
-		notNull(theFilterIndex, "Filter index for " + attributeSchema + " not found!");
+		notNull(theFilterIndex, "Filter index for `" + attributeSchema.getName() + "` not found!");
 		theFilterIndex.removeRecord(recordId, value);
+
+		if (theFilterIndex.isEmpty()) {
+			this.filterIndex.remove(lookupKey);
+			ofNullable(getTransactionalMemoryLayer(this))
+				.ifPresent(it -> it.addRemovedItem(theFilterIndex));
+		}
+	}
+
+	@Override
+	public void addDeltaFilterAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
+	) {
+		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
+			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			lookupKey -> {
+				final FilterIndex newFilterIndex = new FilterIndex(attributeSchema.getPlainType());
+				ofNullable(getTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
+				return newFilterIndex;
+			}
+		);
+		theFilterIndex.addRecordDelta(recordId, value);
+	}
+
+	@Override
+	public void removeDeltaFilterAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
+	) {
+		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final FilterIndex theFilterIndex = this.filterIndex.get(lookupKey);
+		notNull(theFilterIndex, "Filter index for `" + attributeSchema.getName() + "` not found!");
+		theFilterIndex.removeRecordDelta(recordId, value);
 
 		if (theFilterIndex.isEmpty()) {
 			this.filterIndex.remove(lookupKey);

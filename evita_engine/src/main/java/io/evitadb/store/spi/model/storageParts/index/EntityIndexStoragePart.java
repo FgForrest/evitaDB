@@ -26,6 +26,7 @@ package io.evitadb.store.spi.model.storageParts.index;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.StoragePart;
@@ -108,7 +109,7 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * This field is initialized only by {@link io.evitadb.index.ReferencedTypeEntityIndex} - for other indexes it is
 	 * empty.
 	 */
-	@Getter private final Map<Integer, Integer> primaryKeyCardinality;
+	@Getter private final CardinalityIndex primaryKeyCardinality;
 
 	@Nullable
 	@Override

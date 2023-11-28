@@ -49,7 +49,6 @@ import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
@@ -91,12 +90,11 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class EntityIndex<T extends EntityIndex<T>> implements
+public abstract class EntityIndex implements
 	Index<EntityIndexKey>,
 	PriceIndexContract,
 	Versioned,
-	IndexDataStructure,
-	VoidTransactionMemoryProducer<T>
+	IndexDataStructure
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 
@@ -504,13 +502,24 @@ public abstract class EntityIndex<T extends EntityIndex<T>> implements
 		PRIVATE METHODS
 	 */
 
+	/**
+	 * Returns the set of referenced entities in the facet index.
+	 *
+	 * @return the set of referenced entities in the facet index
+	 */
 	@Nonnull
 	private Set<String> getFacetIndexReferencedEntities() {
 		return facetIndex.getReferencedEntities();
 	}
 
+	/**
+	 * Retrieves the set of price index keys from a given PriceIndexContract.
+	 *
+	 * @param priceIndex the PriceIndexContract from which to retrieve the price index keys
+	 * @return a set of PriceIndexKey objects representing the price index keys
+	 */
 	@Nonnull
-	private Set<PriceIndexKey> getPriceIndexKeys(@Nonnull PriceIndexContract priceIndex) {
+	private static Set<PriceIndexKey> getPriceIndexKeys(@Nonnull PriceIndexContract priceIndex) {
 		return priceIndex
 			.getPriceListAndCurrencyIndexes()
 			.stream()
@@ -518,21 +527,48 @@ public abstract class EntityIndex<T extends EntityIndex<T>> implements
 			.collect(Collectors.toSet());
 	}
 
+	/**
+	 * Returns the internal price ID sequence for the given PriceIndex.
+	 * If the PriceIndex is an instance of PriceSuperIndex, it returns the last assigned internal price ID.
+	 * Otherwise, it returns null.
+	 *
+	 * @param priceIndex the PriceIndex to retrieve the internal price ID sequence from
+	 * @return the internal price ID sequence if the PriceIndex is an instance of PriceSuperIndex, null otherwise
+	 */
 	@Nullable
 	private Integer getInternalPriceIdSequence(@Nonnull PriceIndexContract priceIndex) {
 		return priceIndex instanceof PriceSuperIndex ? ((PriceSuperIndex) priceIndex).getLastAssignedInternalPriceId() : null;
 	}
 
+	/**
+	 * Method returns the set of attribute index storage keys.
+	 *
+	 * @return the set of attribute index storage keys
+	 */
 	@Nonnull
 	private Set<AttributeIndexStorageKey> getAttributeIndexStorageKeys() {
+		return getAttributeIndexStorageKeyStream()
+			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Method returns a stream of AttributeIndexStorageKey objects.
+	 * The stream includes AttributeIndexStorageKeys of different types (UNIQUE, FILTER, SORT, CHAIN)
+	 * created from attribute indexes of the attributeIndex object.
+	 *
+	 * The method can be overriden by descendants to provide a different stream of AttributeIndexStorageKey objects.
+	 *
+	 * @return a stream of AttributeIndexStorageKey objects.
+	 */
+	@Nonnull
+	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
 		return Stream.of(
 				attributeIndex.getUniqueIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.UNIQUE, it)),
 				attributeIndex.getFilterIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.FILTER, it)),
 				attributeIndex.getSortIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.SORT, it)),
 				attributeIndex.getChainIndexes().stream().map(it -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CHAIN, it))
 			)
-			.flatMap(it -> it)
-			.collect(Collectors.toSet());
+			.flatMap(it -> it);
 	}
 
 }

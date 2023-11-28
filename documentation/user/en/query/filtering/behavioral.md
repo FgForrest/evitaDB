@@ -6,6 +6,7 @@ perex: |
   which has a different treatment in calculations.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## User filter

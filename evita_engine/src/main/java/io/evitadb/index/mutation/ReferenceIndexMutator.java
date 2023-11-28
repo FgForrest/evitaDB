@@ -124,7 +124,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull EntityIndex<?> referenceIndex,
+		@Nonnull EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull AttributeMutation attributeMutation
 	) {
@@ -142,9 +142,6 @@ public interface ReferenceIndexMutator {
 			attributeName -> referenceSchema.getSortableAttributeCompoundsForAttribute(attributeName).stream().map(SortableAttributeCompoundSchema.class::cast);
 
 		executor.executeWithDifferentPrimaryKeyToIndex(
-			// the sort index of reference type index is not maintained, because the entity might reference multiple
-			// entities and the sort index couldn't handle multiple values
-			indexType -> indexType != IndexType.ATTRIBUTE_SORT_INDEX,
 			indexType -> referenceKey.primaryKey(),
 			() -> executor.updateAttributes(
 				attributeMutation,
@@ -176,13 +173,13 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> entityIndex,
+		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nullable EntityIndex<?> referenceIndex,
+		@Nullable EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey
 	) {
 		// we need to index referenced entity primary key into the reference type index
-		referenceTypeIndex.insertPrimaryKeyIfMissing(entityPrimaryKey, referenceKey.primaryKey(), executor.getContainerAccessor());
+		referenceTypeIndex.insertPrimaryKeyIfMissing(referenceKey.primaryKey(), executor.getContainerAccessor());
 
 		// add facet to global index
 		addFacetToIndex(entityIndex, referenceKey, null, executor, entityPrimaryKey);
@@ -204,13 +201,13 @@ public interface ReferenceIndexMutator {
 		int entityPrimaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> entityIndex,
+		@Nonnull EntityIndex entityIndex,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
-		@Nonnull EntityIndex<?> referenceIndex,
+		@Nonnull EntityIndex referenceIndex,
 		@Nonnull ReferenceKey referenceKey
 	) {
 		// we need to remove referenced entity primary key from the reference type index
-		referenceTypeIndex.removePrimaryKey(entityPrimaryKey, referenceKey.primaryKey(), executor.getContainerAccessor());
+		referenceTypeIndex.removePrimaryKey(referenceKey.primaryKey(), executor.getContainerAccessor());
 
 		// remove facet from global and index
 		removeFacetInIndex(entityIndex, referenceKey, executor, entityType, entityPrimaryKey);
@@ -250,7 +247,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void indexAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -273,7 +270,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void indexAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -301,7 +298,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void indexAllPrices(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?>targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -330,7 +327,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void indexAllCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		int entityPrimaryKey
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
@@ -346,7 +343,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void indexAllAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey,
 		@Nonnull EntityBodyStoragePart entityCnt
@@ -397,7 +394,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void removeAllExistingData(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -425,7 +422,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void removeAllFacets(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -449,7 +446,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void removeAllAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -493,7 +490,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void removeAllPrices(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		@Nonnull String entityType,
 		int entityPrimaryKey
 	) {
@@ -514,7 +511,7 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void removeAllCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex<?> targetIndex,
+		@Nonnull EntityIndex targetIndex,
 		int entityPrimaryKey
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
@@ -531,7 +528,7 @@ public interface ReferenceIndexMutator {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} index is returned.
 	 */
 	@Nonnull
-	static EntityIndex<?> getReferencedEntityIndex(
+	static EntityIndex getReferencedEntityIndex(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceKey referenceKey
 	) {
@@ -562,7 +559,7 @@ public interface ReferenceIndexMutator {
 	static void executeWithReferenceIndexes(
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull Consumer<EntityIndex<?>> referenceIndexConsumer
+		@Nonnull Consumer<EntityIndex> referenceIndexConsumer
 	) {
 		executeWithReferenceIndexes(entityType, executor, referenceIndexConsumer, referenceContract -> true);
 	}
@@ -574,14 +571,14 @@ public interface ReferenceIndexMutator {
 	static void executeWithReferenceIndexes(
 		@Nonnull String entityType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull Consumer<EntityIndex<?>> referenceIndexConsumer,
+		@Nonnull Consumer<EntityIndex> referenceIndexConsumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate
 	) {
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ENTITY_INDEX);
 		final ReferencesStoragePart referencesStorageContainer = executor.getContainerAccessor().getReferencesStoragePart(entityType, entityPrimaryKey);
 		for (ReferenceContract reference : referencesStorageContainer.getReferences()) {
 			if (reference.exists() && isIndexed(reference) && referencePredicate.test(reference)) {
-				final EntityIndex<?> targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey());
+				final EntityIndex targetIndex = getReferencedEntityIndex(executor, reference.getReferenceKey());
 				referenceIndexConsumer.accept(targetIndex);
 			}
 		}
@@ -601,7 +598,7 @@ public interface ReferenceIndexMutator {
 	 * type is marked as `faceted` in reference schema.
 	 */
 	static void addFacetToIndex(
-		@Nonnull EntityIndex<?> index,
+		@Nonnull EntityIndex index,
 		@Nonnull ReferenceKey referenceKey,
 		@Nullable Integer groupId,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -622,7 +619,7 @@ public interface ReferenceIndexMutator {
 	 */
 	static void setFacetGroupInIndex(
 		int entityPrimaryKey,
-		@Nonnull EntityIndex<?> index,
+		@Nonnull EntityIndex index,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull Integer groupId,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -653,7 +650,7 @@ public interface ReferenceIndexMutator {
 	 * type is marked as `faceted` in reference schema.
 	 */
 	static void removeFacetInIndex(
-		@Nonnull EntityIndex<?> index,
+		@Nonnull EntityIndex index,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String entityType,
@@ -685,7 +682,7 @@ public interface ReferenceIndexMutator {
 	 */
 	static void removeFacetGroupInIndex(
 		int entityPrimaryKey,
-		@Nonnull EntityIndex<?> index,
+		@Nonnull EntityIndex index,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String entityType

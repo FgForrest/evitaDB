@@ -218,7 +218,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 				)
 			);
 		// collect all facet statistics
-		final TargetIndexes<EntityIndex<?>> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final TargetIndexes<EntityIndex> indexSetToUse = extraResultPlanner.getIndexSetToUse();
 		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexes()
 			.stream()
 			.map(EntityIndex::getFacetingEntities)

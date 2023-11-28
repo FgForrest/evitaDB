@@ -3,7 +3,7 @@ title: C#
 perex:
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-preferredLang: cs
+preferredLang: 'cs'
 ---
 
 **Work in progress**

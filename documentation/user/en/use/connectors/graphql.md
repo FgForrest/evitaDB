@@ -7,7 +7,7 @@ perex: |
   it needs and get exactly that.
 date: '21.3.2023'
 author: 'Lukáš Hornych'
-preferredLang: graphql
+preferredLang: 'graphql'
 ---
 
 The [GraphQL](https://graphql.org/) API has been developed to allow users to easily query domain-specific data from

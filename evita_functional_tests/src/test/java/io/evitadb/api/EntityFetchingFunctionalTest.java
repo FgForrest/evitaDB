@@ -1154,7 +1154,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				final List<PriceContract> filteredPrices = it.getPrices()
 					.stream()
 					.filter(PriceContract::sellable)
-					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_B2B))
+					.filter(price -> Objects.equals(price.priceList(), PRICE_LIST_VIP))
 					.toList();
 				return filteredPrices.stream().map(PriceContract::currency).anyMatch(CURRENCY_EUR::equals) &&
 					filteredPrices.stream().map(PriceContract::currency).noneMatch(CURRENCY_USD::equals);
@@ -1170,7 +1170,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 						filterBy(
 							and(
 								entityPrimaryKeyInSet(entitiesMatchingTheRequirements),
-								priceInPriceLists(PRICE_LIST_B2B),
+								priceInPriceLists(PRICE_LIST_VIP),
 								priceInCurrency(CURRENCY_EUR)
 							)
 						),
@@ -4288,7 +4288,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			.filter(
 				it -> it.getPrices(CURRENCY_USD, PRICE_LIST_BASIC).size() > 0 &&
 					it.getPrices(CURRENCY_USD, PRICE_LIST_REFERENCE).size() > 0 &&
-					it.getPrices(CURRENCY_USD, PRICE_LIST_B2B).size() > 0
+					it.getPrices(CURRENCY_USD, PRICE_LIST_VIP).size() > 0
 			)
 			.findFirst()
 			.orElseThrow();

@@ -85,7 +85,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
-			final EntityIndex<?> entityIndex = context.entityIndex();
+			final EntityIndex entityIndex = context.entityIndex();
 			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(

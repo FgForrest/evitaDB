@@ -7,6 +7,7 @@ perex: |
 date: '25.6.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
+preferredLang: 'evitaql'
 ---
 
 ## Reference property

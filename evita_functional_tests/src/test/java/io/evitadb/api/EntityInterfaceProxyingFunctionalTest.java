@@ -524,9 +524,14 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			.findFirst()
 			.orElseThrow();
 
+		final ProductInterface product = evitaSession.getEntity(
+			ProductInterface.class, 1, entityFetchAllContent()
+		).orElse(null);
+
+		assertNotNull(product.getEntity());
 		assertProduct(
 			theProduct,
-			evitaSession.getEntity(ProductInterface.class, 1, entityFetchAllContent()).orElse(null),
+			product,
 			originalCategories,
 			null, false
 		);
@@ -549,6 +554,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 		final ProductInterface partiallyLoadedEntity = evitaSession
 			.getEntity(ProductInterface.class, 1)
 			.orElse(null);
+
 		assertProduct(
 			theProduct,
 			evitaSession.enrichEntity(

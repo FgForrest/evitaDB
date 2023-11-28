@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.histogram;
+package io.evitadb.index.invertedIndex;
 
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
@@ -29,11 +29,12 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
+import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.array.TransactionalComplexObjArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
-import io.evitadb.index.histogram.suppliers.HistogramBitmapSupplier;
+import io.evitadb.index.invertedIndex.suppliers.HistogramBitmapSupplier;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.ArrayUtils;
@@ -231,7 +232,7 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 
 	/**
 	 * Returns entire content of this histogram as "subset" that allows easy access to the record ids inside.
-	 * Records returned by this {@link HistogramSubSet} are sorted by the order of the bucket
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by the order of the bucket
 	 * {@link ValueToRecordBitmap#getValue()}.
 	 * 
 	 * This histogram:
@@ -242,25 +243,25 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Will return subset providing record ids bitmap in form of: [3, 2, 9, 1, 4]
 	 */
 	@Nonnull
-	public HistogramSubSet<T> getRecords() {
+	public InvertedIndexSubSet<T> getRecords() {
 		return getRecords(null, null);
 	}
 
 	/**
 	 * Returns subset of this histogram with buckets between `moreThanEq` and `lessThanEq` (i.e. inclusive subset).
-	 * Records returned by this {@link HistogramSubSet} are sorted by the order of the bucket
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by the order of the bucket
 	 * {@link ValueToRecordBitmap#getValue()}.
 	 *
 	 * @see #getRecords()
 	 */
-	public HistogramSubSet<T> getRecords(@Nullable T moreThanEq, @Nullable T lessThanEq) {
+	public InvertedIndexSubSet<T> getRecords(@Nullable T moreThanEq, @Nullable T lessThanEq) {
 		final ValueToRecordBitmap<T>[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
 		return convertToUnSortedResult(records);
 	}
 
 	/**
 	 * Returns entire content of this histogram as "subset" that allows easy access to the record ids inside.
-	 * Records returned by this {@link HistogramSubSet} are sorted by record id value.
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
 	 * 
 	 * This histogram:
 	 * A: [1, 4]
@@ -270,32 +271,52 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 * Will return subset providing record ids bitmap in form of: [1, 2, 3, 4, 9]
 	 */
 	@Nonnull
-	public HistogramSubSet<T> getSortedRecords() {
+	public InvertedIndexSubSet<T> getSortedRecords() {
 		return getSortedRecords(null, null);
 	}
 
 	/**
 	 * Returns subset of this histogram with buckets between `moreThanEq` and `lessThanEq` (i.e. inclusive subset).
-	 * Records returned by this {@link HistogramSubSet} are sorted by record id value.
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
 	 *
 	 * @see #getSortedRecords()
 	 */
 	@Nonnull
-	public HistogramSubSet<T> getSortedRecords(@Nullable T moreThanEq, @Nullable T lessThanEq) {
+	public InvertedIndexSubSet<T> getSortedRecords(@Nullable T moreThanEq, @Nullable T lessThanEq) {
 		final ValueToRecordBitmap<T>[] records = getRecordsInternal(moreThanEq, lessThanEq, BoundsHandling.INCLUSIVE);
 		return convertToSortedResult(records);
 	}
 
 	/**
 	 * Returns subset of this histogram with buckets between `moreThan` and `lessThan` (i.e. exclusive subset).
-	 * Records returned by this {@link HistogramSubSet} are sorted by record id value.
+	 * Records returned by this {@link InvertedIndexSubSet} are sorted by record id value.
 	 *
 	 * @see #getSortedRecords()
 	 */
 	@Nonnull
-	public HistogramSubSet<T> getSortedRecordsExclusive(@Nullable T moreThan, @Nullable T lessThan) {
+	public InvertedIndexSubSet<T> getSortedRecordsExclusive(@Nullable T moreThan, @Nullable T lessThan) {
 		final ValueToRecordBitmap<T>[] records = getRecordsInternal(moreThan, lessThan, BoundsHandling.EXCLUSIVE);
 		return convertToSortedResult(records);
+	}
+
+	/**
+	 * Returns an array of values associated with the specified record ID.
+	 *
+	 * @param recordId the ID of the record
+	 * @return an array of values associated with the record ID
+	 */
+	@Nonnull
+	public <S> S[] getValuesForRecord(int recordId, @Nonnull Class<S> type) {
+		final Iterator<ValueToRecordBitmap<T>> it = this.valueToRecordBitmap.iterator();
+		final CompositeObjectArray<S> result = new CompositeObjectArray<>(type);
+		while (it.hasNext()) {
+			final ValueToRecordBitmap<T> bitmap = it.next();
+			if (bitmap.getRecordIds().contains(recordId)) {
+				//noinspection unchecked
+				result.add((S) bitmap.getValue());
+			}
+		}
+		return result.toArray();
 	}
 
 	/**
@@ -349,8 +370,8 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	private HistogramSubSet<T> convertToUnSortedResult(@Nonnull ValueToRecordBitmap<T>[] records) {
-		return new HistogramSubSet(
+	private InvertedIndexSubSet<T> convertToUnSortedResult(@Nonnull ValueToRecordBitmap<T>[] records) {
+		return new InvertedIndexSubSet(
 			getId(),
 			records,
 			UNSORTED_AGGREGATION_LAMBDA
@@ -362,8 +383,8 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 	 */
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Nonnull
-	private HistogramSubSet<T> convertToSortedResult(@Nonnull ValueToRecordBitmap<T>[] records) {
-		return new HistogramSubSet(
+	private InvertedIndexSubSet<T> convertToSortedResult(@Nonnull ValueToRecordBitmap<T>[] records) {
+		return new InvertedIndexSubSet(
 			getId(),
 			records,
 			SORTED_AGGREGATION_LAMBDA

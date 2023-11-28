@@ -5,7 +5,8 @@ perex: |
     deleting entities in the catalog.  
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 <LanguageSpecific to="java">

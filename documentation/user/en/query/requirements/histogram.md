@@ -8,6 +8,7 @@ perex: |
     based on actual item availability. 
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 There are actually only a few use cases in e-commerce websites where histograms are used. The most common is the price

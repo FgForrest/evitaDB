@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -210,7 +211,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nullable U attributeValue) {
-		if (attributeValue == null) {
+		if (attributeValue == null || attributeValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
@@ -229,7 +230,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nullable U[] attributeValue) {
-		if (attributeValue == null) {
+		if (ArrayUtils.isEmpty(attributeValue)) {
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
@@ -254,7 +255,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable U attributeValue) {
-		if (attributeValue == null) {
+		if (attributeValue == null || attributeValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
@@ -270,7 +271,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable U[] attributeValue) {
-		if (attributeValue == null) {
+		if (ArrayUtils.isEmpty(attributeValue)) {
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
