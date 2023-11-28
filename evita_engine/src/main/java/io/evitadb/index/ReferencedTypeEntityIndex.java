@@ -47,6 +47,7 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import lombok.experimental.Delegate;
 
@@ -63,6 +64,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -176,11 +178,24 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 		);
 	}
 
+	@Nonnull
 	@Override
-	public Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey) {
-		final Collection<StoragePart> dirtyParts = super.getModifiedStorageParts(entityIndexPrimaryKey);
+	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
+		return Stream.concat(
+			super.getAttributeIndexStorageKeyStream(),
+			ofNullable(cardinalityIndexes)
+				.map(TransactionalMap::keySet)
+				.map(set -> set.stream().map(attributeKey -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CARDINALITY, attributeKey)))
+				.orElseGet(Stream::empty)
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<StoragePart> getModifiedStorageParts() {
+		final Collection<StoragePart> dirtyParts = super.getModifiedStorageParts();
 		for (Entry<AttributeKey, CardinalityIndex> entry : cardinalityIndexes.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(primaryKey, entry.getKey()))
 				.ifPresent(dirtyParts::add);
 		}
 		return dirtyParts;

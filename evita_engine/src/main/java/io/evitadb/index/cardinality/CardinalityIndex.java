@@ -25,6 +25,7 @@ package io.evitadb.index.cardinality;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Transaction;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.map.TransactionalMap;
@@ -119,11 +120,13 @@ public class CardinalityIndex implements VoidTransactionMemoryProducer<Cardinali
 	public boolean removeRecord(@Nonnull Serializable key, int recordId) {
 		this.dirty.setToTrue();
 		final CardinalityKey cardinalityKey = new CardinalityKey(recordId, key);
-		final long newValue = cardinalities.compute(
+		final Integer newValue = cardinalities.computeIfPresent(
 			cardinalityKey,
-			(k, v) -> v == null ? 0 : v - 1
+			(k, v) -> v - 1
 		);
-		if (newValue == 0) {
+		if (newValue == null) {
+			throw new EvitaInternalError("Cardinality of key `" + key + "` for record `" + recordId + "` is null");
+		} else if (newValue == 0) {
 			cardinalities.remove(cardinalityKey);
 			return true;
 		} else {
