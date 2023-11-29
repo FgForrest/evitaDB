@@ -9,8 +9,9 @@
         "en"
       ],
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "de",
+        "en"
       ],
       "attributes": {
         "localized": {
@@ -30,6 +31,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -55,6 +58,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -80,6 +85,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -105,6 +112,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -130,6 +139,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -155,6 +166,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -180,6 +193,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -205,6 +220,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -230,6 +247,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -255,6 +274,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -280,6 +301,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -305,6 +328,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -330,6 +355,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -355,6 +382,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -380,6 +409,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -405,6 +436,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -430,6 +463,8 @@
               "en"
             ],
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {

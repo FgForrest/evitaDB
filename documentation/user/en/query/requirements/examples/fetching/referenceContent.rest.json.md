@@ -6,8 +6,9 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "de",
+        "en"
       ],
       "attributes": {
         "global": {

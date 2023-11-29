@@ -1171,6 +1171,8 @@ As you can see, the filtered price list is returned.
 
 ## Reference content
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 referenceContent(   
     argument:string+,
@@ -1220,6 +1222,16 @@ managed by evitaDB itself or by any other external system). This variant of `ref
 the attributes set on the reference itself - if you need those attributes, use the [`referenceContentWithAttributes`](#reference-content-with-attributes)
 variant of it.
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+Reference fields allow you to access the information about the references the entity has towards other entities (either
+managed by evitaDB itself or by any other external system). However, reference fields are a bit different than the rest of the
+entity fields. They are dynamically generated based on the reference schemas, and thus, you can access them directly from
+the entity object by schema-defined name.
+
+</LanguageSpecific>
+
 To get an entity with reference to categories and brand, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -1239,6 +1251,11 @@ The returned `Product` entity will contain primary keys of all categories and br
 <LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -1272,6 +1289,11 @@ which each parameter belongs:
 <LanguageSpecific to="evitaql,java,csharp">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
@@ -1309,6 +1331,11 @@ for each tag its category assignment:
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 <LanguageSpecific to="rest">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.rest.json.md)</MDInclude>
@@ -1319,16 +1346,59 @@ The tag category is not an entity managed by evitaDB and that's why we retrieve 
 
 </Note>
 
+<LanguageSpecific to="graphql">
+
+#### Reference attributes fetching
+
+Besides fetching the referenced entity bodies, you can also fetch the attributes set on the reference itself. Attributes 
+of each reference can be fetched using `attributes` field where all possible attributes of particular reference are
+available, similarly to entity attributes.
+
+To obtain an entity with reference to a parameter value that reveals which association defines the unique product-variant
+combination and which parameter values are merely informative, use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Getting entity with references and their attributes](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of an entity fetched with parameter references and their attributes
+</NoteTitle>
+
+The returned `Product` entity will contain references to parameter values and for each of it, it specifies the type
+of the relation between the product and the parameter value:
+
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-memory-256* and *color-yellow* parameter
+values define the product variant, while the other parameters only describe the additional properties of the product.
+
+</Note>
+
+</LanguageSpecific>
+
 #### Filtering references
 
 Sometimes your entities have a lot of references and you don't need all of them in certain scenarios. In this case, you 
 can use the filter constraint to filter out the references you don't need.
 
 <Note type="info">
-The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need to
+
+The <LanguageSpecific to="evitaql,java,rest,csharp">`referenceContent`</LanguageSpecific> filter 
+<LanguageSpecific to="graphql">on reference fields</LanguageSpecific>
+implicitly targets the attributes on the same reference it points to, so you don't need to
 specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare 
 constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having) 
 container constraint.
+
 </Note>
 
 For example, your product has got a lot of parameters, but on product detail page you need to fetch only those that are 
@@ -1357,6 +1427,11 @@ which each parameter belongs:
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
@@ -1372,10 +1447,14 @@ by a different property - either the attribute set on the reference itself or th
 you can use the order constraint inside the `referenceContent` requirement.
 
 <Note type="info">
-The `referenceContent` filter implicitly targets the attributes on the same reference it points to, so you don't need to
-specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare 
-constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having) 
+
+The <LanguageSpecific to="evitaql,java,rest,csharp">`referenceContent`</LanguageSpecific> ordering
+<LanguageSpecific to="graphql">on reference fields</LanguageSpecific> implicitly targets the attributes on the same reference 
+it points to, so you don't need to specify a [`referenceProperty`](../ordering/reference.md#reference-property) constraint. 
+However, if you need to declare 
+constraints on referenced entity attributes, you must wrap them in the [`entityProperty`](../ordering/reference.md#entity-property) 
 container constraint.
+
 </Note>
 
 Let's say you want your parameters to be ordered by an English name of the parameter. To do this, use the following 
@@ -1400,6 +1479,11 @@ The returned `Product' entity will contain a list of all parameters in the expec
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
 <LanguageSpecific to="rest">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.rest.json.md)</MDInclude>
@@ -1407,6 +1491,8 @@ The returned `Product' entity will contain a list of all parameters in the expec
 </LanguageSpecific>
 
 </Note>
+
+<LanguageSpecific to="evitaql,java,csharp">
 
 ### Reference content all
 
@@ -1475,13 +1561,12 @@ The returned `Product` entity will contain primary keys and codes of all its ref
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
-<LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.rest.json.md)</MDInclude>
+</Note>
 
 </LanguageSpecific>
 
-</Note>
+<LanguageSpecific to="evitaql,java,csharp,rest">
 
 ### Reference content with attributes
 
@@ -1574,6 +1659,10 @@ values define the product variant, while the other parameters only describe the 
 
 </Note>
 
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql,java,csharp">
+
 ### Reference content all with attributes
 
 ```evitaql-syntax
@@ -1656,3 +1745,5 @@ The returned `Product` entity will contain all the references and the attributes
 </LanguageSpecific>
 
 </Note>
+
+</LanguageSpecific>
