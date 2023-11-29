@@ -1226,9 +1226,10 @@ variant of it.
 <LanguageSpecific to="graphql">
 
 Reference fields allow you to access the information about the references the entity has towards other entities (either
-managed by evitaDB itself or by any other external system). However, reference fields are a bit different than the rest of the
-entity fields. They are dynamically generated based on the reference schemas, and thus, you can access them directly from
-the entity object by schema-defined name.
+managed by evitaDB itself or by any other external system). However, reference fields are a bit different from the other
+entity fields. They are dynamically generated based on the reference schemas, so you can access them directly from
+the entity object by a schema-defined name, and also, each reference object has a slightly different structure based on
+the specific reference schema.
 
 </LanguageSpecific>
 
@@ -1425,7 +1426,7 @@ which each parameter belongs:
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
-<LanguageSpecific to="rest">
+<LanguageSpecific to="graphql">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.graphql.json.md)</MDInclude>
 
@@ -1472,7 +1473,7 @@ query:
 ##### The result of an entity fetched with referenced parameter ordered by name
 </NoteTitle>
 
-The returned `Product' entity will contain a list of all parameters in the expected order:
+The returned `Product` entity will contain a list of all parameters in the expected order:
 
 <LanguageSpecific to="evitaql,java,csharp">
 
