@@ -45,7 +45,7 @@ between `€100` and `€105`. The following query will do that:
 
 <NoteTitle toggles="true">
 
-##### Results filtered by price between 100€ and 105€
+##### Results filtered by price between €100 and €105
 
 </NoteTitle>
 
@@ -82,7 +82,7 @@ in this range with the price without tax. To do this, we need to modify the quer
 
 <NoteTitle toggles="true">
 
-##### Different results filtered by price between 100€ and 105€ without tax
+##### Different results filtered by price between €100 and €105 without tax
 
 </NoteTitle>
 
