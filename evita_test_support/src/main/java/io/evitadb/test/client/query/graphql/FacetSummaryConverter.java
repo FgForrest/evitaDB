@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
@@ -63,9 +64,10 @@ public class FacetSummaryConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchBuilder;
 
 	public FacetSummaryConverter(@Nonnull CatalogSchemaContract catalogSchema,
+                                 @Nonnull Query query,
 	                             @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
+		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
