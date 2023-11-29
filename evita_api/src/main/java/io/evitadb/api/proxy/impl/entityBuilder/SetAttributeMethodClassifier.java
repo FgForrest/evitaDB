@@ -71,16 +71,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName);
-			} else {
-				entityBuilder.setAttribute(
-					attributeName,
-					EvitaDataTypes.toTargetType((Serializable) value, plainType)
-				);
-			}
+			setAttributeAsValue(attributeName, plainType, theState, args[valueParameterPosition]);
 			return null;
 		};
 	}
@@ -101,18 +92,34 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName);
-			} else {
-				entityBuilder.setAttribute(
-					attributeName,
-					EvitaDataTypes.toTargetType((Serializable) value, plainType)
-				);
-			}
+			setAttributeAsValue(attributeName, plainType, theState, args[valueParameterPosition]);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the value of the specified attribute using a single value.
+	 *
+	 * @param attributeName The name of the associated data to be set.
+	 * @param plainType     The expected type of the associated data.
+	 * @param theState      The proxy state.
+	 * @param value         The value to be set.
+	 */
+	private static void setAttributeAsValue(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull SealedEntityProxyState theState,
+		@Nullable Object value
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAttribute(attributeName);
+		} else {
+			entityBuilder.setAttribute(
+				attributeName,
+				EvitaDataTypes.toTargetType((Serializable) value, plainType)
+			);
+		}
 	}
 
 	/**
@@ -130,19 +137,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAttribute(
-					attributeName,
-					((Collection) value).stream()
-						.map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setAttributeAsCollection(attributeName, plainType, theState, args[valueParameterPosition]);
 			return null;
 		};
 	}
@@ -163,21 +158,37 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAttribute(
-					attributeName,
-					((Collection) value).stream()
-						.map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setAttributeAsCollection(attributeName, plainType, theState, args[valueParameterPosition]);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the value of the specified attribute using an array value.
+	 *
+	 * @param attributeName The name of the attribute to be set.
+	 * @param plainType     The expected type of the attribute.
+	 * @param theState      The proxy state.
+	 * @param value         The value to be set.
+	 */
+	private static void setAttributeAsCollection(
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull SealedEntityProxyState theState,
+		@Nullable Object value
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAttribute(attributeName);
+		} else {
+			//noinspection unchecked,rawtypes
+			entityBuilder.setAttribute(
+				attributeName,
+				((Collection) value).stream()
+					.map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType))
+					.toArray(cnt -> Array.newInstance(plainType, cnt))
+			);
+		}
 	}
 
 	/**
@@ -197,18 +208,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName);
-			} else {
-				entityBuilder.setAttribute(
-					attributeName, locale,
-					EvitaDataTypes.toTargetType((Serializable) value, plainType)
-				);
-			}
+			setLocalizedAttributeAsValue(valueParameterPosition, localeParameterPosition, attributeName, plainType, args, theState);
 			return null;
 		};
 	}
@@ -231,20 +231,41 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName);
-			} else {
-				entityBuilder.setAttribute(
-					attributeName, locale,
-					EvitaDataTypes.toTargetType((Serializable) value, plainType)
-				);
-			}
+			setLocalizedAttributeAsValue(valueParameterPosition, localeParameterPosition, attributeName, plainType, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the localized attribute value from a single value.
+	 *
+	 * @param valueParameterPosition  The index of the value parameter among the method parameters
+	 * @param localeParameterPosition The index of the Locale parameter among the method parameters
+	 * @param attributeName           The name of the attribute to be set.
+	 * @param plainType               The expected type of the attribute.
+	 * @param args                    The array of method arguments
+	 * @param theState                The SealedEntityProxyState object
+	 */
+	private static void setLocalizedAttributeAsValue(
+		int valueParameterPosition,
+		int localeParameterPosition,
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final Object value = args[valueParameterPosition];
+		final Locale locale = (Locale) args[localeParameterPosition];
+		Assert.notNull(locale, "Locale must not be null!");
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAttribute(attributeName);
+		} else {
+			entityBuilder.setAttribute(
+				attributeName, locale,
+				EvitaDataTypes.toTargetType((Serializable) value, plainType)
+			);
+		}
 	}
 
 	/**
@@ -265,21 +286,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName, locale);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAttribute(
-					attributeName, locale,
-					((Collection) value).stream()
-						.map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setLocalizedAttributeAsCollection(valueParameterPosition, localeParameterPosition, attributeName, plainType, args, theState);
 			return null;
 		};
 	}
@@ -302,23 +309,45 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAttribute(attributeName, locale);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAttribute(
-					attributeName, locale,
-					((Collection) value).stream()
-						.map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setLocalizedAttributeAsCollection(valueParameterPosition, localeParameterPosition, attributeName, plainType, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the localized associated data as a collection value and returns the proxy object.
+	 *
+	 * @param valueParameterPosition  The index of the value parameter among the method parameters.
+	 * @param localeParameterPosition The index of the Locale parameter among the method parameters.
+	 * @param attributeName The name of the attribute to be set.
+	 * @param plainType     The expected type of the attribute.
+	 * @param plainType               The expected type of the attribute.
+	 * @param args                    The arguments passed to the method.
+	 * @param theState                The SealedEntityProxyState object containing the entity state.
+	 */
+	private static void setLocalizedAttributeAsCollection(
+		int valueParameterPosition,
+		int localeParameterPosition,
+		@Nonnull String attributeName,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final Object value = args[valueParameterPosition];
+		final Locale locale = (Locale) args[localeParameterPosition];
+		Assert.notNull(locale, "Locale must not be null!");
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAttribute(attributeName, locale);
+		} else {
+			//noinspection unchecked,rawtypes
+			entityBuilder.setAttribute(
+				attributeName, locale,
+				((Collection) value).stream()
+					.map(it -> EvitaDataTypes.toTargetType((Serializable) it, plainType))
+					.toArray(cnt -> Array.newInstance(plainType, cnt))
+			);
+		}
 	}
 
 	/**
