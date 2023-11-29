@@ -119,7 +119,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 			// now we need to identify the return type
 			@SuppressWarnings("rawtypes") final Class parameterType = parameter.getType();
 			final Class<?>[] resolvedTypes = getResolvedTypes(parameter, expectedType);
-			@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, parameterType);
+			final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, parameterType);
 
 			@SuppressWarnings("rawtypes") final Class collectionType;
 			@SuppressWarnings("rawtypes") final Class itemType;
