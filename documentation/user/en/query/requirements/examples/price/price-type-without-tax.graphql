@@ -9,6 +9,9 @@
         "100",
         "103"
       ]
+    },
+    require: {
+      priceType: WITHOUT_TAX
     }
   ) {
     recordPage {

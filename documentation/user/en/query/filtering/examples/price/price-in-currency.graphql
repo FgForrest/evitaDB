@@ -10,7 +10,7 @@
         attributes {
           code
         }
-        priceForSale {
+        prices(currency: EUR) {
           priceWithoutTax
           priceWithTax
           taxRate
