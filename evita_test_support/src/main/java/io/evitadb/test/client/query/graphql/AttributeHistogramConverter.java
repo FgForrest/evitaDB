@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -42,8 +43,9 @@ import java.util.Map;
 public class AttributeHistogramConverter extends HistogramConverter {
 
 	public AttributeHistogramConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                                   @Nonnull Query query,
 	                                   @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder extraResultsBuilder,

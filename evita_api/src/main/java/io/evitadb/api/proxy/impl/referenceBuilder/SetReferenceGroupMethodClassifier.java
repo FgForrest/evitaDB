@@ -55,16 +55,16 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.isEntityRecognizedIn;
 import static io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.recognizeCallContext;
+import static io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.resolveFirstParameter;
 import static io.evitadb.api.proxy.impl.entityBuilder.SetReferenceMethodClassifier.resolvedTypeIs;
-import static java.util.Optional.empty;
 import static java.util.Optional.of;
+import static java.util.Optional.ofNullable;
 
 /**
  * Identifies methods that are used to set entity referenced group into an entity and provides their implementation.
@@ -79,6 +79,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 
 	/**
 	 * Method returns the referenced entity group type and verifies that it is managed by evitaDB.
+	 *
 	 * @param referenceSchema the reference schema
 	 * @return the referenced entity group type
 	 */
@@ -263,15 +264,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	) {
 		final String expectedEntityType = getReferencedGroupType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-			final EntityContract sealedEntity = referencedEntity.getEntity();
-			Assert.isTrue(
-				expectedEntityType.equals(sealedEntity.getType()),
-				"Entity type `" + sealedEntity.getType() + "` in passed argument " +
-					"doesn't match the referencedGroupEntity entity type: `" + expectedEntityType + "`!"
-			);
-			referenceBuilder.setGroup(sealedEntity.getPrimaryKey());
+			setReferencedEntityGroup(expectedEntityType, args, theState);
 			return null;
 		};
 	}
@@ -289,17 +282,32 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	) {
 		final String expectedEntityType = getReferencedGroupType(referenceSchema, true);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-			final EntityContract sealedEntity = referencedEntity.getEntity();
-			Assert.isTrue(
-				expectedEntityType.equals(sealedEntity.getType()),
-				"Entity type `" + sealedEntity.getType() + "` in passed argument " +
-					"doesn't match the referencedGroupEntity entity type: `" + expectedEntityType + "`!"
-			);
-			referenceBuilder.setGroup(sealedEntity.getPrimaryKey());
+			setReferencedEntityGroup(expectedEntityType, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the referenced entity group by extracting it from the provided SealedEntityProxy object.
+	 *
+	 * @param expectedEntityType the expected type of the referenced entity group
+	 * @param args               the arguments passed to the method
+	 * @param theState           the SealedEntityReferenceProxyState object
+	 */
+	private static void setReferencedEntityGroup(
+		@Nonnull String expectedEntityType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityReferenceProxyState theState
+	) {
+		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
+		final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
+		final EntityContract sealedEntity = referencedEntity.getEntity();
+		Assert.isTrue(
+			expectedEntityType.equals(sealedEntity.getType()),
+			"Entity type `" + sealedEntity.getType() + "` in passed argument " +
+				"doesn't match the referencedGroupEntity entity type: `" + expectedEntityType + "`!"
+		);
+		referenceBuilder.setGroup(sealedEntity.getPrimaryKey());
 	}
 
 	/**
@@ -360,7 +368,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * (without knowing its primary key since it hasn't been assigned yet) and returns the reference to the entity proxy
 	 * to allow chaining (builder pattern).
 	 *
-	 * @param expectedType    the expected type of the referenced entity proxy
+	 * @param expectedType the expected type of the referenced entity proxy
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -369,16 +377,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final Object referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
-				theState.getEntitySchemaOrThrow(referencedEntityType),
-				expectedType,
-				ProxyType.REFERENCED_ENTITY,
-				entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKey())
-			);
-			//noinspection unchecked
-			final Consumer<Object> consumer = (Consumer<Object>) args[0];
-			consumer.accept(referencedEntityInstance);
+			createReferencedEntityGroup(referencedEntityType, expectedType, args, theState);
 			return proxy;
 		};
 	}
@@ -387,7 +386,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * Return a method implementation that creates new proxy object representing a reference to and external entity
 	 * (without knowing its primary key since it hasn't been assigned yet) and returns no result.
 	 *
-	 * @param expectedType    the expected type of the referenced entity proxy
+	 * @param expectedType the expected type of the referenced entity proxy
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -396,18 +395,35 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final Object referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
-				theState.getEntitySchemaOrThrow(referencedEntityType),
-				expectedType,
-				ProxyType.REFERENCED_ENTITY,
-				entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKey())
-			);
-			//noinspection unchecked
-			final Consumer<Object> consumer = (Consumer<Object>) args[0];
-			consumer.accept(referencedEntityInstance);
+			createReferencedEntityGroup(referencedEntityType, expectedType, args, theState);
 			return null;
 		};
+	}
+
+	/**
+	 * Creates a new entity group referenced proxy object of type {@code SealedEntityReferenceProxyState}.
+	 *
+	 * @param referencedEntityType the type of the referenced entity
+	 * @param expectedType         the expected type of the referenced entity proxy
+	 * @param args                 the arguments passed to the method
+	 * @param theState             the SealedEntityReferenceProxyState object
+	 */
+	private static void createReferencedEntityGroup(
+		@Nonnull String referencedEntityType,
+		@Nonnull Class<?> expectedType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityReferenceProxyState theState
+	) {
+		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
+		final Object referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
+			theState.getEntitySchemaOrThrow(referencedEntityType),
+			expectedType,
+			ProxyType.REFERENCED_ENTITY,
+			entityReference -> referenceBuilder.setGroup(entityReference.getPrimaryKey())
+		);
+		//noinspection unchecked
+		final Consumer<Object> consumer = (Consumer<Object>) args[0];
+		consumer.accept(referencedEntityInstance);
 	}
 
 	/**
@@ -424,22 +440,8 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final Optional<GroupEntityReference> group = referenceBuilder.getGroup();
-			if (group.isEmpty()) {
-				throw ContextMissingException.referenceContextMissing(referenceName);
-			} else {
-				final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-					expectedType,
-					referenceBuilder.getGroupEntity()
-						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)),
-					ProxyType.REFERENCED_ENTITY
-				);
-				//noinspection unchecked
-				final Consumer<Object> consumer = (Consumer<Object>) args[0];
-				consumer.accept(referencedEntityInstance);
-				return proxy;
-			}
+			updateReferencedEntity(referenceName, expectedType, args, theState);
+			return proxy;
 		};
 	}
 
@@ -456,23 +458,40 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final Optional<GroupEntityReference> group = referenceBuilder.getGroup();
-			if (group.isEmpty()) {
-				throw ContextMissingException.referenceContextMissing(referenceName);
-			} else {
-				final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-					expectedType,
-					referenceBuilder.getGroupEntity()
-						.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)),
-					ProxyType.REFERENCED_ENTITY
-				);
-				//noinspection unchecked
-				final Consumer<Object> consumer = (Consumer<Object>) args[0];
-				consumer.accept(referencedEntityInstance);
-				return null;
-			}
+			updateReferencedEntity(referenceName, expectedType, args, theState);
+			return null;
 		};
+	}
+
+	/**
+	 * Update the referenced entity with the given reference name, expected type, arguments, and proxy state.
+	 *
+	 * @param referenceName the name of the reference
+	 * @param expectedType  the expected type of the referenced entity
+	 * @param args          the arguments to update the referenced entity
+	 * @param theState      the proxy state
+	 */
+	private static void updateReferencedEntity(
+		@Nonnull String referenceName,
+		@Nonnull Class<?> expectedType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityReferenceProxyState theState
+	) {
+		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
+		final Optional<GroupEntityReference> group = referenceBuilder.getGroup();
+		if (group.isEmpty()) {
+			throw ContextMissingException.referenceContextMissing(referenceName);
+		} else {
+			final Object referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
+				expectedType,
+				referenceBuilder.getGroupEntity()
+					.orElseThrow(() -> ContextMissingException.referencedEntityContextMissing(theState.getType(), referenceName)),
+				ProxyType.REFERENCED_ENTITY
+			);
+			//noinspection unchecked
+			final Consumer<Object> consumer = (Consumer<Object>) args[0];
+			consumer.accept(referencedEntityInstance);
+		}
 	}
 
 	/**
@@ -504,9 +523,9 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * Returns method implementation that creates, updates or removes reference by passing referenced entity ids.
 	 * This implementation doesn't allow to set attributes on the reference.
 	 *
-	 * @param proxyState      the proxy state
-	 * @param method          the method
-	 * @param returnType      the return type
+	 * @param proxyState the proxy state
+	 * @param method     the method
+	 * @param returnType the return type
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -542,11 +561,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupIdWithVoidResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final Serializable referencedPrimaryKey = (Serializable) args[0];
-			referenceBuilder.setGroup(
-				EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
-			);
+			setReferencedEntityGroupId(args, theState);
 			return null;
 		};
 	}
@@ -560,20 +575,33 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupIdWithBuilderResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final Serializable referencedPrimaryKey = (Serializable) args[0];
-			referenceBuilder.setGroup(
-				EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
-			);
+			setReferencedEntityGroupId(args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the referenced entity group id.
+	 *
+	 * @param args     the arguments passed to the method
+	 * @param theState the state of the proxy
+	 */
+	private static void setReferencedEntityGroupId(
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityReferenceProxyState theState
+	) {
+		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
+		final Serializable referencedPrimaryKey = (Serializable) args[0];
+		referenceBuilder.setGroup(
+			EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
+		);
 	}
 
 	/**
 	 * Return a method implementation that creates new proxy object representing a reference to and external entity
 	 * group and returns the created proxy allowing to set properties on it.
 	 *
-	 * @param expectedType    the expected type of the referenced entity proxy
+	 * @param expectedType the expected type of the referenced entity proxy
 	 * @return the method implementation
 	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -597,9 +625,9 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	 * Returns method implementation that creates or updates reference group by passing {@link EntityClassifier}
 	 * instances to the method parameter.
 	 *
-	 * @param proxyState         the proxy state
-	 * @param returnType         the return type
-	 * @param referenceSchema    the reference schema
+	 * @param proxyState      the proxy state
+	 * @param returnType      the return type
+	 * @param referenceSchema the reference schema
 	 * @return the method implementation
 	 */
 	@Nonnull
@@ -617,31 +645,6 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 
 	/**
 	 * Returns method implementation that sets the referenced entity by extracting it from {@link EntityClassifier}
-	 * and return no result.
-	 *
-	 * @param referenceSchema the reference schema
-	 * @return the method implementation
-	 */
-	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupClassifierWithVoidResult(
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		final String expectedEntityType = getReferencedGroupType(referenceSchema, false);
-		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
-			Assert.isTrue(
-				expectedEntityType.equals(referencedClassifier.getType()),
-				"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
-					"doesn't match the referenced entity group type: `" + expectedEntityType + "`!"
-			);
-			referenceBuilder.setGroup(referencedClassifier.getPrimaryKey());
-			return null;
-		};
-	}
-
-	/**
-	 * Returns method implementation that sets the referenced entity by extracting it from {@link EntityClassifier}
 	 * and return the reference to the proxy to allow chaining (builder pattern).
 	 *
 	 * @param referenceSchema the reference schema
@@ -653,16 +656,78 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	) {
 		final String expectedEntityType = getReferencedGroupType(referenceSchema, false);
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
-			final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
-			Assert.isTrue(
-				expectedEntityType.equals(referencedClassifier.getType()),
-				"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
-					"doesn't match the referenced entity group type: `" + expectedEntityType + "`!"
-			);
-			referenceBuilder.setGroup(referencedClassifier.getPrimaryKey());
+			setReferencedEntityGroupClassifier(expectedEntityType, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Returns method implementation that sets the referenced entity by extracting it from {@link EntityClassifier}
+	 * and return no result.
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityReferenceProxyState> setReferencedEntityGroupClassifierWithVoidResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String expectedEntityType = getReferencedGroupType(referenceSchema, false);
+		return (proxy, theMethod, args, theState, invokeSuper) -> {
+			setReferencedEntityGroupClassifier(expectedEntityType, args, theState);
+			return null;
+		};
+	}
+
+	/**
+	 * Sets the referenced entity group classifier by extracting it from an {@link EntityClassifier}.
+	 *
+	 * @param expectedEntityType the expected entity type of the referenced entity group
+	 * @param args               the arguments passed to the method
+	 * @param theState           the state of the sealed entity reference proxy
+	 */
+	private static void setReferencedEntityGroupClassifier(
+		@Nonnull String expectedEntityType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityReferenceProxyState theState
+	) {
+		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
+		final EntityClassifier referencedClassifier = (EntityClassifier) args[0];
+		Assert.isTrue(
+			expectedEntityType.equals(referencedClassifier.getType()),
+			"Entity type `" + referencedClassifier.getType() + "` in passed argument " +
+				"doesn't match the referenced entity group type: `" + expectedEntityType + "`!"
+		);
+		referenceBuilder.setGroup(referencedClassifier.getPrimaryKey());
+	}
+
+	/**
+	 * Resolves the parameter type for the given method and proxy state.
+	 *
+	 * @param method         the method for which to resolve the parameter type
+	 * @param proxyState     the state of the sealed entity reference proxy
+	 * @param firstParameter the first parameter of the method (nullable)
+	 * @return an Optional containing the resolved parameter type, or empty if the parameter type cannot be resolved
+	 */
+	@Nonnull
+	private static Optional<ResolvedParameter> resolveParameterType(
+		@Nonnull Method method,
+		@Nonnull SealedEntityReferenceProxyState proxyState,
+		@Nullable ResolvedParameter firstParameter
+	) {
+		Optional<ResolvedParameter> referencedType = ofNullable(firstParameter);
+		if (referencedType.map(it -> EntityReferenceContract.class.isAssignableFrom(it.resolvedType())).orElse(false)) {
+			referencedType = of(new ResolvedParameter(EntityReferenceContract.class, EntityReferenceContract.class));
+		} else if (referencedType.map(it -> Consumer.class.isAssignableFrom(it.resolvedType())).orElse(false)) {
+			final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[0]);
+			referencedType = of(
+				new ResolvedParameter(
+					referencedType.get().resolvedType(),
+					genericType.get(0).getResolvedType()
+				)
+			);
+		}
+		return referencedType;
 	}
 
 	public SetReferenceGroupMethodClassifier() {
@@ -679,36 +744,8 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 					return null;
 				}
 
-				final ResolvedParameter firstParameter;
-				if (method.getParameterCount() > 0) {
-					if (Collection.class.isAssignableFrom(method.getParameterTypes()[0])) {
-						final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[0]);
-						firstParameter = new ResolvedParameter(method.getParameterTypes()[0], genericType.get(0).getResolvedType());
-					} else if (method.getParameterTypes()[0].isArray()) {
-						firstParameter = new ResolvedParameter(method.getParameterTypes()[0], method.getParameterTypes()[0].getComponentType());
-					} else {
-						firstParameter = new ResolvedParameter(method.getParameterTypes()[0], method.getParameterTypes()[0]);
-					}
-				} else {
-					firstParameter = null;
-				}
-
-				Optional<ResolvedParameter> referencedType = empty();
-				for (int i = 0; i < parameterCount; i++) {
-					final Class<?> parameterType = method.getParameterTypes()[i];
-					if (EntityReferenceContract.class.isAssignableFrom(parameterType)) {
-						referencedType = of(new ResolvedParameter(EntityReferenceContract.class, EntityReferenceContract.class));
-					} else if (Consumer.class.isAssignableFrom(parameterType)) {
-						final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[i]);
-						referencedType = of(
-							new ResolvedParameter(
-								method.getParameterTypes()[i],
-								genericType.get(0).getResolvedType()
-							)
-						);
-					}
-				}
-
+				final ResolvedParameter firstParameter = resolveFirstParameter(method, proxyState.getProxyClass());
+				final Optional<ResolvedParameter> referencedType = resolveParameterType(method, proxyState, firstParameter);
 
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final Optional<RecognizedContext> entityRecognizedIn = recognizeCallContext(

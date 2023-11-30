@@ -24,6 +24,7 @@
 package io.evitadb.test.client.query.graphql;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
@@ -60,9 +61,10 @@ public class HierarchyOfConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchConverter;
 
 	public HierarchyOfConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                            @Nonnull Query query,
 	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
