@@ -156,7 +156,7 @@ object.</LanguageSpecific> The data chunk object contains the following informat
     </dd>
 </dl>
 
-The <LanguageSpecific to="evitaql,java,rest,csharp>`page` requirement</LanguageSpecific><LanguageSpecific to="graphql">`recordPage` field</LanguageSpecific>
+The <LanguageSpecific to="evitaql,java,rest,csharp">`page` requirement</LanguageSpecific><LanguageSpecific to="graphql">`recordPage` field</LanguageSpecific>
 is the most natural and commonly used requirement for the pagination of the query results.
 To get the second page of the query result, use the following query:
 
