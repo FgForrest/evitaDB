@@ -6,7 +6,8 @@ perex: |
   usually products or some kind of "inventory".
 date: '5.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 There are many types of menus that can be found on e-commerce sites. Starting with mega menus of various types ...
@@ -1037,7 +1038,7 @@ statistics(
 
         - **COMPLETE_FILTER**: complete filtering query constraint
         - **WITHOUT_USER_FILTER**: filtering query constraint where the contents of optional 
-            [`userFilter`](../filtering/special.md#user-filter) are ignored
+            [`userFilter`](../filtering/behavioral.md#user-filter) are ignored
 
         The calculation always ignores `hierarchyWithin` because the focused part of the hierarchy tree is
         defined on the requirement constraint level, but including having/excluding constraints. The having/excluding 

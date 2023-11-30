@@ -43,6 +43,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -546,20 +547,30 @@ public class EvitaDataTypes {
 	}
 
 	/**
+	 * Returns true if type (may be array type) is directly supported by evitaDB or Java enum.
+	 */
+	public static boolean isSupportedTypeOrItsArrayOrEnum(@Nonnull Class<?> type) {
+		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
+		return EvitaDataTypes.isSupportedType(typeToCheck) || typeToCheck.isEnum();
+	}
+
+	/**
 	 * If passed type is a primitive type or array of primitive types, the wrapper type or array of wrapper types
 	 * is returned in response.
 	 */
 	public static Class<? extends Serializable> toWrappedForm(@Nonnull Class<?> type) {
-		@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
-		if (typeToCheck.isPrimitive()) {
-			//noinspection unchecked
-			return type.isArray() ?
-				(Class<? extends Serializable>) Array.newInstance(getWrappingPrimitiveClass(typeToCheck), 0).getClass() :
-				getWrappingPrimitiveClass(typeToCheck);
-		} else {
-			//noinspection unchecked
-			return (Class<? extends Serializable>) type;
+		if (!void.class.equals(type)) {
+			@SuppressWarnings("unchecked") final Class<? extends Serializable> typeToCheck = type.isArray() ? (Class<? extends Serializable>) type.getComponentType() : (Class<? extends Serializable>) type;
+			if (typeToCheck.isPrimitive()) {
+				//noinspection unchecked
+				return type.isArray() ?
+					(Class<? extends Serializable>) Array.newInstance(getWrappingPrimitiveClass(typeToCheck), 0).getClass() :
+					getWrappingPrimitiveClass(typeToCheck);
+			}
 		}
+
+		//noinspection unchecked
+		return (Class<? extends Serializable>) type;
 	}
 
 	/**
@@ -589,7 +600,7 @@ public class EvitaDataTypes {
 	}
 
 	/**
-	 * Method converts unknown object to the requested type supported by by Evita.
+	 * Method converts unknown object to the requested type supported by Evita.
 	 *
 	 * @return unknownObject converted to requested type
 	 * @throws UnsupportedDataTypeException when unknownObject cannot be converted to any of Evita supported types
@@ -663,20 +674,27 @@ public class EvitaDataTypes {
 			return CHAR_STRING_DELIMITER + ((String) value).replaceAll(STRING_DELIMITER, "\\\\'") + STRING_DELIMITER;
 		} else if (value instanceof Character) {
 			return CHAR_STRING_DELIMITER + ((Character) value).toString().replaceAll(STRING_DELIMITER, "\\\\'") + STRING_DELIMITER;
-		} else if (value instanceof Number) {
+		} else if (value instanceof BigDecimal bigDecimalValue) {
+			// Value normalisations were taken from https://github.com/googleapis/googleapis/blob/master/google/type/decimal.proto docs from Google.
+			// All other validation parts are done automatically by Java's BigDecimal
+			return bigDecimalValue.toString()
+				.replace("E", "e")
+				.replace("e+", "e");
+		}
+		else if (value instanceof Number) {
 			return value.toString();
 		} else if (value instanceof Boolean) {
 			return value.toString();
 		} else if (value instanceof Range) {
 			return value.toString();
-		} else if (value instanceof OffsetDateTime) {
-			return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format((TemporalAccessor) value);
-		} else if (value instanceof LocalDateTime) {
-			return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format((TemporalAccessor) value);
+		} else if (value instanceof OffsetDateTime offsetDateTime) {
+			return DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(offsetDateTime.truncatedTo(ChronoUnit.MILLIS));
+		} else if (value instanceof LocalDateTime localDateTime) {
+			return DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(localDateTime.truncatedTo(ChronoUnit.MILLIS));
 		} else if (value instanceof LocalDate) {
 			return DateTimeFormatter.ISO_LOCAL_DATE.format((TemporalAccessor) value);
-		} else if (value instanceof LocalTime) {
-			return DateTimeFormatter.ISO_LOCAL_TIME.format((TemporalAccessor) value);
+		} else if (value instanceof LocalTime localTime) {
+			return DateTimeFormatter.ISO_LOCAL_TIME.format(localTime.truncatedTo(ChronoUnit.MILLIS));
 		} else if (value instanceof Locale) {
 			return CHAR_STRING_DELIMITER + ((Locale) value).toLanguageTag() + CHAR_STRING_DELIMITER;
 		} else if (value instanceof Currency) {

@@ -46,6 +46,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
+import java.util.function.IntPredicate;
 
 /**
  * This {@link HierarchyVisitor} implementation is called for each hierarchical entity and cooperates
@@ -63,6 +64,11 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	 * to be omitted and thus the distance needs to be lowered by one.
 	 */
 	private final int distanceCompensation;
+	/**
+	 * Predicate that will mark the produced {@link LevelInfo} as requested.
+	 */
+	@Nonnull
+	private final IntPredicate requestedPredicate;
 	/**
 	 * The predicate that controls the scope that will be returned in the form of {@link LevelInfo}.
 	 */
@@ -100,6 +106,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	public ChildrenStatisticsHierarchyVisitor(
 		boolean removeEmptyResults,
 		int distanceCompensation,
+		@Nonnull IntPredicate requestedPredicate,
 		@Nonnull HierarchyTraversalPredicate scopePredicate,
 		@Nonnull HierarchyFilteringPredicate filterPredicate,
 		@Nonnull IntFunction<Formula> queuedEntityComputer,
@@ -108,12 +115,13 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 	) {
 		this.removeEmptyResults = removeEmptyResults;
 		this.distanceCompensation = distanceCompensation;
+		this.requestedPredicate = requestedPredicate;
 		this.scopePredicate = scopePredicate;
 		this.filterPredicate = filterPredicate;
 		this.accumulator = new LinkedList<>();
 
 		// accumulator is used to gather information about its children gradually
-		this.rootAccumulator = new Accumulator(null, () -> EmptyFormula.INSTANCE);
+		this.rootAccumulator = new Accumulator(false, null, () -> EmptyFormula.INSTANCE);
 		accumulator.add(rootAccumulator);
 
 		this.entityFetcher = entityFetcher;
@@ -158,6 +166,7 @@ public class ChildrenStatisticsHierarchyVisitor implements HierarchyVisitor {
 					if (entityRef != null) {
 						accumulator.push(
 							new Accumulator(
+								requestedPredicate.test(entityPrimaryKey),
 								entityRef,
 								() -> queriedEntityComputer.apply(node.entityPrimaryKey())
 							)

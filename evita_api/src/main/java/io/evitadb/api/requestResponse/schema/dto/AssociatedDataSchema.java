@@ -52,6 +52,7 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
+	@Getter @Nonnull private final Class<? extends Serializable> plainType;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
 
@@ -139,6 +140,8 @@ public class AssociatedDataSchema implements Serializable, AssociatedDataSchemaC
 		this.type = EvitaDataTypes.isSupportedTypeOrItsArray(type) ?
 			EvitaDataTypes.toWrappedForm(type) :
 			ComplexDataObject.class;
+		//noinspection unchecked
+		this.plainType = (Class<? extends Serializable>) (this.type.isArray() ? this.type.getComponentType() : this.type);
 		this.localized = localized;
 		this.nullable = nullable;
 	}

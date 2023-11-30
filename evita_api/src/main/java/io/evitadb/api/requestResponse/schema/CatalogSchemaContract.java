@@ -73,5 +73,4 @@ public interface CatalogSchemaContract
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
 	}
-
 }

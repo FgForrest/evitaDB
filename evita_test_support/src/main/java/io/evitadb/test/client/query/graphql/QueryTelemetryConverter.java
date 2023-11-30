@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -38,8 +39,9 @@ import javax.annotation.Nullable;
 public class QueryTelemetryConverter extends RequireConverter {
 
 	public QueryTelemetryConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                               @Nonnull Query query,
 	                               @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder extraResultsBuilder,

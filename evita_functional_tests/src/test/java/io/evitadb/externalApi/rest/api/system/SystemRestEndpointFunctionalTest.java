@@ -106,7 +106,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 		createCatalogDto(testCatalog);
 
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/test-catalog")
+			.urlPathSuffix("/catalogs/testCatalog")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
@@ -166,7 +166,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// rename
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/temporary-catalog")
+			.urlPathSuffix("/catalogs/temporaryCatalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(
 				"""
@@ -185,7 +185,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// delete
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/temporary-catalog2")
+			.urlPathSuffix("/catalogs/temporaryCatalog2")
 			.httpMethod(Request.METHOD_DELETE)
 			.executeAndExpectOkWithoutBodyAndThen();
 	}
@@ -210,7 +210,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// switch to alive
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/temporary-catalog")
+			.urlPathSuffix("/catalogs/temporaryCatalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(
 				"""
@@ -224,7 +224,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// delete
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/temporary-catalog")
+			.urlPathSuffix("/catalogs/temporaryCatalog")
 			.httpMethod(Request.METHOD_DELETE)
 			.executeAndExpectOkWithoutBodyAndThen();
 	}
@@ -261,7 +261,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// replace test catalog to temporary catalog
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/test-catalog")
+			.urlPathSuffix("/catalogs/testCatalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(
 				"""
@@ -293,7 +293,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 
 		// replace temporary catalog back to test catalog
 		tester.test(SYSTEM_URL)
-			.urlPathSuffix("/catalogs/temporary-catalog")
+			.urlPathSuffix("/catalogs/temporaryCatalog")
 			.httpMethod(Request.METHOD_PATCH)
 			.requestBody(
 				"""

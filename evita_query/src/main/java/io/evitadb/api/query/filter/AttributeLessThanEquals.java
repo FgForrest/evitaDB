@@ -50,7 +50,7 @@ import java.io.Serializable;
  * Example:
  *
  * <pre>
- * lessThanEquals('age', 20)
+ * lessThanEquals("age", 20)
  * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

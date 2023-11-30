@@ -167,6 +167,7 @@ public class CatalogSchemaConverter {
 			attributeSchema.getSortable(),
 			attributeSchema.getLocalized(),
 			attributeSchema.getNullable(),
+			attributeSchema.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces()

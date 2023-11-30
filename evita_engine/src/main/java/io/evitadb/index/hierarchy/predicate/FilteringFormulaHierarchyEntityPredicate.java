@@ -44,6 +44,7 @@ import net.openhft.hashing.LongHashFunction;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -54,6 +55,14 @@ import java.util.function.Supplier;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilteringPredicate, SelfTraversingPredicate {
+	/**
+	 * Identification of the root node this predicate relates to.
+	 */
+	@Nullable private final Integer parent;
+	/**
+	 * The result that should be returned for parent node (constant).
+	 */
+	private final boolean parentResult;
 	/**
 	 * Field contains the original filter by constraint the {@link #filteringFormula} was created by.
 	 */
@@ -72,16 +81,22 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * This constructor should be used from filtering translators that need to take the attributes on references
 	 * into an account.
 	 *
+	 * @param parent          identification of the root node this predicate relates to
+	 * @param parentResult    the result that should be returned for parent node (constant)
 	 * @param queryContext    current query context
 	 * @param filterBy        the filtering that targets reference attributes but may also contain {@link EntityHaving}
 	 *                        constraint (but only when reference schema is not null and the entity targets different entity hierarchy)
 	 * @param referenceSchema the optional reference schema if the entity targets itself hierarchy tree
 	 */
 	public FilteringFormulaHierarchyEntityPredicate(
+		@Nullable Integer parent,
+		boolean parentResult,
 		@Nonnull QueryContext queryContext,
 		@Nonnull FilterBy filterBy,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
+		this.parent = parent;
+		this.parentResult = parentResult;
 		this.filterBy = filterBy;
 		try {
 			final Supplier<String> stepDescriptionSupplier =
@@ -149,7 +164,12 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 	 * @param filterBy         the original filtering constraint that led to the formula
 	 * @param filteringFormula the formula containing valid entity primary keys that should be matched by this predicate
 	 */
-	public FilteringFormulaHierarchyEntityPredicate(@Nonnull FilterBy filterBy, @Nonnull Formula filteringFormula) {
+	public FilteringFormulaHierarchyEntityPredicate(
+		@Nonnull FilterBy filterBy,
+		@Nonnull Formula filteringFormula
+	) {
+		this.parent = null;
+		this.parentResult = false;
 		this.filterBy = filterBy;
 		this.filteringFormula = filteringFormula;
 	}
@@ -169,6 +189,8 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 		@Nonnull FilterBy filterBy,
 		@Nullable ReferenceSchemaContract referenceSchema
 	) {
+		this.parent = null;
+		this.parentResult = false;
 		this.filterBy = filterBy;
 		try {
 			final Supplier<String> stepDescriptionSupplier =
@@ -240,7 +262,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public void traverse(int hierarchyNodeId, int level, int distance, @Nonnull Runnable traverser) {
-		if (filteringFormula.compute().contains(hierarchyNodeId)) {
+		if (Objects.equals(hierarchyNodeId, parent)) {
+			traverser.run();
+		} else if (filteringFormula.compute().contains(hierarchyNodeId)) {
 			try {
 				stopNodeEncountered = true;
 				traverser.run();
@@ -254,6 +278,9 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 	@Override
 	public boolean test(int hierarchyNodeId) {
+		if (Objects.equals(hierarchyNodeId, parent)) {
+			return parentResult;
+		}
 		return filteringFormula.compute().contains(hierarchyNodeId);
 	}
 

@@ -180,7 +180,7 @@ public class EntityObjectBuilder {
 	 * requested. Localized attributes are not distinguished from non-localized ones.
 	 */
 	@Nonnull
-	private OpenApiObject buildLocalizedAttributesObject(@Nonnull Collection<AttributeSchemaContract> attributeSchemas,
+	private OpenApiObject buildLocalizedAttributesObject(@Nonnull Collection<? extends AttributeSchemaContract> attributeSchemas,
 	                                                     @Nonnull NamedSchemaContract... objectNameSchemas) {
 		final OpenApiObject.Builder attributesObject = AttributesDescriptor.THIS
 			.to(objectBuilderTransformer)
@@ -197,7 +197,7 @@ public class EntityObjectBuilder {
 	 */
 	@Nonnull
 	private OpenApiObject buildNonLocalizedAttributesObject(@Nonnull EntitySchemaContract entitySchema,
-	                                                        @Nonnull Collection<AttributeSchemaContract> attributeSchemas,
+	                                                        @Nonnull Collection<? extends AttributeSchemaContract> attributeSchemas,
 	                                                        @Nonnull NamedSchemaContract... objectNameSchemas) {
 		final OpenApiObject.Builder attributesObject = SectionedAttributesDescriptor.THIS
 			.to(objectBuilderTransformer)

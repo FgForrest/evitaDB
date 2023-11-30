@@ -30,6 +30,7 @@ import graphql.schema.GraphQLUnionType;
 import graphql.schema.TypeResolver;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -91,9 +92,11 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		// build common reusable types
 		final GraphQLObjectType attributeSchemaObject = buildAttributeSchemaObject();
 		buildingContext.registerType(attributeSchemaObject);
+		final GraphQLObjectType entityAttributeSchemaObject= buildEntityAttributeSchemaObject();
+		buildingContext.registerType(entityAttributeSchemaObject);
 		final GraphQLObjectType globalAttributeSchemaObject = buildGlobalAttributeSchemaObject();
 		buildingContext.registerType(globalAttributeSchemaObject);
-		buildingContext.registerType(buildAttributeSchemaUnion(attributeSchemaObject, globalAttributeSchemaObject));
+		buildingContext.registerType(buildAttributeSchemaUnion(attributeSchemaObject, entityAttributeSchemaObject, globalAttributeSchemaObject));
 		buildingContext.registerType(AttributeElementDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(SortableAttributeCompoundSchemaDescriptor.THIS.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildAssociatedDataSchemaObject());
@@ -136,12 +139,13 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		buildingContext.registerType(SetAttributeSchemaFilterableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaLocalizedMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaNullableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
+		buildingContext.registerType(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaSortableMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(SetAttributeSchemaUniqueMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(UseGlobalAttributeSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ReferenceAttributeSchemaMutationAggregateDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 
-		// attribute schema mutations
+		// sortable attribute compound schema mutations
 		buildingContext.registerType(AttributeElementDescriptor.THIS_INPUT.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(CreateSortableAttributeCompoundSchemaMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
 		buildingContext.registerType(ModifySortableAttributeCompoundSchemaDeprecationNoticeMutationDescriptor.THIS.to(inputObjectBuilderTransformer).build());
@@ -285,6 +289,19 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	}
 
 	@Nonnull
+	private GraphQLObjectType buildEntityAttributeSchemaObject() {
+		buildingContext.registerDataFetcher(
+			EntityAttributeSchemaDescriptor.THIS,
+			EntityAttributeSchemaDescriptor.TYPE,
+			new AttributeSchemaTypeDataFetcher()
+		);
+
+		return EntityAttributeSchemaDescriptor.THIS
+			.to(objectBuilderTransformer)
+			.build();
+	}
+
+	@Nonnull
 	private GraphQLObjectType buildGlobalAttributeSchemaObject() {
 		buildingContext.registerDataFetcher(
 			GlobalAttributeSchemaDescriptor.THIS,
@@ -299,16 +316,20 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 
 	@Nonnull
 	private GraphQLUnionType buildAttributeSchemaUnion(@Nonnull GraphQLObjectType attributeSchemaObject,
+													   @Nonnull GraphQLObjectType entityAttributeSchemaObject,
 	                                                   @Nonnull GraphQLObjectType globalAttributeSchemaObject) {
 		final GraphQLUnionType attributeSchemaUnion = AttributeSchemaUnionDescriptor.THIS
 			.to(unionBuilderTransformer)
 			.possibleType(attributeSchemaObject)
+			.possibleType(entityAttributeSchemaObject)
 			.possibleType(globalAttributeSchemaObject)
 			.build();
 
 		final TypeResolver attributeSchemaUnionResolver = env -> {
 			if (env.getObject() instanceof GlobalAttributeSchemaContract) {
 				return globalAttributeSchemaObject;
+			} else if (env.getObject() instanceof EntityAttributeSchemaContract) {
+				return entityAttributeSchemaObject;
 			} else {
 				return attributeSchemaObject;
 			}
@@ -359,6 +380,8 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 		final GraphQLOutputType attributeSchemaType;
 		if (attributeSchema instanceof GlobalAttributeSchemaContract) {
 			attributeSchemaType = nonNull(typeRef(GlobalAttributeSchemaDescriptor.THIS.name()));
+		} else if (attributeSchema instanceof EntityAttributeSchemaContract) {
+			attributeSchemaType = nonNull(typeRef(EntityAttributeSchemaDescriptor.THIS.name()));
 		} else {
 			attributeSchemaType = nonNull(typeRef(AttributeSchemaDescriptor.THIS.name()));
 		}

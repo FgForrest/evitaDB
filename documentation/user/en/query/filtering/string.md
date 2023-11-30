@@ -5,7 +5,8 @@ perex: |
   There are several filtering constraints designed to work especially with string attributes. They are useful for 
   looking for entities with attributes that contain a specific string.
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 <Note type="info">

@@ -31,7 +31,6 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -101,6 +100,17 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			""")
 		.type(nullable(Boolean.class))
 		.build();
+	PropertyDescriptor REPRESENTATIVE = PropertyDescriptor.builder()
+		.name("representative")
+		.description("""
+			If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+	        primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+	        affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+	        helpful to developers in quickly finding their way around the data. There should be very few representative
+	        attributes in the entity type, and the unique ones are usually the best to choose.
+			""")
+		.type(nullable(Boolean.class))
+		.build();
 	PropertyDescriptor TYPE = PropertyDescriptor.builder()
 		.name("type")
 		.description("""
@@ -143,6 +153,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,
+			REPRESENTATIVE,
 			TYPE,
 			DEFAULT_VALUE,
 			INDEXED_DECIMAL_PLACES

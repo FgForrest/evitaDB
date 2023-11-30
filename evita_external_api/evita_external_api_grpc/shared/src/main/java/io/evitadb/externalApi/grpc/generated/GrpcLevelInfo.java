@@ -116,6 +116,11 @@ private static final long serialVersionUID = 0L;
                 input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcLevelInfo.parser(), extensionRegistry));
             break;
           }
+          case 48: {
+
+            requested_ = input.readBool();
+            break;
+          }
           default: {
             if (!parseUnknownField(
                 input, unknownFields, extensionRegistry, tag)) {
@@ -372,6 +377,21 @@ private static final long serialVersionUID = 0L;
     return items_.get(index);
   }
 
+  public static final int REQUESTED_FIELD_NUMBER = 6;
+  private boolean requested_;
+  /**
+   * <pre>
+   * Contains true if the `entity` was filtered by hierarchy within constraint
+   * </pre>
+   *
+   * <code>bool requested = 6;</code>
+   * @return The requested.
+   */
+  @java.lang.Override
+  public boolean getRequested() {
+    return requested_;
+  }
+
   private byte memoizedIsInitialized = -1;
   @java.lang.Override
   public final boolean isInitialized() {
@@ -401,6 +421,9 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < items_.size(); i++) {
       output.writeMessage(5, items_.get(i));
     }
+    if (requested_ != false) {
+      output.writeBool(6, requested_);
+    }
     unknownFields.writeTo(output);
   }
 
@@ -429,6 +452,10 @@ private static final long serialVersionUID = 0L;
     for (int i = 0; i < items_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(5, items_.get(i));
+    }
+    if (requested_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(6, requested_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -467,6 +494,8 @@ private static final long serialVersionUID = 0L;
     }
     if (!getItemsList()
         .equals(other.getItemsList())) return false;
+    if (getRequested()
+        != other.getRequested()) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -498,6 +527,9 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + ITEMS_FIELD_NUMBER;
       hash = (53 * hash) + getItemsList().hashCode();
     }
+    hash = (37 * hash) + REQUESTED_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getRequested());
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -667,6 +699,8 @@ private static final long serialVersionUID = 0L;
       } else {
         itemsBuilder_.clear();
       }
+      requested_ = false;
+
       return this;
     }
 
@@ -723,6 +757,7 @@ private static final long serialVersionUID = 0L;
       } else {
         result.items_ = itemsBuilder_.build();
       }
+      result.requested_ = requested_;
       onBuilt();
       return result;
     }
@@ -808,6 +843,9 @@ private static final long serialVersionUID = 0L;
             itemsBuilder_.addAllMessages(other.items_);
           }
         }
+      }
+      if (other.getRequested() != false) {
+        setRequested(other.getRequested());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1796,6 +1834,49 @@ private static final long serialVersionUID = 0L;
         items_ = null;
       }
       return itemsBuilder_;
+    }
+
+    private boolean requested_ ;
+    /**
+     * <pre>
+     * Contains true if the `entity` was filtered by hierarchy within constraint
+     * </pre>
+     *
+     * <code>bool requested = 6;</code>
+     * @return The requested.
+     */
+    @java.lang.Override
+    public boolean getRequested() {
+      return requested_;
+    }
+    /**
+     * <pre>
+     * Contains true if the `entity` was filtered by hierarchy within constraint
+     * </pre>
+     *
+     * <code>bool requested = 6;</code>
+     * @param value The requested to set.
+     * @return This builder for chaining.
+     */
+    public Builder setRequested(boolean value) {
+      
+      requested_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains true if the `entity` was filtered by hierarchy within constraint
+     * </pre>
+     *
+     * <code>bool requested = 6;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearRequested() {
+      
+      requested_ = false;
+      onChanged();
+      return this;
     }
     @java.lang.Override
     public final Builder setUnknownFields(

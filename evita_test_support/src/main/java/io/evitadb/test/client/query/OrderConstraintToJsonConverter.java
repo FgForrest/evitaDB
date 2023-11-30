@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import javax.annotation.Nonnull;
 import java.util.function.Predicate;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
+
 /**
  * Constraint to JSON converter for {@link io.evitadb.api.query.OrderConstraint}s.
  *
@@ -41,12 +43,19 @@ import java.util.function.Predicate;
 public class OrderConstraintToJsonConverter extends ConstraintToJsonConverter {
 
 	public OrderConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema) {
-		super(catalogSchema);
+		super(
+			catalogSchema,
+			createHashMap(0) // currently, we don't support any filter constraint with additional children
+		);
 	}
 
 	public OrderConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
 	                                      @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
-		super(catalogSchema, constraintPredicate);
+		super(
+			catalogSchema,
+			constraintPredicate,
+			createHashMap(0) // currently, we don't support any filter constraint with additional children
+		);
 	}
 
 	@Nonnull

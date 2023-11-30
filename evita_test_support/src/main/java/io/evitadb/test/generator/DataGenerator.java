@@ -230,14 +230,14 @@ public class DataGenerator {
 
 	private static void generateRandomAttributes(
 		@Nonnull String entityType,
-		@Nonnull Collection<AttributeSchemaContract> attributeSchema,
+		@Nonnull Collection<? extends AttributeSchemaContract> attributeSchema,
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull SortableAttributesChecker sortableAttributesHolder,
 		@Nonnull Predicate<String> attributeFilter, Function<Locale, Faker> localeFaker,
 		@Nonnull Map<EntityAttribute, Function<Faker, Object>> valueGenerators,
 		@Nonnull Faker genericFaker,
-		@Nonnull AttributesEditor<?> attributesEditor,
+		@Nonnull AttributesEditor<?,?> attributesEditor,
 		@Nonnull Collection<Locale> usedLocales,
 		@Nonnull Collection<Locale> allLocales
 	) {
@@ -486,7 +486,7 @@ public class DataGenerator {
 		@Nonnull Map<Object, Integer> globalUniqueSequencer,
 		@Nonnull Map<Object, Integer> uniqueSequencer,
 		@Nonnull SortableAttributesChecker sortableAttributesChecker,
-		@Nonnull AttributesEditor<?> attributesBuilder,
+		@Nonnull AttributesEditor<?,?> attributesBuilder,
 		@Nonnull AttributeSchemaContract attribute,
 		@Nonnull Class<? extends Serializable> type,
 		@Nonnull String entityType,
@@ -505,7 +505,7 @@ public class DataGenerator {
 			} else if (String.class.equals(type)) {
 				value = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
 			} else if (type.isArray() && String.class.equals(type.getComponentType())) {
-				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
+				final String[] randomArray = new String[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
 				}
@@ -519,7 +519,7 @@ public class DataGenerator {
 			} else if (BigDecimal.class.equals(type)) {
 				value = generateRandomBigDecimal(fakerToUse, attribute.getIndexedDecimalPlaces());
 			} else if (type.isArray() && BigDecimal.class.equals(type.getComponentType())) {
-				final BigDecimal[] randomArray = new BigDecimal[fakerToUse.random().nextInt(8)];
+				final BigDecimal[] randomArray = new BigDecimal[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = generateRandomBigDecimal(fakerToUse, attribute.getIndexedDecimalPlaces());
 				}
@@ -543,7 +543,7 @@ public class DataGenerator {
 			} else if (IntegerNumberRange.class.equals(type)) {
 				value = generateRandomNumberRange(fakerToUse);
 			} else if (type.isArray() && IntegerNumberRange.class.equals(type.getComponentType())) {
-				final IntegerNumberRange[] randomArray = new IntegerNumberRange[fakerToUse.random().nextInt(8)];
+				final IntegerNumberRange[] randomArray = new IntegerNumberRange[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = generateRandomNumberRange(fakerToUse);
 				}
@@ -614,7 +614,7 @@ public class DataGenerator {
 
 	private static <T extends Serializable> T generateRandomString(
 		@Nonnull Map<Object, Integer> uniqueSequencer,
-		@Nonnull AttributesEditor<?> attributesBuilder,
+		@Nonnull AttributesEditor<?,?> attributesBuilder,
 		@Nonnull AttributeSchemaContract attribute,
 		@Nonnull String entityType,
 		@Nonnull String attributeName,
@@ -760,13 +760,13 @@ public class DataGenerator {
 		final Class<? extends Serializable> type = associatedData.getType();
 		if (type.isArray()) {
 			if (Integer.class.equals(type.getComponentType())) {
-				final Integer[] newValue = new Integer[fakerToUse.random().nextInt(8)];
+				final Integer[] newValue = new Integer[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < newValue.length; i++) {
 					newValue[i] = fakerToUse.random().nextInt(10000);
 				}
 				generatedValueWriter.accept((T) newValue);
 			} else if (String.class.equals(type.getComponentType())) {
-				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
+				final String[] randomArray = new String[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = fakerToUse.company().name();
 				}
@@ -1268,7 +1268,7 @@ public class DataGenerator {
 		final SealedCatalogSchema catalogSchema = evitaSession.getCatalogSchema();
 		if (Arrays.stream(attributeNames).anyMatch(it -> it.equals(ATTRIBUTE_CODE))) {
 			if (catalogSchema.getAttribute(ATTRIBUTE_CODE).isEmpty()) {
-				schemaBuilder.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique().nullable());
+				schemaBuilder.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique().nullable().representative());
 			} else {
 				schemaBuilder.withGlobalAttribute(ATTRIBUTE_CODE);
 			}

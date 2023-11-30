@@ -24,13 +24,18 @@
 package io.evitadb.api.proxy.impl.entity;
 
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.Entity;
 import io.evitadb.api.requestResponse.data.annotation.EntityRef;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import one.edee.oss.proxycian.DirectMethodClassification;
 
+import javax.annotation.Nonnull;
+import java.lang.reflect.Parameter;
 import java.util.Optional;
 
 /**
@@ -44,23 +49,55 @@ public class GetEntityTypeMethodClassifier extends DirectMethodClassification<Ob
 	 */
 	public static final GetEntityTypeMethodClassifier INSTANCE = new GetEntityTypeMethodClassifier();
 
+	/**
+	 * Tries to identify entity type request from the class field related to the constructor parameter.
+	 *
+	 * @param expectedType class the constructor belongs to
+	 * @param parameter constructor parameter
+	 * @param reflectionLookup reflection lookup
+	 * @return attribute name derived from the annotation if found
+	 */
+	public static <T> ExceptionRethrowingFunction<EntityContract, Object> getExtractorIfPossible(
+		@Nonnull Class<T> expectedType,
+		@Nonnull Parameter parameter,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		final String parameterName = parameter.getName();
+		final Class<?> parameterType = parameter.getType();
+		final Entity entity = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, Entity.class);
+		final EntityRef entityRef = reflectionLookup.getAnnotationInstanceForProperty(expectedType, parameterName, EntityRef.class);
+		if (entity != null || entityRef != null ||
+			(EntityRef.POSSIBLE_ARGUMENT_NAMES.contains(parameterName))) {
+			if (String.class.isAssignableFrom(parameterType)) {
+				return EntityClassifier::getType;
+			} else if (parameterType.isEnum()) {
+				//noinspection unchecked,rawtypes
+				return (sealedEntity) -> Enum.valueOf((Class)parameterType, sealedEntity.getType());
+			} else {
+				return null;
+			}
+		} else {
+			return null;
+		}
+	}
+
 	public GetEntityTypeMethodClassifier() {
 		super(
 			"getEntityType",
 			(method, proxyState) -> {
 				// We are interested only in abstract methods without arguments
-				if (!ClassUtils.isAbstractOrDefault(method) || method.getParameterCount() > 0) {
+				if (method.getParameterCount() > 0) {
 					return null;
 				}
 				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
 				// we try to find appropriate annotations on the method, if no Evita annotation is found it tries
 				// to match the method by its name
-				final Entity entity = reflectionLookup.getAnnotationInstance(method, Entity.class);
-				final EntityRef entityRef = reflectionLookup.getAnnotationInstance(method, EntityRef.class);
+				final Entity entity = reflectionLookup.getAnnotationInstanceForProperty(method, Entity.class);
+				final EntityRef entityRef = reflectionLookup.getAnnotationInstanceForProperty(method, EntityRef.class);
 				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 				final Optional<String> propertyName = ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName());
 				if (entity != null || entityRef != null || (
-					!reflectionLookup.hasAnnotationInSamePackage(method, Entity.class) &&
+					!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Entity.class) &&
 						(returnType.isEnum() || String.class.isAssignableFrom(returnType)) &&
 						ClassUtils.isAbstract(method) &&
 						propertyName

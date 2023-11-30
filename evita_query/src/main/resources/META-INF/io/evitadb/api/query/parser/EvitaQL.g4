@@ -147,9 +147,9 @@ requireConstraint
     | 'facetSummary'                        args = facetSummary2Args                                        # facetSummary2Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference1Args                             # facetSummaryOfReference1Constraint
     | 'facetSummaryOfReference'             args = facetSummaryOfReference2Args                             # facetSummaryOfReference2Constraint
-    | 'facetGroupsConjunction'              args = classifierWithFilterConstraintArgs                       # facetGroupsConjunctionConstraint
-    | 'facetGroupsDisjunction'              args = classifierWithFilterConstraintArgs                       # facetGroupsDisjunctionConstraint
-    | 'facetGroupsNegation'                 args = classifierWithFilterConstraintArgs                       # facetGroupsNegationConstraint
+    | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
+    | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
+    | 'facetGroupsNegation'                 args = classifierWithOptionalFilterConstraintArgs               # facetGroupsNegationConstraint
     | 'attributeHistogram'                  args = valueWithClassifierListArgs                              # attributeHistogramConstraint
     | 'priceHistogram'                      args = valueArgs                                                # priceHistogramConstraint
     | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
@@ -219,6 +219,8 @@ classifierListArgs :                                ARGS_OPENING classifiers = v
 valueWithClassifierListArgs :                       ARGS_OPENING value = valueToken ARGS_DELIMITER classifiers = variadicClassifierTokens ARGS_CLOSING ;
 
 classifierWithFilterConstraintArgs :                ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filter = filterConstraint ARGS_CLOSING ;
+
+classifierWithOptionalFilterConstraintArgs :        ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER filter = filterConstraint)? ARGS_CLOSING ;
 
 classifierWithOrderConstraintListArgs :             ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER constrains += orderConstraint)+ ARGS_CLOSING ;
 
@@ -389,7 +391,10 @@ POSITIONAL_PARAMETER : '?' ;
 // special generic literal that is resolved to actual value after parsing from external map of values
 NAMED_PARAMETER : '@' [a-z] [a-zA-Z0-9]* ;
 
-STRING : '\'' .*? '\'' ;
+STRING
+    : '\'' .*? '\''
+    | '"' .*? '"'
+    ;
 
 INT : '-'? [0-9]+ ;
 
@@ -402,7 +407,7 @@ BOOLEAN
 
 DATE : [0-9][0-9][0-9][0-9] '-' [0-9][0-9] '-' [0-9][0-9] ;
 
-TIME : [0-9][0-9] ':' [0-9][0-9] ':' [0-9][0-9] ;
+TIME : [0-9][0-9] ':' [0-9][0-9] ':' [0-9][0-9] ('.' [0-9]+)? ;
 
 DATE_TIME : DATE 'T' TIME ;
 

@@ -185,6 +185,16 @@ enum GrpcCatalogEvolutionMode {
   ADDING_ENTITY_TYPES = 0;
 }
 
+// Defines the type of the attribute schema
+enum GrpcAttributeSchemaType {
+  // attribute schema is GlobalAttributeSchemaContract
+  GLOBAL = 0;
+  // attribute schema is EntityAttributeSchemaContract
+  ENTITY = 1;
+  // attribute schema is AttributeSchemaContract
+  REFERENCE = 2;
+}
+
 // This enum contains all supported types in evitaDB query context.
 enum GrpcEvitaDataType {
   // Represents string data type.

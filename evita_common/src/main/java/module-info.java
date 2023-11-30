@@ -18,5 +18,6 @@ module evita.common {
 	requires jsr305;
 	requires static lombok;
 	requires com.fasterxml.jackson.databind;
+	requires zero.allocation.hashing;
 
 }

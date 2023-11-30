@@ -24,15 +24,14 @@
 package io.evitadb.api;
 
 import io.evitadb.utils.Assert;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 
 import static java.util.Optional.ofNullable;
 
@@ -53,13 +52,23 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface ClientContext {
+
+	/**
+	 * Name of property representing the client identifier in the {@link MDC}.
+	 */
+	String MDC_CLIENT_ID_PROPERTY = "clientId";
+	/**
+	 * Name of property representing the request identifier in the {@link MDC}.
+	 */
+	String MDC_REQUEST_ID_PROPERTY = "requestId";
+
 	/**
 	 * Holds the client context for the current thread.
 	 *
 	 * TOBEDONE - the implementation should be switched to <a href="https://www.baeldung.com/java-20-scoped-values">scoped values</a>
 	 * TOBEDONE - once the evitaDB is switched to Java 20
 	 */
-	ThreadLocal<Deque<Context>> CLIENT_CONTEXT = new InheritableThreadLocal<>();
+	ThreadLocal<Deque<Context>> CLIENT_CONTEXT = new ThreadLocal<>();
 
 	/**
 	 * Method executes the `lambda` function within the scope of client defined context.
@@ -83,10 +92,17 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, requestId));
+
+			final Context newContext = new Context(clientId, requestId);
+			context.push(newContext);
+			newContext.init();
+
 			lambda.run();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -107,10 +123,17 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, null));
+
+			final Context newContext = new Context(clientId, null);
+			context.push(newContext);
+			newContext.init();
+
 			lambda.run();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -130,12 +153,18 @@ public interface ClientContext {
 		@Nonnull Runnable lambda
 	) {
 		final Deque<Context> context = CLIENT_CONTEXT.get();
+		Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
 		try {
-			Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
-			context.push(new Context(context.peek().clientId(), requestId));
+			final Context newContext = new Context(context.peek().clientId(), requestId);
+			context.push(newContext);
+			newContext.init();
+
 			lambda.run();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -162,10 +191,17 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, requestId));
+
+			final Context newContext = new Context(clientId, requestId);
+			context.push(newContext);
+			newContext.init();
+
 			return lambda.get();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -187,10 +223,18 @@ public interface ClientContext {
 				context = new LinkedList<>();
 				CLIENT_CONTEXT.set(context);
 			}
-			context.push(new Context(clientId, null));
+
+			final Context newContext = new Context(clientId, null);
+			context.push(newContext);
+			newContext.init();
+
 			return lambda.get();
 		} finally {
-			context.pop();
+			final Context oldContext = context.pop();
+
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -212,12 +256,17 @@ public interface ClientContext {
 		final Deque<Context> context = CLIENT_CONTEXT.get();
 		try {
 			Assert.isTrue(!(context == null || context.isEmpty()), "When changing the request ID, the client ID must be set first!");
-			context.push(new Context(context.peek().clientId(), requestId));
+
+			final Context newContext = new Context(context.peek().clientId(), requestId);
+			context.push(newContext);
+			newContext.init();
+
 			return lambda.get();
 		} finally {
-			if (!context.isEmpty()) {
-				context.pop();
-			}
+			final Context oldContext = context.pop();
+			oldContext.tearDown();
+			// restore parent context
+			getContext().ifPresent(Context::init);
 		}
 	}
 
@@ -268,36 +317,19 @@ public interface ClientContext {
 		@Nonnull String clientId,
 		@Nullable String requestId
 	) {
-	}
+		void init() {
+			// remove any previous data just to make sure
+			MDC.remove(MDC_CLIENT_ID_PROPERTY);
+			MDC.remove(MDC_REQUEST_ID_PROPERTY);
 
-	class ClientIdBuilder {
-
-		private static final String SERVER_CLIENT_ID_FORMAT = "%s|%s|%s";
-		private static final Pattern CLIENT_ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
-
-		public static String from(@Nullable String clientId) {
-			return clientId;
+			MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
+			MDC.put(MDC_REQUEST_ID_PROPERTY, requestId);
 		}
 
-		public static String from(@Nonnull String protocol, @Nonnull SocketAddress clientAddress, @Nonnull String clientId) {
-			return String.format(
-				SERVER_CLIENT_ID_FORMAT,
-				protocol,
-				clientAddress,
-				CLIENT_ID_FORBIDDEN_CHARACTERS.matcher(clientId).replaceAll("-")
-			);
-		}
-
-		public String build() {
-			return null;
+		void tearDown() {
+			MDC.remove(MDC_CLIENT_ID_PROPERTY);
+			MDC.remove(MDC_REQUEST_ID_PROPERTY);
 		}
 	}
 
-	class RequestIdBuilder {
-		private static final Pattern REQEST_ID_FORBIDDEN_CHARACTERS = Pattern.compile("[^a-zA-Z0-9\\-_.]");
-
-		public static String from(@Nullable String clientId) {
-			return clientId;
-		}
-	}
 }

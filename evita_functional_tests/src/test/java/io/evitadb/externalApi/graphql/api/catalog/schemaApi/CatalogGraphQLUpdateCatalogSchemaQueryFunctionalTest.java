@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.*;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends CatalogGraphQLSchemaEndpointFunctionalTest {
+public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends CatalogGraphQLEvitaSchemaEndpointFunctionalTest {
 
 	private static final String CATALOG_SCHEMA_PATH = "data.getCatalogSchema";
 	private static final String UPDATE_CATALOG_SCHEMA_PATH = "data.updateCatalogSchema";
@@ -341,7 +341,8 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
                         name
 						version
 						allAttributes {
-							... on AttributeSchema {
+							... on EntityAttributeSchema {
+								__typename
 								name
 							}
 							... on GlobalAttributeSchema {

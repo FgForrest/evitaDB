@@ -146,10 +146,24 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+   * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+   * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+   * helpful to developers in quickly finding their way around the data. There should be very few representative
+   * attributes in the entity type, and the unique ones are usually the best to choose.
+   * </pre>
+   *
+   * <code>bool representative = 9;</code>
+   * @return The representative.
+   */
+  boolean getRepresentative();
+
+  /**
+   * <pre>
    * Type of the attribute. Must be one of supported data types or its array.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
@@ -158,7 +172,7 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    * Type of the attribute. Must be one of supported data types or its array.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType();
@@ -171,7 +185,7 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    *	of ten using `indexedDecimalPlaces` as exponent.
    * </pre>
    *
-   * <code>int32 indexedDecimalPlaces = 10;</code>
+   * <code>int32 indexedDecimalPlaces = 11;</code>
    * @return The indexedDecimalPlaces.
    */
   int getIndexedDecimalPlaces();
@@ -182,7 +196,7 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    * @return Whether the defaultValue field is set.
    */
   boolean hasDefaultValue();
@@ -192,7 +206,7 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    * @return The defaultValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue();
@@ -202,7 +216,7 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder();
 }

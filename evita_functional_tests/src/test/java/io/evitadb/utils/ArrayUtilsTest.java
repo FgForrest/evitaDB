@@ -285,6 +285,17 @@ class ArrayUtilsTest {
 	}
 
 	@Test
+	void shouldSortArrayWithDuplicateValues() {
+		final int[] sortedArray = new int[] {8, 5, 5, 6, 2, 9, 7, 1, 3};
+		final UnaryOperator<int[]> converter = (in) -> {
+			ArrayUtils.sortAlong(sortedArray, in);
+			return in;
+		};
+		assertArrayEquals(new int[] {5, 1, 3}, converter.apply(new int[] {1, 3, 5}));
+		assertArrayEquals(new int[] {5, 1, 3, 3}, converter.apply(new int[] {1, 3, 3, 5}));
+	}
+
+	@Test
 	void shouldRemoveRangeFromArray() {
 		final int[] someArray = new int[] {8, 5, 6, 2, 9, 7, 1, 3};
 		assertArrayEquals(new int[] {2, 9, 7, 1, 3}, ArrayUtils.removeRangeFromArray(someArray, 0, 3));

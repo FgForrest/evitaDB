@@ -23,15 +23,22 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.test.client.query.ObjectJsonSerializer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Builds output fields in GraphQL query format with proper indentation.
@@ -39,6 +46,9 @@ import java.util.function.Function;
  * @author Lukáš Hornych, FG Forrst a.s. (c) 2023
  */
 public class GraphQLOutputFieldsBuilder {
+
+	private final static ObjectJsonSerializer OBJECT_JSON_SERIALIZER = new ObjectJsonSerializer();
+	private final static GraphQLInputJsonPrinter INPUT_JSON_PRINTER = new GraphQLInputJsonPrinter();
 
 	private final static String INDENTATION = "  ";
 
@@ -62,14 +72,23 @@ public class GraphQLOutputFieldsBuilder {
 		if (arguments.length == 0) {
 			lines.add(getCurrentIndentation() + fieldName);
 		} else if (arguments.length == 1) {
-			final Argument argument = arguments[0].apply(-1);
-			lines.add(getCurrentIndentation() + fieldName + "(" + argument.toString() + ") {");
+			final Argument argument = arguments[0].apply(offset + level + 1);
+			final String serializedArgument = argument.toString();
+			if (serializedArgument.contains("\n")) {
+				lines.add(getCurrentIndentation() + fieldName + "(");
+				level++;
+				lines.add(serializedArgument);
+				level--;
+				lines.add(getCurrentIndentation() + ") {");
+			} else {
+				lines.add(getCurrentIndentation() + fieldName + "(" + serializedArgument + ") {");
+			}
 		} else {
 			lines.add(getCurrentIndentation() + fieldName + "(");
 			level++;
 			for (ArgumentSupplier argumentSupplier : arguments) {
 				final Argument argument = argumentSupplier.apply(offset + level);
-				lines.add(getCurrentIndentation() + argument.toString());
+				lines.add(argument.toString());
 			}
 			level--;
 			lines.add(getCurrentIndentation() + ")");
@@ -108,12 +127,12 @@ public class GraphQLOutputFieldsBuilder {
 		if (arguments.length == 0) {
 			lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + " {");
 		} else if (arguments.length == 1) {
-			final Argument argument = arguments[0].apply(offset + level);
+			final Argument argument = arguments[0].apply(offset + level + 1);
 			final String serializedArgument = argument.toString();
 			if (serializedArgument.contains("\n")) {
 				lines.add(getCurrentIndentation() + (alias != null ? alias + ": " : "") + fieldName + "(");
 				level++;
-				lines.add(getCurrentIndentation() + serializedArgument);
+				lines.add(serializedArgument);
 				level--;
 				lines.add(getCurrentIndentation() + ") {");
 			} else {
@@ -124,7 +143,7 @@ public class GraphQLOutputFieldsBuilder {
 			level++;
 			for (ArgumentSupplier argumentSupplier : arguments) {
 				final Argument argument = argumentSupplier.apply(offset + level);
-				lines.add(getCurrentIndentation() + argument.toString());
+				lines.add(argument.toString());
 			}
 			level--;
 			lines.add(getCurrentIndentation() + ") {");
@@ -155,10 +174,23 @@ public class GraphQLOutputFieldsBuilder {
 	@FunctionalInterface
 	public interface ArgumentSupplier extends Function<Integer, Argument> {}
 
-	public record Argument(@Nonnull PropertyDescriptor argumentDescriptor, @Nonnull Object value) {
+	public record Argument(@Nonnull PropertyDescriptor argumentDescriptor,
+	                       int multilineOffset,
+	                       @Nonnull Object value) {
 		@Override
 		public String toString() {
-			return argumentDescriptor.name() + ": " + value.toString().stripLeading();
+			final String serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
+			return offsetMultilineArgument(multilineOffset, argumentDescriptor.name() + ": " + serializedValue);
+		}
+
+		@Nonnull
+		private String offsetMultilineArgument(int mutlilineOffset, @Nonnull String argument) {
+			if (argument.contains("\n") && mutlilineOffset > 0) {
+				return argument.lines()
+					.map(line -> INDENTATION.repeat(mutlilineOffset) + line)
+					.collect(Collectors.joining("\n"));
+			}
+			return argument;
 		}
 	}
 }

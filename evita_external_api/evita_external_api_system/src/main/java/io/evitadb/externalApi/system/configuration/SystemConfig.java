@@ -59,13 +59,13 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	@Getter private final String[] allowedOrigins;
 
 	public SystemConfig() {
-		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, false);
+		super(true, "0.0.0.0:" + DEFAULT_SYSTEM_PORT, null, false);
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}
 
 	public SystemConfig(@Nonnull String host) {
-		super(true, host, false);
+		super(true, host, null, false);
 		this.prefix = BASE_SYSTEM_PATH;
 		this.allowedOrigins = null;
 	}
@@ -73,10 +73,11 @@ public class SystemConfig extends AbstractApiConfiguration implements ApiWithSpe
 	@JsonCreator
 	public SystemConfig(@Nullable @JsonProperty("enabled") Boolean enabled,
 						@Nonnull @JsonProperty("host") String host,
+						@Nullable @JsonProperty("exposedHost") String exposedHost,
 						@Nullable @JsonProperty("tlsEnabled") Boolean tlsEnabled,
 						@Nullable @JsonProperty("prefix") String prefix,
 						@Nullable @JsonProperty("allowedOrigins") String allowedOrigins) {
-		super(enabled, host, tlsEnabled);
+		super(enabled, host, exposedHost, tlsEnabled);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_SYSTEM_PATH);
 		if (allowedOrigins == null) {
 			this.allowedOrigins = null;

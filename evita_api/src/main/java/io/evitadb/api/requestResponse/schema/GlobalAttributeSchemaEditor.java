@@ -34,7 +34,7 @@ import java.util.function.BooleanSupplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEditor<T>> extends AttributeSchemaEditor<T> {
+public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEditor<T>> extends EntityAttributeSchemaEditor<T> {
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single

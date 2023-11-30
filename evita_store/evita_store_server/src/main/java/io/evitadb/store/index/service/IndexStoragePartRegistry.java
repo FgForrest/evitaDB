@@ -47,12 +47,13 @@ public class IndexStoragePartRegistry implements StoragePartRegistry {
 			new StoragePartRecord((byte) 22, FilterIndexStoragePart.class),
 			new StoragePartRecord((byte) 23, SortIndexStoragePart.class),
 			new StoragePartRecord((byte) 24, ChainIndexStoragePart.class),
-			new StoragePartRecord((byte) 25, PriceListAndCurrencySuperIndexStoragePart.class),
-			new StoragePartRecord((byte) 26, PriceListAndCurrencyRefIndexStoragePart.class),
-			new StoragePartRecord((byte) 27, HierarchyIndexStoragePart.class),
-			new StoragePartRecord((byte) 28, FacetIndexStoragePart.class),
-			new StoragePartRecord((byte) 29, CatalogIndexStoragePart.class),
-			new StoragePartRecord((byte) 30, GlobalUniqueIndexStoragePart.class)
+			new StoragePartRecord((byte) 25, CardinalityIndexStoragePart.class),
+			new StoragePartRecord((byte) 26, PriceListAndCurrencySuperIndexStoragePart.class),
+			new StoragePartRecord((byte) 27, PriceListAndCurrencyRefIndexStoragePart.class),
+			new StoragePartRecord((byte) 28, HierarchyIndexStoragePart.class),
+			new StoragePartRecord((byte) 29, FacetIndexStoragePart.class),
+			new StoragePartRecord((byte) 30, CatalogIndexStoragePart.class),
+			new StoragePartRecord((byte) 31, GlobalUniqueIndexStoragePart.class)
 		);
 	}
 

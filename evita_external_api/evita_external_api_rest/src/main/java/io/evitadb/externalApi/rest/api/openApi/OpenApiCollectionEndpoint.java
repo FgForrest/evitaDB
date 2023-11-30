@@ -47,7 +47,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpoint.PathBuilder.newPath;
 import static io.evitadb.externalApi.rest.api.openApi.OpenApiEndpointParameter.newPathParameter;
@@ -171,7 +170,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 					.type(typeRefTo(LOCALE_ENUM.name()))
 					.build());
 			}
-			pathBuilder.staticItem(entitySchema.getNameVariant(URL_NAME_NAMING_CONVENTION));
+			pathBuilder.staticItem(entitySchema.getName());
 
 			pathBuilder = pathBuilderFunction.apply(pathBuilder);
 

@@ -25,7 +25,6 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
-import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
@@ -74,13 +73,13 @@ import static java.util.Optional.ofNullable;
  *
  * <pre>
  * query(
- *     collection('Category'),
+ *     collection("Category"),
  *     filterBy(
  *         hierarchyWithinRootSelf()
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -91,13 +90,13 @@ import static java.util.Optional.ofNullable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
- *         hierarchyWithinRoot('categories')
+ *         hierarchyWithinRoot("categories")
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )

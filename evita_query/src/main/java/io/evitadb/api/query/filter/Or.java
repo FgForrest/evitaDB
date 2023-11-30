@@ -74,7 +74,7 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         and(
  *             entityPrimaryKeyInSet(110066, 106742, 110513),

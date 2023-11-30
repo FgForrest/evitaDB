@@ -110,14 +110,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	public ReferenceContract replaceOrAddReference(@Nonnull ReferenceKey referenceKey, @Nonnull UnaryOperator<ReferenceContract> mutator) {
 		final InsertionPosition insertionPosition = ArrayUtils.computeInsertPositionOfObjInOrderedArray(
 			this.references, referenceKey,
-			(examinedReference, rk) -> {
-				final int primaryComparison = examinedReference.getReferenceName().compareTo(rk.referenceName());
-				if (primaryComparison == 0) {
-					return Integer.compare(examinedReference.getReferenceKey().primaryKey(), rk.primaryKey());
-				} else {
-					return primaryComparison;
-				}
-			}
+			(examinedReference, rk) -> examinedReference.getReferenceKey().compareTo(rk)
 		);
 		final int position = insertionPosition.position();
 		final ReferenceContract mutatedReference;

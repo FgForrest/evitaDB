@@ -24,6 +24,7 @@
 package io.evitadb.test.client.query.graphql;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
@@ -60,9 +61,10 @@ public class HierarchyOfConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchConverter;
 
 	public HierarchyOfConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                            @Nonnull Query query,
 	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -81,7 +83,8 @@ public class HierarchyOfConverter extends RequireConverter {
 					.map(orderBy -> new ArgumentSupplier[] {
 						offset -> new Argument(
 							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
-							convertOrderConstraint(new EntityDataLocator(entityType), orderBy, offset).orElse(null)
+							offset,
+							convertOrderConstraint(new EntityDataLocator(entityType), orderBy).orElse(null)
 						)
 					})
 					.orElse(new ArgumentSupplier[0]);
@@ -114,10 +117,10 @@ public class HierarchyOfConverter extends RequireConverter {
 							arguments.add(
 								offset -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
+									offset,
 									convertOrderConstraint(
 										new EntityDataLocator(referencedEntityType),
-										hierarchyOfReference.getOrderBy().get(),
-										offset
+										hierarchyOfReference.getOrderBy().get()
 									)
 										.orElse(null)
 								)
@@ -126,8 +129,9 @@ public class HierarchyOfConverter extends RequireConverter {
 
 						if (hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
 							arguments.add(
-								__ -> new Argument(
+								offset -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR,
+									offset,
 									hierarchyOfReference.getEmptyHierarchicalEntityBehaviour().name()
 								)
 							);
@@ -208,7 +212,8 @@ public class HierarchyOfConverter extends RequireConverter {
 		arguments.add(
 			offset -> new Argument(
 				HierarchyFromNodeHeaderDescriptor.NODE,
-				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode(), offset)
+				offset,
+				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode())
 					.orElseThrow(() -> new IllegalStateException("Missing required node constraint"))
 			)
 		);
@@ -282,7 +287,8 @@ public class HierarchyOfConverter extends RequireConverter {
 			arguments.add(
 				offset -> new Argument(
 					HierarchyParentsHeaderDescriptor.SIBLINGS,
-					inputJsonPrinter.print(offset, siblingsArgument).stripLeading()
+					offset,
+					inputJsonPrinter.print(siblingsArgument).stripLeading()
 				)
 			);
 		}
@@ -339,14 +345,16 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                           @Nonnull HierarchyDataLocator hierarchyDataLocator) {
 		return offset -> new Argument(
 			HierarchyRequireHeaderDescriptor.STOP_AT,
-			convertRequireConstraint(hierarchyDataLocator, stopAt, offset).orElse(null)
+			offset,
+			convertRequireConstraint(hierarchyDataLocator, stopAt).orElse(null)
 		);
 	}
 
 	@Nonnull
 	private ArgumentSupplier getStatisticsArgument(@Nonnull HierarchyStatistics statistics) {
-		return __ -> new Argument(
+		return offset -> new Argument(
 			HierarchyRequireHeaderDescriptor.STATISTICS_BASE,
+			offset,
 			statistics.getStatisticsBase().name()
 		);
 	}
@@ -359,7 +367,8 @@ public class HierarchyOfConverter extends RequireConverter {
 		levelInfoBuilder
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch));
+				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch))
+			.addPrimitiveField(LevelInfoDescriptor.REQUESTED);
 
 		if (statistics != null) {
 			if (statistics.getStatisticsType().contains(StatisticsType.QUERIED_ENTITY_COUNT)) {

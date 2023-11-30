@@ -24,13 +24,12 @@
 package io.evitadb.test.tester;
 
 import io.evitadb.test.tester.GraphQLTester.Request;
-import io.evitadb.utils.StringUtils;
 import io.restassured.http.Header;
 import io.restassured.response.ValidatableResponse;
-import org.hamcrest.Matcher;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import org.hamcrest.Matcher;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,7 +79,7 @@ public class GraphQLTester extends JsonExternalApiTester<Request> {
 				.log()
 				.ifValidationFails().
 			when()
-				.post(baseUrl + "/" + StringUtils.toKebabCase(request.getCatalogName()) + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
+				.post(baseUrl + "/" + request.getCatalogName() + (request.getUrlPathSuffix() != null ? request.getUrlPathSuffix() : "")).
 			then()
 				.log()
 				.ifError();

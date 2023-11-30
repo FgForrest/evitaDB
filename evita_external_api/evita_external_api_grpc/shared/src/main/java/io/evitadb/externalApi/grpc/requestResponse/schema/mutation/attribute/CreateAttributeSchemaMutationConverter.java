@@ -49,6 +49,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			mutation.getSortable(),
 			mutation.getLocalized(),
 			mutation.getNullable(),
+			mutation.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(mutation.getDefaultValue()) : null,
 			mutation.getIndexedDecimalPlaces()

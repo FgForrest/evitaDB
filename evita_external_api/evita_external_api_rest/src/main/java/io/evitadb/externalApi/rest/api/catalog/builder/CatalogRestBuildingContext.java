@@ -29,7 +29,6 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiTypeReference;
@@ -38,6 +37,7 @@ import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
@@ -69,8 +69,8 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull @Getter private final List<OpenApiTypeReference> localizedEntityObjects;
 
 
-	public CatalogRestBuildingContext(@Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
-		super(restConfig, evita);
+	public CatalogRestBuildingContext(@Nullable String exposedOn, @Nonnull RestConfig restConfig, @Nonnull Evita evita, @Nonnull CatalogContract catalog) {
+		super(exposedOn, restConfig, evita);
 		this.catalog = catalog;
 		this.supportedLocales = createHashSet(20);
 		this.supportedCurrencies = createHashSet(20);
@@ -95,9 +95,9 @@ public class CatalogRestBuildingContext extends RestBuildingContext {
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls())
+		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
 			.map(baseUrl -> new Server()
-				.url(baseUrl + getSchema().getNameVariant(ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)))
+				.url(baseUrl + getSchema().getName()))
 			.toList();
 	}
 

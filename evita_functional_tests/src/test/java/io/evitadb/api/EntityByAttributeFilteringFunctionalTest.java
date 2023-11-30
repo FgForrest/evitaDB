@@ -120,7 +120,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 	/**
 	 * Verifies histogram integrity against source entities.
 	 */
-	private static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts, String attributeName) {
+	private static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts, String attributeName, BigDecimal from, BigDecimal to) {
 		final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
 		assertNotNull(histogramPacket);
 		final HistogramContract histogram = histogramPacket.getHistogram(attributeName);
@@ -163,9 +163,17 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = histogram.getBuckets()[i];
+			if (
+				(from != null || to != null) &&
+					(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+				assertTrue(bucket.requested());
+			} else {
+				assertFalse(bucket.requested());
+			}
 			assertEquals(
-				ofNullable(expectedOccurrences.get(i)).orElse(0), bucket.getOccurrences(),
-				"Expected " + expectedOccurrences.get(i) + " occurrences in bucket " + i + ", but got " + bucket.getOccurrences() + "!"
+				ofNullable(expectedOccurrences.get(i)).orElse(0), bucket.occurrences(),
+				"Expected " + expectedOccurrences.get(i) + " occurrences in bucket " + i + ", but got " + bucket.occurrences() + "!"
 			);
 		}
 	}
@@ -193,7 +201,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = buckets.length - 1; i >= 0; i--) {
 			final Bucket bucket = buckets[i];
-			final int valueCompared = attributeValue.compareTo(bucket.getThreshold());
+			final int valueCompared = attributeValue.compareTo(bucket.threshold());
 			if (valueCompared >= 0) {
 				return i;
 			}
@@ -3170,6 +3178,60 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return products sorted by exact order of the attribute in the filter constraint with duplicate attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderInFilterWithDuplicateAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final String[] randomCodes = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+					.toArray(String[]::new);
+				final String[] randomCodesWithDuplicates = new String[randomCodes.length + 1];
+				for (int i = -1; i < randomCodes.length; i++) {
+					if (i == -1) {
+						randomCodesWithDuplicates[i + 1] = randomCodes[0];
+					} else {
+						randomCodesWithDuplicates[i + 1] = randomCodes[i];
+					}
+				}
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_CODE, randomCodesWithDuplicates)
+						),
+						orderBy(
+							attributeSetInFilter(ATTRIBUTE_CODE)
+						),
+						require(
+							entityFetch(
+								attributeContentAll()
+							),
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomCodes,
+					products.getRecordData().stream()
+						.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+						.toArray(String[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products sorted by exact order of the attribute with prefetch")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3205,6 +3267,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 								attributeSetExact(ATTRIBUTE_CODE, randomCodes)
 							),
 							require(
+								page(1, randomCodes.length),
 								entityFetch(
 									attributeContent(ATTRIBUTE_CODE)
 								)
@@ -3352,6 +3415,77 @@ public class EntityByAttributeFilteringFunctionalTest {
 					ArrayUtils.mergeArrays(
 						exactOrder, theRest
 					),
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order with duplicate attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderWithDuplicateAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+				final Integer[] randomProductIds = Arrays.stream(randomData)
+					.map(AttributeTuple::primaryKey)
+					.toArray(Integer[]::new);
+				final String[] randomCodes = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.toArray(String[]::new);
+				ArrayUtils.shuffleArray(random, randomCodes);
+				final String[] randomCodesWithDuplicates = new String[randomCodes.length + 1];
+				for (int i = -1; i < randomCodes.length; i++) {
+					if (i == -1) {
+						randomCodesWithDuplicates[i + 1] = randomCodes[0];
+					} else {
+						randomCodesWithDuplicates[i + 1] = randomCodes[i];
+					}
+				}
+				final Integer[] randomSortedProductIds = Arrays.stream(randomCodes)
+					.map(
+						it -> Arrays.stream(randomData)
+							.filter(att -> it.equals(att.attributeValue()))
+							.map(AttributeTuple::primaryKey)
+							.findFirst()
+							.orElseThrow()
+					)
+					.toArray(Integer[]::new);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(randomProductIds)
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, randomCodesWithDuplicates)
+						),
+						require(
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
+							)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomSortedProductIds,
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)
@@ -3584,8 +3718,63 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null)
 					.collect(Collectors.toList());
 
-				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY);
-				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY);
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, null, null);
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY, null, null);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return attribute histogram for returned products excluding constraints targeting that attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnSingleAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Predicate<SealedEntity> quantityAttributePredicate = it -> ofNullable((BigDecimal) it.getAttribute(ATTRIBUTE_QUANTITY))
+			.map(attr -> attr.compareTo(new BigDecimal("100")) >= 0 && attr.compareTo(new BigDecimal("900")) <= 0)
+			.orElse(false);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeIsNotNull(ATTRIBUTE_ALIAS),
+								userFilter(
+									attributeBetween(ATTRIBUTE_QUANTITY, 100, 900)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null).toList();
+
+				// verify our test works
+				final Predicate<SealedEntity> attributePredicate = quantityAttributePredicate;
+				assertTrue(
+					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
+					"Price between query didn't filter out any products. Test is not testing anything!"
+				);
+
+				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
+				assertHistogramIntegrity(
+					result,
+					filteredProducts,
+					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
+				);
 
 				return null;
 			}
@@ -3643,14 +3832,14 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertHistogramIntegrity(
 					result,
 					filteredProducts.stream().filter(priorityAttributePredicate).collect(Collectors.toList()),
-					ATTRIBUTE_QUANTITY
+					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
 				);
 
 				// the attribute `between(ATTRIBUTE_PRIORITY, 15000, 90000)` query must be ignored while computing its histogram
 				assertHistogramIntegrity(
 					result,
 					filteredProducts.stream().filter(quantityAttributePredicate).collect(Collectors.toList()),
-					ATTRIBUTE_PRIORITY
+					ATTRIBUTE_PRIORITY, new BigDecimal("15000"), new BigDecimal("90000")
 				);
 
 				return null;

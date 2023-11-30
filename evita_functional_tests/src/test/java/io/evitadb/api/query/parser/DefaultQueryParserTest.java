@@ -301,6 +301,60 @@ class DefaultQueryParserTest {
     }
 
     @Test
+    void shouldParseQueryStringWithDifferentQuotationMarks() {
+        assertEquals(
+            query(
+                collection("Product"),
+                filterBy(
+                    attributeEquals("a", "b")
+                )
+            ),
+            parser.parseQueryUnsafe("""
+                query(
+                    collection('Product'),
+                    filterBy(
+                        attributeEquals('a', 'b')
+                    )
+                )
+                """)
+        );
+
+        assertEquals(
+            query(
+                collection("Product"),
+                filterBy(
+                    attributeEquals("a", "b")
+                )
+            ),
+            parser.parseQueryUnsafe("""
+                query(
+                    collection("Product"),
+                    filterBy(
+                        attributeEquals("a", "b")
+                    )
+                )
+                """)
+        );
+
+        assertEquals(
+            query(
+                collection("Product"),
+                filterBy(
+                    attributeEquals("a", "b")
+                )
+            ),
+            parser.parseQueryUnsafe("""
+                query(
+                    collection('Product'),
+                    filterBy(
+                        attributeEquals('a', "b")
+                    )
+                )
+                """)
+        );
+    }
+
+    @Test
     void shouldNotParseQueryString() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(filterBy(attributeEquals('a','b')))"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQuery("query(collection(?))"));
@@ -321,6 +375,11 @@ class DefaultQueryParserTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("'b'"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("attributeEqualsTrue('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection('a')) query(collection('b'))"));
+    }
+
+    @Test
+    void shouldParseQueryWithIncorrectQuotationMarks() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parser.parseQueryUnsafe("query(collection('a\"))"));
     }
 
     @Test

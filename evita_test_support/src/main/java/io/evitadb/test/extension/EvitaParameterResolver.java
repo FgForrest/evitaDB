@@ -54,6 +54,7 @@ import io.evitadb.test.TestConstants;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.OnDataSetTearDown;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.tester.GraphQLSchemaTester;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.tester.LabApiTester;
 import io.evitadb.test.tester.RestTester;
@@ -436,37 +437,47 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		final EvitaServer evitaServer = new EvitaServer(evita, apiOptions);
 		evitaServer.run();
 
+		final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
+		if (cfg == null) {
+			// system provider was not initialized
+			return evitaServer;
+		}
+
 		// verify the server is running
+		Exception lastException = null;
 		int initAttempt = 0;
 		do {
-			try {
-				final AbstractApiConfiguration cfg = apiOptions.getEndpointConfiguration(SystemProvider.CODE);
-				if (cfg == null) {
-					// system provider was not initialized
-					return evitaServer;
-				}
-				final URL website = new URL(cfg.getBaseUrls()[0] + "server-name");
-				try (
-					final Reader reader = Channels.newReader(Channels.newChannel(website.openStream()), StandardCharsets.UTF_8);
-				) {
-					// try to read server name from the system endpoint
-					final char[] buffer = new char[50];
-					reader.read(buffer);
-					return evitaServer;
-				}
-			} catch (Exception ignored) {
+			for (String baseUrl : cfg.getBaseUrls(apiOptions.exposedOn())) {
+				final String testUrl = baseUrl + "server-name";
 				try {
-					// if not ready wait for a while
-					Thread.sleep(200);
-				} catch (InterruptedException e) {
-					return evitaServer;
+					final URL website = new URL(testUrl);
+					try (
+						final Reader reader = Channels.newReader(Channels.newChannel(website.openStream()), StandardCharsets.UTF_8);
+					) {
+						// try to read server name from the system endpoint
+						final char[] buffer = new char[50];
+						final int read = reader.read(buffer);
+						log.info("Server name available on url `{}`: {}", cfg.getBaseUrls(apiOptions.exposedOn())[0], new String(buffer, 0, read));
+						return evitaServer;
+					}
+				} catch (Exception ex) {
+					lastException = ex;
 				}
 			}
 			initAttempt++;
+			try {
+				// if not ready wait for a while
+				Thread.sleep(200);
+			} catch (InterruptedException e) {
+				return evitaServer;
+			}
 			// try at most 5 times
-		} while (initAttempt < 5);
+		} while (initAttempt < 3000);
 
-		throw new IllegalStateException("Evita server has't started within a second!");
+		throw new IllegalStateException(
+			"Evita server hasn't started on url " + Arrays.stream(cfg.getBaseUrls(apiOptions.exposedOn())).map(it -> "`" + it + "server-name`").collect(Collectors.joining(", ")) + " within 10 minutes!",
+			lastException
+		);
 	}
 
 	@Override
@@ -527,6 +538,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 			EvitaSessionContract.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaServer.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			GraphQLTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
+			GraphQLSchemaTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			RestTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			LabApiTester.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
 			EvitaClient.class.isAssignableFrom(parameterContext.getParameter().getType()) ||
@@ -631,6 +643,21 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					);
 				}
 			);
+		} else if (GraphQLSchemaTester.class.isAssignableFrom(requestedParam.getType())) {
+			// return new GraphQL schema tester
+			return dataSetInfo.graphQLSchemaTester(
+				evitaServer -> {
+					final AbstractApiConfiguration gqlConfig = evitaServer.getExternalApiServer()
+						.getApiOptions()
+						.getEndpointConfiguration(GraphQLProvider.CODE);
+					if (gqlConfig == null) {
+						throw new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + useDataSet.value() + "`!");
+					}
+					return new GraphQLSchemaTester(
+						"https://" + gqlConfig.getHost()[0].hostName() + ":" + gqlConfig.getHost()[0].port() + "/gql"
+					);
+				}
+			);
 		} else if (LabApiTester.class.isAssignableFrom(requestedParam.getType())) {
 			// return new Lab API tester
 			return dataSetInfo.labApiTester(
@@ -719,6 +746,18 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				throw new ParameterResolutionException("Requested data set " + dataSetToUse + " has no initialization method within the class (Method with @DataSet annotation)!");
 			}
 			synchronized (dataSetInfo) {
+				final BiPredicate<ExtensionContext, DataSetState> dataStateTearDownFct = (terminationContext, dataSetState) -> {
+					if (useDataSet.destroyAfterTest()) {
+						return terminationContext.getTestMethod()
+							.map(m -> m.equals(dataSetState.testMethod()))
+							.orElse(false);
+					} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
+						return terminationContext.getRequiredTestClass()
+							.equals(dataSetState.testInstance().getClass());
+					} else {
+						return false;
+					}
+				};
 				//noinspection resource
 				if (dataSetInfo.evitaInstance() == null) {
 					// fill in the reference to the test instance, that is known only now
@@ -789,18 +828,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 								extensionContext.getRequiredTestInstance(),
 								extensionContext.getRequiredTestMethod(),
 								evita, evitaServer, dataCarrier,
-								(terminationContext, dataSetState) -> {
-									if (useDataSet.destroyAfterTest()) {
-										return terminationContext.getTestMethod()
-											.map(m -> m.equals(dataSetState.testMethod()))
-											.orElse(false);
-									} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
-										return terminationContext.getRequiredTestClass()
-											.equals(dataSetState.testInstance().getClass());
-									} else {
-										return false;
-									}
-								}
+								dataStateTearDownFct
 							);
 						}
 					);
@@ -825,18 +853,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 					return dataSetInfo.updateState(
 						extensionContext.getRequiredTestInstance(),
 						extensionContext.getRequiredTestMethod(),
-						(terminationContext, dataSetState) -> {
-							if (useDataSet.destroyAfterTest()) {
-								return terminationContext.getTestMethod()
-									.map(m -> m.equals(dataSetState.testMethod()))
-									.orElse(false);
-							} else if (dataSetInfo.destroyAfterClass() && terminationContext.getTestMethod().isEmpty()) {
-								return terminationContext.getRequiredTestClass()
-									.equals(dataSetState.testInstance().getClass());
-							} else {
-								return false;
-							}
-						}
+						dataStateTearDownFct
 					);
 				}
 			}
@@ -853,22 +870,6 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		boolean destroyAfterClass,
 		@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
 	) {
-
-		protected DataSetInfo(
-			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
-			@Nonnull List<Method> destroyMethods, @Nonnull String[] webApi,
-			boolean readOnly, boolean destroyAfterClass,
-			@Nonnull AtomicReference<DataSetState> dataSetInfoAtomicReference
-		) {
-			this.name = name;
-			this.catalogName = catalogName;
-			this.initMethod = initMethod;
-			this.destroyMethods = destroyMethods;
-			this.webApi = webApi;
-			this.readOnly = readOnly;
-			this.destroyAfterClass = destroyAfterClass;
-			this.dataSetInfoAtomicReference = dataSetInfoAtomicReference;
-		}
 
 		public DataSetInfo(
 			@Nonnull String name, @Nonnull String catalogName, @Nullable CatalogInitMethod initMethod,
@@ -926,6 +927,24 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 						() -> ofNullable(evitaServerInstance())
 							.map(evitaServer -> {
 								final GraphQLTester newTester = factory.apply(evitaServer);
+								it.set(newTester);
+								return newTester;
+							})
+							.orElseThrow(() -> new ParameterResolutionException("GraphQL web API was not opened for the dataset `" + name + "`!"))
+					)
+				)
+				.orElse(null);
+		}
+
+		@Nullable
+		public GraphQLSchemaTester graphQLSchemaTester(@Nonnull Function<EvitaServer, GraphQLSchemaTester> factory) {
+			return ofNullable(this.dataSetInfoAtomicReference.get())
+				.map(DataSetState::graphQLSchemaTester)
+				.map(it -> ofNullable(it.get())
+					.orElseGet(
+						() -> ofNullable(evitaServerInstance())
+							.map(evitaServer -> {
+								final GraphQLSchemaTester newTester = factory.apply(evitaServer);
 								it.set(newTester);
 								return newTester;
 							})
@@ -1042,12 +1061,13 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 		@Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate,
 		@Nonnull AtomicReference<EvitaClient> client,
 		@Nonnull AtomicReference<GraphQLTester> graphQLTester,
+		@Nonnull AtomicReference<GraphQLSchemaTester> graphQLSchemaTester,
 		@Nonnull AtomicReference<RestTester> restTester,
 		@Nonnull AtomicReference<LabApiTester> labApiTester
 	) {
 
 		private DataSetState(@Nonnull Object testInstance, @Nonnull Method testMethod, @Nullable Evita evitaInstance, @Nullable EvitaServer evitaServerInstance, @Nullable DataCarrier dataCarrier, @Nonnull BiPredicate<ExtensionContext, DataSetState> destroyPredicate) {
-			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
+			this(testInstance, testMethod, evitaInstance, evitaServerInstance, dataCarrier, destroyPredicate, new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>(), new AtomicReference<>());
 		}
 
 		@Nonnull
@@ -1056,7 +1076,7 @@ public class EvitaParameterResolver implements ParameterResolver, BeforeAllCallb
 				testInstance, testMethod,
 				evitaInstance, evitaServerInstance, dataCarrier,
 				destroyPredicate,
-				client, graphQLTester, restTester, labApiTester
+				client, graphQLTester, graphQLSchemaTester, restTester, labApiTester
 			);
 		}
 

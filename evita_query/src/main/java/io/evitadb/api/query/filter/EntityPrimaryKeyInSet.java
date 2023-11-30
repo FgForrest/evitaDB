@@ -35,19 +35,14 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * This `primaryKey` is query that accepts set of {@link Integer}
- * that represents primary keys of the entities that should be returned.
- *
- * Function returns true if entity primary key is part of the passed set of integers.
- * This form of entity lookup function is the fastest one.
- *
- * Only single `primaryKey` query can be used in the query.
+ * The `entityPrimaryKeyInSet` constraint limits the list of returned entities by exactly specifying their entity
+ * primary keys.
  *
  * Example:
  *
- * ```
+ * <pre>
  * primaryKey(1, 2, 3)
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

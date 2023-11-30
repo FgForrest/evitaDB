@@ -57,6 +57,7 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		output.writeBoolean(attributeSchema.isFilterable());
 		output.writeBoolean(attributeSchema.isSortable());
 		output.writeBoolean(attributeSchema.isNullable());
+		output.writeBoolean(attributeSchema.isRepresentative());
 		output.writeInt(attributeSchema.getIndexedDecimalPlaces());
 		if (attributeSchema.getDescription() != null) {
 			output.writeBoolean(true);
@@ -84,12 +85,14 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 		final boolean filterable = input.readBoolean();
 		final boolean sortable = input.readBoolean();
 		final boolean nullable = input.readBoolean();
+		final boolean representative = input.readBoolean();
 		final int indexedDecimalPlaces = input.readInt();
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable, type, (Serializable) defaultValue, indexedDecimalPlaces
+			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
+			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}
 

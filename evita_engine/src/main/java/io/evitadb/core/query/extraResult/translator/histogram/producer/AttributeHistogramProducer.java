@@ -36,22 +36,26 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
 import io.evitadb.core.query.extraResult.ExtraResultCacheAccessor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.histogram.FilterFormulaAttributeOptimizeVisitor;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.utils.ArrayUtils;
 import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -60,7 +64,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This class contains logic that creates single {@link AttributeHistogram} DTO containing {@link Histogram} for all
@@ -335,9 +342,21 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		// create optimized formula that offers best memoized intermediate results reuse
 		final Formula optimizedFormula = FilterFormulaAttributeOptimizeVisitor.optimize(filterFormula, histogramRequests.keySet());
 		// create clone of the optimized formula without user filter contents
+		final Map<String, Predicate<BigDecimal>> userFilterFormulaPredicates = new HashMap<>();
 		final Formula baseFormulaWithoutUserFilter = FormulaCloner.clone(
 			optimizedFormula,
-			formula -> formula instanceof UserFilterFormula ? null : formula
+			formula -> {
+				if (formula instanceof UserFilterFormula) {
+					FormulaFinder.find(formula, AttributeFormula.class, LookUp.DEEP)
+						.stream()
+						.map(AttributeFormula.class::cast)
+						.forEach(attributeFormula -> ofNullable(attributeFormula.getRequestedPredicate())
+							.ifPresent(it -> userFilterFormulaPredicates.put(attributeFormula.getAttributeName(), it)));
+					return null;
+				} else {
+					return formula;
+				}
+			}
 		);
 
 		// compute attribute histogram
@@ -349,19 +368,22 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 				.filter(entry -> hasSenseWithMandatoryFilter(baseFormulaWithoutUserFilter, entry.getValue()))
 				.map(entry -> {
 					final AttributeHistogramRequest histogramRequest = entry.getValue();
-					final HistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
+					final CacheableHistogramContract optimalHistogram = extraResultCacheAccessor.analyse(
 						entityType,
 						new AttributeHistogramComputer(
-							histogramRequest.getAttributeName(), optimizedFormula, bucketCount, histogramRequest
+							histogramRequest.getAttributeName(),
+							optimizedFormula, bucketCount, histogramRequest
 						)
 					).compute();
-					if (optimalHistogram == HistogramContract.EMPTY) {
+					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
 						return null;
 					} else {
 						// create histogram DTO for the output
 						return new AttributeHistogramWrapper(
 							entry.getKey(),
-							optimalHistogram
+							optimalHistogram.convertToHistogram(
+								ofNullable(userFilterFormulaPredicates.get(entry.getKey())).orElseGet(() -> value -> false)
+							)
 						);
 					}
 				})

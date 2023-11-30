@@ -5,7 +5,8 @@ perex: |
     entity fetching and related recommendations.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 The query in evitaDB is represented by a tree of nested "constraints" divided into for parts:
@@ -220,6 +221,10 @@ you can still use the `enrichEntity` method on the
 will be fully fetched again. However, we plan to optimize this scenario in the future.
 </Note>
 
+#### Custom contracts
+
+TODO JNO - document me
+
 ### Caching considerations
 
 If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration), 
@@ -256,6 +261,8 @@ has the following GraphQL queries available:
 
 where the `CollectionName` would be the name of a concrete [entity collection](/documentation/user/en/use/data-model.md#collection), e.g. `queryProduct` or `queryCategory`.
 
+### `get` queries
+
 The `getCollecionName` queries support only a very simplified variant of the filter part of a query, but support fetching of 
 rich entity objects. As a result, you will only get a specific entity object without unnecessary data around it.
 These simplified queries are primarily intended to be used when developing or exploring the API by unique keys,
@@ -265,6 +272,8 @@ as they provide quick access to entities.
 
 [Java query example](/documentation/user/en/use/api/example/graphql-get-query-example.graphql)
 </SourceCodeTabs>
+
+### `list` queries
 
 The `listCollectionName` queries support full filter and order parts of an evitaDB query as a query arguments and fetching
 of rich entity objects. As a result, you will get a simple list of entities without having to deal
@@ -276,6 +285,8 @@ requirements are needed.
 
 [Java query example](/documentation/user/en/use/api/example/graphql-list-query-example.graphql)
 </SourceCodeTabs>
+
+### `query` queries
 
 The `queryCollectionName` queries are full-featured queries, which are the main queries you should use when
 the number of entities is not known in advance or extra results are needed, as they support

@@ -25,9 +25,12 @@ package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityClassInvalidException;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * Interface is used to create proxy instances of sealed entities when client code calls query method on
@@ -42,7 +45,7 @@ public interface ProxyFactory {
 	 * request context used in the query that fetched {@link SealedEntity}.
 	 *
 	 * @param expectedType contract that the proxy should implement
-	 * @param sealedEntity sealed entity to create proxy for
+	 * @param entity sealed entity to create proxy for
 	 * @return proxy instance of sealed entity
 	 * @param <T> type of contract that the proxy should implement
 	 * @throws EntityClassInvalidException if the proxy contract is not valid
@@ -50,7 +53,8 @@ public interface ProxyFactory {
 	@Nonnull
 	<T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException;
 
 }

@@ -48,7 +48,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializabl
 import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
@@ -261,25 +261,25 @@ public class EntityDecorator implements SealedEntity {
 		this.alignedNow = alignedNow;
 		this.filteredReferences = decorator.referencesAvailable() ?
 			decorator.getReferences()
-			.stream()
-			.filter(referencePredicate)
-			.map(reference ->
-				// prefer the instances from decorator, since they may have initialized the pointers to rich entities
-				ofNullable(decorator.filteredReferences.get(reference.getReferenceKey()))
-					.orElseGet(() -> this.delegate.getReference(reference.getReferenceKey()).orElse(null))
-			)
-			.filter(Objects::nonNull)
-			// the listing from decorator is also properly sorted, so we don't need to sort it again
-			.collect(
-				Collectors.toMap(
-					ReferenceContract::getReferenceKey,
-					Function.identity(),
-					(o, o2) -> {
-						throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
-					},
-					LinkedHashMap::new
+				.stream()
+				.filter(referencePredicate)
+				.map(reference ->
+					// prefer the instances from decorator, since they may have initialized the pointers to rich entities
+					ofNullable(decorator.filteredReferences.get(reference.getReferenceKey()))
+						.orElseGet(() -> this.delegate.getReference(reference.getReferenceKey()).orElse(null))
 				)
-			) : Collections.emptyMap();
+				.filter(Objects::nonNull)
+				// the listing from decorator is also properly sorted, so we don't need to sort it again
+				.collect(
+					Collectors.toMap(
+						ReferenceContract::getReferenceKey,
+						Function.identity(),
+						(o, o2) -> {
+							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
+						},
+						LinkedHashMap::new
+					)
+				) : Collections.emptyMap();
 	}
 
 	/**
@@ -361,9 +361,11 @@ public class EntityDecorator implements SealedEntity {
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 			}
 
-			fetchedAndFilteredReferences[i] = fetchReference(
-				referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
-			);
+			fetchedAndFilteredReferences[i] = ofNullable(
+				fetchReference(
+					referenceContract, referenceSchema, entityFetcher, entityGroupFetcher
+				)
+			).orElseGet(() -> new ReferenceDecorator(referenceContract, referencePredicate.getAttributePredicate(thisReferenceName)));
 		}
 		if (referenceSchema != null && fetchedReferenceComparator != null) {
 			sortAndFilterSubList(
@@ -551,15 +553,6 @@ public class EntityDecorator implements SealedEntity {
 		}
 	}
 
-	/**
-	 * Returns parent entity without checking the predicate.
-	 * Part of the PRIVATE API.
-	 */
-	@Nonnull
-	public Optional<EntityClassifierWithParent> getParentEntityWithoutCheckingPredicate() {
-		return ofNullable(parentEntity);
-	}
-
 	@Override
 	public boolean referencesAvailable() {
 		return referencePredicate.wasFetched();
@@ -606,11 +599,6 @@ public class EntityDecorator implements SealedEntity {
 	}
 
 	@Nonnull
-	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(@Nonnull String referenceName, int referencedEntityId) {
-		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
-	}
-
-	@Nonnull
 	@Override
 	public Set<Locale> getAllLocales() {
 		return delegate.getAllLocales();
@@ -623,6 +611,20 @@ public class EntityDecorator implements SealedEntity {
 			.stream()
 			.filter(localePredicate)
 			.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Returns parent entity without checking the predicate.
+	 * Part of the PRIVATE API.
+	 */
+	@Nonnull
+	public Optional<EntityClassifierWithParent> getParentEntityWithoutCheckingPredicate() {
+		return ofNullable(parentEntity);
+	}
+
+	@Nonnull
+	public Optional<ReferenceContract> getReferenceWithoutCheckingPredicate(@Nonnull String referenceName, int referencedEntityId) {
+		return ofNullable(getFilteredReferences().get(new ReferenceKey(referenceName, referencedEntityId)));
 	}
 
 	@Nullable
@@ -724,7 +726,7 @@ public class EntityDecorator implements SealedEntity {
 
 	@Nonnull
 	@Override
-	public Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
+	public Optional<EntityAttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName) {
 		return delegate.getAttributeSchema(attributeName);
 	}
 
@@ -1150,6 +1152,39 @@ public class EntityDecorator implements SealedEntity {
 	@Override
 	public String toString() {
 		return describe();
+	}
+
+	/**
+	 * Returns locale that was used for fetching the entity - either the {@link #getImplicitLocale()} or the locale
+	 * from {@link #getLocalePredicate()} if there was exactly single locale used for fetching.
+	 *
+	 * @return locale that was used for fetching the entity
+	 */
+	@Nullable
+	public Locale getRequestedLocale() {
+		final Set<Locale> locales = localePredicate.getLocales();
+		return locales != null && locales.size() == 1 ?
+			locales.iterator().next() : localePredicate.getImplicitLocale();
+	}
+
+	/**
+	 * Returns true if there was more than one locale used for fetching the entity.
+	 *
+	 * @return true if there was more than one locale used for fetching the entity
+	 */
+	public boolean isMultipleLocalesRequested() {
+		final Set<Locale> locales = localePredicate.getLocales();
+		return locales != null && locales.size() != 1;
+	}
+
+	/**
+	 * Returns true if passed locale was requested when the entity was fetched.
+	 *
+	 * @param locale locale to check
+	 * @return true if passed locale was requested when the entity was fetched
+	 */
+	public boolean isLocaleRequested(@Nonnull Locale locale) {
+		return localePredicate.test(locale);
 	}
 
 	/**

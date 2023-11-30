@@ -9,9 +9,7 @@ query(
     require(
         entityFetch(
             attributeContent('code'),
-            referenceContentWithAttributes(
-                'brand'
-            )
+            referenceContent('brand')
         )
     )
 )

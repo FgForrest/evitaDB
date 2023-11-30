@@ -79,7 +79,7 @@ public class UpsertAttributeMutation extends AttributeSchemaEvolvingMutation {
 		if (existingValue == null) {
 			// create new attribute value
 			return new AttributeValue(attributeKey, value);
-		} else if (!Objects.equals(existingValue.value(), this.value)) {
+		} else if (!Objects.equals(existingValue.value(), this.value) || existingValue.dropped()) {
 			// update attribute version (we changed it) and return mutated value
 			return new AttributeValue(existingValue.version() + 1, attributeKey, this.value);
 		} else {

@@ -34,6 +34,7 @@ import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 
 /**
  * {@link Coercing} for converting between Java's side {@link OffsetDateTime} and client string.
@@ -43,7 +44,7 @@ import java.time.format.DateTimeParseException;
 public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> {
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
-    private static final String EXPECTED_FORMAT = "yyyy-MM-ddTHH:mm:ss+-HH:mm";
+    private static final String EXPECTED_FORMAT = "yyyy-MM-ddTHH:mm:ss.sss+-HH:mm";
 
     @Override
     public String serialize(@Nonnull Object dataFetcherResult) throws CoercingSerializeException {
@@ -51,7 +52,7 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
             throw new CoercingSerializeException("Offset date time data fetcher result is not a offset date time.");
         }
         try {
-            return ((OffsetDateTime) dataFetcherResult).format(FORMATTER);
+            return ((OffsetDateTime) dataFetcherResult).truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -64,7 +65,7 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
             throw new CoercingParseValueException("Offset date time input is not a string.");
         }
         try {
-            return OffsetDateTime.parse((String) input, FORMATTER);
+            return OffsetDateTime.parse((String) input, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(getParseErrorMessage(ex), ex);
         }
@@ -77,7 +78,7 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
             throw new CoercingParseValueException("Offset date time input is not a StringValue.");
         }
         try {
-            return OffsetDateTime.parse(((StringValue) input).getValue(), FORMATTER);
+            return OffsetDateTime.parse(((StringValue) input).getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(getParseErrorMessage(ex), ex);
         }
@@ -85,6 +86,6 @@ public class OffsetDateTimeCoercing implements Coercing<OffsetDateTime, String> 
 
     @Nonnull
     private String getParseErrorMessage(@Nonnull DateTimeParseException ex) {
-        return String.format("%s. Expected date time in format `%s`.", ex.getMessage(), EXPECTED_FORMAT);
+        return String.format("%s. Expected date time in variation of format `%s`.", ex.getMessage(), EXPECTED_FORMAT);
     }
 }

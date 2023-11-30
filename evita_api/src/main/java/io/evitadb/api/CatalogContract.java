@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -215,6 +216,14 @@ public interface CatalogContract {
 	CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced);
 
 	/**
+	 * Returns map with current {@link EntitySchemaContract entity schema} instances indexed by their
+	 * {@link EntitySchemaContract#getName() name}.
+	 * @return map with current {@link EntitySchemaContract entity schema} instances indexed by their name
+	 */
+	@Nonnull
+	Map<String, EntitySchemaContract> getEntitySchemaIndex();
+
+	/**
 	 * Returns {@link EntitySchemaContract} for passed `entityType` or throws {@link IllegalArgumentException} if schema for
 	 * this type is not yet known.
 	 */
@@ -242,5 +251,4 @@ public interface CatalogContract {
 	 * ignored.
 	 */
 	void terminate();
-
 }

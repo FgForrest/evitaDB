@@ -23,8 +23,10 @@
 
 package io.evitadb.api.requestResponse.data.structure.predicate;
 
+import io.evitadb.api.EntityCollectionContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.EvitaRequest;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
@@ -59,7 +61,7 @@ public class LocaleSerializablePredicate implements SerializablePredicate<Locale
 	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest)}
+	 * to be carried around even if {@link EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final LocaleSerializablePredicate underlyingPredicate;

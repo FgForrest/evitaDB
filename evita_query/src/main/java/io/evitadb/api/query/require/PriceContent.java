@@ -30,6 +30,7 @@ import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -43,24 +44,26 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This `prices` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
- * this requirement is used result contains [entity prices](entity_model.md).
+ * The `priceContent` requirement allows you to access the information about the prices of the entity.
  *
- * This requirement implicitly triggers {@link EntityFetch} requirement because prices cannot be returned without entity.
- * When price constraints are used returned prices are filtered according to them by default. This behaviour might be
- * changed, however.
+ * If the {@link PriceContentMode#RESPECTING_FILTER} mode is used, the `priceContent` requirement will only retrieve
+ * the prices selected by the {@link PriceInPriceLists} constraint. If the enum {@link PriceContentMode#NONE} is
+ * specified, no prices are returned at all, if the enum {@link PriceContentMode#ALL} is specified, all prices of
+ * the entity are returned regardless of the priceInPriceLists constraint in the filter (the constraint still controls
+ * whether the entity is returned at all).
  *
- * Accepts single {@link PriceContentMode} parameter. When {@link PriceContentMode#ALL} all prices of the entity are returned
- * regardless of the input query constraints otherwise prices are filtered by those constraints. Default is {@link PriceContentMode#RESPECTING_FILTER}.
+ * You can also add additional price lists to the list of price lists passed in the priceInPriceLists constraint by
+ * specifying the price list names as string arguments to the `priceContent` requirement. This is useful if you want to
+ * fetch non-indexed prices of the entity that cannot (and are not intended to) be used to filter the entities, but you
+ * still want to fetch them to display in the UI for the user.
  *
  * Example:
  *
- * ```
- * prices() // defaults to respecting filter
- * prices(RESPECTING_FILTER)
- * prices(ALL)
- * prices(NONE)
- * ```
+ * <pre>
+ * priceContentRespectingFilter()
+ * priceContentRespectingFilter("reference")
+ * priceContentAll()
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

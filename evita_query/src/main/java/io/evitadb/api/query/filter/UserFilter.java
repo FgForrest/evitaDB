@@ -42,87 +42,23 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * This `userFilter` is a container query that could contain any constraints
- * except [priceInPriceLists](#price-in-price-lists),
- * [language](#language), [priceInCurrency](#price-in-currency), [priceValidInTime](#price-valid-in-time),
- * [with hierarchy](#within-hierarchy).
- *
- * These constraints should react to the settings defined by the end user and must be isolated from the base filter so
- * that [facetSummary](#facet-summary) logic can distinguish base filtering query for a facet summary computation.
- * Facet summary must define so-called baseline count - i.e. count of the entities that match system constraints but no
- * optional constraints defined by the user has been applied yet on them. This baseline is also used
- * for [facet statistics](#facet-statistics) computation.
- *
- * This query might be used even without [facetSummary](#facet-summary) - when the result facet counts are not
- * required but still we want the facets use for filtering.
- *
- * Only single `userFilter` query can be used in the query.
+ * The `userFilter` works identically to the and constraint, but it distinguishes the filter scope, which is controlled
+ * by the user through some kind of user interface, from the rest of the query, which contains the mandatory constraints
+ * on the result set. The user-defined scope can be modified during certain calculations (such as the facet or histogram
+ * calculation), while the mandatory part outside of `userFilter` cannot.
  *
  * Example:
  *
- * ```
+ * <pre>
  * userFilter(
- * greaterThanEq('memory', 8),
- * priceBetween(150.25, 220.0),
- * facet('parameter', 4, 15)
+ *   facetHaving(
+ *     "brand",
+ *     entityHaving(
+ *       attributeInSet("code", "amazon")
+ *     )
+ *   )
  * )
- * ```
- *
- * Even more complex queries are supported (although it is hard to make up some real life example for such):
- *
- * ```
- * filterBy(
- * and(
- * or(
- * referenceHavingAttribute('CATEGORY', eq(code, 'abc')),
- * referenceHavingAttribute('STOCK', eq(market, 'asia')),
- * ),
- * eq(visibility, true),
- * userFilter(
- * or(
- * and(
- * greaterThanEq('memory', 8),
- * priceBetween(150.25, 220.0)
- * ),
- * and(
- * greaterThanEq('memory', 16),
- * priceBetween(800.0, 1600.0)
- * ),
- * ),
- * facet('parameter', 4, 15)
- * )
- * )
- * ),
- * require(
- * facetGroupDisjunction('parameterType', 4),
- * negatedFacets('parameterType', 8),
- * )
- *
- * ```
- *
- * User filter envelopes the part of the query that is affected by user selection and that is optional. All constraints
- * outside user filter are considered mandatory and must never be altered by [facet summary](#facet-summary) computational
- * logic.
- *
- * Base count of the facets are computed for query having `userFilter` container contents stripped off. The "what-if"
- * counts requested by [impact argument](#facet-summary) are computed from the query including `userFilter` creating
- * multiple sub-queries checking the result for each additional facet selection.
- *
- * [Facet](#facet) filtering constraints must be direct children of the `userFilter` container. Their relationship is by
- * default as follows: facets of the same type within same group are combined by conjunction (OR), facets of different
- * types / groups are combined by disjunction (AND). This default behaviour can be controlled exactly by using any of
- * following require constraints:
- *
- * - [facet groups conjunction](#facet-groups-conjunction) - changes relationship between facets in the same group
- * - [facet groups disjunction](#facet-groups-disjunction) - changes relationship between facet groups
- *
- * All constraints placed directly inside `userFilter` are combined with by conjunction (AND). Other than `facet` filtering
- * constraints (as seen in example) may represent user conditions in non-faceted inputs, such as interval inputs.
- *
- * ***Note:** this query might be a subject to change and affects advanced searching queries such as exclusion facet
- * groups (i.e. facet in group are not represented as multi-select/checkboxes but as exlusive select/radio) or conditional
- * filters (which can be used to apply a certain filter only if it would produce non-empty result, this is good for
- * "sticky" filters).*
+ * </pre>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

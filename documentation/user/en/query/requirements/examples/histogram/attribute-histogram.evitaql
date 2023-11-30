@@ -1,0 +1,6 @@
+query(
+    collection('Product'),
+    require(
+      attributeHistogram(5, 'width', 'height')
+    )
+)

@@ -38,9 +38,12 @@ import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.EvitaInternalError;
@@ -406,6 +409,19 @@ public class EvitaEnumConverter {
 			case MUST_NOT_EXIST -> GrpcEntityExistence.MUST_NOT_EXIST;
 			case MUST_EXIST -> GrpcEntityExistence.MUST_EXIST;
 		};
+	}
+
+	@Nonnull
+	public static GrpcAttributeSchemaType toGrpcAttributeSchemaType(@Nonnull Class<? extends AttributeSchemaContract> attributeSchemaClass) {
+		if (GlobalAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
+			return GrpcAttributeSchemaType.GLOBAL;
+		} else if (EntityAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
+			return GrpcAttributeSchemaType.ENTITY;
+		} else if (AttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
+			return GrpcAttributeSchemaType.REFERENCE;
+		} else {
+			throw new EvitaInternalError("Unrecognized attribute schema type: " + attributeSchemaClass);
+		}
 	}
 
 	@Nonnull

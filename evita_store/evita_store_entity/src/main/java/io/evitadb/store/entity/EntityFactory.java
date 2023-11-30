@@ -29,10 +29,11 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
-import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityAttributes;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -48,7 +49,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -78,10 +81,19 @@ public class EntityFactory {
 		@Nullable ReferencesStoragePart referencesStorageContainer,
 		@Nullable PricesStoragePart priceStorageContainer
 	) {
-		final List<AttributeValue> attributeValues = attributesStorageContainers
+		final Map<AttributeKey, AttributeValue> attributeValues = attributesStorageContainers
 			.stream()
 			.flatMap(it -> Arrays.stream(it.getAttributes()))
-			.collect(Collectors.toList());
+			.collect(
+				Collectors.toMap(
+					AttributeValue::key,
+					Function.identity(),
+					(o, n) -> {
+						throw new EvitaInvalidUsageException("Duplicate attribute key " + o.key());
+					},
+					LinkedHashMap::new
+				)
+			);
 		return Entity._internalBuild(
 			entityStorageContainer.getVersion(),
 			entityStorageContainer.getPrimaryKey(), entitySchema,
@@ -91,9 +103,8 @@ public class EntityFactory {
 				.map(ReferencesStoragePart::getReferencesAsCollection)
 				.orElse(Collections.emptyList()),
 			// always initialize Attributes container
-			new Attributes(
+			new EntityAttributes(
 				entitySchema,
-				null,
 				// fill all contents of the attributes loaded from storage (may be empty)
 				attributeValues,
 				entitySchema.getAttributes()
@@ -105,7 +116,6 @@ public class EntityFactory {
 				associatedDataStorageContainers
 					.stream()
 					.map(AssociatedDataStoragePart::getValue)
-					.collect(Collectors.toList())
 			),
 			// when prices container is present - init prices and price inner record handling - otherwise use default config
 			ofNullable(priceStorageContainer)
@@ -185,10 +195,9 @@ public class EntityFactory {
 				// use original attributes from the entity contents
 				null :
 				// otherwise combine
-				new Attributes(
+				new EntityAttributes(
 					entitySchema,
-					null,
-					attributeValues.values(),
+					attributeValues,
 					entitySchema.getAttributes()
 				),
 			// when no additional associated data containers were loaded
@@ -198,7 +207,7 @@ public class EntityFactory {
 				// otherwise combine
 				new AssociatedData(
 					entitySchema,
-					associatedDataValues.values()
+					associatedDataValues
 				),
 			// when prices container is present - init prices and price inner record handling
 			// otherwise use original prices from previous entity contents

@@ -1,4 +1,4 @@
-POST /rest/evita/product/query
+POST /rest/evita/Product/query
 
 {
   "filterBy" : {
@@ -15,7 +15,7 @@ POST /rest/evita/product/query
       "attributeContent" : [
         "code"
       ],
-      "referenceBrandContentWithAttributes" : { }
+      "referenceBrandContent" : { }
     }
   }
 }

@@ -64,6 +64,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			false,
 			true,
 			false,
+			true,
 			String.class,
 			"defaultCode",
 			2
@@ -80,6 +81,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE.name(), false)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE.name(), false)
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), true)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
@@ -98,6 +100,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE.name(), "false")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), "true")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE.name(), "false")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), "true")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.TYPE.name(), "String")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), "2")
@@ -111,6 +114,7 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
+			false,
 			false,
 			false,
 			false,

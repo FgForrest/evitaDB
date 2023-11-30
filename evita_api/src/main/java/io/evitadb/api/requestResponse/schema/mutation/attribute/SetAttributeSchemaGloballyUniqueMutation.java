@@ -88,7 +88,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema) {
+	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -103,6 +103,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 				globalAttributeSchema.isSortable(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
+				globalAttributeSchema.isRepresentative(),
 				(Class) globalAttributeSchema.getType(),
 				globalAttributeSchema.getDefaultValue(),
 				globalAttributeSchema.getIndexedDecimalPlaces()
@@ -121,7 +122,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
-		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema);
+		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			catalogSchema, existingAttributeSchema, updatedAttributeSchema
 		);

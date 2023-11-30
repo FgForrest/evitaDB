@@ -1,0 +1,23 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "priceInPriceLists" : [
+      "basic"
+    ],
+    "priceInCurrency" : "EUR",
+    "priceBetween" : [
+      "100",
+      "103"
+    ]
+  },
+  "require" : {
+    "priceType" : "WITHOUT_TAX",
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "priceContentRespectingFilter" : [ ]
+    }
+  }
+}

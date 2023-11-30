@@ -62,13 +62,12 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.Currency;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -92,7 +91,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 	private final EntitySchemaContract schema;
 	private final Integer primaryKey;
 	@Delegate(types = AttributesContract.class)
-	private final AttributesBuilder attributesBuilder;
+	private final InitialEntityAttributesBuilder attributesBuilder;
 	@Delegate(types = AssociatedDataContract.class)
 	private final AssociatedDataBuilder associatedDataBuilder;
 	@Delegate(types = PricesContract.class, excludes = Versioned.class)
@@ -104,40 +103,40 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = type;
 		this.schema = EntitySchema._internalBuild(type);
 		this.primaryKey = null;
-		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(@Nonnull EntitySchemaContract schema) {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = null;
-		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(@Nonnull String type, @Nullable Integer primaryKey) {
 		this.type = type;
 		this.primaryKey = primaryKey;
 		this.schema = EntitySchema._internalBuild(type);
-		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(@Nonnull EntitySchemaContract schema, @Nullable Integer primaryKey) {
 		this.type = schema.getName();
 		this.schema = schema;
 		this.primaryKey = primaryKey;
-		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		this.associatedDataBuilder = new InitialAssociatedDataBuilder(schema);
 		this.pricesBuilder = new InitialPricesBuilder(schema);
-		this.references = new HashMap<>();
+		this.references = new LinkedHashMap<>();
 	}
 
 	public InitialEntityBuilder(
@@ -152,7 +151,7 @@ public class InitialEntityBuilder implements EntityBuilder {
 		this.type = entitySchema.getName();
 		this.schema = entitySchema;
 		this.primaryKey = primaryKey;
-		this.attributesBuilder = new InitialAttributesBuilder(schema, null);
+		this.attributesBuilder = new InitialEntityAttributesBuilder(schema);
 		for (AttributeValue attributeValue : attributeValues) {
 			final AttributeKey attributeKey = attributeValue.key();
 			if (attributeKey.localized()) {
@@ -205,7 +204,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 			.collect(
 				Collectors.toMap(
 					ReferenceContract::getReferenceKey,
-					Function.identity()
+					Function.identity(),
+					(o, o2) -> {
+						throw new IllegalStateException("Duplicate key " + o);
+					},
+					LinkedHashMap::new
 				)
 			);
 	}
@@ -432,6 +435,11 @@ public class InitialEntityBuilder implements EntityBuilder {
 	}
 
 	@Override
+	public void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder) {
+		references.put(referenceBuilder.getReferenceKey(), referenceBuilder.build());
+	}
+
+	@Override
 	public EntityBuilder removeReference(@Nonnull String referenceName, int referencedPrimaryKey) {
 		this.references.remove(new ReferenceKey(referenceName, referencedPrimaryKey));
 		return this;
@@ -569,19 +577,6 @@ public class InitialEntityBuilder implements EntityBuilder {
 		return getSchema()
 			.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotKnownException(referenceName));
-	}
-
-	private class ReferenceUniqueAttributeCheck implements BiPredicate<String, String>, Serializable {
-		@Serial private static final long serialVersionUID = -1720123020048815327L;
-
-		@Override
-		public boolean test(@Nonnull String referenceName, @Nonnull String attributeName) {
-			return getReferences()
-				.stream()
-				.filter(it -> Objects.equals(referenceName, it.getReferenceName()))
-				.anyMatch(it -> it.getAttribute(attributeName) != null);
-		}
-
 	}
 
 }

@@ -33,14 +33,14 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `queryTelemetry` requirement triggers creation of the {@link io.evitadb.api.requestResponse.extraResult.QueryTelemetry} DTO and including it the evitaDB
+ * This `queryTelemetry` requirement triggers creation of the {@link QueryTelemetry} DTO and including it the evitaDB
  * response.
  *
  * Example:
  *
- * ```
+ * <pre>
  * queryTelemetry()
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

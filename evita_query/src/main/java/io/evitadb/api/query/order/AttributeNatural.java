@@ -48,13 +48,13 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     orderBy(
- *         attributeNatural('orderedQuantity', DESC)
+ *         attributeNatural("orderedQuantity", DESC)
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code', 'orderedQuantity')
+ *             attributeContent("code", "orderedQuantity")
  *         )
  *     )
  * )

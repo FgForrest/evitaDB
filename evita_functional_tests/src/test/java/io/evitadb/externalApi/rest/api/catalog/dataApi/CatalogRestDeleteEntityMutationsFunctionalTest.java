@@ -91,7 +91,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
-			.urlPathSuffix("/product")
+			.urlPathSuffix("/PRODUCT")
 			.requestBody("""
                     {
                         "filterBy": {
@@ -138,7 +138,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
-			.urlPathSuffix("/product")
+			.urlPathSuffix("/PRODUCT")
 			.requestBody("""
                     {
                         "filterBy": {
@@ -159,7 +159,7 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 
 	private void assertProductDeleted(int primaryKey, RestTester tester) {
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/get")
+			.urlPathSuffix("/PRODUCT/get")
 			.httpMethod(Request.METHOD_GET)
 			.requestParams(map()
 				.e(GetEntityEndpointHeaderDescriptor.PRIMARY_KEY.name(), primaryKey)

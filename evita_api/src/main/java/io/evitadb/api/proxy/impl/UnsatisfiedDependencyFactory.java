@@ -28,9 +28,12 @@ import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.UnsatisfiedDependencyException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 
 import javax.annotation.Nonnull;
+import java.util.Map;
 
 /**
  * This {@link ProxyFactory} implementation throws an {@link UnsatisfiedDependencyException} when
@@ -43,18 +46,20 @@ import javax.annotation.Nonnull;
  */
 public class UnsatisfiedDependencyFactory implements ProxyFactory {
 	public static final UnsatisfiedDependencyFactory INSTANCE = new UnsatisfiedDependencyFactory();
+	private static final UnsatisfiedDependencyException UNSATISFIED_DEPENDENCY_EXCEPTION = new UnsatisfiedDependencyException(
+		"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
+			"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
+		"Required dependency is not available in evitaDB engine, contact developers of the application."
+	);
 
 	@Nonnull
 	@Override
 	public <T> T createEntityProxy(
 		@Nonnull Class<T> expectedType,
-		@Nonnull SealedEntity sealedEntity
+		@Nonnull EntityContract entity,
+		@Nonnull Map<String, EntitySchemaContract> referencedEntitySchemas
 	) throws EntityClassInvalidException {
-		throw new UnsatisfiedDependencyException(
-			"ProxyFactory requires a Proxycian (https://github.com/FgForrest/Proxycian) and " +
-				"ByteBuddy (https://github.com/raphw/byte-buddy) to be present on the classpath.",
-			"Required dependency is not available in evitaDB engine, contact developers of the application."
-		);
+		throw UNSATISFIED_DEPENDENCY_EXCEPTION;
 	}
-
+	
 }

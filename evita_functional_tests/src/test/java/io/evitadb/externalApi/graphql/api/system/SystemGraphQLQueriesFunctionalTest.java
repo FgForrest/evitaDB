@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for GraphQL catalog collections query.
+ * Tests for GraphQL system queries.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

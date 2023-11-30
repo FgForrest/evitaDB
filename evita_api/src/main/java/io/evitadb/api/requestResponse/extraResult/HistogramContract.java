@@ -23,10 +23,11 @@
 
 package io.evitadb.api.requestResponse.extraResult;
 
+import io.evitadb.api.query.filter.AttributeBetween;
+import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.api.query.require.AttributeHistogram;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.utils.MemoryMeasuringConstants;
-import lombok.Data;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
@@ -126,24 +127,31 @@ public interface HistogramContract extends Serializable {
 
 	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
+	 *
+	 * @param index       Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
+	 *                    will have index zero, second bucket / column one and so forth.
+	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
+	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
+	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
+	 * @param requested   contains true if the query contained {@link AttributeBetween} or {@link PriceBetween}
+	 *                    constraint for particular attribute / price and the bucket threshold lies within the range
+	 *                    (inclusive) of the constraint. False otherwise.
 	 */
-	@Data
-	class Bucket implements Serializable {
-		@Serial private static final long serialVersionUID = 4216355542992506073L;
+	record Bucket(
+		int index,
+		@Nonnull BigDecimal threshold,
+		int occurrences,
+		boolean requested
+	) implements Serializable {
 		public static final int BUCKET_MEMORY_SIZE = MemoryMeasuringConstants.INT_SIZE * 2 + MemoryMeasuringConstants.BIG_DECIMAL_SIZE;
-		/**
-		 * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-		 * will have index zero, second bucket / column one and so forth.
-		 */
-		private final int index;
-		/**
-		 * Contains threshold (left bound - inclusive) of the bucket.
-		 */
-		private final BigDecimal threshold;
-		/**
-		 * Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
-		 * between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
-		 */
-		private final int occurrences;
+		@Serial private static final long serialVersionUID = 4216355542992506073L;
+
+		@Override
+		public String toString() {
+			return '[' +
+				(requested ? "^" : "") + threshold +
+				": " + occurrences +
+				')';
+		}
 	}
 }

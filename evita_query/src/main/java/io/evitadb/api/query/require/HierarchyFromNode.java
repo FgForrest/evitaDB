@@ -76,24 +76,24 @@ import static java.util.Optional.of;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             fromNode(
- *                 'sideMenu1',
+ *                 "sideMenu1",
  *                 node(
  *                     filterBy(
- *                         attributeEquals('code', 'portables')
+ *                         attributeEquals("code", "portables")
  *                     )
  *                 ),
- *                 entityFetch(attributeContent('code')),
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
  *                 statistics(
  *                     CHILDREN_COUNT,
@@ -101,13 +101,13 @@ import static java.util.Optional.of;
  *                 )
  *             ),
  *             fromNode(
- *                 'sideMenu2',
+ *                 "sideMenu2",
  *                 node(
  *                     filterBy(
- *                         attributeEquals('code', 'laptops')
+ *                         attributeEquals("code", "laptops")
  *                     )
  *                 ),
- *                 entityFetch(attributeContent('code')),
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
  *                 statistics(
  *                     CHILDREN_COUNT,

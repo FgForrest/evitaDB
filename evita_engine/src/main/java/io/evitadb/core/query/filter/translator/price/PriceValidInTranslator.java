@@ -93,7 +93,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 					return new SelectionFormula(
 						filterByVisitor,
 						filteringFormula,
-						new SellingPriceAvailableBitmapFilter()
+						new SellingPriceAvailableBitmapFilter(
+							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+						)
 					);
 				} else {
 					return filteringFormula;
@@ -102,7 +104,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 				return new EntityFilteringFormula(
 					"price valid in filter",
 					filterByVisitor,
-					new SellingPriceAvailableBitmapFilter()
+					new SellingPriceAvailableBitmapFilter(
+						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+					)
 				);
 			}
 		}

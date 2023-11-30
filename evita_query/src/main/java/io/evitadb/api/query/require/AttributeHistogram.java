@@ -28,6 +28,8 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.ConstraintSupportedValues;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.filter.AttributeBetween;
+import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -37,25 +39,17 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 
 /**
- * This `attributeHistogram` requirement usage triggers computing and adding an object to the result index. It has single
- * argument that states the number of histogram buckets (columns) that can be safely visualized to the user. Usually
- * there is fixed size area dedicated to the histogram visualisation and there is no sense to return histogram with
- * so many buckets (columns) that wouldn't be possible to render. For example - if there is 200px size for the histogram
- * and we want to dedicate 10px for one column, it's wise to ask for 20 buckets.
- *
- * It accepts one or more {@link String} arguments as second, third (and so on) argument that specify filterable attribute
- * name for which [histograms](https://en.wikipedia.org/wiki/Histogram) should be computed. Attribute must contain only
- * numeric values in order to compute histogram data.
- *
- * When this requirement is used an additional object {@link java.util.Map} is
- * stored to result. Key of this map is {@link String} of attribute
- * name and value is the {@link AttributeHistogram}.
+ * The `attributeHistogram` can be computed from any filterable attribute whose type is numeric. The histogram is
+ * computed only from the attributes of elements that match the current mandatory part of the filter. The interval
+ * related constraints - i.e. {@link AttributeBetween} and {@link PriceBetween} in the userFilter part are excluded for
+ * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
+ * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
  *
  * Example:
  *
- * ```
- * attributeHistogram(20, 'width', 'height')
- * ```
+ * <pre>
+ * attributeHistogram(5, "width", "height")
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

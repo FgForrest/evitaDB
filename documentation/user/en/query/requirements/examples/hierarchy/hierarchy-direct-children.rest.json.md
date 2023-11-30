@@ -14,6 +14,7 @@
         }
       }
     },
+    "requested": true,
     "children": [
       {
         "entity": {
@@ -28,7 +29,8 @@
               "code": "wireless-headphones"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -43,7 +45,8 @@
               "code": "wired-heaphones"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -58,7 +61,8 @@
               "code": "microphones"
             }
           }
-        }
+        },
+        "requested": false
       },
       {
         "entity": {
@@ -73,7 +77,8 @@
               "code": "repro"
             }
           }
-        }
+        },
+        "requested": false
       }
     ]
   }

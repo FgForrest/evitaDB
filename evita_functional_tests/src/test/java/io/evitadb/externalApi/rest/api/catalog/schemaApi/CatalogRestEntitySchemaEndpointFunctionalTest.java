@@ -75,7 +75,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 		final Map<String, Object> expectedBody = createEntitySchemaDto(evita, productSchema);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/schema")
+			.urlPathSuffix("/PRODUCT/schema")
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
@@ -239,6 +239,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
+						.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), false)
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)
@@ -289,6 +290,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
+						.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), false)
 						.e(AttributeSchemaDescriptor.TYPE.name(), String.class.getSimpleName())
 						.e(AttributeSchemaDescriptor.DEFAULT_VALUE.name(), null)
 						.e(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), 0)

@@ -7,6 +7,18 @@
       data {
         primaryKey
       }
+      pageNumber
+      pageSize
+      lastPageNumber
+      firstPageItemNumber
+      lastPageItemNumber
+      first
+      last
+      hasNext
+      hasPrevious
+      empty
+      singlePage
+      totalRecordCount
     }
   }
 }

@@ -52,7 +52,6 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
@@ -79,7 +78,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ComplexDataObjectConverter<T extends Serializable> {
-	private static final RecordComponent[] EMPTY_RECORD_COMPONENTS = new RecordComponent[0];
 	private static final DataItem[] EMPTY_DATA_ITEMS = new DataItem[0];
 	private final ReflectionLookup reflectionLookup;
 	private final T container;
@@ -90,7 +88,9 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * doesn't represent one, it is converted to {@link ComplexDataObject} automatically.
 	 */
 	public static Serializable getSerializableForm(@Nonnull Serializable container) {
-		if (EvitaDataTypes.isSupportedTypeOrItsArray(container.getClass())) {
+		if (container instanceof ComplexDataObject || container instanceof ComplexDataObject[]) {
+			return container;
+		} else if (EvitaDataTypes.isSupportedTypeOrItsArray(container.getClass())) {
 			return container;
 		} else {
 			return new ComplexDataObjectConverter<>(container).getSerializableForm();
@@ -106,10 +106,15 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		@Nonnull Class<T> requestedClass,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		//noinspection unchecked
-		return EvitaDataTypes.isSupportedType(container.getClass()) ?
-			(T) container :
-			new ComplexDataObjectConverter<>(requestedClass, reflectionLookup).getOriginalForm(container);
+		if (requestedClass.isInstance(container)) {
+			//noinspection unchecked
+			return (T) container;
+		} else {
+			//noinspection unchecked
+			return EvitaDataTypes.isSupportedType(container.getClass()) ?
+				(T) container :
+				new ComplexDataObjectConverter<>(requestedClass, reflectionLookup).getOriginalForm(container);
+		}
 	}
 
 	/**
@@ -138,7 +143,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 	 * doesn't represent one, it is converted to {@link ComplexDataObject} automatically.
 	 */
 	public Serializable getSerializableForm() {
-		if (container instanceof ComplexDataObject) {
+		if (container instanceof ComplexDataObject || container instanceof ComplexDataObject[]) {
 			return container;
 		} else {
 			final Class<?> type = container.getClass().isArray() ?
@@ -303,7 +308,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			} else {
 				return new DataItemValue(propertyValue.toString());
 			}
-		} else if (propertyClass.isAssignableFrom(Set.class)) {
+		} else if (Set.class.isAssignableFrom(propertyClass)) {
 			if (propertyValue == null) {
 				final Class<? extends Serializable> valueType = reflectionLookup.extractGenericType(propertyType, 0);
 				assertSerializable(valueType);
@@ -315,7 +320,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			} else {
 				return serializeSet(propertyName, propertyType, reflectionLookup, (Set<?>) propertyValue);
 			}
-		} else if (propertyClass.isAssignableFrom(List.class)) {
+		} else if (List.class.isAssignableFrom(propertyClass)) {
 			if (propertyValue == null) {
 				final Class<? extends Serializable> valueType = reflectionLookup.extractGenericType(propertyType, 0);
 				assertSerializable(valueType);
@@ -326,17 +331,6 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				return new DataItemArray(EMPTY_DATA_ITEMS);
 			} else {
 				return serializeList(propertyName, propertyType, reflectionLookup, (List<?>) propertyValue);
-			}
-		} else if (propertyClass.isAssignableFrom(Object[].class)) {
-			final Class<?> arrayType = propertyClass.getComponentType();
-			assertSerializable(arrayType);
-			if (propertyValue == null) {
-				return null;
-			} else if (Array.getLength(propertyValue) == 0) {
-				return new DataItemArray(EMPTY_DATA_ITEMS);
-			} else {
-				//noinspection unchecked
-				return serializeArray(propertyName, (Class<? extends Serializable>) arrayType, reflectionLookup, (Object[]) propertyValue);
 			}
 		} else if (propertyClass.isArray()) {
 			final Class<?> arrayType = propertyClass.getComponentType();
@@ -349,7 +343,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 				//noinspection unchecked
 				return serializePrimitiveArray(propertyName, (Class<? extends Serializable>) arrayType, reflectionLookup, propertyValue);
 			}
-		} else if (propertyClass.isAssignableFrom(Map.class)) {
+		} else if (Map.class.isAssignableFrom(propertyClass)) {
 			if (propertyValue == null) {
 				return null;
 			} else if (((Map<?, ?>) propertyValue).isEmpty()) {
@@ -528,13 +522,20 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ExtractionContext extractionCtx
 	) {
-		final Collection<Method> setters = reflectionLookup.findAllSetters(containerClass);
-		final RecordComponent[] recordComponents = ofNullable(containerClass.getRecordComponents()).orElse(EMPTY_RECORD_COMPONENTS);
-		final Set<String> propertyNames = Stream.concat(
-				setters.stream().map(it -> ReflectionLookup.getPropertyNameFromMethodName(it.getName())),
-				Arrays.stream(recordComponents).map(RecordComponent::getName)
-			)
-			.collect(Collectors.toSet());
+		final Set<String> propertyNames;
+		final Collection<Method> writers;
+		if (containerClass.isRecord()) {
+			writers = Collections.emptyList();
+			propertyNames = Arrays.stream(containerClass.getRecordComponents())
+				.map(RecordComponent::getName)
+				.collect(Collectors.toSet());
+		} else {
+			writers = reflectionLookup.findAllSetters(containerClass);
+			propertyNames = writers
+				.stream()
+				.map(it -> ReflectionLookup.getPropertyNameFromMethodName(it.getName()))
+				.collect(Collectors.toSet());
+		}
 		final Set<ArgumentKey> allPropertyNames = serializedForm.getPropertyNames()
 			.stream()
 			.map(it -> new ArgumentKey(it, Object.class))
@@ -553,7 +554,7 @@ public class ComplexDataObjectConverter<T extends Serializable> {
 			)
 		);
 
-		for (Method setter : setters) {
+		for (Method setter : writers) {
 			if (reflectionLookup.getAnnotationInstanceForProperty(setter, NonSerializedData.class) != null) {
 				// skip property
 				continue;

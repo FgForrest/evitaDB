@@ -6,7 +6,8 @@ perex: |
   to transformations.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 The evitaDB query language consists of a nested set of functions. Each function has its name and set of arguments 
@@ -327,6 +328,7 @@ String constraints are similar to [Comparable](#comparable-constraints), but ope
 allow operations specific to it:
 
 - [attribute in range](filtering/range.md#attribute-in-range)
+- [attribute in range now](filtering/range.md#attribute-in-range-now)
 
 ### Price constraints
 
@@ -435,9 +437,9 @@ the summary could include a calculation of how many entities will be left when t
 the filter:
 
 - [facet summary](requirements/facet.md#facet-summary)
-- [facet conjunction](requirements/facet.md#facet-conjunction)
-- [facet disjunction](requirements/facet.md#facet-disjunction)
-- [facet negation](requirements/facet.md#facet-negation)
+- [facet conjunction](requirements/facet.md#facet-groups-conjunction)
+- [facet disjunction](requirements/facet.md#facet-groups-disjunction)
+- [facet negation](requirements/facet.md#facet-groups-negation)
 
 ### Histogram
 

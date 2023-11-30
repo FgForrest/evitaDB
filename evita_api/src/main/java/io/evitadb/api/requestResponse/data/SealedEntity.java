@@ -25,12 +25,9 @@ package io.evitadb.api.requestResponse.data;
 
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 
-import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
-import java.util.Collection;
 
 /**
  * Sealed entity is read only form of entity that contains seal-breaking actions such as opening its contents to write
@@ -42,38 +39,6 @@ import java.util.Collection;
  */
 @ThreadSafe
 @Immutable
-public interface SealedEntity extends EntityContract {
-
-	/**
-	 * Opens entity for update - returns {@link EntityBuilder} that allows modification of the entity internals and
-	 * fabricates new immutable copy of the entity with altered data. Returned EntityBuilder is NOT THREAD SAFE.
-	 *
-	 * {@link EntityBuilder} doesn't alter contents of {@link SealedEntity} but allows to create new version based on
-	 * the version that is represented by this sealed entity.
-	 */
-	@Nonnull
-	EntityBuilder openForWrite();
-
-	/**
-	 * Opens entity for update - returns {@link EntityBuilder} and incorporates the passed array of `localMutations`
-	 * in the returned {@link EntityBuilder} right away. The builder allows modification of the entity internals and
-	 * fabricates new immutable copy of the entity with altered data. Returned {@link EntityBuilder} is NOT THREAD SAFE.
-	 *
-	 * {@link EntityBuilder} doesn't alter contents of {@link SealedEntity} but allows to create new version based on
-	 * the version that is represented by this sealed entity.
-	 */
-	@Nonnull
-	EntityBuilder withMutations(@Nonnull LocalMutation<?, ?>... localMutations);
-
-	/**
-	 * Opens entity for update - returns {@link EntityBuilder} and incorporates the passed collection of `localMutations`
-	 * in the returned {@link EntityBuilder} right away. The builder allows modification of the entity internals and
-	 * fabricates new immutable copy of the entity with altered data. Returned {@link EntityBuilder} is NOT THREAD SAFE.
-	 *
-	 * {@link EntityBuilder} doesn't alter contents of {@link SealedEntity} but allows to create new version based on
-	 * the version that is represented by this sealed entity.
-	 */
-	@Nonnull
-	EntityBuilder withMutations(@Nonnull Collection<LocalMutation<?, ?>> localMutations);
+public interface SealedEntity extends EntityContract, SealedInstance<SealedEntity, EntityBuilder> {
 
 }

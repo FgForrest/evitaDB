@@ -15,14 +15,14 @@
         }
         parameterValues(
           orderBy: [
-          {
-            entityProperty: [
-              {
-                attributeNameNatural: ASC
-              }
-            ]
-          }
-        ]
+            {
+              entityProperty: [
+                {
+                  attributeNameNatural: ASC
+                }
+              ]
+            }
+          ]
         ) {
           referencedPrimaryKey
           referencedEntity {

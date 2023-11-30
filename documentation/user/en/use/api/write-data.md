@@ -5,7 +5,8 @@ perex: |
     entity upsert and deletion and related recommendations.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 <LanguageSpecific to="java,graphql,rest">
@@ -458,6 +459,10 @@ which returns
 containing only entity type and (possibly assigned) primary key information. You can also use the `upsertAndFetchEntity`
 method, which inserts or creates the entity and returns its body in the form and size you specify in your `require` 
 argument.
+
+#### Custom contracts
+
+TODO JNO - DOCUMENT ME
 
 #### Creating entities in detached mode
 

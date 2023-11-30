@@ -94,11 +94,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertAttribute(
 					entitySchema, "code", null, null, String.class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 				assertAttribute(
 					entitySchema, "years", null, null, Integer[].class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 				assertArrayEquals(
 					new Integer[] {1978,2005,2020},
@@ -138,7 +138,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertAttribute(
 					brand, "market", null, null, String.class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 
 				final ReferenceSchemaContract licensingBrands = references.get("licensingBrands");
@@ -182,11 +182,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertAttribute(
 					entitySchema, "code", null, null, String.class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 				assertAttribute(
 					entitySchema, "years", null, null, Integer[].class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 				assertArrayEquals(
 					new Integer[] {1978,2005,2020},
@@ -226,7 +226,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertAttribute(
 					brand, "market", null, null, String.class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 
 				final ReferenceSchemaContract licensingBrands = references.get("licensingBrands");
@@ -270,11 +270,11 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertAttribute(
 					entitySchema, "code", null, null, String.class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 				assertAttribute(
 					entitySchema, "years", null, null, Integer[].class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 
 				final Map<String, AssociatedDataSchemaContract> associatedData = entitySchema.getAssociatedData();
@@ -310,7 +310,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				assertAttribute(
 					brand, "market", null, null, String.class,
-					false, false, false, false, false, false, false
+					false, false, false, false, false, false, false, false
 				);
 
 				final ReferenceSchemaContract licensingBrands = references.get("licensingBrands");
@@ -356,19 +356,19 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					entitySchema, "customCode",
 					"customCode description", "And already deprecated!",
 					String.class,
-					true, true, true, false, true, false, false
+					true, true, true, false, true, false, false, true
 				);
 				assertAttribute(
 					entitySchema, "customYears",
 					"customYears description", "And already deprecated!",
 					Integer[].class,
-					false, false, false, true, false, false, true
+					false, false, false, true, false, false, true, false
 				);
 				assertAttribute(
 					entitySchema, "customName",
 					"customName description", "And already deprecated!",
 					String.class,
-					true, false, false, false, false, true, false
+					true, false, false, false, false, true, false, false
 				);
 
 				final Map<String, AssociatedDataSchemaContract> associatedData = entitySchema.getAssociatedData();
@@ -413,7 +413,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					brand, "customMarket",
 					"customMarket description", "And already deprecated!",
 					String.class,
-					false, false, false, true, true, false, false
+					false, false, false, true, true, false, false, true
 				);
 
 				final ReferenceSchemaContract licensingBrands = references.get("customLicensingBrand");
@@ -460,13 +460,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					entitySchema, "customCode",
 					"customCode description", "And already deprecated!",
 					String.class,
-					true, true, true, false, true, false, false
+					true, true, true, false, true, false, false, true
 				);
 				assertAttribute(
 					entitySchema, "customYears",
 					"customYears description", "And already deprecated!",
 					Integer[].class,
-					false, false, false, true, false, false, true
+					false, false, false, true, false, false, true, false
 				);
 				assertArrayEquals(
 					new Integer[] {1978,2005,2020},
@@ -476,7 +476,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					entitySchema, "customName",
 					"customName description", "And already deprecated!",
 					String.class,
-					true, false, false, false, false, true, false
+					true, false, false, false, false, true, false, false
 				);
 
 				final Map<String, AssociatedDataSchemaContract> associatedData = entitySchema.getAssociatedData();
@@ -521,7 +521,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					brand, "customMarket",
 					"customMarket description", "And already deprecated!",
 					String.class,
-					false, false, false, true, true, false, false
+					false, false, false, true, true, false, false, true
 				);
 
 				final ReferenceSchemaContract licensingBrands = references.get("customLicensingBrand");
@@ -568,19 +568,19 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					entitySchema, "customCode",
 					"customCode description", "And already deprecated!",
 					String.class,
-					true, true, true, false, true, false, false
+					true, true, true, false, true, false, false, true
 				);
 				assertAttribute(
 					entitySchema, "customYears",
 					"customYears description", "And already deprecated!",
 					Integer[].class,
-					false, false, false, true, false, false, true
+					false, false, false, true, false, false, true, false
 				);
 				assertAttribute(
 					entitySchema, "customName",
 					"customName description", "And already deprecated!",
 					String.class,
-					true, false, false, false, false, true, false
+					true, false, false, false, false, true, false, false
 				);
 
 				final Map<String, AssociatedDataSchemaContract> associatedData = entitySchema.getAssociatedData();
@@ -625,7 +625,7 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					brand, "customMarket",
 					"customMarket description", "And already deprecated!",
 					String.class,
-					false, false, false, true, true, false, false
+					false, false, false, true, true, false, false, true
 				);
 
 				final ReferenceSchemaContract licensingBrands = references.get("customLicensingBrand");
@@ -866,7 +866,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
-		boolean nullable
+		boolean nullable,
+		boolean representative
 	) {
 		final AttributeSchemaContract attributeSchema = attributeSchemaProvider
 			.getAttribute(attributeName)

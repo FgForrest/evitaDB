@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
@@ -98,7 +99,7 @@ abstract class AbstractHierarchyStatisticsComputer {
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate havingPredicate,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nullable HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
@@ -122,11 +123,9 @@ abstract class AbstractHierarchyStatisticsComputer {
 	) {
 		HierarchyFilteringPredicate filteringPredicate;
 		if (hierarchyFilterPredicateProducer == null) {
-			if (havingPredicate == null) {
-				filteringPredicate = HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
-			} else {
-				filteringPredicate = havingPredicate;
-			}
+			filteringPredicate = Objects.requireNonNullElse(
+				havingPredicate, HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE
+			);
 			if (language != null) {
 				if (filteringPredicate == HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE) {
 					filteringPredicate = new LocaleHierarchyEntityPredicate(context.entityIndex(), language);

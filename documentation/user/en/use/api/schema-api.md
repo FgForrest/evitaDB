@@ -5,7 +5,8 @@ perex: |
     this chapter.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 <LanguageSpecific to="java">
@@ -118,13 +119,16 @@ For a better idea, let's demonstrate a sample of the interface design of the pro
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" local>
 
 [Example of the model interface](/documentation/user/en/use/api/example/declarative-model-example.java)
+
 </SourceCodeTabs>
 
 <Note type="info">
+
 You can also use the contract for the schema definition in the [query API](./query-data.md) as an expected result type
 and evitaDB will automatically generate an appropriate proxy class that maps the generic underlying data structure 
 to the contract of your imagination. You can find more information on this topic in 
 the [Java Connector chapter](../connectors/java.md#custom-contracts). 
+
 </Note>
 
 </LanguageSpecific>

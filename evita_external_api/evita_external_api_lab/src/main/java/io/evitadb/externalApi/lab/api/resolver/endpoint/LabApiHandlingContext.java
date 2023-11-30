@@ -52,15 +52,4 @@ public class LabApiHandlingContext extends RestHandlingContext {
 	                             @Nonnull Operation endpointOperation) {
 		super(objectMapper, evita, openApi, enumMapping, endpointOperation, false);
 	}
-
-	@Nonnull
-	public Optional<CatalogContract> getCatalog(@Nonnull String name, @Nullable NamingConvention namingConvention) {
-		if (namingConvention == null) {
-			return evita.getCatalogInstance(name);
-		}
-		return evita.getCatalogs()
-			.stream()
-			.filter(c -> c.getSchema().getNameVariant(namingConvention).equals(name))
-			.findFirst();
-	}
 }

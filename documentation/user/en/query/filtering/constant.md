@@ -6,7 +6,8 @@ perex: |
   the fastest way to access entities in evitaDB. 
 date: '26.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Entity primary key in set

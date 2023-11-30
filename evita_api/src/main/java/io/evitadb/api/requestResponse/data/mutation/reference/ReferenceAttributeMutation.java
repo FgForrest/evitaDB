@@ -33,8 +33,9 @@ import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeSchemaEvolvingMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation.ReferenceKeyWithAttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
-import io.evitadb.api.requestResponse.data.structure.ExistingAttributesBuilder;
+import io.evitadb.api.requestResponse.data.structure.ExistingReferenceAttributesBuilder;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -164,15 +165,23 @@ public class ReferenceAttributeMutation extends ReferenceMutation<ReferenceKeyWi
 			() -> new InvalidMutationException("Cannot update attributes on reference " + referenceKey + " - reference doesn't exist!")
 		);
 		// this is kind of expensive, let's hope references will not have many attributes on them that frequently change
-		final ExistingAttributesBuilder attributeBuilder = new ExistingAttributesBuilder(
+		final ExistingReferenceAttributesBuilder attributeBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
-			existingValue.getReferenceSchema().orElse(null),
+			existingValue.getReferenceSchema()
+				.orElseGet(
+					() -> Reference.createImplicitSchema(
+						existingValue.getReferenceName(),
+						existingValue.getReferencedEntityType(),
+						existingValue.getReferenceCardinality(),
+						existingValue.getGroup().orElse(null)
+					)
+				),
 			existingValue.getAttributeValues(),
 			existingValue.getReferenceSchema()
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap())
 		);
-		final Attributes newAttributes = attributeBuilder
+		final Attributes<AttributeSchemaContract> newAttributes = attributeBuilder
 			.mutateAttribute(attributeMutation)
 			.build();
 

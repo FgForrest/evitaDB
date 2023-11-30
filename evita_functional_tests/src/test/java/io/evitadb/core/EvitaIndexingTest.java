@@ -46,6 +46,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
@@ -165,7 +166,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
 					assertTrue(brand.isPresent());
 
-					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
 					assertTrue(nameAttribute.isPresent());
 					assertTrue(nameAttribute.get().isLocalized());
 
@@ -210,7 +211,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
 					assertTrue(product.isPresent());
 
-					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
 					assertTrue(productNameAttribute.isPresent());
 					assertTrue(productNameAttribute.get().isLocalized());
 				}

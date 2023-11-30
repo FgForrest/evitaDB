@@ -30,21 +30,20 @@ import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.descriptor.annotation.Value;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Each query must specify collection. This mandatory {@link Serializable} query controls what collection
+ * Each query must specify collection. This mandatory {@link String} entity type controls what collection
  * the query will be applied on.
  *
  * Sample of the header is:
  *
- * ```
+ * <pre>
  * collection('category')
- * ```
+ * </pre>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

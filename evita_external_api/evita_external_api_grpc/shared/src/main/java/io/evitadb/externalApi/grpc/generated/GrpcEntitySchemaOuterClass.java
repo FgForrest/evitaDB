@@ -121,59 +121,61 @@ public final class GrpcEntitySchemaOuterClass {
       "ompoundsEntry\022\013\n\003key\030\001 \001(\t\022Y\n\005value\030\002 \001(" +
       "\0132J.io.evitadb.externalApi.grpc.generate" +
       "d.GrpcSortableAttributeCompoundSchema:\0028" +
-      "\001\"\305\003\n\023GrpcAttributeSchema\022\014\n\004name\030\001 \001(\t\022" +
-      "\016\n\006global\030\002 \001(\010\0221\n\013description\030\003 \001(\0132\034.g" +
-      "oogle.protobuf.StringValue\0227\n\021deprecatio" +
-      "nNotice\030\004 \001(\0132\034.google.protobuf.StringVa" +
-      "lue\022\016\n\006unique\030\005 \001(\010\022\026\n\016uniqueGlobally\030\006 " +
-      "\001(\010\022\022\n\nfilterable\030\007 \001(\010\022\020\n\010sortable\030\010 \001(" +
-      "\010\022\021\n\tlocalized\030\t \001(\010\022\020\n\010nullable\030\n \001(\010\022F" +
-      "\n\004type\030\013 \001(\01628.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcEvitaDataType\022K\n\014defaul" +
-      "tValue\030\014 \001(\01325.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcEvitaValue\022\034\n\024indexedDe" +
-      "cimalPlaces\030\r \001(\005\"\241\002\n\030GrpcAssociatedData" +
-      "Schema\022\014\n\004name\030\001 \001(\t\0221\n\013description\030\002 \001(" +
-      "\0132\034.google.protobuf.StringValue\0227\n\021depre" +
-      "cationNotice\030\003 \001(\0132\034.google.protobuf.Str" +
-      "ingValue\022f\n\004type\030\004 \001(\0162X.io.evitadb.exte" +
-      "rnalApi.grpc.generated.GrpcEvitaAssociat" +
-      "edDataDataType.GrpcEvitaDataType\022\021\n\tloca" +
-      "lized\030\005 \001(\010\022\020\n\010nullable\030\006 \001(\010\"\347\006\n\023GrpcRe" +
-      "ferenceSchema\022\014\n\004name\030\001 \001(\t\0221\n\013descripti" +
-      "on\030\002 \001(\0132\034.google.protobuf.StringValue\0227" +
-      "\n\021deprecationNotice\030\003 \001(\0132\034.google.proto" +
-      "buf.StringValue\022K\n\013cardinality\030\004 \001(\01626.i" +
-      "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cCardinality\022\022\n\nentityType\030\005 \001(\t\022!\n\031enti" +
-      "tyTypeRelatesToEntity\030\006 \001(\010\022/\n\tgroupType" +
-      "\030\007 \001(\0132\034.google.protobuf.StringValue\022 \n\030" +
-      "groupTypeRelatesToEntity\030\010 \001(\010\022\017\n\007indexe" +
-      "d\030\t \001(\010\022\017\n\007faceted\030\n \001(\010\022^\n\nattributes\030\013" +
-      " \003(\0132J.io.evitadb.externalApi.grpc.gener" +
-      "ated.GrpcReferenceSchema.AttributesEntry" +
-      "\022~\n\032sortableAttributeCompounds\030\014 \003(\0132Z.i" +
-      "o.evitadb.externalApi.grpc.generated.Grp" +
-      "cReferenceSchema.SortableAttributeCompou" +
-      "ndsEntry\032m\n\017AttributesEntry\022\013\n\003key\030\001 \001(\t" +
-      "\022I\n\005value\030\002 \001(\0132:.io.evitadb.externalApi" +
-      ".grpc.generated.GrpcAttributeSchema:\0028\001\032" +
-      "\215\001\n\037SortableAttributeCompoundsEntry\022\013\n\003k" +
-      "ey\030\001 \001(\t\022Y\n\005value\030\002 \001(\0132J.io.evitadb.ext" +
-      "ernalApi.grpc.generated.GrpcSortableAttr" +
-      "ibuteCompoundSchema:\0028\001\"\367\001\n#GrpcSortable" +
-      "AttributeCompoundSchema\022\014\n\004name\030\001 \001(\t\0221\n" +
-      "\013description\030\002 \001(\0132\034.google.protobuf.Str" +
-      "ingValue\0227\n\021deprecationNotice\030\003 \001(\0132\034.go" +
-      "ogle.protobuf.StringValue\022V\n\021attributeEl" +
-      "ements\030\004 \003(\0132;.io.evitadb.externalApi.gr" +
-      "pc.generated.GrpcAttributeElement\"\311\001\n\024Gr" +
-      "pcAttributeElement\022\025\n\rattributeName\030\001 \001(" +
-      "\t\022L\n\tdirection\030\002 \001(\01629.io.evitadb.extern" +
-      "alApi.grpc.generated.GrpcOrderDirection\022" +
-      "L\n\tbehaviour\030\003 \001(\01629.io.evitadb.external" +
-      "Api.grpc.generated.GrpcOrderBehaviourB\014P" +
-      "\001\252\002\007EvitaDBb\006proto3"
+      "\001\"\241\004\n\023GrpcAttributeSchema\022\014\n\004name\030\001 \001(\t\022" +
+      "R\n\nschemaType\030\002 \001(\0162>.io.evitadb.externa" +
+      "lApi.grpc.generated.GrpcAttributeSchemaT" +
+      "ype\0221\n\013description\030\003 \001(\0132\034.google.protob" +
+      "uf.StringValue\0227\n\021deprecationNotice\030\004 \001(" +
+      "\0132\034.google.protobuf.StringValue\022\016\n\006uniqu" +
+      "e\030\005 \001(\010\022\026\n\016uniqueGlobally\030\006 \001(\010\022\022\n\nfilte" +
+      "rable\030\007 \001(\010\022\020\n\010sortable\030\010 \001(\010\022\021\n\tlocaliz" +
+      "ed\030\t \001(\010\022\020\n\010nullable\030\n \001(\010\022\026\n\016representa" +
+      "tive\030\013 \001(\010\022F\n\004type\030\014 \001(\01628.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcEvitaDataTy" +
+      "pe\022K\n\014defaultValue\030\r \001(\01325.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcEvitaValue\022" +
+      "\034\n\024indexedDecimalPlaces\030\016 \001(\005\"\241\002\n\030GrpcAs" +
+      "sociatedDataSchema\022\014\n\004name\030\001 \001(\t\0221\n\013desc" +
+      "ription\030\002 \001(\0132\034.google.protobuf.StringVa" +
+      "lue\0227\n\021deprecationNotice\030\003 \001(\0132\034.google." +
+      "protobuf.StringValue\022f\n\004type\030\004 \001(\0162X.io." +
+      "evitadb.externalApi.grpc.generated.GrpcE" +
+      "vitaAssociatedDataDataType.GrpcEvitaData" +
+      "Type\022\021\n\tlocalized\030\005 \001(\010\022\020\n\010nullable\030\006 \001(" +
+      "\010\"\347\006\n\023GrpcReferenceSchema\022\014\n\004name\030\001 \001(\t\022" +
+      "1\n\013description\030\002 \001(\0132\034.google.protobuf.S" +
+      "tringValue\0227\n\021deprecationNotice\030\003 \001(\0132\034." +
+      "google.protobuf.StringValue\022K\n\013cardinali" +
+      "ty\030\004 \001(\01626.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcCardinality\022\022\n\nentityType\030\005" +
+      " \001(\t\022!\n\031entityTypeRelatesToEntity\030\006 \001(\010\022" +
+      "/\n\tgroupType\030\007 \001(\0132\034.google.protobuf.Str" +
+      "ingValue\022 \n\030groupTypeRelatesToEntity\030\010 \001" +
+      "(\010\022\017\n\007indexed\030\t \001(\010\022\017\n\007faceted\030\n \001(\010\022^\n\n" +
+      "attributes\030\013 \003(\0132J.io.evitadb.externalAp" +
+      "i.grpc.generated.GrpcReferenceSchema.Att" +
+      "ributesEntry\022~\n\032sortableAttributeCompoun" +
+      "ds\030\014 \003(\0132Z.io.evitadb.externalApi.grpc.g" +
+      "enerated.GrpcReferenceSchema.SortableAtt" +
+      "ributeCompoundsEntry\032m\n\017AttributesEntry\022" +
+      "\013\n\003key\030\001 \001(\t\022I\n\005value\030\002 \001(\0132:.io.evitadb" +
+      ".externalApi.grpc.generated.GrpcAttribut" +
+      "eSchema:\0028\001\032\215\001\n\037SortableAttributeCompoun" +
+      "dsEntry\022\013\n\003key\030\001 \001(\t\022Y\n\005value\030\002 \001(\0132J.io" +
+      ".evitadb.externalApi.grpc.generated.Grpc" +
+      "SortableAttributeCompoundSchema:\0028\001\"\367\001\n#" +
+      "GrpcSortableAttributeCompoundSchema\022\014\n\004n" +
+      "ame\030\001 \001(\t\0221\n\013description\030\002 \001(\0132\034.google." +
+      "protobuf.StringValue\0227\n\021deprecationNotic" +
+      "e\030\003 \001(\0132\034.google.protobuf.StringValue\022V\n" +
+      "\021attributeElements\030\004 \003(\0132;.io.evitadb.ex" +
+      "ternalApi.grpc.generated.GrpcAttributeEl" +
+      "ement\"\311\001\n\024GrpcAttributeElement\022\025\n\rattrib" +
+      "uteName\030\001 \001(\t\022L\n\tdirection\030\002 \001(\01629.io.ev" +
+      "itadb.externalApi.grpc.generated.GrpcOrd" +
+      "erDirection\022L\n\tbehaviour\030\003 \001(\01629.io.evit" +
+      "adb.externalApi.grpc.generated.GrpcOrder" +
+      "BehaviourB\014P\001\252\002\007EvitaDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -217,7 +219,7 @@ public final class GrpcEntitySchemaOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchema_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchema_descriptor,
-        new java.lang.String[] { "Name", "Global", "Description", "DeprecationNotice", "Unique", "UniqueGlobally", "Filterable", "Sortable", "Localized", "Nullable", "Type", "DefaultValue", "IndexedDecimalPlaces", });
+        new java.lang.String[] { "Name", "SchemaType", "Description", "DeprecationNotice", "Unique", "UniqueGlobally", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAssociatedDataSchema_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAssociatedDataSchema_fieldAccessorTable = new

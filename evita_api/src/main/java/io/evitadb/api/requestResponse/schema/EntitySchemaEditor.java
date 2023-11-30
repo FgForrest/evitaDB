@@ -67,8 +67,8 @@ import java.util.function.Supplier;
 public interface EntitySchemaEditor<S extends EntitySchemaEditor<S>> extends
 		EntitySchemaContract,
 		NamedSchemaWithDeprecationEditor<S>,
-		AttributeProviderSchemaEditor<S, AttributeSchemaContract, AttributeSchemaEditor.AttributeSchemaBuilder>,
-		SortableAttributeCompoundSchemaProviderEditor<S>
+		AttributeProviderSchemaEditor<S, EntityAttributeSchemaContract, EntityAttributeSchemaEditor.EntityAttributeSchemaBuilder>,
+		SortableAttributeCompoundSchemaProviderEditor<S, EntityAttributeSchemaContract>
 {
 
 	/**

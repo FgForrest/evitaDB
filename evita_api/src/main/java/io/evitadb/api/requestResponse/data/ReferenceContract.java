@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -46,7 +47,7 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface ReferenceContract extends AttributesContract, Droppable, Comparable<ReferenceContract>, ContentComparator<ReferenceContract> {
+public interface ReferenceContract extends AttributesContract<AttributeSchemaContract>, Droppable, Comparable<ReferenceContract>, ContentComparator<ReferenceContract> {
 
 	/**
 	 * Method allows to access unique and primary identifier of the ReferenceContract within {@link EntityContract}.

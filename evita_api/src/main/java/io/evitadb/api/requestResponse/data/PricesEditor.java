@@ -27,6 +27,7 @@ import io.evitadb.api.exception.AmbiguousPriceException;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Price;
+import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 import io.evitadb.dataType.DateTimeRange;
 
@@ -154,6 +155,24 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 	) throws AmbiguousPriceException;
 
 	/**
+	 * Creates or updates price with key properties: priceId, priceList, currency.
+	 * Beware! If priceId and currency stays the same, but only price list changes (although it's unlikely), you need
+	 * to {@link #removePrice(int, String, Currency)} first and set it with new price list.
+	 *
+	 * @param price - the price to set
+	 * @return builder instance to allow command chaining
+	 * @throws AmbiguousPriceException when there are two prices in same price list and currency which validities overlap
+	 */
+	default W setPrice(
+		@Nonnull PriceContract price
+	) throws AmbiguousPriceException {
+		return setPrice(
+			price.priceId(), price.priceList(), price.currency(), price.innerRecordId(),
+			price.priceWithoutTax(), price.taxRate(), price.priceWithTax(), price.validity(), price.sellable()
+		);
+	}
+
+	/**
 	 * Removes existing price by specifying key properties.
 	 *
 	 * @param priceId   - identification of the price in the external systems
@@ -166,6 +185,33 @@ public interface PricesEditor<W extends PricesEditor<W>> extends PricesContract 
 		@Nonnull String priceList,
 		@Nonnull Currency currency
 	);
+
+	/**
+	 * Removes existing price by specifying key properties.
+	 *
+	 * @param priceKey - key properties of the price
+	 * @return builder instance to allow command chaining
+	 */
+	default W removePrice(
+		@Nonnull PriceKey priceKey
+	) {
+		return removePrice(priceKey.priceId(), priceKey.priceList(), priceKey.currency());
+	}
+
+	/**
+	 * Removes all prices that are currently set on the entity. Method removes only those prices, that are returned
+	 * by the method {@link #getPrices()}, so that if the entity prices are limited to specific currency, price list
+	 * or validity, only those prices are removed and not all present on the entity actually.
+	 *
+	 * @return builder instance to allow command chaining
+	 */
+	default W removeAllPrices() {
+		for (PriceContract price : getPrices()) {
+			removePrice(price.priceId(), price.priceList(), price.currency());
+		}
+		//noinspection unchecked
+		return (W) this;
+	}
 
 	/**
 	 * Sets behaviour for prices that has {@link Price#innerRecordId()} set in terms of computing the "selling" price.

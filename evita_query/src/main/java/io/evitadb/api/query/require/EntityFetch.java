@@ -39,7 +39,34 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
- * TOBEDONE JNO docs
+ * The `entityFetch` requirement is used to trigger loading one or more entity data containers from the disk by its
+ * primary key. This operation requires a disk access unless the entity is already loaded in the database cache
+ * (frequently fetched entities have higher chance to stay in the cache).
+ *
+ * Example:
+ *
+ * <pre>
+ * query(
+ *     collection("Brand"),
+ *     filterBy(
+ *         entityPrimaryKeyInSet(64703),
+ *         entityLocaleEquals("en")
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             attributeContent("code", "name")
+ *         )
+ *     )
+ * )
+ * </pre>
+ *
+ * See internal contents available for fetching in {@link EntityContentRequire}:
+ *
+ * - {@link AttributeContent}
+ * - {@link AssociatedDataContent}
+ * - {@link PriceContent}
+ * - {@link HierarchyContent}
+ * - {@link ReferenceContent}
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

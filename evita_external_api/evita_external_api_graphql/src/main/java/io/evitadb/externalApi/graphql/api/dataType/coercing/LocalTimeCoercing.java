@@ -34,6 +34,7 @@ import java.time.DateTimeException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 
 /**
  * {@link Coercing} for converting between Java's side {@link LocalTime} and client string.
@@ -50,7 +51,7 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
             throw new CoercingSerializeException("Local time data fetcher result is not a local date.");
         }
         try {
-            return ((LocalTime) dataFetcherResult).format(FORMATTER);
+            return ((LocalTime) dataFetcherResult).truncatedTo(ChronoUnit.MILLIS).format(FORMATTER);
         } catch (DateTimeException ex) {
             throw new CoercingSerializeException(ex.getMessage(), ex);
         }
@@ -63,7 +64,7 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
             throw new CoercingParseValueException("Local time input is not a string.");
         }
         try {
-            return LocalTime.parse((String) input, FORMATTER);
+            return LocalTime.parse((String) input, FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseValueException(ex.getMessage(), ex);
         }
@@ -76,7 +77,7 @@ public class LocalTimeCoercing implements Coercing<LocalTime, String> {
             throw new CoercingParseValueException("Local time input is not a StringValue.");
         }
         try {
-            return LocalTime.parse(((StringValue) input).getValue(), FORMATTER);
+            return LocalTime.parse(((StringValue) input).getValue(), FORMATTER).truncatedTo(ChronoUnit.MILLIS);
         } catch (DateTimeParseException ex) {
             throw new CoercingParseLiteralException(ex.getMessage(), ex);
         }

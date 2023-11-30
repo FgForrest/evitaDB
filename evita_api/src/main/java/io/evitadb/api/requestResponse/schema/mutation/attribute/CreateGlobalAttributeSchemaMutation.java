@@ -79,6 +79,7 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter private final boolean sortable;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
+	@Getter private final boolean representative;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
@@ -93,6 +94,7 @@ public class CreateGlobalAttributeSchemaMutation
 		boolean sortable,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<? extends Serializable> type,
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
@@ -110,6 +112,7 @@ public class CreateGlobalAttributeSchemaMutation
 		this.sortable = sortable;
 		this.localized = localized;
 		this.nullable = nullable;
+		this.representative = representative;
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
@@ -127,7 +130,7 @@ public class CreateGlobalAttributeSchemaMutation
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), name)) {
-			final GlobalAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null);
+			final GlobalAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null, GlobalAttributeSchemaContract.class);
 			final GlobalAttributeSchemaContract existingVersion = currentCatalogSchema.getAttribute(name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,
@@ -181,6 +184,11 @@ public class CreateGlobalAttributeSchemaMutation
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isNullable,
 							newValue -> new SetAttributeSchemaNullableMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingVersion,
+							GlobalAttributeSchemaContract::isRepresentative,
+							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -205,11 +213,11 @@ public class CreateGlobalAttributeSchemaMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema) {
+	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		//noinspection unchecked,rawtypes
 		return (S) GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable,
+			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
 			(Class)type, defaultValue,
 			indexedDecimalPlaces
 		);
@@ -219,7 +227,7 @@ public class CreateGlobalAttributeSchemaMutation
 	@Override
 	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null);
+		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
 			return CatalogSchema._internalBuild(
@@ -270,6 +278,7 @@ public class CreateGlobalAttributeSchemaMutation
 			", sortable=" + sortable +
 			", localized=" + localized +
 			", nullable=" + nullable +
+			", representative=" + representative +
 			", type=" + type +
 			", defaultValue=" + defaultValue +
 			", indexedDecimalPlaces=" + indexedDecimalPlaces;

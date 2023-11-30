@@ -89,7 +89,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 		@Nonnull Class<T> valueType,
 		@Nonnull Function<S, V> transactionalLayerWrapper
 	) {
-		Assert.isTrue(TransactionalLayerProducer.class.isAssignableFrom(valueType), "Value type is expected to implement TransactionalLayerProducer!");
+		Assert.isTrue(
+			TransactionalLayerProducer.class.isAssignableFrom(valueType),
+			"Value type is expected to implement TransactionalLayerProducer!"
+		);
 		this.valueType = valueType;
 		this.mapDelegate = mapDelegate;
 		//noinspection unchecked
@@ -101,14 +104,13 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	 * @param mapDelegate original map
 	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
 	 */
-	public <S, T extends TransactionalMap<?, S>> TransactionalMap(
+	public TransactionalMap(
 		@Nonnull Map<K, V> mapDelegate,
-		@Nonnull Function<Map<K, V>, T> transactionalLayerWrapper
+		@Nonnull Function<Object, V> transactionalLayerWrapper
 	) {
 		this.valueType = TransactionalMap.class;
 		this.mapDelegate = mapDelegate;
-		//noinspection unchecked
-		this.transactionalLayerWrapper = (o) -> (V) transactionalLayerWrapper.apply((Map<K, V>) o);
+		this.transactionalLayerWrapper = (o) -> (V) transactionalLayerWrapper.apply(o);
 	}
 
 	/*

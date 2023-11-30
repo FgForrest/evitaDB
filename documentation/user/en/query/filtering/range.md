@@ -6,7 +6,8 @@ perex: |
   reduce the entity set to those entities whose range attribute includes the parameter value. If the parameter value is 
   itself a range, only those entities with an overlapping range attribute will be matched.
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 <Note type="info">

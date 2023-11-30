@@ -75,7 +75,7 @@ public class AttributeNaturalTranslator
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
-		final EntityIndex<?>[] indexesForSort = orderByVisitor.getIndexesForSort();
+		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName);
 
 		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
@@ -168,7 +168,7 @@ public class AttributeNaturalTranslator
 		@Nonnull Function<SortIndex, SortedRecordsProvider> sortIndexExtractor,
 		@Nonnull Function<ChainIndex, SortedRecordsProvider> chainIndexExtractor,
 		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
-		@Nonnull EntityIndex<?>[] targetIndex,
+		@Nonnull EntityIndex[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
 	) implements Supplier<SortedRecordsProvider[]> {

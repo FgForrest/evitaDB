@@ -32,10 +32,11 @@ import javax.annotation.Nullable;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This DTO contains basic configuration settings for different API endpoints.
@@ -62,6 +63,10 @@ public abstract class AbstractApiConfiguration {
 	 */
 	@Getter private final HostDefinition[] host;
 	/**
+	 * Defines external host the API will be exposed on when database is running in a container.
+	 */
+	@Getter private final String exposedHost;
+	/**
 	 * By enabling this internal flag, the API will be forced to use unencrypted HTTP protocol. The only purpose of this
 	 * flag is to allow accessing the system API, from where the client obtains to access all of evita's APIs. All of
 	 * evita's APIs are always secured at least by TLS encryption, in gRPC is also an option to use mTLS.
@@ -80,9 +85,29 @@ public abstract class AbstractApiConfiguration {
 		}
 	}
 
+	/**
+	 * Parses host definition into {@link HostDefinition} object.
+	 *
+	 * @param host host definition in format `hostname:port`
+	 * @return parsed host definition
+	 */
+	@Nonnull
+	private static HostDefinition parseHost(@Nonnull String host) {
+		final Matcher matcher = HOST_PATTERN.matcher(host);
+		Assert.isTrue(matcher.matches(), "Invalid host definition: " + host);
+		final String parsedHost = matcher.group(1);
+		final int port = Integer.parseInt(matcher.group(2));
+		if (LOCALHOST.equalsIgnoreCase(parsedHost)) {
+			return new HostDefinition(getByName("0.0.0.0"), port);
+		} else {
+			return new HostDefinition(getByName(parsedHost), port);
+		}
+	}
+
 	protected AbstractApiConfiguration() {
 		this.enabled = true;
 		this.tlsEnabled = true;
+		this.exposedHost = null;
 		this.host = new HostDefinition[]{
 			new HostDefinition(getByName("0.0.0.0"), DEFAULT_PORT)
 		};
@@ -94,41 +119,43 @@ public abstract class AbstractApiConfiguration {
 	 *                (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
 	 */
 	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host) {
-		this(enabled, host, true);
+		this(enabled, host, null, true);
 	}
 
 	/**
-	 * @param enabled          enables the particular API
-	 * @param host             defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
-	 *                         (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
-	 * @param tlsEnabled       allows the API to run with TLS encryption
+	 * @param enabled    enables the particular API
+	 * @param host       defines the hostname and port the endpoints will listen on, use constant `localhost` for loopback
+	 *                   (IPv4) host. Multiple values can be delimited by comma. Example: `localhost:5555,168.12.45.44:5556`
+	 * @param tlsEnabled allows the API to run with TLS encryption
 	 */
-	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nullable Boolean tlsEnabled) {
-		this.enabled = Optional.ofNullable(enabled).orElse(true);
-		this.tlsEnabled = Optional.ofNullable(tlsEnabled).orElse(true);
+	protected AbstractApiConfiguration(@Nullable Boolean enabled, @Nonnull String host, @Nonnull String exposedHost, @Nullable Boolean tlsEnabled) {
+		this.enabled = ofNullable(enabled).orElse(true);
+		this.tlsEnabled = ofNullable(tlsEnabled).orElse(true);
 		this.host = Arrays.stream(host.split(","))
-			.flatMap(it -> {
-				final Matcher matcher = HOST_PATTERN.matcher(it);
-				Assert.isTrue(matcher.matches(), "Invalid host definition: " + it);
-				final String parsedHost = matcher.group(1);
-				final int port = Integer.parseInt(matcher.group(2));
-				if (LOCALHOST.equalsIgnoreCase(parsedHost)) {
-					return Stream.of(new HostDefinition(getByName("0.0.0.0"), port));
-				} else {
-					return Stream.of(new HostDefinition(getByName(parsedHost), port));
-				}
-			})
+			.map(AbstractApiConfiguration::parseHost)
 			.toArray(HostDefinition[]::new);
+		this.exposedHost = exposedHost;
 	}
 
 	/**
 	 * Returns base url for the API.
 	 */
 	@Nonnull
-	public String[] getBaseUrls() {
-		return Arrays.stream(getHost())
-			.map(it -> (isTlsEnabled() ? "https://" : "http://")
-				+ it.hostName() + ":" + it.port() +
+	public String[] getBaseUrls(@Nullable String exposedOn) {
+		return Stream.concat(
+				Arrays.stream(getHost())
+					.map(HostDefinition::port)
+					.distinct()
+					.flatMap(
+						port -> ofNullable(getExposedHost())
+							.or(() -> ofNullable(exposedOn)
+								.map(it -> it + ":" + port))
+							.stream()
+					),
+				Arrays.stream(getHost())
+					.map(it -> it.hostName() + ":" + it.port())
+			)
+			.map(it -> (isTlsEnabled() ? "https://" : "http://") + it +
 				(this instanceof ApiWithSpecificPrefix withSpecificPrefix ? "/" + withSpecificPrefix.getPrefix() + "/" : "/"))
 			.toArray(String[]::new);
 	}

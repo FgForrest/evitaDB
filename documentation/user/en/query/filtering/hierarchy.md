@@ -7,7 +7,8 @@ perex: |
   the items relevant to the currently viewed category.
 date: '5.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 Hierarchy filtering can be applied only to entities [marked as hierarchical](../../use/data-model.md#hierarchy-placement) 
@@ -249,12 +250,12 @@ your entity hierarchy and this virtual top root is targeted by this constraint.
 
 ```evitaql-syntax
 hierarchyWithinRoot(
-    filterConstraint:(directRelation|excluding)*
+    filterConstraint:(directRelation|having|excluding)*
 )
 ```
 
 <dl>
-    <dt>filterConstraint:(directRelation|excluding)*</dt>
+    <dt>filterConstraint:(directRelation|having|excluding)*</dt>
     <dd>
         optional constraints allow you to narrow the scope of the hierarchy; 
         none or all of the constraints may be present:

@@ -10,7 +10,8 @@
               "attributes": {
                 "code": "true-wireless"
               }
-            }
+            },
+            "requested": true
           }
         ],
         "entity": {

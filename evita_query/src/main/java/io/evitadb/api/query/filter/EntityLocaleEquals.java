@@ -50,17 +50,17 @@ import java.util.Locale;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'vouchers-for-shareholders')
+ *             "categories",
+ *             attributeEquals("code", "vouchers-for-shareholders")
  *         ),
- *         entityLocaleEquals('en')
+ *         entityLocaleEquals("en")
  *     ),
  *     require(
  *        entityFetch(
- *            attributeContent('code', 'name')
+ *            attributeContent("code", "name")
  *        )
  *     )
  * )

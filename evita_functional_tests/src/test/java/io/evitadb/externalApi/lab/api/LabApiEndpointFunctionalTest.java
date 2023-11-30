@@ -137,7 +137,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 	@DisplayName("Should return full catalog schema")
 	void shouldReturnFullCatalogSchema(Evita evita, LabApiTester tester) {
 		tester.test(LAB_API_URL)
-			.urlPathSuffix("/schema/catalogs/" + StringUtils.toKebabCase(TEST_CATALOG))
+			.urlPathSuffix("/schema/catalogs/" + TEST_CATALOG)
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
@@ -180,7 +180,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 		);
 
 		tester.test(LAB_API_URL)
-			.urlPathSuffix("/data/catalogs/" + StringUtils.toKebabCase(TEST_CATALOG) + "/collections/query")
+			.urlPathSuffix("/data/catalogs/" + TEST_CATALOG + "/collections/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""

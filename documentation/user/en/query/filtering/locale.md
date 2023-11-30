@@ -7,7 +7,8 @@ perex: |
   localization in its data structures and query language.
 date: '27.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Entity locale equals
@@ -28,8 +29,10 @@ entityLocaleEquals(
 </dl>
 
 <LanguageSpecific to="java">
+
 If you are working with evitaDB in Java, you can use [`Locale`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html) 
-instead of the language tag, and it is a natural way to work with locale specific data on the platform.
+instead of the language tag. This is a natural way to work with locale specific data on the platform.
+
 </LanguageSpecific>
 
 <Note type="question">
@@ -73,6 +76,7 @@ otherwise the query interpreter will return an error. Localized attributes **mus
 and language tag in order to be used.
 
 <Note type="warning">
+
 Only a single occurrence of `entityLocaleEquals` is allowed in the filter part of the query. Currently, there is no way 
 to switch context between different parts of the filter and build queries such as *find a product whose name in `en-US` 
 is "screwdriver" or in `cs` is "šroubovák"*.
@@ -82,6 +86,7 @@ a product whose name in any language is "screwdriver"*.
 
 While it's technically possible to implement support for these tasks in evitaDB, they represent edge cases, and there 
 were more important scenarios to handle.
+
 </Note>
 
 To test the locale specific query, we need to focus on the *Vouchers for shareholders* category in our 
@@ -91,6 +96,7 @@ To test the locale specific query, we need to focus on the *Vouchers for shareho
 <SourceCodeTabs requires="/evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Listing product with English locale](/documentation/user/en/query/filtering/examples/locale/locale.evitaql)
+
 </SourceCodeTabs>
 
 ... and we will get a list with the number of them.

@@ -55,7 +55,7 @@ public class RestProviderRegistrar implements ExternalApiProviderRegistrar<RestC
 	public ExternalApiProvider<RestConfig> register(@Nonnull Evita evita,
 	                                                @Nonnull ApiOptions apiOptions,
 	                                                @Nonnull RestConfig restConfiguration) {
-		final RestManager restManager = new RestManager(evita, restConfiguration);
+		final RestManager restManager = new RestManager(evita, apiOptions.exposedOn(), restConfiguration);
 		return new RestProvider(restConfiguration, restManager.getRestRouter());
 	}
 }

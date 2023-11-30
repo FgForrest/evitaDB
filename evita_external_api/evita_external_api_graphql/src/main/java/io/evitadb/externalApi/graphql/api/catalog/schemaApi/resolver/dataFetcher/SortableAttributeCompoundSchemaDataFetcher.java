@@ -47,7 +47,7 @@ public class SortableAttributeCompoundSchemaDataFetcher implements DataFetcher<S
 	@Nonnull
 	@Override
 	public SortableAttributeCompoundSchemaContract get(@Nonnull DataFetchingEnvironment environment) throws Exception {
-		final SortableAttributeCompoundSchemaProvider provider = environment.getSource();
+		final SortableAttributeCompoundSchemaProvider<?> provider = environment.getSource();
 		return provider
 			.getSortableAttributeCompound(name)
 			.orElseThrow(() -> new GraphQLQueryResolvingInternalError("Could not find sortable attribute compound schema for name `" + name + "`."));

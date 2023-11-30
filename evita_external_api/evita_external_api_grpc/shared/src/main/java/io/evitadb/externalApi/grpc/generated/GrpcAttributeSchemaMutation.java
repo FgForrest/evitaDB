@@ -193,8 +193,22 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 106: {
-            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder subBuilder = null;
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder subBuilder = null;
             if (mutationCase_ == 13) {
+              subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_).toBuilder();
+            }
+            mutation_ =
+                input.readMessage(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.parser(), extensionRegistry);
+            if (subBuilder != null) {
+              subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_);
+              mutation_ = subBuilder.buildPartial();
+            }
+            mutationCase_ = 13;
+            break;
+          }
+          case 114: {
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder subBuilder = null;
+            if (mutationCase_ == 14) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_).toBuilder();
             }
             mutation_ =
@@ -203,12 +217,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_);
               mutation_ = subBuilder.buildPartial();
             }
-            mutationCase_ = 13;
+            mutationCase_ = 14;
             break;
           }
-          case 114: {
+          case 122: {
             io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.Builder subBuilder = null;
-            if (mutationCase_ == 14) {
+            if (mutationCase_ == 15) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_).toBuilder();
             }
             mutation_ =
@@ -217,12 +231,12 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_);
               mutation_ = subBuilder.buildPartial();
             }
-            mutationCase_ = 14;
+            mutationCase_ = 15;
             break;
           }
-          case 122: {
+          case 130: {
             io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.Builder subBuilder = null;
-            if (mutationCase_ == 15) {
+            if (mutationCase_ == 16) {
               subBuilder = ((io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_).toBuilder();
             }
             mutation_ =
@@ -231,7 +245,7 @@ private static final long serialVersionUID = 0L;
               subBuilder.mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_);
               mutation_ = subBuilder.buildPartial();
             }
-            mutationCase_ = 15;
+            mutationCase_ = 16;
             break;
           }
           default: {
@@ -281,9 +295,10 @@ private static final long serialVersionUID = 0L;
     SETATTRIBUTESCHEMAFILTERABLEMUTATION(10),
     SETATTRIBUTESCHEMALOCALIZEDMUTATION(11),
     SETATTRIBUTESCHEMANULLABLEMUTATION(12),
-    SETATTRIBUTESCHEMASORTABLEMUTATION(13),
-    SETATTRIBUTESCHEMAUNIQUEMUTATION(14),
-    USEGLOBALATTRIBUTESCHEMAMUTATION(15),
+    SETATTRIBUTESCHEMAREPRESENTATIVEMUTATION(13),
+    SETATTRIBUTESCHEMASORTABLEMUTATION(14),
+    SETATTRIBUTESCHEMAUNIQUEMUTATION(15),
+    USEGLOBALATTRIBUTESCHEMAMUTATION(16),
     MUTATION_NOT_SET(0);
     private final int value;
     private MutationCase(int value) {
@@ -311,9 +326,10 @@ private static final long serialVersionUID = 0L;
         case 10: return SETATTRIBUTESCHEMAFILTERABLEMUTATION;
         case 11: return SETATTRIBUTESCHEMALOCALIZEDMUTATION;
         case 12: return SETATTRIBUTESCHEMANULLABLEMUTATION;
-        case 13: return SETATTRIBUTESCHEMASORTABLEMUTATION;
-        case 14: return SETATTRIBUTESCHEMAUNIQUEMUTATION;
-        case 15: return USEGLOBALATTRIBUTESCHEMAMUTATION;
+        case 13: return SETATTRIBUTESCHEMAREPRESENTATIVEMUTATION;
+        case 14: return SETATTRIBUTESCHEMASORTABLEMUTATION;
+        case 15: return SETATTRIBUTESCHEMAUNIQUEMUTATION;
+        case 16: return USEGLOBALATTRIBUTESCHEMAMUTATION;
         case 0: return MUTATION_NOT_SET;
         default: return null;
       }
@@ -759,73 +775,116 @@ private static final long serialVersionUID = 0L;
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation.getDefaultInstance();
   }
 
-  public static final int SETATTRIBUTESCHEMASORTABLEMUTATION_FIELD_NUMBER = 13;
+  public static final int SETATTRIBUTESCHEMAREPRESENTATIVEMUTATION_FIELD_NUMBER = 13;
   /**
    * <pre>
-   * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
-   * @return Whether the setAttributeSchemaSortableMutation field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+   * @return Whether the setAttributeSchemaRepresentativeMutation field is set.
    */
   @java.lang.Override
-  public boolean hasSetAttributeSchemaSortableMutation() {
+  public boolean hasSetAttributeSchemaRepresentativeMutation() {
     return mutationCase_ == 13;
   }
   /**
    * <pre>
-   * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
-   * @return The setAttributeSchemaSortableMutation.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+   * @return The setAttributeSchemaRepresentativeMutation.
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation getSetAttributeSchemaSortableMutation() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation getSetAttributeSchemaRepresentativeMutation() {
     if (mutationCase_ == 13) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance();
   }
   /**
    * <pre>
-   * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
+   * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
    */
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder getSetAttributeSchemaSortableMutationOrBuilder() {
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder getSetAttributeSchemaRepresentativeMutationOrBuilder() {
     if (mutationCase_ == 13) {
-       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_;
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_;
     }
-    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance();
   }
 
-  public static final int SETATTRIBUTESCHEMAUNIQUEMUTATION_FIELD_NUMBER = 14;
+  public static final int SETATTRIBUTESCHEMASORTABLEMUTATION_FIELD_NUMBER = 14;
   /**
    * <pre>
-   * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
+   * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
-   * @return Whether the setAttributeSchemaUniqueMutation field is set.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
+   * @return Whether the setAttributeSchemaSortableMutation field is set.
    */
   @java.lang.Override
-  public boolean hasSetAttributeSchemaUniqueMutation() {
+  public boolean hasSetAttributeSchemaSortableMutation() {
     return mutationCase_ == 14;
   }
   /**
    * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
+   * @return The setAttributeSchemaSortableMutation.
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation getSetAttributeSchemaSortableMutation() {
+    if (mutationCase_ == 14) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
+   */
+  @java.lang.Override
+  public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder getSetAttributeSchemaSortableMutationOrBuilder() {
+    if (mutationCase_ == 14) {
+       return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_;
+    }
+    return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
+  }
+
+  public static final int SETATTRIBUTESCHEMAUNIQUEMUTATION_FIELD_NUMBER = 15;
+  /**
+   * <pre>
    * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
+   * @return Whether the setAttributeSchemaUniqueMutation field is set.
+   */
+  @java.lang.Override
+  public boolean hasSetAttributeSchemaUniqueMutation() {
+    return mutationCase_ == 15;
+  }
+  /**
+   * <pre>
+   * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
    * @return The setAttributeSchemaUniqueMutation.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation getSetAttributeSchemaUniqueMutation() {
-    if (mutationCase_ == 14) {
+    if (mutationCase_ == 15) {
        return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance();
@@ -835,40 +894,40 @@ private static final long serialVersionUID = 0L;
    * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder getSetAttributeSchemaUniqueMutationOrBuilder() {
-    if (mutationCase_ == 14) {
+    if (mutationCase_ == 15) {
        return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance();
   }
 
-  public static final int USEGLOBALATTRIBUTESCHEMAMUTATION_FIELD_NUMBER = 15;
+  public static final int USEGLOBALATTRIBUTESCHEMAMUTATION_FIELD_NUMBER = 16;
   /**
    * <pre>
    * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
    * @return Whether the useGlobalAttributeSchemaMutation field is set.
    */
   @java.lang.Override
   public boolean hasUseGlobalAttributeSchemaMutation() {
-    return mutationCase_ == 15;
+    return mutationCase_ == 16;
   }
   /**
    * <pre>
    * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
    * @return The useGlobalAttributeSchemaMutation.
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation getUseGlobalAttributeSchemaMutation() {
-    if (mutationCase_ == 15) {
+    if (mutationCase_ == 16) {
        return (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance();
@@ -878,11 +937,11 @@ private static final long serialVersionUID = 0L;
    * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder getUseGlobalAttributeSchemaMutationOrBuilder() {
-    if (mutationCase_ == 15) {
+    if (mutationCase_ == 16) {
        return (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_;
     }
     return io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance();
@@ -933,13 +992,16 @@ private static final long serialVersionUID = 0L;
       output.writeMessage(12, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaNullableMutation) mutation_);
     }
     if (mutationCase_ == 13) {
-      output.writeMessage(13, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_);
+      output.writeMessage(13, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_);
     }
     if (mutationCase_ == 14) {
-      output.writeMessage(14, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_);
+      output.writeMessage(14, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_);
     }
     if (mutationCase_ == 15) {
-      output.writeMessage(15, (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_);
+      output.writeMessage(15, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_);
+    }
+    if (mutationCase_ == 16) {
+      output.writeMessage(16, (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_);
     }
     unknownFields.writeTo(output);
   }
@@ -992,15 +1054,19 @@ private static final long serialVersionUID = 0L;
     }
     if (mutationCase_ == 13) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(13, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_);
+        .computeMessageSize(13, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_);
     }
     if (mutationCase_ == 14) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(14, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_);
+        .computeMessageSize(14, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_);
     }
     if (mutationCase_ == 15) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(15, (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_);
+        .computeMessageSize(15, (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_);
+    }
+    if (mutationCase_ == 16) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeMessageSize(16, (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -1060,14 +1126,18 @@ private static final long serialVersionUID = 0L;
             .equals(other.getSetAttributeSchemaNullableMutation())) return false;
         break;
       case 13:
+        if (!getSetAttributeSchemaRepresentativeMutation()
+            .equals(other.getSetAttributeSchemaRepresentativeMutation())) return false;
+        break;
+      case 14:
         if (!getSetAttributeSchemaSortableMutation()
             .equals(other.getSetAttributeSchemaSortableMutation())) return false;
         break;
-      case 14:
+      case 15:
         if (!getSetAttributeSchemaUniqueMutation()
             .equals(other.getSetAttributeSchemaUniqueMutation())) return false;
         break;
-      case 15:
+      case 16:
         if (!getUseGlobalAttributeSchemaMutation()
             .equals(other.getUseGlobalAttributeSchemaMutation())) return false;
         break;
@@ -1127,14 +1197,18 @@ private static final long serialVersionUID = 0L;
         hash = (53 * hash) + getSetAttributeSchemaNullableMutation().hashCode();
         break;
       case 13:
+        hash = (37 * hash) + SETATTRIBUTESCHEMAREPRESENTATIVEMUTATION_FIELD_NUMBER;
+        hash = (53 * hash) + getSetAttributeSchemaRepresentativeMutation().hashCode();
+        break;
+      case 14:
         hash = (37 * hash) + SETATTRIBUTESCHEMASORTABLEMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetAttributeSchemaSortableMutation().hashCode();
         break;
-      case 14:
+      case 15:
         hash = (37 * hash) + SETATTRIBUTESCHEMAUNIQUEMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getSetAttributeSchemaUniqueMutation().hashCode();
         break;
-      case 15:
+      case 16:
         hash = (37 * hash) + USEGLOBALATTRIBUTESCHEMAMUTATION_FIELD_NUMBER;
         hash = (53 * hash) + getUseGlobalAttributeSchemaMutation().hashCode();
         break;
@@ -1377,20 +1451,27 @@ private static final long serialVersionUID = 0L;
         }
       }
       if (mutationCase_ == 13) {
+        if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+          result.mutation_ = mutation_;
+        } else {
+          result.mutation_ = setAttributeSchemaRepresentativeMutationBuilder_.build();
+        }
+      }
+      if (mutationCase_ == 14) {
         if (setAttributeSchemaSortableMutationBuilder_ == null) {
           result.mutation_ = mutation_;
         } else {
           result.mutation_ = setAttributeSchemaSortableMutationBuilder_.build();
         }
       }
-      if (mutationCase_ == 14) {
+      if (mutationCase_ == 15) {
         if (setAttributeSchemaUniqueMutationBuilder_ == null) {
           result.mutation_ = mutation_;
         } else {
           result.mutation_ = setAttributeSchemaUniqueMutationBuilder_.build();
         }
       }
-      if (mutationCase_ == 15) {
+      if (mutationCase_ == 16) {
         if (useGlobalAttributeSchemaMutationBuilder_ == null) {
           result.mutation_ = mutation_;
         } else {
@@ -1485,6 +1566,10 @@ private static final long serialVersionUID = 0L;
         }
         case SETATTRIBUTESCHEMANULLABLEMUTATION: {
           mergeSetAttributeSchemaNullableMutation(other.getSetAttributeSchemaNullableMutation());
+          break;
+        }
+        case SETATTRIBUTESCHEMAREPRESENTATIVEMUTATION: {
+          mergeSetAttributeSchemaRepresentativeMutation(other.getSetAttributeSchemaRepresentativeMutation());
           break;
         }
         case SETATTRIBUTESCHEMASORTABLEMUTATION: {
@@ -3318,36 +3403,213 @@ private static final long serialVersionUID = 0L;
     }
 
     private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder> setAttributeSchemaRepresentativeMutationBuilder_;
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     * @return Whether the setAttributeSchemaRepresentativeMutation field is set.
+     */
+    @java.lang.Override
+    public boolean hasSetAttributeSchemaRepresentativeMutation() {
+      return mutationCase_ == 13;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     * @return The setAttributeSchemaRepresentativeMutation.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation getSetAttributeSchemaRepresentativeMutation() {
+      if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+        if (mutationCase_ == 13) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance();
+      } else {
+        if (mutationCase_ == 13) {
+          return setAttributeSchemaRepresentativeMutationBuilder_.getMessage();
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    public Builder setSetAttributeSchemaRepresentativeMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation value) {
+      if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+        if (value == null) {
+          throw new NullPointerException();
+        }
+        mutation_ = value;
+        onChanged();
+      } else {
+        setAttributeSchemaRepresentativeMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 13;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    public Builder setSetAttributeSchemaRepresentativeMutation(
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder builderForValue) {
+      if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+        mutation_ = builderForValue.build();
+        onChanged();
+      } else {
+        setAttributeSchemaRepresentativeMutationBuilder_.setMessage(builderForValue.build());
+      }
+      mutationCase_ = 13;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    public Builder mergeSetAttributeSchemaRepresentativeMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation value) {
+      if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+        if (mutationCase_ == 13 &&
+            mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance()) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_)
+              .mergeFrom(value).buildPartial();
+        } else {
+          mutation_ = value;
+        }
+        onChanged();
+      } else {
+        if (mutationCase_ == 13) {
+          setAttributeSchemaRepresentativeMutationBuilder_.mergeFrom(value);
+        }
+        setAttributeSchemaRepresentativeMutationBuilder_.setMessage(value);
+      }
+      mutationCase_ = 13;
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    public Builder clearSetAttributeSchemaRepresentativeMutation() {
+      if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+        if (mutationCase_ == 13) {
+          mutationCase_ = 0;
+          mutation_ = null;
+          onChanged();
+        }
+      } else {
+        if (mutationCase_ == 13) {
+          mutationCase_ = 0;
+          mutation_ = null;
+        }
+        setAttributeSchemaRepresentativeMutationBuilder_.clear();
+      }
+      return this;
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder getSetAttributeSchemaRepresentativeMutationBuilder() {
+      return getSetAttributeSchemaRepresentativeMutationFieldBuilder().getBuilder();
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder getSetAttributeSchemaRepresentativeMutationOrBuilder() {
+      if ((mutationCase_ == 13) && (setAttributeSchemaRepresentativeMutationBuilder_ != null)) {
+        return setAttributeSchemaRepresentativeMutationBuilder_.getMessageOrBuilder();
+      } else {
+        if (mutationCase_ == 13) {
+          return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_;
+        }
+        return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance();
+      }
+    }
+    /**
+     * <pre>
+     * Mutation is responsible for setting value `AttributeSchema.representative` in `EntitySchema`.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation setAttributeSchemaRepresentativeMutation = 13;</code>
+     */
+    private com.google.protobuf.SingleFieldBuilderV3<
+        io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder> 
+        getSetAttributeSchemaRepresentativeMutationFieldBuilder() {
+      if (setAttributeSchemaRepresentativeMutationBuilder_ == null) {
+        if (!(mutationCase_ == 13)) {
+          mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.getDefaultInstance();
+        }
+        setAttributeSchemaRepresentativeMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
+            io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutationOrBuilder>(
+                (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaRepresentativeMutation) mutation_,
+                getParentForChildren(),
+                isClean());
+        mutation_ = null;
+      }
+      mutationCase_ = 13;
+      onChanged();;
+      return setAttributeSchemaRepresentativeMutationBuilder_;
+    }
+
+    private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder> setAttributeSchemaSortableMutationBuilder_;
     /**
      * <pre>
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      * @return Whether the setAttributeSchemaSortableMutation field is set.
      */
     @java.lang.Override
     public boolean hasSetAttributeSchemaSortableMutation() {
-      return mutationCase_ == 13;
+      return mutationCase_ == 14;
     }
     /**
      * <pre>
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      * @return The setAttributeSchemaSortableMutation.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation getSetAttributeSchemaSortableMutation() {
       if (setAttributeSchemaSortableMutationBuilder_ == null) {
-        if (mutationCase_ == 13) {
+        if (mutationCase_ == 14) {
           return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
       } else {
-        if (mutationCase_ == 13) {
+        if (mutationCase_ == 14) {
           return setAttributeSchemaSortableMutationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
@@ -3358,7 +3620,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     public Builder setSetAttributeSchemaSortableMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation value) {
       if (setAttributeSchemaSortableMutationBuilder_ == null) {
@@ -3370,7 +3632,7 @@ private static final long serialVersionUID = 0L;
       } else {
         setAttributeSchemaSortableMutationBuilder_.setMessage(value);
       }
-      mutationCase_ = 13;
+      mutationCase_ = 14;
       return this;
     }
     /**
@@ -3378,7 +3640,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     public Builder setSetAttributeSchemaSortableMutation(
         io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder builderForValue) {
@@ -3388,7 +3650,7 @@ private static final long serialVersionUID = 0L;
       } else {
         setAttributeSchemaSortableMutationBuilder_.setMessage(builderForValue.build());
       }
-      mutationCase_ = 13;
+      mutationCase_ = 14;
       return this;
     }
     /**
@@ -3396,11 +3658,11 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     public Builder mergeSetAttributeSchemaSortableMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation value) {
       if (setAttributeSchemaSortableMutationBuilder_ == null) {
-        if (mutationCase_ == 13 &&
+        if (mutationCase_ == 14 &&
             mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance()) {
           mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_)
               .mergeFrom(value).buildPartial();
@@ -3409,12 +3671,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (mutationCase_ == 13) {
+        if (mutationCase_ == 14) {
           setAttributeSchemaSortableMutationBuilder_.mergeFrom(value);
         }
         setAttributeSchemaSortableMutationBuilder_.setMessage(value);
       }
-      mutationCase_ = 13;
+      mutationCase_ = 14;
       return this;
     }
     /**
@@ -3422,17 +3684,17 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     public Builder clearSetAttributeSchemaSortableMutation() {
       if (setAttributeSchemaSortableMutationBuilder_ == null) {
-        if (mutationCase_ == 13) {
+        if (mutationCase_ == 14) {
           mutationCase_ = 0;
           mutation_ = null;
           onChanged();
         }
       } else {
-        if (mutationCase_ == 13) {
+        if (mutationCase_ == 14) {
           mutationCase_ = 0;
           mutation_ = null;
         }
@@ -3445,7 +3707,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder getSetAttributeSchemaSortableMutationBuilder() {
       return getSetAttributeSchemaSortableMutationFieldBuilder().getBuilder();
@@ -3455,14 +3717,14 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder getSetAttributeSchemaSortableMutationOrBuilder() {
-      if ((mutationCase_ == 13) && (setAttributeSchemaSortableMutationBuilder_ != null)) {
+      if ((mutationCase_ == 14) && (setAttributeSchemaSortableMutationBuilder_ != null)) {
         return setAttributeSchemaSortableMutationBuilder_.getMessageOrBuilder();
       } else {
-        if (mutationCase_ == 13) {
+        if (mutationCase_ == 14) {
           return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
@@ -3473,13 +3735,13 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.sortable` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation setAttributeSchemaSortableMutation = 14;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutationOrBuilder> 
         getSetAttributeSchemaSortableMutationFieldBuilder() {
       if (setAttributeSchemaSortableMutationBuilder_ == null) {
-        if (!(mutationCase_ == 13)) {
+        if (!(mutationCase_ == 14)) {
           mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaSortableMutation.getDefaultInstance();
         }
         setAttributeSchemaSortableMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3489,7 +3751,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         mutation_ = null;
       }
-      mutationCase_ = 13;
+      mutationCase_ = 14;
       onChanged();;
       return setAttributeSchemaSortableMutationBuilder_;
     }
@@ -3501,30 +3763,30 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      * @return Whether the setAttributeSchemaUniqueMutation field is set.
      */
     @java.lang.Override
     public boolean hasSetAttributeSchemaUniqueMutation() {
-      return mutationCase_ == 14;
+      return mutationCase_ == 15;
     }
     /**
      * <pre>
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      * @return The setAttributeSchemaUniqueMutation.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation getSetAttributeSchemaUniqueMutation() {
       if (setAttributeSchemaUniqueMutationBuilder_ == null) {
-        if (mutationCase_ == 14) {
+        if (mutationCase_ == 15) {
           return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance();
       } else {
-        if (mutationCase_ == 14) {
+        if (mutationCase_ == 15) {
           return setAttributeSchemaUniqueMutationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance();
@@ -3535,7 +3797,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     public Builder setSetAttributeSchemaUniqueMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation value) {
       if (setAttributeSchemaUniqueMutationBuilder_ == null) {
@@ -3547,7 +3809,7 @@ private static final long serialVersionUID = 0L;
       } else {
         setAttributeSchemaUniqueMutationBuilder_.setMessage(value);
       }
-      mutationCase_ = 14;
+      mutationCase_ = 15;
       return this;
     }
     /**
@@ -3555,7 +3817,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     public Builder setSetAttributeSchemaUniqueMutation(
         io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.Builder builderForValue) {
@@ -3565,7 +3827,7 @@ private static final long serialVersionUID = 0L;
       } else {
         setAttributeSchemaUniqueMutationBuilder_.setMessage(builderForValue.build());
       }
-      mutationCase_ = 14;
+      mutationCase_ = 15;
       return this;
     }
     /**
@@ -3573,11 +3835,11 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     public Builder mergeSetAttributeSchemaUniqueMutation(io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation value) {
       if (setAttributeSchemaUniqueMutationBuilder_ == null) {
-        if (mutationCase_ == 14 &&
+        if (mutationCase_ == 15 &&
             mutation_ != io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance()) {
           mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_)
               .mergeFrom(value).buildPartial();
@@ -3586,12 +3848,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (mutationCase_ == 14) {
+        if (mutationCase_ == 15) {
           setAttributeSchemaUniqueMutationBuilder_.mergeFrom(value);
         }
         setAttributeSchemaUniqueMutationBuilder_.setMessage(value);
       }
-      mutationCase_ = 14;
+      mutationCase_ = 15;
       return this;
     }
     /**
@@ -3599,17 +3861,17 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     public Builder clearSetAttributeSchemaUniqueMutation() {
       if (setAttributeSchemaUniqueMutationBuilder_ == null) {
-        if (mutationCase_ == 14) {
+        if (mutationCase_ == 15) {
           mutationCase_ = 0;
           mutation_ = null;
           onChanged();
         }
       } else {
-        if (mutationCase_ == 14) {
+        if (mutationCase_ == 15) {
           mutationCase_ = 0;
           mutation_ = null;
         }
@@ -3622,7 +3884,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.Builder getSetAttributeSchemaUniqueMutationBuilder() {
       return getSetAttributeSchemaUniqueMutationFieldBuilder().getBuilder();
@@ -3632,14 +3894,14 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder getSetAttributeSchemaUniqueMutationOrBuilder() {
-      if ((mutationCase_ == 14) && (setAttributeSchemaUniqueMutationBuilder_ != null)) {
+      if ((mutationCase_ == 15) && (setAttributeSchemaUniqueMutationBuilder_ != null)) {
         return setAttributeSchemaUniqueMutationBuilder_.getMessageOrBuilder();
       } else {
-        if (mutationCase_ == 14) {
+        if (mutationCase_ == 15) {
           return (io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance();
@@ -3650,13 +3912,13 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for setting value `AttributeSchema.unique` in `EntitySchema`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 14;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation setAttributeSchemaUniqueMutation = 15;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutationOrBuilder> 
         getSetAttributeSchemaUniqueMutationFieldBuilder() {
       if (setAttributeSchemaUniqueMutationBuilder_ == null) {
-        if (!(mutationCase_ == 14)) {
+        if (!(mutationCase_ == 15)) {
           mutation_ = io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaUniqueMutation.getDefaultInstance();
         }
         setAttributeSchemaUniqueMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3666,7 +3928,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         mutation_ = null;
       }
-      mutationCase_ = 14;
+      mutationCase_ = 15;
       onChanged();;
       return setAttributeSchemaUniqueMutationBuilder_;
     }
@@ -3678,30 +3940,30 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      * @return Whether the useGlobalAttributeSchemaMutation field is set.
      */
     @java.lang.Override
     public boolean hasUseGlobalAttributeSchemaMutation() {
-      return mutationCase_ == 15;
+      return mutationCase_ == 16;
     }
     /**
      * <pre>
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      * @return The useGlobalAttributeSchemaMutation.
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation getUseGlobalAttributeSchemaMutation() {
       if (useGlobalAttributeSchemaMutationBuilder_ == null) {
-        if (mutationCase_ == 15) {
+        if (mutationCase_ == 16) {
           return (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance();
       } else {
-        if (mutationCase_ == 15) {
+        if (mutationCase_ == 16) {
           return useGlobalAttributeSchemaMutationBuilder_.getMessage();
         }
         return io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance();
@@ -3712,7 +3974,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     public Builder setUseGlobalAttributeSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation value) {
       if (useGlobalAttributeSchemaMutationBuilder_ == null) {
@@ -3724,7 +3986,7 @@ private static final long serialVersionUID = 0L;
       } else {
         useGlobalAttributeSchemaMutationBuilder_.setMessage(value);
       }
-      mutationCase_ = 15;
+      mutationCase_ = 16;
       return this;
     }
     /**
@@ -3732,7 +3994,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     public Builder setUseGlobalAttributeSchemaMutation(
         io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.Builder builderForValue) {
@@ -3742,7 +4004,7 @@ private static final long serialVersionUID = 0L;
       } else {
         useGlobalAttributeSchemaMutationBuilder_.setMessage(builderForValue.build());
       }
-      mutationCase_ = 15;
+      mutationCase_ = 16;
       return this;
     }
     /**
@@ -3750,11 +4012,11 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     public Builder mergeUseGlobalAttributeSchemaMutation(io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation value) {
       if (useGlobalAttributeSchemaMutationBuilder_ == null) {
-        if (mutationCase_ == 15 &&
+        if (mutationCase_ == 16 &&
             mutation_ != io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance()) {
           mutation_ = io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.newBuilder((io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_)
               .mergeFrom(value).buildPartial();
@@ -3763,12 +4025,12 @@ private static final long serialVersionUID = 0L;
         }
         onChanged();
       } else {
-        if (mutationCase_ == 15) {
+        if (mutationCase_ == 16) {
           useGlobalAttributeSchemaMutationBuilder_.mergeFrom(value);
         }
         useGlobalAttributeSchemaMutationBuilder_.setMessage(value);
       }
-      mutationCase_ = 15;
+      mutationCase_ = 16;
       return this;
     }
     /**
@@ -3776,17 +4038,17 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     public Builder clearUseGlobalAttributeSchemaMutation() {
       if (useGlobalAttributeSchemaMutationBuilder_ == null) {
-        if (mutationCase_ == 15) {
+        if (mutationCase_ == 16) {
           mutationCase_ = 0;
           mutation_ = null;
           onChanged();
         }
       } else {
-        if (mutationCase_ == 15) {
+        if (mutationCase_ == 16) {
           mutationCase_ = 0;
           mutation_ = null;
         }
@@ -3799,7 +4061,7 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.Builder getUseGlobalAttributeSchemaMutationBuilder() {
       return getUseGlobalAttributeSchemaMutationFieldBuilder().getBuilder();
@@ -3809,14 +4071,14 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     @java.lang.Override
     public io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder getUseGlobalAttributeSchemaMutationOrBuilder() {
-      if ((mutationCase_ == 15) && (useGlobalAttributeSchemaMutationBuilder_ != null)) {
+      if ((mutationCase_ == 16) && (useGlobalAttributeSchemaMutationBuilder_ != null)) {
         return useGlobalAttributeSchemaMutationBuilder_.getMessageOrBuilder();
       } else {
-        if (mutationCase_ == 15) {
+        if (mutationCase_ == 16) {
           return (io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation) mutation_;
         }
         return io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance();
@@ -3827,13 +4089,13 @@ private static final long serialVersionUID = 0L;
      * Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 15;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation useGlobalAttributeSchemaMutation = 16;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation, io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.Builder, io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutationOrBuilder> 
         getUseGlobalAttributeSchemaMutationFieldBuilder() {
       if (useGlobalAttributeSchemaMutationBuilder_ == null) {
-        if (!(mutationCase_ == 15)) {
+        if (!(mutationCase_ == 16)) {
           mutation_ = io.evitadb.externalApi.grpc.generated.GrpcUseGlobalAttributeSchemaMutation.getDefaultInstance();
         }
         useGlobalAttributeSchemaMutationBuilder_ = new com.google.protobuf.SingleFieldBuilderV3<
@@ -3843,7 +4105,7 @@ private static final long serialVersionUID = 0L;
                 isClean());
         mutation_ = null;
       }
-      mutationCase_ = 15;
+      mutationCase_ = 16;
       onChanged();;
       return useGlobalAttributeSchemaMutationBuilder_;
     }

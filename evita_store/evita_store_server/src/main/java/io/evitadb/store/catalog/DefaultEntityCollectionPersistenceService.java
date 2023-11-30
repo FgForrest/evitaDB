@@ -64,6 +64,7 @@ import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
@@ -196,7 +197,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nullable
 	@Override
-	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer) {
+	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
 		if (memTable.isOperative()) {
 			// provide passed schema during deserialization from binary form
 			return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -223,7 +224,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
 		if (memTable.isOperative()) {
 			// provide passed schema during deserialization from binary form
@@ -258,7 +259,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
 		if (memTable.isOperative()) {
 			// provide passed schema during deserialization from binary form
@@ -340,13 +341,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nonnull
 	@Override
-	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer) throws EntityAlreadyRemovedException {
+	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
 		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
 		return entity;
 	}
 
 	@Override
-	public EntityIndex<?> readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	public EntityIndex readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
 		if (memTable.isOperative()) {
 			final EntityIndexStoragePart entityIndexCnt = memTable.get(entityIndexId, EntityIndexStoragePart.class);
 			isPremiseValid(
@@ -358,12 +359,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
 			final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
 			final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
+			final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
 			for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 				switch (attributeIndexKey.indexType()) {
 					case UNIQUE -> fetchUniqueIndex(schemaSupplier.get().getName(), entityIndexId, memTable, uniqueIndexes, attributeIndexKey);
 					case FILTER -> fetchFilterIndex(entityIndexId, memTable, filterIndexes, attributeIndexKey);
 					case SORT -> fetchSortIndex(entityIndexId, memTable, sortIndexes, attributeIndexKey);
 					case CHAIN -> fetchChainIndex(entityIndexId, memTable, chainIndexes, attributeIndexKey);
+					case CARDINALITY -> fetchCardinalityIndex(entityIndexId, memTable, cardinalityIndexes, attributeIndexKey);
 					default -> throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 				}
 			}
@@ -408,7 +411,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 						uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
 					),
 					hierarchyIndex,
-					facetIndex
+					facetIndex,
+					entityIndexCnt.getPrimaryKeyCardinality(),
+					cardinalityIndexes
 				);
 			} else {
 				final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
@@ -456,7 +461,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * {@link MemTable} and doesn't take transactional memory into an account.
 	 */
 	@Override
-	public @Nonnull Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer) {
+	public @Nonnull Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
 		if (memTable.isOperative()) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
 				Query.query(
@@ -500,7 +505,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex<?>> bufferedChangeSet) {
+	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet) {
 		if (memTable.isOperative()) {
 			// now store all entity trapped updates
 			bufferedChangeSet.getTrappedMemTableUpdates()
@@ -616,7 +621,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
 		final int entityPrimaryKey = entityStorageContainer.getPrimaryKey();
 		// load additional containers only when requested
@@ -657,7 +662,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
 		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
 		final EntityBodyStoragePart deserializedEntityBody = deserialize(
@@ -886,6 +891,23 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				chainIndexCnt.getChains(),
 				chainIndexCnt.getElementStates()
 			)
+		);
+	}
+
+	/**
+	 * Fetches {@link CardinalityIndex} from the {@link MemTable} and puts it into the `cardinalityIndexes` key-value index.
+	 */
+	private static void fetchCardinalityIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
+		final CardinalityIndexStoragePart cardinalityIndexCnt = memTable.get(primaryKey, CardinalityIndexStoragePart.class);
+		isPremiseValid(
+			cardinalityIndexCnt != null,
+			"Cardinality index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
+		);
+		final AttributeKey attributeKey = cardinalityIndexCnt.getAttributeKey();
+		cardinalityIndexes.put(
+			attributeKey,
+			cardinalityIndexCnt.getCardinalityIndex()
 		);
 	}
 

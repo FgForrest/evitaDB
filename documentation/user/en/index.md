@@ -2,7 +2,7 @@
 title: Introduction
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 evitaDB helps developers to create fast product catalog applications, which are the heart of every e-commerce site.
@@ -112,8 +112,9 @@ the first version to the general public.
 1. [Storage model](deep-dive/storage-model.md)
 2. [Bulk vs. incremental indexing](deep-dive/bulk-vs-incremental-indexing.md)
 3. [Transactions](deep-dive/transactions.md)
-4. [Cache](deep-dive/cache.md)
-5. [Observe changes](deep-dive/observing.md)
+4. [Price for sale calculation](deep-dive/price-for-sale-calculation.md)
+5. [Cache](deep-dive/cache.md)
+6. [Observe changes](deep-dive/observing.md)
 
 ## Solve
 
