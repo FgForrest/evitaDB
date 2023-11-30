@@ -16,6 +16,18 @@
     {
       "primaryKey": 66567
     }
-  ]
+  ],
+  "pageNumber": 2,
+  "pageSize": 5,
+  "lastPageNumber": 845,
+  "firstPageItemNumber": 5,
+  "lastPageItemNumber": 9,
+  "first": false,
+  "last": false,
+  "hasNext": true,
+  "hasPrevious": true,
+  "empty": false,
+  "singlePage": false,
+  "totalRecordCount": 4223
 }
 ```
