@@ -1,8 +1,8 @@
 {
   queryProduct {
     recordStrip(
-      offset: 76
-      limit: 19
+offset: 76
+limit: 19
     ) {
       data {
         primaryKey
