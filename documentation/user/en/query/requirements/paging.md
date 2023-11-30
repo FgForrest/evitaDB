@@ -90,7 +90,9 @@ controls the number and slice of entities returned in the query response
 <LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
 If no 
 <LanguageSpecific to="evitaql,java,rest,csharp">page requirement is</LanguageSpecific>
-<LanguageSpecific to="graphql">page arguments are</LanguageSpecific> used in the query,
+<LanguageSpecific to="graphql">page arguments are</LanguageSpecific> used 
+<LanguageSpecific to="evitaql,java,rest,csharp">in the query</LanguageSpecific>
+<LanguageSpecific to="graphql">on the field</LanguageSpecific>,
 the default page `1` with the default page size `20` is used. If the requested page exceeds the number of available
 pages, a result with the first page is returned. An empty result is only returned if the query returns no result at all
 or the page size is set to zero. By automatically returning the first page result when the requested page is exceeded,
