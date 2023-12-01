@@ -913,8 +913,7 @@ stopAt(
 The `stopAt` <LanguageSpecific to="evitaql,java,csharp,rest">container constraint</LanguageSpecific><LanguageSpecific to="graphql">argument</LanguageSpecific>
 is a service wrapping constraint container that only makes sense
 <LanguageSpecific to="evitaql,java,csharp,rest">in combination with one of the allowed nested constraints</LanguageSpecific><LanguageSpecific to="graphql">as an argument of one of the data structures</LanguageSpecific>.
-See the usage examples for specific <LanguageSpecific to="evitaql,java,csharp,rest">nested constraints</LanguageSpecific>
-<LanguageSpecific to="graphql">data structures</LanguageSpecific>.
+See the usage examples for specific <LanguageSpecific to="evitaql,java,csharp,rest">nested constraints</LanguageSpecific><LanguageSpecific to="graphql">data structures</LanguageSpecific>.
 
 ## Distance
 
@@ -1208,7 +1207,7 @@ statistics(
 
 ### Statistics base
 
-Optional argument on a data structure field allowing you to specify the base queried entity set that is the source for
+Optional argument on a data structure fields allowing you to specify the base queried entity set that is the source for
 statistics calculations:
 
 - **COMPLETE_FILTER**: complete filtering query constraint
