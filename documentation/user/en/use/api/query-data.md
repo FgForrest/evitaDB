@@ -266,7 +266,7 @@ structure details required for the schema definition:
     <dd>
         Annotation can be placed on methods that should return entity [reference](#reference) to another entity. 
         It can point to another model class (interface/class/record) that contains properties for `@ReferencedEntity` 
-        and @ReferencedEntityGroup` annotations and relation attributes or directly to different entity read contract
+        and `@ReferencedEntityGroup` annotations and relation attributes or directly to different entity read contract
         annotated with `@Entity` or `@EntityRef` annotation.
     </dd>
 </dl>
@@ -380,9 +380,9 @@ Your read contract can implement the following interfaces to access the underlyi
 
 <dl>
   <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithVersion.java</SourceClass></dd>
-  <dt>which provides access to the `version' of the entity via the `version()` method</dt>
+  <dt>which provides access to the `version` of the entity via the `version()` method</dt>
   <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithLocales.java</SourceClass></dd>
-  <dt>which provides access to the `locales' with which the entity was fetched, and `allLocales' which represents all
+  <dt>which provides access to the `locales` with which the entity was fetched, and `allLocales` which represents all
       possible locales of this entity</dt>
   <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntitySchema.java</SourceClass></dd>
   <dt>which provides access to the appropriate entity schema via `entitySchema()` method</dt>
