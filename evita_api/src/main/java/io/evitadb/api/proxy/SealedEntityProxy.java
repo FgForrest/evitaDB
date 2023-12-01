@@ -42,8 +42,8 @@ import java.util.function.Consumer;
  */
 public interface SealedEntityProxy extends 
 	EvitaProxy,
-	EntityContractAccessor,
-	EntityBuilderAccessor,
+	WithEntityContract,
+	WithEntityBuilder,
 	ReferencedEntityBuilderProvider
 {
 

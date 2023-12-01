@@ -22,13 +22,20 @@ the distribution of product attributes with high cardinality values such as weig
 
 The histogram data structure is optimized for frontend rendering. It contains the following fields:
 
+- **`min`** - the minimum value of the attribute in the current filter context
 - **`max`** - the maximum value of the attribute in the current filter context
+- **`overallCount`** - the number of elements whose attribute value falls into any of the buckets (it's basically a sum of all bucket occurrences)
 - **`buckets`** - an array of buckets, each of which contains the following fields:
   - **`index`** - the index of the bucket in the array
   - **`threshold`** - the minimum value of the attribute in the bucket
   - **`occurences`** - the number of elements whose attribute value falls into the bucket
+  - **`requested`** - contains `true` if the query contained [attributeBetween](../filtering/comparable.md#attribute-between)
+                      or [priceBetween](../filtering/price.md#price-between) constraint for particular attribute / price
+                      and the bucket threshold lies within the range (inclusive) of the constraint
 
 ## Attribute histogram
+
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 ```evitaql-syntax
 attributeHistogram(
@@ -50,12 +57,12 @@ attributeHistogram(
     </dd>
 </dl>
 
-<LanguageSpecific to="java,evitaql,rest,graphql">
-The <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/AttributeHistogram.java</SourceClass>
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Models/ExtraResults/AttributeHistogram.cs</SourceClass>
-</LanguageSpecific>
+
+[//]: # (todo tpz csharp class after merge)
+
+The <LanguageSpecific to="evitaql,java,csharp"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/AttributeHistogram.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="graphql,rest">attribute histogram</LanguageSpecific>
 can be computed from any [filterable attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
 whose type is numeric. The histogram is computed only from the attributes of elements that match the current mandatory 
 part of the filter. The interval related constraints - i.e. [`attributeBetween`](../filtering/comparable.md#attribute-between) 
@@ -65,7 +72,7 @@ based on the histogram results would be driven into a narrower and narrower rang
 
 To demonstrate the use of the histogram, we will use the following example:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Attribute histogram over `width` and `height` attributes](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.evitaql)
 
@@ -85,11 +92,27 @@ The simplified result looks like this:
 
 The histogram result in JSON format is a bit more verbose, but it's still quite readable:
 
+<LanguageSpecific to="evitaql,java,csharp">
+
 <MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of `width` and `height` attribute histogram in JSON format](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.attributeHistogram">[The result of `width` and `height` attribute histogram in JSON format](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="extraResults.attributeHistogram">[The result of `width` and `height` attribute histogram in JSON format](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>
 
 ## Price histogram
+
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 ```evitaql-syntax
 priceHistogram(   
@@ -105,12 +128,12 @@ priceHistogram(
     </dd>
 </dl>
 
-<LanguageSpecific to="java,evitaql,rest,graphql">
-The <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/PriceHistogram.java</SourceClass>
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Models/ExtraResults/PriceHistogram.cs</SourceClass>
-</LanguageSpecific>
+
+[//]: # (todo tpz csharp class after merge)
+
+The <LanguageSpecific to="evitaql,java,csharp"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/PriceHistogram.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="graphql,rest">price histogram</LanguageSpecific>
 is computed from the [price for sale](../filtering/price.md). The interval related constraints - i.e. 
 [`attributeBetween`](../filtering/comparable.md#attribute-between) and [`priceBetween`](../filtering/price.md#price-between) 
 in the [`userFilter`](../filtering/behavioral.md#user-filter) part are excluded for the sake of histogram calculation. 
@@ -122,7 +145,7 @@ requirement, the histogram visualizes the price with tax.
 
 To demonstrate the use of the histogram, we will use the following example:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram.evitaql)
 
@@ -142,6 +165,20 @@ The simplified result looks like this:
 
 The histogram result in JSON format is a bit more verbose, but it's still quite readable:
 
+<LanguageSpecific to="evitaql,java,csharp">
+
 <MDInclude sourceVariable="extraResults.PriceHistogram">[The result of price histogram in JSON format](/documentation/user/en/query/requirements/examples/histogram/price-histogram.evitaql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.priceHistogram">[The result of price histogram in JSON format](/documentation/user/en/query/requirements/examples/histogram/price-histogram.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+
+<MDInclude sourceVariable="extraResults.priceHistogram">[The result of price histogram in JSON format](/documentation/user/en/query/requirements/examples/histogram/price-histogram.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
 
 </Note>

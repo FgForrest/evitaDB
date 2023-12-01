@@ -27,15 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
-import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
-import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
-import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
@@ -74,6 +66,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -133,6 +126,39 @@ public class ClassSchemaAnalyzer {
 	 */
 	private boolean sellingPriceDefined = false;
 
+	/**
+	 * Extracts the entity type from a given class using reflection.
+	 *
+	 * @param classToAnalyse   The class to be analyzed.
+	 * @param reflectionLookup The reflection lookup utility.
+	 * @return An Optional containing the entity type if found, or an empty Optional otherwise.
+	 */
+	@Nonnull
+	public static Optional<String> extractEntityTypeFromClass(@Nonnull Class<?> classToAnalyse, @Nonnull ReflectionLookup reflectionLookup) {
+		return reflectionLookup.extractFromClass(
+			classToAnalyse, EntityRef.class,
+			clazz -> {
+				final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
+				if (entityRef != null) {
+					return ofNullable(entityRef.value());
+				}
+				final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
+				if (entity != null) {
+					return ofNullable(entity.name());
+				}
+				return empty();
+			}
+		);
+	}
+
+	/**
+	 * Verifies the data type of a given class.
+	 *
+	 * @param theType the class representing the data type
+	 * @return the verified class representing the data type
+	 * @param <T> the generic type of the data type
+	 */
+	@Nonnull
 	private static <T> Class<T> verifyDataType(@Nonnull Class<T> theType) {
 		Assert.isTrue(
 			EvitaDataTypes.isSupportedTypeOrItsArray(theType),

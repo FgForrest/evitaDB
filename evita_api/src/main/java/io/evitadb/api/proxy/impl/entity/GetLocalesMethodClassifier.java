@@ -118,26 +118,26 @@ public class GetLocalesMethodClassifier extends DirectMethodClassification<Objec
 
 				if (ReflectionUtils.isMatchingMethodPresentOn(method, WithLocales.class)) {
 					if ("allLocales".equals(method.getName())) {
-						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getAllLocales();
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.entity().getAllLocales();
 					} else if ("locales".equals(method.getName())) {
-						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales();
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.entity().getLocales();
 					}
 				} else if (Modifier.isAbstract(method.getModifiers())) {
 					if (Collection.class.equals(returnType) || Set.class.equals(returnType)) {
 						@SuppressWarnings("rawtypes") final Class wrappedGenericType = getMethodReturnType(proxyState.getProxyClass(), method);
 						if (Locale.class.equals(wrappedGenericType)) {
 							// method matches - provide implementation
-							return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales();
+							return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.entity().getLocales();
 						}
 					} else if (List.class.equals(returnType)) {
 						@SuppressWarnings("rawtypes") final Class wrappedGenericType = getMethodReturnType(proxyState.getProxyClass(), method);
 						if (Locale.class.equals(wrappedGenericType)) {
 							// method matches - provide implementation
-							return (entityClassifier, theMethod, args, theState, invokeSuper) -> new ArrayList<>(theState.getEntity().getLocales());
+							return (entityClassifier, theMethod, args, theState, invokeSuper) -> new ArrayList<>(theState.entity().getLocales());
 						}
 					} else if (returnType.isArray() && Locale.class.equals(returnType.getComponentType())) {
 						// method matches - provide implementation
-						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().getLocales().toArray(EMPTY_LOCALE_ARRAY);
+						return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.entity().getLocales().toArray(EMPTY_LOCALE_ARRAY);
 					}
 				}
 

@@ -58,6 +58,14 @@
     {
       "primaryKey": 103988
     }
-  ]
+  ],
+  "offset": 76,
+  "limit": 19,
+  "first": false,
+  "last": false,
+  "hasNext": true,
+  "hasPrevious": true,
+  "empty": false,
+  "totalRecordCount": 4223
 }
 ```

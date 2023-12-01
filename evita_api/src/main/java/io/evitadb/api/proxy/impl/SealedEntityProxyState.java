@@ -70,7 +70,7 @@ public class SealedEntityProxyState
 	@Serial private static final long serialVersionUID = 586508293856395550L;
 	/**
 	 * Optional reference to the {@link EntityBuilder} that is created on demand by calling {@link SealedEntity#openForWrite()}
-	 * from internally wrapped entity {@link #getEntity()}.
+	 * from internally wrapped entity {@link #entity()}.
 	 */
 	@Nullable protected EntityBuilder entityBuilder;
 	/**
@@ -108,8 +108,8 @@ public class SealedEntityProxyState
 
 	@Nonnull
 	@Override
-	public EntityContract getEntity() {
-		return getEntityBuilderIfPresent()
+	public EntityContract entity() {
+		return entityBuilderIfPresent()
 			.map(EntityContract.class::cast)
 			.orElse(this.entity);
 	}
@@ -144,7 +144,7 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
-	public Optional<EntityBuilder> getEntityBuilderIfPresent() {
+	public Optional<EntityBuilder> entityBuilderIfPresent() {
 		return ofNullable(this.entityBuilder);
 	}
 
@@ -164,7 +164,7 @@ public class SealedEntityProxyState
 	}
 
 	@Nonnull
-	public EntityBuilder getEntityBuilder() {
+	public EntityBuilder entityBuilder() {
 		if (entityBuilder == null) {
 			if (entity instanceof EntityDecorator entityDecorator) {
 				entityBuilder = new ExistingEntityBuilder(entityDecorator);
@@ -188,9 +188,9 @@ public class SealedEntityProxyState
 		int primaryKey
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final EntityContract entity = getEntityBuilderIfPresent()
+			final EntityContract entity = entityBuilderIfPresent()
 				.map(EntityContract.class::cast)
-				.orElseGet(this::getEntity);
+				.orElseGet(this::entity);
 			return entity.getReference(referenceSchema.getName(), primaryKey)
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
@@ -230,7 +230,7 @@ public class SealedEntityProxyState
 	}
 
 	/**
-	 * Method propagates all mutations in reference proxies to the {@link #getEntityBuilder()}.
+	 * Method propagates all mutations in reference proxies to the {@link #entityBuilder()}.
 	 */
 	public void propagateReferenceMutations() {
 		this.generatedProxyObjects.entrySet().stream()
@@ -245,7 +245,7 @@ public class SealedEntityProxyState
 					.getReferenceBuilderIfPresent()
 					.stream()
 			)
-			.forEach(referenceBuilder -> getEntityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
+			.forEach(referenceBuilder -> entityBuilder().addOrReplaceReferenceMutations(referenceBuilder));
 	}
 
 	@Override

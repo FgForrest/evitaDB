@@ -23,23 +23,33 @@
 
 package io.evitadb.api.proxy;
 
-import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 
 /**
- * An interface that provides access to an underlying entity.
+ * The WithEntityBuilder interface extends the WithEntityContract interface and defines methods
+ * for accessing the EntityBuilder instance to capture mutations of the wrapped entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface EntityContractAccessor {
+public interface WithEntityBuilder extends WithEntityContract {
 
 	/**
-	 * Returns the underlying sealed entity that is wrapped into a requested proxy type.
+	 * Returns the {@link EntityBuilder} instance that is used to capture mutations of the wrapped {@link #entity()}.
 	 *
-	 * @return the underlying sealed entity
+	 * @return existing or new {@link EntityBuilder} instance
 	 */
 	@Nonnull
-	EntityContract getEntity();
+	EntityBuilder entityBuilder();
+
+	/**
+	 * Returns the {@link EntityBuilder} instance that is used to capture mutations of the wrapped {@link #entity()}.
+	 * If no builder has been created yet (no modification occurred), the optional is empty.
+	 * @return the {@link EntityBuilder} instance or empty value if no mutations were performed
+	 */
+	@Nonnull
+	Optional<EntityBuilder> entityBuilderIfPresent();
 
 }

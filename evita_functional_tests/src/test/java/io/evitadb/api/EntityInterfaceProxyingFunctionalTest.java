@@ -528,7 +528,7 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 			ProductInterface.class, 1, entityFetchAllContent()
 		).orElse(null);
 
-		assertNotNull(product.getEntity());
+		assertNotNull(product.entity());
 		assertProduct(
 			theProduct,
 			product,

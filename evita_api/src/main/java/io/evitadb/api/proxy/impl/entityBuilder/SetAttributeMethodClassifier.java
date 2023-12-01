@@ -111,7 +111,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull SealedEntityProxyState theState,
 		@Nullable Object value
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		if (value == null) {
 			entityBuilder.removeAttribute(attributeName);
 		} else {
@@ -177,7 +177,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull SealedEntityProxyState theState,
 		@Nullable Object value
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		if (value == null) {
 			entityBuilder.removeAttribute(attributeName);
 		} else {
@@ -257,7 +257,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		final Object value = args[valueParameterPosition];
 		final Locale locale = (Locale) args[localeParameterPosition];
 		Assert.notNull(locale, "Locale must not be null!");
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		if (value == null) {
 			entityBuilder.removeAttribute(attributeName);
 		} else {
@@ -336,7 +336,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		final Object value = args[valueParameterPosition];
 		final Locale locale = (Locale) args[localeParameterPosition];
 		Assert.notNull(locale, "Locale must not be null!");
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		if (value == null) {
 			entityBuilder.removeAttribute(attributeName, locale);
 		} else {
@@ -439,7 +439,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final Locale locale = (Locale) args[0];
 		Assert.notNull(locale, "Locale must not be null!");
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		entityBuilder.removeAttribute(attributeName, locale);
 	}
 
@@ -458,7 +458,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final Locale locale = (Locale) args[0];
 		Assert.notNull(locale, "Locale must not be null!");
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final Serializable attributeToRemove = entityBuilder.getAttribute(attributeName, locale);
 		if (attributeToRemove != null) {
 			entityBuilder.removeAttribute(attributeName, locale);
@@ -553,7 +553,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String attributeName,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		entityBuilder.removeAttribute(attributeName);
 	}
 
@@ -568,7 +568,7 @@ public class SetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull String attributeName,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final Serializable attributeToRemove = entityBuilder.getAttribute(attributeName);
 		if (attributeToRemove != null) {
 			entityBuilder.removeAttribute(attributeName);

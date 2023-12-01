@@ -243,14 +243,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
+				() -> associatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> getOriginalForm(it, itemType, theState.getReflectionLookup()))
 					.orElse(null)
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> localizedAssociatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName, (Locale) args[0])
+				() -> localizedAssociatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName, (Locale) args[0])
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
 					.map(it -> getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -281,12 +281,12 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		);
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> associatedDataExtractor.apply(theState.getEntity(), associatedDataName)
+				() -> associatedDataExtractor.apply(theState.entity(), associatedDataName)
 					.map(it -> associatedDataSetToSet(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptySet())
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> localizedAssociatedDataExtractor.apply(theState.getEntity(), associatedDataName, (Locale) args[0])
+				() -> localizedAssociatedDataExtractor.apply(theState.entity(), associatedDataName, (Locale) args[0])
 					.map(it -> associatedDataSetToSet(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptySet())
 			);
@@ -342,12 +342,12 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		);
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
+				() -> associatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName)
 					.map(it -> associatedDataSetToList(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptyList())
 			) :
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-				() -> localizedAssociatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName, (Locale) args[0])
+				() -> localizedAssociatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName, (Locale) args[0])
 					.map(it -> associatedDataSetToList(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptyList())
 			);
@@ -390,7 +390,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-			() -> associatedDataExtractor.apply(theState.getEntity(), associatedDataName)
+			() -> associatedDataExtractor.apply(theState.entity(), associatedDataName)
 				.map(AssociatedDataValue::value)
 				.map(defaultValueProvider)
 				.map(it -> getOriginalForm(it, itemType, theState.getReflectionLookup()))
@@ -419,7 +419,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-			() -> associatedDataExtractor.apply(theState.getEntity(), associatedDataName)
+			() -> associatedDataExtractor.apply(theState.entity(), associatedDataName)
 				.map(it -> associatedDataSetToSet(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 				.orElse(Collections.emptySet())
 		);
@@ -446,7 +446,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-			() -> associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
+			() -> associatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName)
 				.map(it -> associatedDataSetToList(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 				.orElse(Collections.emptyList())
 		);

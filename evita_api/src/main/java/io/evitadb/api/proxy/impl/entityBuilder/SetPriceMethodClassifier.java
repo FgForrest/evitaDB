@@ -111,12 +111,12 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 	) {
 		if (returnType.equals(proxyClass)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				theState.getEntityBuilder().setPriceInnerRecordHandling((PriceInnerRecordHandling) args[0]);
+				theState.entityBuilder().setPriceInnerRecordHandling((PriceInnerRecordHandling) args[0]);
 				return proxy;
 			};
 		} else {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				theState.getEntityBuilder().setPriceInnerRecordHandling((PriceInnerRecordHandling) args[0]);
+				theState.entityBuilder().setPriceInnerRecordHandling((PriceInnerRecordHandling) args[0]);
 				return null;
 			};
 		}
@@ -170,7 +170,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull SealedEntityProxyState theState
 	) {
 		final PriceContract thePrice = priceExtractor.apply(args);
-		theState.getEntityBuilder().setPrice(thePrice);
+		theState.entityBuilder().setPrice(thePrice);
 	}
 
 	/**
@@ -222,7 +222,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
 		if (initialBuilder) {
 			entityBuilder.removeAllPrices();
@@ -287,7 +287,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
 		if (initialBuilder) {
 			entityBuilder.removeAllPrices();
@@ -489,13 +489,13 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				if (returnType.equals(proxyClass)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
 						final PriceKey thePriceKey = priceKeyExtractor.apply(args);
-						theState.getEntityBuilder().removePrice(thePriceKey);
+						theState.entityBuilder().removePrice(thePriceKey);
 						return proxy;
 					};
 				} else if (Number.class.isAssignableFrom(returnType)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
 						final PriceKey thePriceKey = priceKeyExtractor.apply(args);
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Optional<PriceContract> price = entityBuilder.getPrice(thePriceKey);
 						if (price.isPresent()) {
 							entityBuilder.removePrice(thePriceKey);
@@ -508,7 +508,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				} else if (Boolean.class.equals(returnType) || boolean.class.equals(returnType)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
 						final PriceKey thePriceKey = priceKeyExtractor.apply(args);
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Optional<PriceContract> price = entityBuilder.getPrice(thePriceKey);
 						if (price.isPresent()) {
 							entityBuilder.removePrice(thePriceKey);
@@ -520,7 +520,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				} else if (PriceKey.class.equals(returnType)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
 						final PriceKey thePriceKey = priceKeyExtractor.apply(args);
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Optional<PriceContract> price = entityBuilder.getPrice(thePriceKey);
 						if (price.isPresent()) {
 							entityBuilder.removePrice(thePriceKey);
@@ -532,7 +532,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				} else if (PriceContract.class.isAssignableFrom(returnType)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
 						final PriceKey thePriceKey = priceKeyExtractor.apply(args);
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Optional<PriceContract> removedPrice = entityBuilder.getPrice(thePriceKey);
 						if (removedPrice.isPresent()) {
 							entityBuilder.removePrice(thePriceKey);
@@ -544,7 +544,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				} else if (void.class.equals(returnType)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
 						final PriceKey thePriceKey = priceKeyExtractor.apply(args);
-						theState.getEntityBuilder().removePrice(thePriceKey);
+						theState.entityBuilder().removePrice(thePriceKey);
 						return null;
 					};
 				} else {
@@ -573,12 +573,12 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		if (fixedPriceList.isBlank()) {
 			if (returnType.equals(proxyClass)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					theState.getEntityBuilder().removeAllPrices();
+					theState.entityBuilder().removeAllPrices();
 					return proxy;
 				};
 			} else if (Boolean.class.equals(returnType) || boolean.class.equals(returnType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final Collection<PriceContract> prices = entityBuilder.getPrices();
 					entityBuilder.removeAllPrices();
 					return !prices.isEmpty();
@@ -586,14 +586,14 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 			} else if (Collection.class.isAssignableFrom(returnType)) {
 				if (PriceContract.class.isAssignableFrom(itemType)) {
 					return (proxy, theMethod, args, theState, invokeSuper) -> {
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Collection<PriceContract> removedPrices = entityBuilder.getPrices();
 						entityBuilder.removeAllPrices();
 						return removedPrices;
 					};
 				} else if (NumberUtils.isIntConvertibleNumber(itemType)) {
 					return (proxy, theMethod, args, theState, invokeSuper) -> {
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Collection<PriceContract> removedPrices = entityBuilder.getPrices();
 						entityBuilder.removeAllPrices();
 						//noinspection rawtypes,unchecked
@@ -604,7 +604,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 					};
 				} else if (PriceKey.class.equals(itemType)) {
 					return (proxy, theMethod, args, theState, invokeSuper) -> {
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Collection<PriceContract> removedPrices = entityBuilder.getPrices();
 						entityBuilder.removeAllPrices();
 						return removedPrices.stream().map(PriceContract::priceKey).toList();
@@ -615,14 +615,14 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 			} else if (returnType.isArray()) {
 				if (PriceContract.class.isAssignableFrom(itemType)) {
 					return (proxy, theMethod, args, theState, invokeSuper) -> {
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Collection<PriceContract> removedPrices = entityBuilder.getPrices();
 						entityBuilder.removeAllPrices();
 						return removedPrices.toArray(new PriceContract[0]);
 					};
 				} else if (NumberUtils.isIntConvertibleNumber(itemType)) {
 					return (proxy, theMethod, args, theState, invokeSuper) -> {
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Collection<PriceContract> removedPrices = entityBuilder.getPrices();
 						entityBuilder.removeAllPrices();
 						final Object result = Array.newInstance(itemType, removedPrices.size());
@@ -640,7 +640,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 					};
 				} else if (PriceKey.class.equals(itemType)) {
 					return (proxy, theMethod, args, theState, invokeSuper) -> {
-						final EntityBuilder entityBuilder = theState.getEntityBuilder();
+						final EntityBuilder entityBuilder = theState.entityBuilder();
 						final Collection<PriceContract> removedPrices = entityBuilder.getPrices();
 						entityBuilder.removeAllPrices();
 						return removedPrices.stream().map(PriceContract::priceKey).toArray(PriceKey[]::new);
@@ -650,7 +650,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				}
 			} else if (returnType.equals(void.class)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					theState.getEntityBuilder().removeAllPrices();
+					theState.entityBuilder().removeAllPrices();
 					return null;
 				};
 			} else {
@@ -705,7 +705,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 	) {
 		if (returnType.equals(proxyClass)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				final EntityBuilder entityBuilder = theState.getEntityBuilder();
+				final EntityBuilder entityBuilder = theState.entityBuilder();
 				final List<PriceContract> pricesToRemove = entityBuilder.getPrices()
 					.stream()
 					.filter(it -> removalPredicate.test(args, it))
@@ -718,7 +718,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		} else if (Collection.class.isAssignableFrom(returnType)) {
 			if (PriceContract.class.isAssignableFrom(itemType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final List<PriceContract> pricesToRemove = entityBuilder.getPrices()
 						.stream()
 						.filter(it -> removalPredicate.test(args, it))
@@ -730,7 +730,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				};
 			} else if (NumberUtils.isIntConvertibleNumber(itemType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final List<PriceKey> pricesToRemove = entityBuilder.getPrices()
 						.stream()
 						.filter(it -> removalPredicate.test(args, it))
@@ -746,7 +746,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				};
 			} else if (PriceKey.class.equals(itemType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final List<PriceKey> pricesToRemove = entityBuilder.getPrices()
 						.stream()
 						.filter(it -> removalPredicate.test(args, it))
@@ -763,7 +763,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		} else if (returnType.isArray()) {
 			if (PriceContract.class.isAssignableFrom(itemType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final List<PriceContract> pricesToRemove = entityBuilder.getPrices()
 						.stream()
 						.filter(it -> removalPredicate.test(args, it))
@@ -775,7 +775,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				};
 			} else if (NumberUtils.isIntConvertibleNumber(itemType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final List<PriceKey> pricesToRemove = entityBuilder.getPrices()
 						.stream()
 						.filter(it -> removalPredicate.test(args, it))
@@ -797,7 +797,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				};
 			} else if (PriceKey.class.equals(itemType)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
+					final EntityBuilder entityBuilder = theState.entityBuilder();
 					final List<PriceKey> pricesToRemove = entityBuilder.getPrices()
 						.stream()
 						.filter(it -> removalPredicate.test(args, it))
@@ -813,7 +813,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 			}
 		} else if (Boolean.class.equals(returnType) || boolean.class.equals(returnType)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				final EntityBuilder entityBuilder = theState.getEntityBuilder();
+				final EntityBuilder entityBuilder = theState.entityBuilder();
 				final List<PriceContract> pricesToRemove = entityBuilder.getPrices()
 					.stream()
 					.filter(it -> removalPredicate.test(args, it))
@@ -825,7 +825,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 			};
 		} else if (void.class.equals(returnType)) {
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
-				final EntityBuilder entityBuilder = theState.getEntityBuilder();
+				final EntityBuilder entityBuilder = theState.entityBuilder();
 				final List<PriceContract> pricesToRemove = entityBuilder.getPrices()
 					.stream()
 					.filter(it -> removalPredicate.test(args, it))
