@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
@@ -30,6 +31,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
+import io.evitadb.test.client.query.JsonConstraint;
 import io.evitadb.test.client.query.OrderConstraintToJsonConverter;
 import io.evitadb.test.client.query.RequireConstraintToJsonConverter;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -49,17 +51,14 @@ abstract class RequireConverter {
 	@Nonnull protected final Query query;
 	@Nonnull protected final JsonNodeFactory jsonNodeFactory;
 
-	@Nonnull protected final GraphQLInputJsonPrinter inputJsonPrinter;
 	@Nonnull protected final FilterConstraintToJsonConverter filterConstraintToJsonConverter;
 	@Nonnull protected final OrderConstraintToJsonConverter orderConstraintToJsonConverter;
 	@Nonnull protected final RequireConstraintToJsonConverter requireConstraintToJsonConverter;
 
 	public RequireConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                        @Nonnull Query query,
-	                        @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
+	                        @Nonnull Query query) {
 		this.catalogSchema = catalogSchema;
 		this.query = query;
-		this.inputJsonPrinter = inputJsonPrinter;
 		this.jsonNodeFactory = new JsonNodeFactory(true);
 		this.filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		this.orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
@@ -71,23 +70,23 @@ abstract class RequireConverter {
 	}
 
 	@Nonnull
-	protected Optional<String> convertFilterConstraint(@Nonnull DataLocator dataLocator,
+	protected Optional<JsonNode> convertFilterConstraint(@Nonnull DataLocator dataLocator,
 	                                                   @Nonnull FilterConstraint filterConstraint) {
 		return filterConstraintToJsonConverter.convert(dataLocator, filterConstraint)
-			.map(it -> inputJsonPrinter.print(it.value()));
+			.map(JsonConstraint::value);
 	}
 
 	@Nonnull
-	protected Optional<String> convertOrderConstraint(@Nonnull DataLocator dataLocator,
-	                                                  @Nonnull OrderConstraint orderConstraint) {
+	protected Optional<JsonNode> convertOrderConstraint(@Nonnull DataLocator dataLocator,
+	                                                    @Nonnull OrderConstraint orderConstraint) {
 		return orderConstraintToJsonConverter.convert(dataLocator, orderConstraint)
-			.map(it -> inputJsonPrinter.print(it.value()));
+			.map(JsonConstraint::value);
 	}
 
 	@Nonnull
-	protected Optional<String> convertRequireConstraint(@Nonnull DataLocator dataLocator,
+	protected Optional<JsonNode> convertRequireConstraint(@Nonnull DataLocator dataLocator,
 	                                                    @Nonnull RequireConstraint requireConstraint) {
 		return requireConstraintToJsonConverter.convert(dataLocator, requireConstraint)
-			.map(it -> inputJsonPrinter.print(it.value()));
+			.map(JsonConstraint::value);
 	}
 }

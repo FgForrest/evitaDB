@@ -43,9 +43,8 @@ import java.util.Map;
 public class AttributeHistogramConverter extends HistogramConverter {
 
 	public AttributeHistogramConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                                   @Nonnull Query query,
-	                                   @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
+	                                   @Nonnull Query query) {
+		super(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder extraResultsBuilder,

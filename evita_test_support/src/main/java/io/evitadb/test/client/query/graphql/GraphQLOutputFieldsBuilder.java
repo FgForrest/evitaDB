@@ -23,19 +23,15 @@
 
 package io.evitadb.test.client.query.graphql;
 
-import io.evitadb.dataType.EvitaDataTypes;
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.test.client.query.ObjectJsonSerializer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -179,7 +175,12 @@ public class GraphQLOutputFieldsBuilder {
 	                       @Nonnull Object value) {
 		@Override
 		public String toString() {
-			final String serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
+			final String serializedValue;
+			if (value instanceof JsonNode jsonNode) {
+				serializedValue = INPUT_JSON_PRINTER.print(jsonNode);
+			} else {
+				serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
+			}
 			return offsetMultilineArgument(multilineOffset, argumentDescriptor.name() + ": " + serializedValue);
 		}
 
