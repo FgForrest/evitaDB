@@ -69,10 +69,10 @@ public class ObservableOutputKeeper {
 	 */
 	@Nonnull
 	public ObservableOutput<FileOutputStream> getObservableOutputOrCreate(@Nonnull Path targetFile, @Nonnull BiFunction<Path, StorageOptions, ObservableOutput<FileOutputStream>> createFct) {
+		Assert.notNull(this.cachedOutputs, "ObservableOutputKeeper is not prepared!");
 		return cachedOutputs.computeIfAbsent(targetFile, path -> {
 			try {
 				mutex.lock();
-				Assert.notNull(this.cachedOutputs, "ObservableOutputKeeper is not prepared!");
 				return createFct.apply(path, options);
 			} finally {
 				mutex.unlock();

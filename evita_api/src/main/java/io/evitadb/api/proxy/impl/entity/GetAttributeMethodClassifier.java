@@ -306,7 +306,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		);
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> toTargetType(
-				defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
+				defaultValueProvider.apply(attributeExtractor.apply(theState.entity(), cleanAttributeName)),
 				itemType, indexedDecimalPlaces
 			)
 		);
@@ -332,7 +332,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.entity(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -366,7 +366,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> ofNullable(
 				toTargetType(
-					defaultValueProvider.apply(attributeExtractor.apply(theState.getEntity(), cleanAttributeName)),
+					defaultValueProvider.apply(attributeExtractor.apply(theState.entity(), cleanAttributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			)
@@ -390,7 +390,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.getEntity();
+				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
 				final Locale locale = sealedEntity.getRequestedLocale();
 				if (locale != null) {
 					return resultWrapper.wrap(
@@ -406,7 +406,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 				() -> toTargetType(
 					defaultValueProvider.apply(
-						localizedAttributeExtractor.apply(theState.getEntity(), cleanAttributeName, (Locale) args[0])
+						localizedAttributeExtractor.apply(theState.entity(), cleanAttributeName, (Locale) args[0])
 					),
 					itemType, indexedDecimalPlaces
 				)
@@ -428,7 +428,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.getEntity();
+				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
 				final Locale locale = sealedEntity.getRequestedLocale();
 				if (locale != null) {
 					return resultWrapper.wrap(
@@ -462,7 +462,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getEntity(), cleanAttributeName, (Locale) args[0]
+								theState.entity(), cleanAttributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces
@@ -501,7 +501,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return method.getParameterCount() == 0 ?
 			(entityClassifier, theMethod, args, theState, invokeSuper) -> {
-				final EntityDecorator sealedEntity = (EntityDecorator) theState.getEntity();
+				final EntityDecorator sealedEntity = (EntityDecorator) theState.entity();
 				final Locale locale = sealedEntity.getRequestedLocale();
 				if (locale != null) {
 					return resultWrapper.wrap(
@@ -535,7 +535,7 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
-								theState.getEntity(), cleanAttributeName, (Locale) args[0]
+								theState.entity(), cleanAttributeName, (Locale) args[0]
 							)
 						),
 						itemType, indexedDecimalPlaces

@@ -140,7 +140,7 @@ in the <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUtils.ja
 The query can be "pretty-printed" by using the `prettyPrint` method on the
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
 
-### Data fetching
+## Data fetching
 
 By default, only primary keys of entities are returned in the query result. In this simplest case, each entity is 
 represented by the 
@@ -192,7 +192,7 @@ entity form in the second argument of the `query` method:
 - `queryEntityReference` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
 - `querySealedEntity` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
 
-#### Lazy fetching (enrichment)
+### Lazy fetching (enrichment)
 
 Attributes, associated data, prices and references can be fetched separately by providing the primary key of the entity.
 The initial entity loaded by [entity fetch](../../query/requirements/fetching.md) with a limited set of requirements 
@@ -221,11 +221,193 @@ you can still use the `enrichEntity` method on the
 will be fully fetched again. However, we plan to optimize this scenario in the future.
 </Note>
 
-#### Custom contracts
+### Custom contracts
 
-TODO JNO - document me
+Data retrieved from evitaDB is represented by the internal evitaDB data structures, which use the domain names 
+associated with the evitaDB representation. You may want to use your own domain names and data structures in your 
+application. Fortunately, evitaDB allows you to define your own contracts for data retrieval and use them to fetch and 
+[write data](write-data.md#custom-contracts) to evitaDB. This chapter describes how to define custom contracts for data 
+retrieval. Basic requirements and usage patterns are described in the [Java Connector chapter](../connectors/java.md#custom-contracts).
 
-### Caching considerations
+The read contract is expected to be used for both [schema definition](schema-api.md#declarative-schema-definition) and 
+data retrieval. However, you can have multiple read contracts with different scopes representing the exact same entity.
+
+In addition to [schema controlling annotations](schema-api.md#schema-controlling-annotations), which you can use to 
+describe your read contract, you can also use shortcut annotations, which don't require you to repeat all of the entity 
+structure details required for the schema definition:
+
+<dl>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/EntityRef.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on methods that should return different entity body.
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKeyRef.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on methods returning number data type (usually [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html))
+        that should return primary key assigned to the entity.
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on methods that should return entity or reference [attribute](#attribute).
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on methods that should return entity [associated data](#associated-data). 
+        If the associated data represents a custom Java type converted into [complex data type](../data-types.md#complex-data-types),
+        the implementation provides automatic conversion for that data type.
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSaleRef.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on method returning 
+        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> type 
+        to provide access to price for sale of the entity.
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass></dt>
+    <dd>
+        Annotation can be placed on methods that should return entity [reference](#reference) to another entity. 
+        It can point to another model class (interface/class/record) that contains properties for `@ReferencedEntity` 
+        and `@ReferencedEntityGroup` annotations and relation attributes or directly to different entity read contract
+        annotated with `@Entity` or `@EntityRef` annotation.
+    </dd>
+</dl>
+
+<Note type="warning">
+
+Because evitaDB allows partial fetches of the entity, not all data in the contract may be available. If you access it, 
+you will get a NULL value, which can represent both the fact that the data is not available and the fact that the data 
+does not exist. If you need to distinguish between these two cases, your methods should use the
+<SourceClass>evita_api/src/main/java/io/evitadb/api/exception/ContextMissingException.java</SourceClass>. 
+This exception is a runtime exception, so the caller is not forced to handle it, but it signals the automatic evitaDB 
+implementation to throw an exception if the requested data was not fetched with the entity.
+
+Lazy loading of data is not yet supported for custom contracts, but we plan to automatically fetch missing data if 
+the method call occurs in a scope where the evita session is available.
+
+</Note>
+
+All the examples in this chapter come in three variants: interface, record, and class. The interface variant is the most
+versatile and can also be applied to classes. However, if you follow the record or class examples with final fields, 
+where the data is passed through the constructor, you're limited in some features and other behavior:
+
+- You cannot distinguish between the fact that the data was not fetched and the fact that the data does not exist.
+- You cannot use controllable accessors that change output based on method parameters (for example, `String getName(Locale, locale)`), 
+  because there is no way to represent the method parameters in the constructor arguments.
+
+The record and immutable class example variants are suitable for secondary data structures or simplified structures 
+returned as a result of reference getter calls, where you don't need the full-fledged read contract.
+
+Methods annotated with these annotations must follow the expected signature conventions:
+
+#### Primary key
+
+In order to access the primary key of the entity, you must use number data type (usually
+[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the `@PrimaryKey`
+or `@PrimaryKeyRef` annotation:
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with primary key access](/documentation/user/en/use/api/example/primary-key-interface.java)
+
+</SourceAlternativeTabs>
+
+#### Attributes
+
+To access the entity or reference attribute, you must use the appropriate data type and annotate it with the `@Attribute`
+or `@AttributeRef` annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html) 
+(or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html) 
+or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
+
+If the attribute represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) 
+or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)). The rules apply to both for entity and reference attributes:
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with attribute access](/documentation/user/en/use/api/example/attribute-interface.java)
+
+</SourceAlternativeTabs>
+
+<Note type="info">
+
+Java enum data types are automatically converted to evitaDB string data type using the `name()` method and vice versa 
+using the `valueOf()` method.
+
+</Note>
+
+<Note type="warning">
+
+Avoid declaring methods that return a primitive data type without throwing the `ContextMissingException`. The method
+call may fail with a `NullPointerException` if the data wasn't fetched even though it was declared as mandatory 
+(not nullable).
+
+</Note>
+
+#### Associated data
+
+To access the entity or reference associated data, you must use the appropriate data type and annotate it with 
+the `@AssociatedData` or `@AssociatedDataRef` annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
+(or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html)
+or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
+
+If the associated data represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)).
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with associated data access](/documentation/user/en/use/api/example/associated-data-interface.java)
+
+</SourceAlternativeTabs>
+
+If the method returns ["non-supported"](../data-types.md#simple-data-types) evitaDB automatically converts the data
+from ["complex data type"](../data-types.md#complex-data-types) using [documented deserialization rules](../data-types.md#deserialization).
+
+#### Prices
+
+TODO JNO - Work in progress
+
+#### Hierarchy
+
+TODO JNO - Work in progress
+
+#### References
+
+TODO JNO - Work in progress
+
+#### Access to evitaDB data structures
+
+Your read contract can implement the following interfaces to access the underlying evitaDB data structures:
+
+<dl>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithVersion.java</SourceClass></dt>
+  <dd>which provides access to the `version` of the entity via the `version()` method</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithLocales.java</SourceClass></dt>
+  <dd>which provides access to the `locales` with which the entity was fetched, and `allLocales` which represents all
+      possible locales of this entity</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntitySchema.java</SourceClass></dt>
+  <dd>which provides access to the appropriate entity schema via `entitySchema()` method</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntityContract.java</SourceClass></dt>
+  <dd>which provides access to the underlying evitaDB entity via the `entity()` method</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntityBuilder.java</SourceClass></dt>
+  <dd>which provides access to the underlying evitaDB entity builder via the `entityBuilder()` method (automatically 
+      creates a new one if it hasn't been requested yet) or the `entityBuilderIfPresent` method.</dd>
+</dl>
+
+<Note type="info">
+
+All generated proxies automatically implement the <SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/EvitaProxy.java</SourceClass> 
+interface, so you can distinguish them from other classes.
+
+</Note>
+
+<Note type="warning">
+
+evitaDB cannot provide an automatic implementation for these interfaces if your read contract is a record or a 
+final/sealed class. In such cases you have to implement these interfaces manually.
+
+</Note>
+
+## Caching considerations
 
 If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration), 
 the evitaDB engine automatically caches intermediate calculation results and frequently used entity bodies up to the 
@@ -261,6 +443,8 @@ has the following GraphQL queries available:
 
 where the `CollectionName` would be the name of a concrete [entity collection](/documentation/user/en/use/data-model.md#collection), e.g. `queryProduct` or `queryCategory`.
 
+### `get` queries
+
 The `getCollecionName` queries support only a very simplified variant of the filter part of a query, but support fetching of 
 rich entity objects. As a result, you will only get a specific entity object without unnecessary data around it.
 These simplified queries are primarily intended to be used when developing or exploring the API by unique keys,
@@ -270,6 +454,8 @@ as they provide quick access to entities.
 
 [Java query example](/documentation/user/en/use/api/example/graphql-get-query-example.graphql)
 </SourceCodeTabs>
+
+### `list` queries
 
 The `listCollectionName` queries support full filter and order parts of an evitaDB query as a query arguments and fetching
 of rich entity objects. As a result, you will get a simple list of entities without having to deal
@@ -281,6 +467,8 @@ requirements are needed.
 
 [Java query example](/documentation/user/en/use/api/example/graphql-list-query-example.graphql)
 </SourceCodeTabs>
+
+### `query` queries
 
 The `queryCollectionName` queries are full-featured queries, which are the main queries you should use when
 the number of entities is not known in advance or extra results are needed, as they support

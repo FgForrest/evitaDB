@@ -1053,7 +1053,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		if (entity instanceof EntityClassifier entityClassifier) {
 			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
 		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
-			return Objects.requireNonNull(sealedEntityProxy.getEntity().getPrimaryKey());
+			return Objects.requireNonNull(sealedEntityProxy.entity().getPrimaryKey());
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
@@ -1417,7 +1417,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 * When the persistence service was closed in the meantime (for example the underlying file was renamed),
 	 * the service is automatically recreated.
 	 */
-	private <T> T doWithPersistenceService(Supplier<T> lambda) {
+	private <T> T doWithPersistenceService(@Nonnull Supplier<T> lambda) {
 		if (this.persistenceService.isClosed()) {
 			// if the service was closed in the meantime - just recreate it
 			this.persistenceService = this.catalogPersistenceService.createEntityCollectionPersistenceService(getEntityType(), getEntityTypePrimaryKey());

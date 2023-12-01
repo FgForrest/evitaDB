@@ -166,7 +166,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final EntityClassifier parent = (EntityClassifier) args[0];
 		if (parent == null) {
 			entityBuilder.removeParent();
@@ -222,7 +222,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		//noinspection unchecked
 		final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
 			theState.getEntitySchema(),
@@ -289,7 +289,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
-		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
 		//noinspection unchecked
 		final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
@@ -310,7 +310,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithEntityBuilderResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			entityBuilder.removeParent();
 			return proxy;
 		};
@@ -327,7 +327,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull Class returnType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
 			if (parentEntity.isPresent()) {
 				entityBuilder.removeParent();
@@ -346,7 +346,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithBooleanResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
 			if (parentEntity.isPresent()) {
 				entityBuilder.removeParent();
@@ -365,7 +365,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithVoidResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			entityBuilder.removeParent();
 			return null;
 		};
@@ -382,7 +382,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull Class expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
 			if (parentEntity.isPresent()) {
 				entityBuilder.removeParent();
@@ -417,7 +417,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull String entityType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final EntityClassifier parent = (EntityClassifier) args[0];
 			if (parent == null) {
 				entityBuilder.removeParent();
@@ -449,7 +449,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull String entityType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final EntityClassifier parent = (EntityClassifier) args[0];
 			if (parent == null) {
 				entityBuilder.removeParent();
@@ -477,7 +477,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setParentIdWithVoidResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final Serializable parent = (Serializable) args[0];
 			if (parent == null) {
 				entityBuilder.removeParent();
@@ -499,7 +499,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setParentIdWithBuilderResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
+			final EntityBuilder entityBuilder = theState.entityBuilder();
 			final Serializable parent = (Serializable) args[0];
 			if (parent == null) {
 				entityBuilder.removeParent();

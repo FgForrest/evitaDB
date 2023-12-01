@@ -857,9 +857,9 @@ and(
 ```
 
 The product will not be found - because the query engine will use the first defined price for the price lists in the defined
-order. In our case,  it's the price `999.99`, which is not in the defined price interval 800€-900€. If the price lists in the
+order. In our case,  it's the price `999.99`, which is not in the defined price interval €800-€900. If the price lists in the
 argument gets switched to `priceInPriceLists('b2b_discount', 'basic')`, the product will be returned, because the first
-price is now from the `b2b_discount` price list - 869€, and this price is within the defined interval.
+price is now from the `b2b_discount` price list - €869, and this price is within the defined interval.
 </Note>
 
 <Note type="info">

@@ -301,7 +301,7 @@ public class SetReferenceGroupMethodClassifier extends DirectMethodClassificatio
 	) {
 		final ReferenceBuilder referenceBuilder = theState.getReferenceBuilder();
 		final SealedEntityProxy referencedEntity = (SealedEntityProxy) args[0];
-		final EntityContract sealedEntity = referencedEntity.getEntity();
+		final EntityContract sealedEntity = referencedEntity.entity();
 		Assert.isTrue(
 			expectedEntityType.equals(sealedEntity.getType()),
 			"Entity type `" + sealedEntity.getType() + "` in passed argument " +

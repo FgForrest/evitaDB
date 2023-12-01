@@ -215,7 +215,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (partiallyLoadedEntity instanceof EntityClassifier entityClassifier) {
 			entityType = entityClassifier.getType();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.getEntity().getType();
+			entityType = sealedEntityProxy.entity().getType();
 		} else {
 			entityType = extractEntityTypeFromClass(partiallyLoadedEntity.getClass(), reflectionLookup)
 				.orElseThrow(() -> new EvitaInvalidUsageException(
@@ -521,7 +521,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			return (T) this.createEntityProxy(
 				sealedEntityProxy.getProxyClass(),
 				entityCollection.enrichEntity(
-					sealedEntityProxy.getEntity(),
+					sealedEntityProxy.entity(),
 					evitaRequest,
 					this
 				)
@@ -564,7 +564,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				sealedEntityProxy.getProxyClass(),
 				entityCollection.limitEntity(
 					entityCollection.enrichEntity(
-						sealedEntityProxy.getEntity(),
+						sealedEntityProxy.entity(),
 						evitaRequest,
 						this
 					),
@@ -719,7 +719,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				.orElseGet(() -> {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
-					final EntityContract entity = sealedEntityProxy.getEntity();
+					final EntityContract entity = sealedEntityProxy.entity();
 					return new EntityReference(entity.getType(), entity.getPrimaryKey());
 				});
 		} else if (customEntity instanceof InstanceEditor<?> ie) {
