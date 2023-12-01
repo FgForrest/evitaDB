@@ -31,6 +31,8 @@ There are a huge number of possible variations, and it is difficult to support a
 That's why there is an extensible mechanism by which you can request the computation of multiple different parts of the 
 hierarchy tree, as you actually need it for your particular user interface use case.
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 There are two type of top hierarchy requirements:
 
 <dl>
@@ -47,6 +49,15 @@ There are two type of top hierarchy requirements:
 </dl>
 
 These top hierarchy requirements must have at least one of the following hierarchy sub-constraints:
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+Hierarchies can be requested by specifying the `hierarchy` field in extra results of query.
+Specific data structures can be requested either from the data of the directly queried hierarchical entity, or 
+from the data of the entities referencing hierarchical entity. 
+Either way, you can then use one or more of the following hierarchy sub-requirements:
+
+</LanguageSpecific>
 
 - [`fromRoot`](#from-root)
 - [`fromNode`](#from-node)
@@ -68,12 +79,7 @@ There can be multiple sub-requirements, and each requirement can be duplicated (
 such case, each requirement must be aliased with unique name (see examples below). Each such sub-requirements then returns
 a list of hierarchy tree nodes.
 
-<Note type="info">
-
-<NoteTitle toggles="true">
-
-##### Result hierarchy tree structure
-</NoteTitle>
+<Note type="warning">
 
 In GraphQL, returning tree data structures of unknown depth is problematic and cannot be solved in developer-friendly way.
 That's why we opted for a solution where the tree is returned as a flat list of nodes. Each node contains information
@@ -131,6 +137,8 @@ Using the custom aliases for hierarchies, you can easily create custom menu data
 
 ## Hierarchy of self
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 hierarchyOfSelf(
     orderConstraint:any,
@@ -167,7 +175,22 @@ The hierarchy of self can still be combined with [`hierarchyOfReference`](#hiera
 is a hierarchical entity that is also connected to another hierarchical entity. Such situations are rather sporadic in 
 reality.
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+"Self" hierarchy data structures can be requested inside the `extraResult` → `hierarchy` → `self` field, similarly to 
+[referenced hierarchies](#hierarchy-of-reference).
+This triggers the calculation of the hierarchy data structures for the hierarchy of the directly queried hierarchical entity.
+
+The reserved `self` field in the `extraResult` → `hierarchy` has inner structure specific to the directly queried hierarchical entity.
+This means that when you request entities for the hierarchy nodes, you can use the same [fetching fields](fetching.md) as 
+you would use for the main query.
+
+</LanguageSpecific>
+
 ## Hierarchy of reference
+
+<LanguageSpecific to="evitaql,java,csharp,rest">
 
 ```evitaql-syntax
 hierarchyOfReference(
@@ -228,7 +251,23 @@ reality.
 The `hierarchyOfReference` can be repeated multiple times in a single query if you need different calculation
 settings for different reference types.
 
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+
+Hierarchy data structures for the [referenced hierarchical entities](../../use/schema.md#reference) can be requested
+inside the `extraResult` → `hierarchy` → `{reference name}` field.
+This triggers the calculation of the hierarchy data structures for the hierarchy of the entities referencing hierarchical entity.
+
+For each such hierarchical reference, there is a separate field in the `extraResult` → `hierarchy`, and each such field
+has inner structure specific to referenced entity data.
+This means that when you request entities for the hierarchy nodes, you can use the same [fetching fields](fetching.md) as
+you would use for the main query for that particular referenced entity.
+
+</LanguageSpecific>
+
 ## From root
+
+<LanguageSpecific to="evitaql,java,csharp,rest">
 
 ```evitaql-syntax
 fromRoot(
@@ -256,6 +295,8 @@ fromRoot(
         </ul>
     </dd>
 </dl>
+
+</LanguageSpecific>
 
 The `fromRoot` requirement computes the hierarchy tree starting from the "virtual" invisible top root of the hierarchy, 
 regardless of the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of 
@@ -321,6 +362,8 @@ the calculated number remains consistent for the end user.
 
 ## From node
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 fromNode(
     argument:string!,
@@ -353,6 +396,8 @@ fromNode(
         </ul>
     </dd>
 </dl>
+
+</LanguageSpecific>
 
 The `fromNode` requirement computes the hierarchy tree starting from the pivot node of the hierarchy, that is identified
 by the [`node`](#node) inner constraint. The `fromNode` calculates the result regardless of the potential use of 
@@ -415,6 +460,8 @@ the calculated number remains consistent for the end user.
 
 ## Children
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 children
     argument:string!,   
@@ -441,6 +488,8 @@ children
         </ul>
     </dd>
 </dl>
+
+</LanguageSpecific>
 
 The `children` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
 filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) or 
@@ -503,6 +552,8 @@ so that the calculated number remains consistent for the end user.
 
 ## Parents
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 parents
     argument:string!,   
@@ -530,6 +581,8 @@ parents
         </ul>
     </dd>
 </dl>
+
+</LanguageSpecific>
 
 The `parents` requirement computes the hierarchy tree starting at the same hierarchy node that is targeted by the
 filtering part of the same query using the [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) constraint
@@ -625,12 +678,16 @@ for the end user.
 
 ## Siblings
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 siblings(
     argument:string!,   
     requireConstraint:(entityFetch|stopAt|statistics)*
 )
 ```
+
+</LanguageSpecific>
 
 <Note type="warning">
 
@@ -639,11 +696,15 @@ siblings(
 ##### Different `siblings` syntax when used within `parents` parent constraint
 </NoteTitle>
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 siblings(      
     requireConstraint:(entityFetch|stopAt|statistics)*
 )
 ```
+
+</LanguageSpecific>
 
 The `siblings` constraint can be used separately as a child of `hierarchyOfSelf` or `hierarchyOfReference`, or it can be
 used as a child constraint of [`parents`](#parents). In such a case, the `siblings` constraint lacks the first string 
@@ -1022,6 +1083,8 @@ The computed result *subMenu* looks like this (visualized in JSON format):
 
 ## Statistics
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+
 ```evitaql-syntax
 statistics(
     argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER),
@@ -1062,6 +1125,8 @@ statistics(
         one or all possible enum values can be used
     </dd>
 </dl>
+
+</LanguageSpecific>
 
 The `statistics` constraint with `CHILDREN_COUNT` allows you to easily render collapsed menu showing the nodes
 available for opening without actually requesting the child nodes from the database:
