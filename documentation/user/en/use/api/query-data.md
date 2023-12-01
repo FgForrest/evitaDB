@@ -379,18 +379,18 @@ TODO JNO - Work in progress
 Your read contract can implement the following interfaces to access the underlying evitaDB data structures:
 
 <dl>
-  <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithVersion.java</SourceClass></dd>
-  <dt>which provides access to the `version` of the entity via the `version()` method</dt>
-  <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithLocales.java</SourceClass></dd>
-  <dt>which provides access to the `locales` with which the entity was fetched, and `allLocales` which represents all
-      possible locales of this entity</dt>
-  <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntitySchema.java</SourceClass></dd>
-  <dt>which provides access to the appropriate entity schema via `entitySchema()` method</dt>
-  <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntityContract.java</SourceClass></dd>
-  <dt>which provides access to the underlying evitaDB entity via the `entity()` method</dt>
-  <dd><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntityBuilder.java</SourceClass></dd>
-  <dt>which provides access to the underlying evitaDB entity builder via the `entityBuilder()` method (automatically 
-      creates a new one if it hasn't been requested yet) or the `entityBuilderIfPresent` method.</dt>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithVersion.java</SourceClass></dt>
+  <dd>which provides access to the `version` of the entity via the `version()` method</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithLocales.java</SourceClass></dt>
+  <dd>which provides access to the `locales` with which the entity was fetched, and `allLocales` which represents all
+      possible locales of this entity</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntitySchema.java</SourceClass></dt>
+  <dd>which provides access to the appropriate entity schema via `entitySchema()` method</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntityContract.java</SourceClass></dt>
+  <dd>which provides access to the underlying evitaDB entity via the `entity()` method</dd>
+  <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/proxy/WithEntityBuilder.java</SourceClass></dt>
+  <dd>which provides access to the underlying evitaDB entity builder via the `entityBuilder()` method (automatically 
+      creates a new one if it hasn't been requested yet) or the `entityBuilderIfPresent` method.</dd>
 </dl>
 
 <Note type="info">
