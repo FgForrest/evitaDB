@@ -153,7 +153,7 @@ public enum GrpcClassifierType
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(20);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(21);
   }
 
   private static final GrpcClassifierType[] VALUES = values();

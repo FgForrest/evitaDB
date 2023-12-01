@@ -414,11 +414,11 @@ public class EvitaEnumConverter {
 	@Nonnull
 	public static GrpcAttributeSchemaType toGrpcAttributeSchemaType(@Nonnull Class<? extends AttributeSchemaContract> attributeSchemaClass) {
 		if (GlobalAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
-			return GrpcAttributeSchemaType.GLOBAL;
+			return GrpcAttributeSchemaType.GLOBAL_SCHEMA;
 		} else if (EntityAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
-			return GrpcAttributeSchemaType.ENTITY;
+			return GrpcAttributeSchemaType.ENTITY_SCHEMA;
 		} else if (AttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
-			return GrpcAttributeSchemaType.REFERENCE;
+			return GrpcAttributeSchemaType.REFERENCE_SCHEMA;
 		} else {
 			throw new EvitaInternalError("Unrecognized attribute schema type: " + attributeSchemaClass);
 		}

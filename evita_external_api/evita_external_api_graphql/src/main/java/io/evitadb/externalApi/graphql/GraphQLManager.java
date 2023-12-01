@@ -42,7 +42,6 @@ import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
 import io.evitadb.externalApi.graphql.io.web.GraphQLWebHandler;
 import io.evitadb.externalApi.graphql.io.webSocket.GraphQLWebSocketHandler;
-import io.evitadb.externalApi.graphql.io.GraphQLHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;

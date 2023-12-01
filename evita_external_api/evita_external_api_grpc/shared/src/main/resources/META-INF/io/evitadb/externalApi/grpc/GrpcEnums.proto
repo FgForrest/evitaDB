@@ -188,11 +188,11 @@ enum GrpcCatalogEvolutionMode {
 // Defines the type of the attribute schema
 enum GrpcAttributeSchemaType {
   // attribute schema is GlobalAttributeSchemaContract
-  GLOBAL = 0;
+  GLOBAL_SCHEMA = 0;
   // attribute schema is EntityAttributeSchemaContract
-  ENTITY = 1;
+  ENTITY_SCHEMA = 1;
   // attribute schema is AttributeSchemaContract
-  REFERENCE = 2;
+  REFERENCE_SCHEMA = 2;
 }
 
 // This enum contains all supported types in evitaDB query context.

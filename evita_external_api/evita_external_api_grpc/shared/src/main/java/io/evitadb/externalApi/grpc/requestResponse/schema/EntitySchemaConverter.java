@@ -263,7 +263,7 @@ public class EntitySchemaConverter {
 
 		return builder.build();
 	}
-	
+
 	/**
 	 * From passed map where keys are representing associated data names and values {@link AssociatedDataSchema} will be built a new map where values are converted
 	 * to {@link GrpcAssociatedDataSchema}.
@@ -357,7 +357,7 @@ public class EntitySchemaConverter {
 	 */
 	@Nonnull
 	private static <T extends AttributeSchemaContract> T toAttributeSchema(@Nonnull GrpcAttributeSchema attributeSchema, @Nonnull Class<T> expectedType) {
-		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL) {
+		if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.GLOBAL_SCHEMA) {
 			if (expectedType.isAssignableFrom(GlobalAttributeSchema.class)) {
 				//noinspection unchecked
 				return (T) GlobalAttributeSchema._internalBuild(
@@ -379,7 +379,7 @@ public class EntitySchemaConverter {
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
 			}
-		} else if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.ENTITY) {
+		} else if (attributeSchema.getSchemaType() == GrpcAttributeSchemaType.ENTITY_SCHEMA) {
 			if (expectedType.isAssignableFrom(EntityAttributeSchemaContract.class)) {
 				//noinspection unchecked
 				return (T) EntityAttributeSchema._internalBuild(

@@ -47,16 +47,7 @@ public class SetAttributeSchemaRepresentativeMutationConverter extends Attribute
 
 	@Nonnull
 	@Override
-	protected String getMutationName() {
-		return SetAttributeSchemaRepresentativeMutationDescriptor.THIS.name();
-	}
-
-	@Nonnull
-	@Override
-	protected SetAttributeSchemaRepresentativeMutation convert(@Nonnull Input input) {
-		return new SetAttributeSchemaRepresentativeMutation(
-			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaRepresentativeMutationDescriptor.REPRESENTATIVE)
-		);
+	protected Class<SetAttributeSchemaRepresentativeMutation> getMutationClass() {
+		return SetAttributeSchemaRepresentativeMutation.class;
 	}
 }
