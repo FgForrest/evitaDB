@@ -342,7 +342,7 @@ computes the hierarchy tree starting from the "virtual" invisible top root of th
 regardless of the potential use of the `hierarchyWithin` constraint in the filtering part of the query. The scope of
 the calculated information can be controlled by the [`stopAt`](#stop-at) <LanguageSpecific to="evitaql,java,rest,csharp">constraint</LanguageSpecific><LanguageSpecific to="graphql">argument</LanguageSpecific>.
 By default, the traversal goes all
-the way to the bottom of the hierarchy tree unless you tell it to stop at anywhere. If you need to access statistical data,
+the way to the bottom of the hierarchy tree unless you tell it to stop anywhere. If you need to access statistical data,
 use <LanguageSpecific to="evitaql,java,rest,csharp">[`statistics`](#statistics) constraint</LanguageSpecific><LanguageSpecific to="graphql">the [`childrenCount` and `queriedEntityCount` fields](#statistics) on the node object</LanguageSpecific>.
 Calculated data is not affected by the `hierarchyWithin` filter constraint -
 the query can filter entities using `hierarchyWithin` from category *Accessories*, while still allowing you to correctly
@@ -448,7 +448,7 @@ The `fromNode` calculates the result regardless of the potential use of
 the `hierarchyWithin` constraint in the filtering part of the query. The scope of the calculated
 information can be controlled by the [`stopAt`](#stop-at) <LanguageSpecific to="evitaql,java,csharp,rest">constraint</LanguageSpecific><LanguageSpecific to="graphql">argument</LanguageSpecific>.
 By default, the traversal goes all the way to
-the bottom of the hierarchy tree unless you tell it to stop at anywhere. Calculated data is not affected by
+the bottom of the hierarchy tree unless you tell it to stop anywhere. Calculated data is not affected by
 the `hierarchyWithin` filter constraint - the query can filter entities using `hierarchyWithin` from category
 *Accessories*, while still allowing you to correctly compute menu at different node defined in a `fromNode` requirement.
 If you need to access statistical data, use <LanguageSpecific to="evitaql,java,rest,csharp">[`statistics`](#statistics) constraint</LanguageSpecific><LanguageSpecific to="graphql">the [`childrenCount` and `queriedEntityCount` fields](#statistics) on the node object</LanguageSpecific>.
@@ -714,7 +714,7 @@ The computed result *parentAxis* with siblings now looks like this:
 
 If you need each of these siblings to fetch their child nodes as well (no matter if they are only one level deep or
 more), you can do this by adding a `stopAt` <LanguageSpecific to="evitaql,java,csharp,rest">constraint</LanguageSpecific>
-<LanguageSpecific to="graphql">argument</LanguageSpecific> to the `siblings`<LanguageSpecific to="evitaql,java,csharp,rest">constraint container</LanguageSpecific><LanguageSpecific to="graphql">data structure</LanguageSpecific>.
+<LanguageSpecific to="graphql">argument</LanguageSpecific> to the `siblings` <LanguageSpecific to="evitaql,java,csharp,rest">constraint container</LanguageSpecific><LanguageSpecific to="graphql">data structure</LanguageSpecific>.
 However, this scenario is too complex to cover in this documentation.
 
 </Note>
@@ -910,7 +910,8 @@ stopAt(
     </dd>
 </dl>
 
-The `stopAt` container constraint is a service wrapping constraint container that only makes sense
+The `stopAt` <LanguageSpecific to="evitaql,java,csharp,rest">container constraint</LanguageSpecific><LanguageSpecific to="graphql">argument</LanguageSpecific>
+is a service wrapping constraint container that only makes sense
 <LanguageSpecific to="evitaql,java,csharp,rest">in combination with one of the allowed nested constraints</LanguageSpecific><LanguageSpecific to="graphql">as an argument of one of the data structures</LanguageSpecific>.
 See the usage examples for specific <LanguageSpecific to="evitaql,java,csharp,rest">nested constraints</LanguageSpecific>
 <LanguageSpecific to="graphql">data structures</LanguageSpecific>.
@@ -932,7 +933,9 @@ distance(
     </dd>
 </dl>
 
-The `distance` constraint can only be used within the `stopAt` container and limits the hierarchy traversal to stop when
+The `distance` constraint can only be used within the `stopAt`
+<LanguageSpecific to="evitaql,java,csharp,rest">container</LanguageSpecific><LanguageSpecific to="graphql">argument</LanguageSpecific>
+and limits the hierarchy traversal to stop when
 the number of levels traversed reaches the specified constant. The distance is always relative to the pivot node
 (the node where the hierarchy traversal starts) and is the same whether we are traversing the hierarchy top-down or
 bottom-up. The distance between any two nodes in the hierarchy can be calculated as `abs(level(nodeA) - level(nodeB))`.
@@ -1022,7 +1025,9 @@ level(
     </dd>
 </dl>
 
-The `level` constraint can only be used within the `stopAt` container and limits the hierarchy traversal to stop when
+The `level` constraint can only be used within the `stopAt`
+<LanguageSpecific to="evitaql,java,csharp,rest">container</LanguageSpecific><LanguageSpecific to="graphql">argument</LanguageSpecific>
+and limits the hierarchy traversal to stop when
 the actual level of the traversed node is equal to a specified constant. The "virtual" top invisible node has level
 zero, the top nodes (nodes with `NULL` parent) have level one, their children have level two, and so on. See the
 following figure:
@@ -1216,11 +1221,11 @@ constraints are crucial for the calculation of `queriedEntityCount` (and therefo
 
 ### Statistics types
 
-- **`childrenCount`**: triggers calculation of the count of child hierarchy nodes that exist in the hierarchy
+- `childrenCount`: triggers calculation of the count of child hierarchy nodes that exist in the hierarchy
     tree below the given node; the count is correct regardless of whether the children themselves are
     requested/traversed by the constraint definition, and respects [`hierarchyOfReference`](#hierarchy-of-reference)
     settings for automatic removal of hierarchy nodes that would contain empty result set of queried entities (REMOVE_EMPTY)
-- **`queriedEntityCount`**: triggers the calculation of the total number of queried entities that will be
+- `queriedEntityCount`: triggers the calculation of the total number of queried entities that will be
     returned if the current query is focused on this particular hierarchy node using the `hierarchyWithin`
     filter constraint (the possible refining constraint in the form of [`directRelation`](../filtering/hierarchy.md#direct-relation)
     and [`excluding-root`](../filtering/hierarchy.md#excluding-root) is not taken into account).
