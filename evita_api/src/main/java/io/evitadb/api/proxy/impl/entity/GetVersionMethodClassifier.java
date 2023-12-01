@@ -49,7 +49,7 @@ public class GetVersionMethodClassifier extends DirectMethodClassification<Objec
 				}
 
 				if (ReflectionUtils.isMatchingMethodPresentOn(method, WithVersion.class)) {
-					return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.getEntity().version();
+					return (entityClassifier, theMethod, args, theState, invokeSuper) -> theState.entity().version();
 				}
 
 				// this method is not classified by this implementation

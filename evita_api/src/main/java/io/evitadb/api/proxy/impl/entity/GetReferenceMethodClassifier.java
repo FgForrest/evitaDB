@@ -239,7 +239,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
-				final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
+				final Stream<ReferenceContract> references = referenceExtractor.apply(theState.entity(), referenceName);
 				if (references == null) {
 					return null;
 				} else {
@@ -287,7 +287,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(refs -> refs
 						.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 						.toList()
@@ -326,7 +326,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(
 						refs -> refs
 							.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
@@ -366,7 +366,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(refs -> refs
 						.map(it -> new EntityReference(it.getReferencedEntityType(), it.getReferencedPrimaryKey()))
 						.toArray(EntityReference[]::new)
@@ -405,7 +405,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
-				final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
+				final Stream<ReferenceContract> references = referenceExtractor.apply(theState.entity(), referenceName);
 				if (references == null) {
 					return null;
 				} else {
@@ -457,7 +457,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(refs -> refs
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.toList()
@@ -496,7 +496,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(refs -> refs
 						.map(ReferenceContract::getReferencedPrimaryKey)
 						.collect(CollectorUtils.toUnmodifiableLinkedHashSet())
@@ -541,7 +541,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			);
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.wrap(
-					() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+					() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 						.map(
 							refs -> refs
 								.filter(Objects::nonNull)
@@ -553,7 +553,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			//noinspection unchecked
 			return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 				resultWrapper.wrap(
-					() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+					() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 						.map(
 							refs -> refs
 								.filter(Objects::nonNull)
@@ -621,7 +621,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
-				final Stream<ReferenceContract> references = referenceExtractor.apply(theState.getEntity(), referenceName);
+				final Stream<ReferenceContract> references = referenceExtractor.apply(theState.entity(), referenceName);
 				if (references == null) {
 					return null;
 				} else {
@@ -698,7 +698,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(
 						refs -> refs
 							.map(
@@ -758,7 +758,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(
 						refs -> refs
 							.map(
@@ -818,7 +818,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> ofNullable(referenceExtractor.apply(theState.getEntity(), referenceName))
+				() -> ofNullable(referenceExtractor.apply(theState.entity(), referenceName))
 					.map(
 						refs -> refs
 							.map(
@@ -905,7 +905,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
-				final EntityContract entity = theState.getEntity();
+				final EntityContract entity = theState.entity();
 				final Stream<ReferenceContract> references = referenceExtractor.apply(entity, referenceName);
 
 				if (references == null) {
@@ -932,7 +932,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
 			() -> {
-				final EntityContract entity = theState.getEntity();
+				final EntityContract entity = theState.entity();
 				final Integer referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
 				return referenceExtractor.apply(entity, referenceName, referencedId)
 					.map(referenceContract -> theState.getOrCreateEntityReferenceProxy(itemType, referenceContract))
@@ -976,7 +976,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final EntityContract entity = theState.getEntity();
+			final EntityContract entity = theState.entity();
 			return resultWrapper.wrap(
 				() -> ofNullable(referenceExtractor.apply(entity, referenceName))
 					.map(
@@ -999,7 +999,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final EntityContract entity = theState.getEntity();
+			final EntityContract entity = theState.entity();
 			return resultWrapper.wrap(
 				() -> ofNullable(referenceExtractor.apply(entity, referenceName))
 					.map(
@@ -1046,7 +1046,7 @@ public class GetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final EntityContract entity = theState.getEntity();
+			final EntityContract entity = theState.entity();
 			return resultWrapper.wrap(
 				() -> ofNullable(referenceExtractor.apply(entity, referenceName))
 					.map(

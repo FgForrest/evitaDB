@@ -95,7 +95,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			},
 			(proxy, method, args, methodContext, proxyState, invokeSuper) ->
 				proxyState.createReferencedEntityProxy(
-					methodContext, proxyState.getEntity()
+					methodContext, proxyState.entity()
 				)
 		);
 	}
@@ -120,7 +120,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				final LocalMutation<?, ?>[] mutations = (LocalMutation<?, ?>[]) args[0];
 				final Object theProxy = proxyState.createReferencedEntityProxy(
-					methodContext, proxyState.getEntity()
+					methodContext, proxyState.entity()
 				);
 				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
 				targetProxyState.getEntityBuilderWithMutations(Arrays.asList(mutations));
@@ -149,7 +149,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 				@SuppressWarnings("unchecked")
 				final Collection<LocalMutation<?, ?>> mutations = (Collection<LocalMutation<?, ?>>) args[0];
 				final Object theProxy = proxyState.createReferencedEntityProxy(
-					methodContext, proxyState.getEntity()
+					methodContext, proxyState.entity()
 				);
 				final SealedEntityProxyState targetProxyState = (SealedEntityProxyState) ((ProxyStateAccessor)theProxy).getProxyState();
 				targetProxyState.getEntityBuilderWithMutations(mutations);
@@ -200,7 +200,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				proxyState.propagateReferenceMutations();
-				return proxyState.getEntityBuilderIfPresent()
+				return proxyState.entityBuilderIfPresent()
 					.map(InstanceEditor::toInstance)
 					.map(EntityContract.class::cast)
 					.map(proxyState::cloneProxy)
@@ -217,7 +217,7 @@ public class EntityBuilderAdvice implements Advice<SealedEntityProxy> {
 			(method, proxyState) -> method,
 			(proxy, method, args, methodContext, proxyState, invokeSuper) -> {
 				proxyState.propagateReferenceMutations();
-				return proxyState.getEntityBuilderIfPresent()
+				return proxyState.entityBuilderIfPresent()
 					.flatMap(InstanceEditor::toMutation);
 			}
 		);

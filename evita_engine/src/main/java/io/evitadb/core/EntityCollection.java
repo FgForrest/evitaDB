@@ -1053,7 +1053,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		if (entity instanceof EntityClassifier entityClassifier) {
 			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
 		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
-			return Objects.requireNonNull(sealedEntityProxy.getEntity().getPrimaryKey());
+			return Objects.requireNonNull(sealedEntityProxy.entity().getPrimaryKey());
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",

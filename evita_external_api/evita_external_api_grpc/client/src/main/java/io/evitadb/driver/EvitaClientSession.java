@@ -591,8 +591,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			entityType = entityClassifier.getType();
 			entityPk = entityClassifier.getPrimaryKey();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.getEntity().getType();
-			entityPk = sealedEntityProxy.getEntity().getPrimaryKey();
+			entityType = sealedEntityProxy.entity().getType();
+			entityPk = sealedEntityProxy.entity().getPrimaryKey();
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
@@ -633,8 +633,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 			entityType = entityClassifier.getType();
 			entityPk = entityClassifier.getPrimaryKey();
 		} else if (partiallyLoadedEntity instanceof SealedEntityProxy sealedEntityProxy) {
-			entityType = sealedEntityProxy.getEntity().getType();
-			entityPk = sealedEntityProxy.getEntity().getPrimaryKey();
+			entityType = sealedEntityProxy.entity().getType();
+			entityPk = sealedEntityProxy.entity().getPrimaryKey();
 		} else {
 			throw new EvitaInvalidUsageException(
 				"Unsupported entity type `" + partiallyLoadedEntity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
@@ -910,7 +910,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 				.orElseGet(() -> {
 					// no modification occurred, we can return the reference to the original entity
 					// the `toInstance` method should be cost-free in this case, as no modifications occurred
-					final EntityContract entity = sealedEntityProxy.getEntity();
+					final EntityContract entity = sealedEntityProxy.entity();
 					return new EntityReference(entity.getType(), entity.getPrimaryKey());
 				});
 		} else {

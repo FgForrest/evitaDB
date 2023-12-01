@@ -38,7 +38,9 @@ The model template can be:
 - [a class](https://www.baeldung.com/java-pojo-class)
 - [a record](https://www.baeldung.com/java-record-keyword)
 
-that is annotated with following annotations:
+### Schema controlling annotations
+
+The model is expected to be annotated with following annotations:
 
 <dl>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Entity.java</SourceClass></dt>
@@ -61,23 +63,11 @@ that is annotated with following annotations:
         Annotation can be placed on field / getter method / record component and marks an entity 
         [associated data](#associated-data).
     </dd>
-    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Parent.java</SourceClass></dt>
-    <dd>
-        Annotation can be placed on field / getter method / record component and marks an entity as 
-        [hierarchical entity](#hierarchy-placement). It should point to another model class (interface / class / record) 
-        that contains properties for `@ParentEntity' and @OrderAmongSiblings' annotations.
-    </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component and marks a reference to another entity 
         that represents the hierarchical parent for this entity. The model class should be the same as the entity class 
         (see `@Entity` annotation).
-    </dd>
-    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/OrderAmongSiblings.java</SourceClass></dt>
-    <dd>
-        Annotation can be placed on [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) 
-        field / getter method / record component that provides information about the order of the entity about
-        siblings in the hierarchical placement.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass></dt>
     <dd>
@@ -86,7 +76,7 @@ that is annotated with following annotations:
         that provides access to all prices of the entity. Using this annotation in the entity model class enables 
         [prices](#prices) in the entity schema.
     </dd>
-    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/SellingPrice.java</SourceClass></dt>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass></dt>
     <dd>
         Annotation can be placed on field / getter method / record component of type 
         <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> 
@@ -97,7 +87,7 @@ that is annotated with following annotations:
     <dd>
         Annotation can be placed on field / getter method / record component and marks an entity as a 
         [reference](#reference) to another entity. It can point to another model class (interface/class/record) 
-        that contains properties for `@ReferencedEntity' and @ReferencedEntityGroup' annotations and relation
+        that contains properties for `@ReferencedEntity` and @ReferencedEntityGroup` annotations and relation
         attributes.
     </dd>
     <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferencedEntity.java</SourceClass></dt>
@@ -114,7 +104,8 @@ that is annotated with following annotations:
     </dd>
 </dl>
 
-For a better idea, let's demonstrate a sample of the interface design of the product entity.
+Methods / fields / record components that are not annotated are ignored during schema definition. For a better idea, 
+let's demonstrate a sample of the interface design of the product entity.
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" local>
 

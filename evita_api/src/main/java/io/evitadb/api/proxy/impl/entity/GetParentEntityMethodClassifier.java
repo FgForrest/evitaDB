@@ -121,7 +121,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) ->
 			resultWrapper.wrap(
-				() -> parentEntityExtractor.apply(theState.getEntity())
+				() -> parentEntityExtractor.apply(theState.entity())
 					.map(EntityClassifier::getPrimaryKey)
 					.map(it -> EvitaDataTypes.toTargetType(it, returnType))
 					.orElse(null)
@@ -139,7 +139,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final EntityContract sealedEntity = theState.getEntity();
+			final EntityContract sealedEntity = theState.entity();
 			return resultWrapper.wrap(
 				() -> parentEntityExtractor.apply(sealedEntity)
 					.map(
@@ -160,7 +160,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> {
-			final EntityContract sealedEntity = theState.getEntity();
+			final EntityContract sealedEntity = theState.entity();
 			return resultWrapper.wrap(
 				() -> parentEntityExtractor.apply(sealedEntity, theState)
 					.orElse(null)
@@ -178,7 +178,7 @@ public class GetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull ResultWrapper resultWrapper
 	) {
 		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
-			() -> parentEntityExtractor.apply(theState.getEntity(), theState)
+			() -> parentEntityExtractor.apply(theState.entity(), theState)
 				.map(it -> {
 					if (itemType.isInstance(it)) {
 						return it;
