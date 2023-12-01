@@ -140,7 +140,7 @@ in the <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryUtils.ja
 The query can be "pretty-printed" by using the `prettyPrint` method on the
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class.
 
-### Data fetching
+## Data fetching
 
 By default, only primary keys of entities are returned in the query result. In this simplest case, each entity is 
 represented by the 
@@ -192,7 +192,7 @@ entity form in the second argument of the `query` method:
 - `queryEntityReference` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
 - `querySealedEntity` producing <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
 
-#### Lazy fetching (enrichment)
+### Lazy fetching (enrichment)
 
 Attributes, associated data, prices and references can be fetched separately by providing the primary key of the entity.
 The initial entity loaded by [entity fetch](../../query/requirements/fetching.md) with a limited set of requirements 
@@ -221,7 +221,7 @@ you can still use the `enrichEntity` method on the
 will be fully fetched again. However, we plan to optimize this scenario in the future.
 </Note>
 
-#### Custom contracts
+### Custom contracts
 
 Data retrieved from evitaDB is represented by the internal evitaDB data structures, which use the domain names 
 associated with the evitaDB representation. You may want to use your own domain names and data structures in your 
@@ -285,9 +285,20 @@ the method call occurs in a scope where the evita session is available.
 
 </Note>
 
+All the examples in this chapter come in three variants: interface, record, and class. The interface variant is the most
+versatile and can also be applied to classes. However, if you follow the record or class examples with final fields, 
+where the data is passed through the constructor, you're limited in some features and other behavior:
+
+- You cannot distinguish between the fact that the data was not fetched and the fact that the data does not exist.
+- You cannot use controllable accessors that change output based on method parameters (for example, `String getName(Locale, locale)`), 
+  because there is no way to represent the method parameters in the constructor arguments.
+
+The record and immutable class example variants are suitable for secondary data structures or simplified structures 
+returned as a result of reference getter calls, where you don't need the full-fledged read contract.
+
 Methods annotated with these annotations must follow the expected signature conventions:
 
-##### Primary key
+#### Primary key
 
 In order to access the primary key of the entity, you must use number data type (usually
 [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the `@PrimaryKey`
@@ -299,7 +310,7 @@ or `@PrimaryKeyRef` annotation:
 
 </SourceAlternativeTabs>
 
-##### Attributes
+#### Attributes
 
 To access the entity or reference attribute, you must use the appropriate data type and annotate it with the `@Attribute`
 or `@AttributeRef` annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html) 
@@ -308,25 +319,62 @@ or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/j
 
 If the attribute represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
 (or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) 
+or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)). The rules apply to both for entity and reference attributes:
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with attribute access](/documentation/user/en/use/api/example/attribute-interface.java)
+
+</SourceAlternativeTabs>
+
+<Note type="info">
+
+Java enum data types are automatically converted to evitaDB string data type using the `name()` method and vice versa 
+using the `valueOf()` method.
+
+</Note>
+
+<Note type="warning">
+
+Avoid declaring methods that return a primitive data type without throwing the `ContextMissingException`. The method
+call may fail with a `NullPointerException` if the data wasn't fetched even though it was declared as mandatory 
+(not nullable).
+
+</Note>
+
+#### Associated data
+
+To access the entity or reference associated data, you must use the appropriate data type and annotate it with 
+the `@AssociatedData` or `@AssociatedDataRef` annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
+(or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html)
+or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
+
+If the associated data represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
 or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)).
 
-```java
-public interface MyEntity {
+<SourceAlternativeTabs variants="interface|record|class">
 
-  @Attribute(name = "name", locale = true)
-  @Nonnull String getName();
+[Example interface with associated data access](/documentation/user/en/use/api/example/associated-data-interface.java)
 
-  @AttributeRef("name")
-  @Nonnull String getNameAgain();
-	
-}
-```
+</SourceAlternativeTabs>
 
-##### Associated data
-##### Prices
-##### Hierarchy
-##### References
-##### Access to evitaDB data structures
+If the method returns ["non-supported"](../data-types.md#simple-data-types) evitaDB automatically converts the data
+from ["complex data type"](../data-types.md#complex-data-types) using [documented deserialization rules](../data-types.md#deserialization).
+
+#### Prices
+
+TODO JNO - Work in progress
+
+#### Hierarchy
+
+TODO JNO - Work in progress
+
+#### References
+
+TODO JNO - Work in progress
+
+#### Access to evitaDB data structures
 
 Your read contract can implement the following interfaces to access the underlying evitaDB data structures:
 
@@ -359,7 +407,7 @@ final/sealed class. In such cases you have to implement these interfaces manuall
 
 </Note>
 
-### Caching considerations
+## Caching considerations
 
 If you're using embedded evitaDB and [don't disable the feature](../../operate/configure.md#cache-configuration), 
 the evitaDB engine automatically caches intermediate calculation results and frequently used entity bodies up to the 
