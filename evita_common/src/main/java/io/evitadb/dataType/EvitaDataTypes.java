@@ -797,39 +797,41 @@ public class EvitaDataTypes {
 	 */
 	private static Object convertSingleObject(@Nonnull Serializable unknownObject, Class<?> requestedType, int allowedDecimalPlaces) {
 		final Object result;
-		if (String.class.isAssignableFrom(requestedType)) {
+		if (String.class.equals(requestedType)) {
 			result = unknownObject.toString();
-		} else if (Byte.class.isAssignableFrom(requestedType)) {
+		} else if (Byte.class.equals(requestedType) || byte.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToByte(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (Short.class.isAssignableFrom(requestedType)) {
+		} else if (Short.class.equals(requestedType) || short.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToShort(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (Integer.class.isAssignableFrom(requestedType)) {
+		} else if (Integer.class.equals(requestedType) || int.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToInt(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (Long.class.isAssignableFrom(requestedType)) {
+		} else if (Long.class.equals(requestedType) || long.class.equals(requestedType)) {
 			result = WRAPPING_FUNCTION.apply(() -> NumberUtils.convertToLong(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject)), () -> new InconvertibleDataTypeException(requestedType, unknownObject));
-		} else if (BigDecimal.class.isAssignableFrom(requestedType)) {
+		} else if (BigDecimal.class.equals(requestedType)) {
 			result = NumberUtils.convertToBigDecimal(BIG_DECIMAL_FUNCTION.apply(requestedType, unknownObject));
-		} else if (Boolean.class.isAssignableFrom(requestedType)) {
+		} else if (Boolean.class.equals(requestedType) || boolean.class.equals(requestedType)) {
 			result = BOOLEAN_FUNCTION.apply(requestedType, unknownObject);
-		} else if (Character.class.isAssignableFrom(requestedType)) {
+		} else if (Character.class.equals(requestedType) || char.class.equals(requestedType)) {
 			result = CHAR_FUNCTION.apply(requestedType, unknownObject);
-		} else if (OffsetDateTime.class.isAssignableFrom(requestedType)) {
+		} else if (OffsetDateTime.class.equals(requestedType)) {
 			result = OFFSET_DATE_TIME_FUNCTION.apply(requestedType, unknownObject);
-		} else if (LocalDateTime.class.isAssignableFrom(requestedType)) {
+		} else if (LocalDateTime.class.equals(requestedType)) {
 			result = LOCAL_DATE_TIME_FUNCTION.apply(requestedType, unknownObject);
-		} else if (LocalDate.class.isAssignableFrom(requestedType)) {
+		} else if (LocalDate.class.equals(requestedType)) {
 			result = LOCAL_DATE_FUNCTION.apply(requestedType, unknownObject);
-		} else if (LocalTime.class.isAssignableFrom(requestedType)) {
+		} else if (LocalTime.class.equals(requestedType)) {
 			result = LOCAL_TIME_FUNCTION.apply(requestedType, unknownObject);
-		} else if (DateTimeRange.class.isAssignableFrom(requestedType)) {
+		} else if (DateTimeRange.class.equals(requestedType)) {
 			result = DATE_TIME_RANGE_FUNCTION.apply(requestedType, unknownObject);
-		} else if (NumberRange.class.isAssignableFrom(requestedType)) {
+		} else if (NumberRange.class.equals(requestedType)) {
 			result = NUMBER_RANGE_FUNCTION.apply(new TypeWithPrecision(requestedType, allowedDecimalPlaces), unknownObject);
-		} else if (Locale.class.isAssignableFrom(requestedType)) {
+		} else if (Locale.class.equals(requestedType)) {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
-		} else if (Currency.class.isAssignableFrom(requestedType)) {
+		} else if (Currency.class.equals(requestedType)) {
 			result = CURRENCY_FUNCTION.apply(requestedType, unknownObject);
-		} else if (UUID.class.isAssignableFrom(requestedType)) {
+		} else if (Predecessor.class.equals(requestedType)) {
+			throw new InconvertibleDataTypeException(requestedType, unknownObject);
+		} else if (UUID.class.equals(requestedType)) {
 			result = UUID_FUNCTION.apply(requestedType, unknownObject);
 		} else if (requestedType.isEnum()) {
 			//noinspection unchecked,rawtypes
