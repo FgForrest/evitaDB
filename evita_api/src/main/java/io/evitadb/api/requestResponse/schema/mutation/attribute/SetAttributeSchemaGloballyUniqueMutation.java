@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -62,9 +63,9 @@ public class SetAttributeSchemaGloballyUniqueMutation
 	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -2200571466479594746L;
 	@Getter @Nonnull private final String name;
-	@Getter private final boolean uniqueGlobally;
+	@Getter private final GlobalAttributeUniquenessType uniqueGlobally;
 
-	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, boolean uniqueGlobally) {
+	public SetAttributeSchemaGloballyUniqueMutation(@Nonnull String name, @Nonnull GlobalAttributeUniquenessType uniqueGlobally) {
 		this.name = name;
 		this.uniqueGlobally = uniqueGlobally;
 	}
@@ -90,7 +91,7 @@ public class SetAttributeSchemaGloballyUniqueMutation
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.isUnique(),
+				globalAttributeSchema.getUniquenessType(),
 				uniqueGlobally,
 				globalAttributeSchema.isFilterable(),
 				globalAttributeSchema.isSortable(),

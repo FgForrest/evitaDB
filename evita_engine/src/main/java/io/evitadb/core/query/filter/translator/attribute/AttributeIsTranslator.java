@@ -74,7 +74,7 @@ public class AttributeIsTranslator implements FilteringConstraintTranslator<Attr
 			if (attributeDefinition.isUnique()) {
 				return FutureNotFormula.postProcess(
 					filterByVisitor.getEntityIndexStream().map(it -> {
-						final UniqueIndex uniqueIndex = it.getUniqueIndex(attributeDefinition.getName(), filterByVisitor.getLocale());
+						final UniqueIndex uniqueIndex = it.getUniqueIndex(attributeDefinition, filterByVisitor.getLocale());
 						if (uniqueIndex == null) {
 							return EmptyFormula.INSTANCE;
 						}

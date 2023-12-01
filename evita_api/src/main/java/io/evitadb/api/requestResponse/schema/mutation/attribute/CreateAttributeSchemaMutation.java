@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
@@ -77,7 +78,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter private final boolean unique;
+	@Getter @Nonnull private final AttributeUniquenessType unique;
 	@Getter private final boolean filterable;
 	@Getter private final boolean sortable;
 	@Getter private final boolean localized;
@@ -103,7 +104,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -120,7 +121,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.unique = unique;
+		this.unique = unique == null ? AttributeUniquenessType.NOT_UNIQUE : unique;
 		this.filterable = filterable;
 		this.sortable = sortable;
 		this.localized = localized;
@@ -170,7 +171,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 							),
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
-								AttributeSchemaContract::isUnique,
+								AttributeSchemaContract::getUniquenessType,
 								newValue -> new SetAttributeSchemaUniqueMutation(name, newValue)
 							),
 							makeMutationIfDifferent(
@@ -208,7 +209,7 @@ public class CreateAttributeSchemaMutation implements ReferenceAttributeSchemaMu
 			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
 				name, description, deprecationNotice,
-				unique, false, filterable, sortable, localized, nullable, representative,
+				unique, null, filterable, sortable, localized, nullable, representative,
 				(Class) type, defaultValue,
 				indexedDecimalPlaces
 			);

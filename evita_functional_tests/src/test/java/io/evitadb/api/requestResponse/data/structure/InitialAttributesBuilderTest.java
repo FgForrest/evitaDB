@@ -179,19 +179,19 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		assertTrue(names.contains("greetings"));
 
 		assertEquals(
-			EntityAttributeSchema._internalBuild("abc", false, false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("abc", null, false, false, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("abc").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("def", false, false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("def", null, false, false, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("def").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("dd", false, false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("dd", null, false, false, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("dd").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("greetings", false, false, false, true, false, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}

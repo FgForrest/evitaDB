@@ -198,7 +198,7 @@ public class EntitySchemaConverter {
 		final GrpcAttributeSchema.Builder builder = GrpcAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
 			.setSchemaType(EvitaEnumConverter.toGrpcAttributeSchemaType(attributeSchema.getClass()))
-			.setUnique(attributeSchema.isUnique())
+			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
 			.setFilterable(attributeSchema.isFilterable())
 			.setSortable(attributeSchema.isSortable())
 			.setLocalized(attributeSchema.isLocalized())
@@ -221,7 +221,7 @@ public class EntitySchemaConverter {
 		if (isGlobal) {
 			final GlobalAttributeSchemaContract globalAttributeSchema = (GlobalAttributeSchemaContract) attributeSchema;
 			builder.setRepresentative(globalAttributeSchema.isRepresentative());
-			builder.setUniqueGlobally(globalAttributeSchema.isUniqueGlobally());
+			builder.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(globalAttributeSchema.getGlobalUniquenessType()));
 		}
 
 		return builder.build();
@@ -365,8 +365,8 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					attributeSchema.getUnique(),
-					attributeSchema.getUniqueGlobally(),
+					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
+					EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
 					attributeSchema.getFilterable(),
 					attributeSchema.getSortable(),
 					attributeSchema.getLocalized(),
@@ -387,7 +387,7 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					attributeSchema.getUnique(),
+					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
 					attributeSchema.getFilterable(),
 					attributeSchema.getSortable(),
 					attributeSchema.getLocalized(),
@@ -408,7 +408,7 @@ public class EntitySchemaConverter {
 					NamingConvention.generate(attributeSchema.getName()),
 					attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 					attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-					attributeSchema.getUnique(),
+					EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
 					attributeSchema.getFilterable(),
 					attributeSchema.getSortable(),
 					attributeSchema.getLocalized(),

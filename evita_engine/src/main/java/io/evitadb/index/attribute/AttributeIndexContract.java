@@ -182,19 +182,13 @@ public interface AttributeIndexContract {
 	Set<AttributeKey> getUniqueIndexes();
 
 	/**
-	 * Returns {@link UniqueIndex} for passed lookup key.
-	 */
-	@Nullable
-	UniqueIndex getUniqueIndex(@Nonnull AttributeKey lookupKey);
-
-	/**
 	 * Returns index that maintains unique attributes to record ids information.
 	 *
 	 * @param locale might not be passed for language agnostic attributes
-	 * @return NULL value when there is no unique index associated with this `attributeName`
+	 * @return NULL value when there is no unique index associated with this `attributeSchema`
 	 */
 	@Nullable
-	UniqueIndex getUniqueIndex(@Nonnull String attributeName, @Nullable Locale locale);
+	UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale);
 
 	/**
 	 * Returns collection of all filter indexes in this {@link AttributeIndex} instance.

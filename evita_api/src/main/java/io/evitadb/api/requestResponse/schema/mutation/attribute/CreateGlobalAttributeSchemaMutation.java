@@ -30,8 +30,10 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -72,8 +74,8 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter private final boolean unique;
-	@Getter private final boolean uniqueGlobally;
+	@Getter @Nonnull private final AttributeUniquenessType unique;
+	@Getter @Nonnull private final GlobalAttributeUniquenessType uniqueGlobally;
 	@Getter private final boolean filterable;
 	@Getter private final boolean sortable;
 	@Getter private final boolean localized;
@@ -87,8 +89,8 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
-		boolean uniqueGlobally,
+		@Nullable AttributeUniquenessType unique,
+		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -105,8 +107,8 @@ public class CreateGlobalAttributeSchemaMutation
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.unique = unique;
-		this.uniqueGlobally = uniqueGlobally;
+		this.unique = unique == null ? AttributeUniquenessType.NOT_UNIQUE : unique;
+		this.uniqueGlobally = uniqueGlobally == null ? GlobalAttributeUniquenessType.NOT_UNIQUE : uniqueGlobally;
 		this.filterable = filterable;
 		this.sortable = sortable;
 		this.localized = localized;
@@ -155,12 +157,12 @@ public class CreateGlobalAttributeSchemaMutation
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isUnique,
+							GlobalAttributeSchemaContract::getUniquenessType,
 							newValue -> new SetAttributeSchemaUniqueMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isUniqueGlobally,
+							GlobalAttributeSchemaContract::getGlobalUniquenessType,
 							newValue -> new SetAttributeSchemaGloballyUniqueMutation(name, newValue)
 						),
 						makeMutationIfDifferent(

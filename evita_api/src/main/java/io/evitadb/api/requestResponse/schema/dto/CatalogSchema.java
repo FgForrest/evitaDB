@@ -180,8 +180,8 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.isUnique(),
-				attributeSchemaContract.isUniqueGlobally(),
+				attributeSchemaContract.getUniquenessType(),
+				attributeSchemaContract.getGlobalUniquenessType(),
 				attributeSchemaContract.isFilterable(),
 				attributeSchemaContract.isSortable(),
 				attributeSchemaContract.isLocalized(),
@@ -265,5 +265,4 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				attributes.equals(otherObject.getAttributes())
 		);
 	}
-
 }

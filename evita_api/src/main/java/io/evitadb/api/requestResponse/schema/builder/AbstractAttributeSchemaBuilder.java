@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
@@ -161,7 +162,22 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			addMutations(
 				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
-					true
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T uniqueWithinLocale() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 				)
 			)
 		);
@@ -174,9 +190,26 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
-				new SetAttributeSchemaFilterableMutation(
+				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean()
+					decider.getAsBoolean() ?
+						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION : AttributeUniquenessType.NOT_UNIQUE
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T uniqueWithinLocale(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean() ?
+						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE : AttributeUniquenessType.NOT_UNIQUE
 				)
 			)
 		);

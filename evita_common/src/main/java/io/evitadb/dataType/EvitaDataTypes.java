@@ -823,7 +823,7 @@ public class EvitaDataTypes {
 			result = LOCAL_TIME_FUNCTION.apply(requestedType, unknownObject);
 		} else if (DateTimeRange.class.equals(requestedType)) {
 			result = DATE_TIME_RANGE_FUNCTION.apply(requestedType, unknownObject);
-		} else if (NumberRange.class.equals(requestedType)) {
+		} else if (NumberRange.class.isAssignableFrom(requestedType)) {
 			result = NUMBER_RANGE_FUNCTION.apply(new TypeWithPrecision(requestedType, allowedDecimalPlaces), unknownObject);
 		} else if (Locale.class.equals(requestedType)) {
 			result = LOCALE_FUNCTION.apply(requestedType, unknownObject);
