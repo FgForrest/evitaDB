@@ -186,7 +186,7 @@ The reserved `self` field in the `extraResult` → `hierarchy` has inner structu
 This means that when you request entities for the hierarchy nodes, you can use the same [fetching fields](fetching.md) as
 you would use for the main query.
 
-### Data structure
+### Data structures
 
 Within the `self` field you can then request one or more of the following hierarchy data structures:
 
@@ -278,7 +278,7 @@ has inner structure specific to the referenced entity data.
 This means that when you request entities for the hierarchy nodes, you can use the same [fetching fields](fetching.md) as
 you would use for the main query for that particular referenced entity.
 
-### Data structure
+### Data structures
 
 Within the `{reference name}` field you can then request one or more of the following hierarchy data structures:
 
@@ -1220,7 +1220,7 @@ constraints are crucial for the calculation of `queriedEntityCount` (and therefo
     tree below the given node; the count is correct regardless of whether the children themselves are
     requested/traversed by the constraint definition, and respects [`hierarchyOfReference`](#hierarchy-of-reference)
     settings for automatic removal of hierarchy nodes that would contain empty result set of queried entities (REMOVE_EMPTY)
-- **`queriedEntityCount**: triggers the calculation of the total number of queried entities that will be
+- **`queriedEntityCount`**: triggers the calculation of the total number of queried entities that will be
     returned if the current query is focused on this particular hierarchy node using the `hierarchyWithin`
     filter constraint (the possible refining constraint in the form of [`directRelation`](../filtering/hierarchy.md#direct-relation)
     and [`excluding-root`](../filtering/hierarchy.md#excluding-root) is not taken into account).
