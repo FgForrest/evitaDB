@@ -505,7 +505,7 @@ public class DataGenerator {
 			} else if (String.class.equals(type)) {
 				value = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
 			} else if (type.isArray() && String.class.equals(type.getComponentType())) {
-				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
+				final String[] randomArray = new String[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = generateRandomString(chosenUniqueSequencer, attributesBuilder, attribute, entityType, attributeName, fakerToUse);
 				}
@@ -519,7 +519,7 @@ public class DataGenerator {
 			} else if (BigDecimal.class.equals(type)) {
 				value = generateRandomBigDecimal(fakerToUse, attribute.getIndexedDecimalPlaces());
 			} else if (type.isArray() && BigDecimal.class.equals(type.getComponentType())) {
-				final BigDecimal[] randomArray = new BigDecimal[fakerToUse.random().nextInt(8)];
+				final BigDecimal[] randomArray = new BigDecimal[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = generateRandomBigDecimal(fakerToUse, attribute.getIndexedDecimalPlaces());
 				}
@@ -543,7 +543,7 @@ public class DataGenerator {
 			} else if (IntegerNumberRange.class.equals(type)) {
 				value = generateRandomNumberRange(fakerToUse);
 			} else if (type.isArray() && IntegerNumberRange.class.equals(type.getComponentType())) {
-				final IntegerNumberRange[] randomArray = new IntegerNumberRange[fakerToUse.random().nextInt(8)];
+				final IntegerNumberRange[] randomArray = new IntegerNumberRange[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = generateRandomNumberRange(fakerToUse);
 				}
@@ -760,13 +760,13 @@ public class DataGenerator {
 		final Class<? extends Serializable> type = associatedData.getType();
 		if (type.isArray()) {
 			if (Integer.class.equals(type.getComponentType())) {
-				final Integer[] newValue = new Integer[fakerToUse.random().nextInt(8)];
+				final Integer[] newValue = new Integer[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < newValue.length; i++) {
 					newValue[i] = fakerToUse.random().nextInt(10000);
 				}
 				generatedValueWriter.accept((T) newValue);
 			} else if (String.class.equals(type.getComponentType())) {
-				final String[] randomArray = new String[fakerToUse.random().nextInt(8)];
+				final String[] randomArray = new String[fakerToUse.random().nextInt(7) + 1];
 				for (int i = 0; i < randomArray.length; i++) {
 					randomArray[i] = fakerToUse.company().name();
 				}

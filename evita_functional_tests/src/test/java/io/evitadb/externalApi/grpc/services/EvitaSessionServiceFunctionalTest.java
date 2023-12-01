@@ -53,13 +53,13 @@ import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor;
+import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.GrpcProvider;
 import io.evitadb.externalApi.grpc.TestChannelCreator;
 import io.evitadb.externalApi.grpc.dataType.ComplexDataObjectConverter;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor;
-import io.evitadb.driver.interceptor.ClientSessionInterceptor.SessionIdHolder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
 import io.evitadb.externalApi.grpc.testUtils.SessionInitializer;
 import io.evitadb.externalApi.grpc.testUtils.TestDataProvider;
@@ -2245,7 +2245,7 @@ class EvitaSessionServiceFunctionalTest {
 		final String attributeName = "categoryPriority";
 		final GrpcCardinality cardinality = GrpcCardinality.ZERO_OR_MORE;
 		final String referenceEntityType = Entities.CATEGORY;
-		final int referencePrimaryKey = 7;
+		final int referencePrimaryKey = 9;
 		final String referenceParameterEntityType = Entities.PARAMETER;
 		final String referenceGroupEntityType = Entities.PARAMETER_GROUP;
 		final int referenceGroupPrimaryKey = 1;
@@ -2345,13 +2345,13 @@ class EvitaSessionServiceFunctionalTest {
 		assertEquals(referenceGroupPrimaryKey, referenceParameterAfterInsert.getGroupReferencedEntityReference().getPrimaryKey());
 		assertEquals(referenceGroupEntityType, referenceParameterAfterInsert.getGroupReferencedEntityReference().getEntityType());
 
-		final int removeReferenceId = 2;
+		final int removeReferenceId = 3;
 		final SealedEntity existingEntity = entities.stream().filter(entity ->
-				entity.getReferences().stream().anyMatch(reference ->
+				entity.getReferences().stream().filter(reference ->
 					reference.getReferenceName().equals(referenceEntityType) &&
 						(reference.getReferencedPrimaryKey() != referencePrimaryKey ||
 							reference.getReferencedPrimaryKey() == removeReferenceId)
-				)
+				).count() == 2
 			).findFirst()
 			.orElseThrow(() -> new IllegalArgumentException("Suitable reference not found!"));
 

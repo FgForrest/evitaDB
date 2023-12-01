@@ -94,3 +94,33 @@ If `mTLS` is enabled on the server side and `UseGeneratedCertificate` is set to 
 manually generated certificate in settings `CertificatePath` and `CertificateKeyPath`, otherwise the verification 
 process will fail and the connection will not be established.
 </Note>
+
+### Schema caching
+
+Both catalog and entity schemas are used quite often - every retrieved entity has a reference to its schema. At the same
+time, the schema is quite complex and doesn't change often. It is therefore beneficial to cache the schema on the client
+and avoid fetching it from the server every time it is needed.
+
+The cache is handled by the <SourceClass>EvitaDB.Client/EvitaEntitySchemaCache.cs</SourceClass>
+class which handles two schema access scenarios:
+
+#### Accessing last schema versions
+
+The client maintains the last known schema versions for each catalog. This cache is invalidated each time a schema is
+changed by that particular client, the collection is renamed or deleted, or the client fetches an entity that uses
+a schema version that is newer than the one cached as the last entity schema version.
+
+#### Accessing specific schema versions
+
+The client also maintains a cache of specific schema versions. Each time a client fetches an entity, the entity returned
+from the server side carries information about the schema version it refers to. The client tries to find the schema of
+that particular version in its cache, and if it is not found, it fetches it from the server and caches it. The cache is
+invalidated once in a while (every minute) and the old schemas that have not been used for a long time (4 hours) are
+removed.
+
+<Note type="info">
+
+The above intervals are not currently configurable because we believe they are optimal for most use cases. If you need
+to change them, please contact us with your specific use case and we will consider adding the configuration option.
+
+</Note>

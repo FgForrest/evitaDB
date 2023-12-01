@@ -45,10 +45,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.OptionalInt;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static io.evitadb.api.proxy.impl.MethodArgumentsParser.parseArguments;
 import static io.evitadb.api.proxy.impl.entity.GetAssociatedDataMethodClassifier.getAssociatedDataSchema;
 
 /**
@@ -62,219 +62,11 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 */
 	public static final SetAssociatedDataMethodClassifier INSTANCE = new SetAssociatedDataMethodClassifier();
 
-	public SetAssociatedDataMethodClassifier() {
-		super(
-			"setAssociatedData",
-			(method, proxyState) -> {
-				final int valueParameterPosition;
-				final OptionalInt localeParameterPosition;
-				// We only want to handle methods with exactly one parameter, or two parameters of which one is Locale
-				final Class<?>[] parameterTypes = method.getParameterTypes();
-				if (method.getParameterCount() == 1 &&
-					(Serializable.class.isAssignableFrom(parameterTypes[0]) ||
-						Collection.class.isAssignableFrom(parameterTypes[0]) ||
-						(parameterTypes[0].isArray() && Serializable.class.isAssignableFrom(parameterTypes[0].getComponentType()))
-					)
-				) {
-					if (Locale.class.isAssignableFrom(parameterTypes[0])) {
-						valueParameterPosition = -1;
-						localeParameterPosition = OptionalInt.of(0);
-					} else {
-						valueParameterPosition = 0;
-						localeParameterPosition = OptionalInt.empty();
-					}
-				} else if (
-					(method.getParameterCount() == 2 &&
-						Arrays.stream(parameterTypes)
-							.allMatch(
-								it -> Serializable.class.isAssignableFrom(it) ||
-									Collection.class.isAssignableFrom(it) ||
-									(it.isArray() && Serializable.class.isAssignableFrom(it.getComponentType()))
-							)
-					)
-				) {
-					int lp = -1;
-					for (int i = 0; i < parameterTypes.length; i++) {
-						 if (Locale.class.isAssignableFrom(parameterTypes[i])) {
-							 lp = i;
-							 break;
-						 }
-					}
-					if (lp == -1) {
-						return null;
-					} else {
-						localeParameterPosition = OptionalInt.of(lp);
-						valueParameterPosition = lp == 0 ? 1 : 0;
-					}
-				} else {
-					localeParameterPosition = OptionalInt.empty();
-					valueParameterPosition = -1;
-				}
-
-				// now we need to identify associatedData schema that is being requested
-				final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataSchema(
-					method, proxyState.getReflectionLookup(),
-					proxyState.getEntitySchema()
-				);
-				// if not found, this method is not classified by this implementation
-				if (associatedDataSchema == null) {
-					return null;
-				} else {
-					// finally provide implementation that will retrieve the associatedData from the entity
-					final String associatedDataName = associatedDataSchema.getName();
-					if (associatedDataSchema.isLocalized()) {
-						Assert.isTrue(
-							localeParameterPosition.isPresent(),
-							"localized associated data `" + associatedDataSchema.getName() + "` must have a locale parameter!"
-						);
-						if (method.isAnnotationPresent(RemoveWhenExists.class)) {
-							if (method.getReturnType().equals(proxyState.getProxyClass())) {
-								return removeLocalizedAssociatedDataWithBuilderResult(associatedDataName);
-							} else if (method.getReturnType().equals(void.class)) {
-								return removeLocalizedAssociatedDataWithVoidResult(associatedDataName);
-							} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
-								//noinspection rawtypes
-								final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
-								if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
-									//noinspection unchecked
-									return removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
-										associatedDataName, associatedDataSchema.getType(),
-										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
-									);
-								} else {
-									//noinspection unchecked
-									return removeLocalizedAssociatedDataWithValueCollectionResult(
-										associatedDataName,
-										(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
-									);
-								}
-							} else {
-								//noinspection rawtypes
-								final Class expectedType = method.getReturnType();
-								//noinspection unchecked
-								return removeLocalizedAssociatedDataWithValueResult(
-									associatedDataName,
-									ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
-										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup) :
-										(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
-								);
-							}
-						} else {
-							// now we need to identify the argument type
-							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
-							// prepare the conversion function
-							if (Collection.class.isAssignableFrom(valueParameter.getType()) && !ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
-								final Function<Serializable, Serializable> converterFct = it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
-								if (method.getReturnType().equals(proxyState.getProxyClass())) {
-									return setLocalizedAssociatedDataAsCollectionWithBuilderResult(
-										valueParameterPosition, localeParameterPosition.getAsInt(), associatedDataName,
-										converterFct, associatedDataSchema.getPlainType()
-									);
-								} else {
-									return setLocalizedAssociatedDataAsCollectionWithVoidResult(
-										valueParameterPosition, localeParameterPosition.getAsInt(), associatedDataName,
-										converterFct, associatedDataSchema.getPlainType()
-									);
-								}
-							} else {
-								final Function<Serializable, Serializable> converterFct = getConverterFunction(
-									proxyState.getProxyClass(), valueParameter, associatedDataSchema.getPlainType()
-								);
-								if (method.getReturnType().equals(proxyState.getProxyClass())) {
-									return setLocalizedAssociatedDataAsValueWithBuilderResult(
-										valueParameterPosition, localeParameterPosition.getAsInt(), associatedDataName, converterFct
-									);
-								} else {
-									return setLocalizedAssociatedDataAsValueWithVoidResult(
-										valueParameterPosition, localeParameterPosition.getAsInt(), associatedDataName, converterFct
-									);
-								}
-							}
-						}
-					} else {
-						if (method.isAnnotationPresent(RemoveWhenExists.class)) {
-							Assert.isTrue(
-								method.getParameterCount() == 0,
-								"Non-localized associated data `" + associatedDataSchema.getName() + "` must not have a locale parameter!"
-							);
-
-							if (method.getReturnType().equals(proxyState.getProxyClass())) {
-								return removeAssociatedDataWithBuilderResult(associatedDataName);
-							} else if (method.getReturnType().equals(void.class)) {
-								return removeAssociatedDataWithVoidResult(associatedDataName);
-							} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
-								//noinspection rawtypes
-								final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
-								if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
-									//noinspection unchecked
-									return removeAssociatedDataWithComplexDataObjectCollectionResult(
-										associatedDataName,
-										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
-									);
-								} else {
-									//noinspection unchecked
-									return removeAssociatedDataWithValueCollectionResult(
-										associatedDataName, associatedDataSchema.getType(),
-										(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
-									);
-								}
-							} else {
-								//noinspection rawtypes
-								final Class expectedType = method.getReturnType();
-								//noinspection unchecked
-								return removeAssociatedDataWithValueResult(
-									associatedDataName,
-									ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
-										(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup) :
-										(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
-								);
-							}
-						} else {
-							Assert.isTrue(
-								method.getParameterCount() == 1,
-								"Non-localized associated data `" + associatedDataSchema.getName() + "` must not have a locale parameter!"
-							);
-							// now we need to identify the argument type
-							final Parameter valueParameter = method.getParameters()[valueParameterPosition];
-							// prepare the conversion function
-							if (Collection.class.isAssignableFrom(valueParameter.getType()) && !ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
-								final Function<Serializable, Serializable> converterFct = it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
-								if (method.getReturnType().equals(proxyState.getProxyClass())) {
-									return setAssociatedDataAsCollectionWithBuilderResult(
-										valueParameterPosition, associatedDataName,
-										converterFct, associatedDataSchema.getPlainType()
-									);
-								} else {
-									return setAssociatedDataAsCollectionWithVoidResult(
-										valueParameterPosition, associatedDataName,
-										converterFct, associatedDataSchema.getPlainType()
-									);
-								}
-							} else {
-								final Function<Serializable, Serializable> converterFct = getConverterFunction(
-									proxyState.getProxyClass(), valueParameter, associatedDataSchema.getPlainType()
-								);
-								if (method.getReturnType().equals(proxyState.getProxyClass())) {
-									return setAssociatedDataAsValueWithBuilderResult(
-										valueParameterPosition, associatedDataName, converterFct
-									);
-								} else {
-									return setAssociatedDataAsValueWithVoidResult(
-										valueParameterPosition, associatedDataName, converterFct
-									);
-								}
-							}
-						}
-					}
-				}
-			}
-		);
-	}
-
 	/**
 	 * Method returns conversion function for associated data.
-	 * @param proxyClass proxy class
-	 * @param valueParameter value parameter
+	 *
+	 * @param proxyClass           proxy class
+	 * @param valueParameter       value parameter
 	 * @param associatedSchemaType associated schema type
 	 * @return conversion function
 	 */
@@ -306,8 +98,8 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * Provides implementation for setting associated data value from a single value returning a void return type.
 	 *
 	 * @param valueParameterPosition index of the value parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
+	 * @param associatedDataName     name of the associated data to be set
+	 * @param valueConverter         lambda that converts the value to the target type
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -317,16 +109,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Function<Serializable, Serializable> valueConverter
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName);
-			} else {
-				entityBuilder.setAssociatedData(
-					associatedDataName,
-					valueConverter.apply((Serializable) value)
-				);
-			}
+			setAssociatedDataAsValue(associatedDataName, valueConverter, theState, args[valueParameterPosition]);
 			return null;
 		};
 	}
@@ -336,8 +119,8 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * allowing to create a builder pattern in the model objects.
 	 *
 	 * @param valueParameterPosition index of the value parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
+	 * @param associatedDataName     name of the associated data to be set
+	 * @param valueConverter         lambda that converts the value to the target type
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -347,27 +130,43 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Function<Serializable, Serializable> valueConverter
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName);
-			} else {
-				entityBuilder.setAssociatedData(
-					associatedDataName,
-					valueConverter.apply((Serializable) value)
-				);
-			}
+			setAssociatedDataAsValue(associatedDataName, valueConverter, theState, args[valueParameterPosition]);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the value of the specified associated data using a single value.
+	 *
+	 * @param associatedDataName The name of the associated data to be set.
+	 * @param valueConverter     A function that converts the value to the target type.
+	 * @param theState           The proxy state.
+	 * @param value              The value to be set.
+	 */
+	private static void setAssociatedDataAsValue(
+		@Nonnull String associatedDataName,
+		@Nonnull Function<Serializable, Serializable> valueConverter,
+		@Nonnull SealedEntityProxyState theState,
+		@Nullable Object value
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAssociatedData(associatedDataName);
+		} else {
+			entityBuilder.setAssociatedData(
+				associatedDataName,
+				valueConverter.apply((Serializable) value)
+			);
+		}
 	}
 
 	/**
 	 * Provides implementation for setting associated data array value from a collection value returning a void return type.
 	 *
 	 * @param valueParameterPosition index of the value parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
-	 * @param plainType expected type of the attribute
+	 * @param associatedDataName     name of the associated data to be set
+	 * @param valueConverter         lambda that converts the value to the target type
+	 * @param plainType              expected type of the attribute
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -378,19 +177,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAssociatedData(
-					associatedDataName,
-					((Collection) value).stream()
-						.map(it -> valueConverter.apply((Serializable) it))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setAssociatedDataAsCollection(associatedDataName, valueConverter, plainType, theState, args[valueParameterPosition]);
 			return null;
 		};
 	}
@@ -400,9 +187,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * return type allowing to create a builder pattern in the model objects.
 	 *
 	 * @param valueParameterPosition index of the value parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
-	 * @param plainType expected type of the attribute
+	 * @param associatedDataName     name of the associated data to be set
+	 * @param valueConverter         lambda that converts the value to the target type
+	 * @param plainType              expected type of the attribute
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -413,30 +200,47 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAssociatedData(
-					associatedDataName,
-					((Collection) value).stream()
-						.map(it -> valueConverter.apply((Serializable) it))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setAssociatedDataAsCollection(associatedDataName, valueConverter, plainType, theState, args[valueParameterPosition]);
 			return proxy;
 		};
 	}
 
 	/**
+	 * Sets the value of the specified associated data using an array value.
+	 *
+	 * @param associatedDataName The name of the associated data to be set.
+	 * @param valueConverter     A function that converts the value to the target type.
+	 * @param theState           The proxy state.
+	 * @param value              The value to be set.
+	 */
+	private static void setAssociatedDataAsCollection(
+		@Nonnull String associatedDataName,
+		@Nonnull Function<Serializable, Serializable> valueConverter,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull SealedEntityProxyState theState,
+		@Nullable Object value
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAssociatedData(associatedDataName);
+		} else {
+			//noinspection unchecked,rawtypes
+			entityBuilder.setAssociatedData(
+				associatedDataName,
+				((Collection) value).stream()
+					.map(it -> valueConverter.apply((Serializable) it))
+					.toArray(cnt -> Array.newInstance(plainType, cnt))
+			);
+		}
+	}
+
+	/**
 	 * Provides implementation for setting localized associated data value from a single value returning a void return type.
 	 *
-	 * @param valueParameterPosition index of the value parameter among method parameters
+	 * @param valueParameterPosition  index of the value parameter among method parameters
 	 * @param localeParameterPosition index of the {@link Locale} parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
+	 * @param associatedDataName      name of the associated data to be set
+	 * @param valueConverter          lambda that converts the value to the target type
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -447,18 +251,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Function<Serializable, Serializable> valueConverter
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName);
-			} else {
-				entityBuilder.setAssociatedData(
-					associatedDataName, locale,
-					valueConverter.apply((Serializable) value)
-				);
-			}
+			setLocalizedAssociatedDataAsValue(valueParameterPosition, localeParameterPosition, associatedDataName, valueConverter, args, theState);
 			return null;
 		};
 	}
@@ -467,10 +260,10 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * Provides implementation for setting localized associated data value from a single value returning the proxy object
 	 * return type allowing to create a builder pattern in the model objects.
 	 *
-	 * @param valueParameterPosition index of the value parameter among method parameters
+	 * @param valueParameterPosition  index of the value parameter among method parameters
 	 * @param localeParameterPosition index of the {@link Locale} parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
+	 * @param associatedDataName      name of the associated data to be set
+	 * @param valueConverter          lambda that converts the value to the target type
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -481,31 +274,52 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Function<Serializable, Serializable> valueConverter
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName);
-			} else {
-				entityBuilder.setAssociatedData(
-					associatedDataName, locale,
-					valueConverter.apply((Serializable) value)
-				);
-			}
+			setLocalizedAssociatedDataAsValue(valueParameterPosition, localeParameterPosition, associatedDataName, valueConverter, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the localized associated data value from a single value.
+	 *
+	 * @param valueParameterPosition  The index of the value parameter among the method parameters
+	 * @param localeParameterPosition The index of the Locale parameter among the method parameters
+	 * @param associatedDataName      The name of the associated data to be set
+	 * @param valueConverter          The lambda function that converts the value to the target type
+	 * @param args                    The array of method arguments
+	 * @param theState                The SealedEntityProxyState object
+	 */
+	private static void setLocalizedAssociatedDataAsValue(
+		int valueParameterPosition,
+		int localeParameterPosition,
+		@Nonnull String associatedDataName,
+		@Nonnull Function<Serializable, Serializable> valueConverter,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final Object value = args[valueParameterPosition];
+		final Locale locale = (Locale) args[localeParameterPosition];
+		Assert.notNull(locale, "Locale must not be null!");
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAssociatedData(associatedDataName);
+		} else {
+			entityBuilder.setAssociatedData(
+				associatedDataName, locale,
+				valueConverter.apply((Serializable) value)
+			);
+		}
 	}
 
 	/**
 	 * Provides implementation for setting localized associated data array value from a collection value returning a void
 	 * return type.
 	 *
-	 * @param valueParameterPosition index of the value parameter among method parameters
+	 * @param valueParameterPosition  index of the value parameter among method parameters
 	 * @param localeParameterPosition index of the {@link Locale} parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
-	 * @param plainType expected type of the attribute
+	 * @param associatedDataName      name of the associated data to be set
+	 * @param valueConverter          lambda that converts the value to the target type
+	 * @param plainType               expected type of the attribute
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -517,19 +331,7 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName, locale);
-			} else {
-				//noinspection unchecked,rawtypes
-				final Object[] valueArray = ((Collection) value).stream()
-					.map(it -> valueConverter.apply((Serializable) it))
-					.toArray(cnt -> Array.newInstance(plainType, cnt));
-				entityBuilder.setAssociatedData(associatedDataName, locale, valueArray);
-			}
+			setLocalizedAssociatedDataAsCollection(valueParameterPosition, localeParameterPosition, associatedDataName, valueConverter, plainType, args, theState);
 			return null;
 		};
 	}
@@ -538,11 +340,11 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * Provides implementation for setting localized associated data array value from a collection value returning the proxy
 	 * object return type allowing to create a builder pattern in the model objects.
 	 *
-	 * @param valueParameterPosition index of the value parameter among method parameters
+	 * @param valueParameterPosition  index of the value parameter among method parameters
 	 * @param localeParameterPosition index of the {@link Locale} parameter among method parameters
-	 * @param associatedDataName name of the associated data to be set
-	 * @param valueConverter lambda that converts the value to the target type
-	 * @param plainType expected type of the attribute
+	 * @param associatedDataName      name of the associated data to be set
+	 * @param valueConverter          lambda that converts the value to the target type
+	 * @param plainType               expected type of the attribute
 	 * @return implementation of the method call
 	 */
 	@Nonnull
@@ -554,23 +356,46 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<? extends Serializable> plainType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final Object value = args[valueParameterPosition];
-			final Locale locale = (Locale) args[localeParameterPosition];
-			Assert.notNull(locale, "Locale must not be null!");
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			if (value == null) {
-				entityBuilder.removeAssociatedData(associatedDataName, locale);
-			} else {
-				//noinspection unchecked,rawtypes
-				entityBuilder.setAssociatedData(
-					associatedDataName, locale,
-					((Collection) value).stream()
-						.map(it -> valueConverter.apply((Serializable) value))
-						.toArray(cnt -> Array.newInstance(plainType, cnt))
-				);
-			}
+			setLocalizedAssociatedDataAsCollection(valueParameterPosition, localeParameterPosition, associatedDataName, valueConverter, plainType, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the localized associated data as a collection value and returns the proxy object.
+	 *
+	 * @param valueParameterPosition  The index of the value parameter among the method parameters.
+	 * @param localeParameterPosition The index of the Locale parameter among the method parameters.
+	 * @param associatedDataName      The name of the associated data to be set.
+	 * @param valueConverter          A lambda function that converts the value to the target type.
+	 * @param plainType               The expected type of the attribute.
+	 * @param args                    The arguments passed to the method.
+	 * @param theState                The SealedEntityProxyState object containing the entity state.
+	 */
+	private static void setLocalizedAssociatedDataAsCollection(
+		int valueParameterPosition,
+		int localeParameterPosition,
+		@Nonnull String associatedDataName,
+		@Nonnull Function<Serializable, Serializable> valueConverter,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final Object value = args[valueParameterPosition];
+		final Locale locale = (Locale) args[localeParameterPosition];
+		Assert.notNull(locale, "Locale must not be null!");
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		if (value == null) {
+			entityBuilder.removeAssociatedData(associatedDataName, locale);
+		} else {
+			//noinspection unchecked,rawtypes
+			entityBuilder.setAssociatedData(
+				associatedDataName, locale,
+				((Collection) value).stream()
+					.map(it -> valueConverter.apply((Serializable) value))
+					.toArray(cnt -> Array.newInstance(plainType, cnt))
+			);
+		}
 	}
 
 	/**
@@ -668,9 +493,10 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 
 	/**
 	 * Removes localized associatedData from the entity.
+	 *
 	 * @param associatedDataName name of the associated data to be set
-	 * @param args method arguments
-	 * @param theState proxy state
+	 * @param args               method arguments
+	 * @param theState           proxy state
 	 */
 	private static void removeLocalizedAssociatedData(
 		@Nonnull String associatedDataName,
@@ -685,9 +511,10 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 
 	/**
 	 * Removes localized associated data from the entity and returns its value.
+	 *
 	 * @param associatedDataName name of the associated data to be set
-	 * @param args method arguments
-	 * @param theState proxy state
+	 * @param args               method arguments
+	 * @param theState           proxy state
 	 */
 	@Nullable
 	private static Serializable removeLocalizedAssociatedDataAndReturnIt(
@@ -802,8 +629,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 
 	/**
 	 * Removes  associated data from the entity.
+	 *
 	 * @param associatedDataName name of the associated data to be set
-	 * @param theState proxy state
+	 * @param theState           proxy state
 	 */
 	private static void removeAssociatedData(
 		@Nonnull String associatedDataName,
@@ -815,8 +643,9 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 
 	/**
 	 * Removes  associated data from the entity and returns its value.
+	 *
 	 * @param associatedDataName name of the associated data to be set
-	 * @param theState proxy state
+	 * @param theState           proxy state
 	 */
 	@Nullable
 	private static Serializable removeAssociatedDataAndReturnIt(
@@ -831,6 +660,189 @@ public class SetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		} else {
 			return null;
 		}
+	}
+
+	public SetAssociatedDataMethodClassifier() {
+		super(
+			"setAssociatedData",
+			(method, proxyState) -> parseArguments(
+				method,
+				argType -> Serializable.class.isAssignableFrom(argType) ||
+					Collection.class.isAssignableFrom(argType) ||
+					(argType.isArray() && Serializable.class.isAssignableFrom(argType.getComponentType()))
+			)
+				.map(
+					parsedArguments -> {
+						// now we need to identify associatedData schema that is being requested
+						final AssociatedDataSchemaContract associatedDataSchema = getAssociatedDataSchema(
+							method, proxyState.getReflectionLookup(),
+							proxyState.getEntitySchema()
+						);
+						// if not found, this method is not classified by this implementation
+						if (associatedDataSchema == null) {
+							return null;
+						} else {
+							// finally provide implementation that will retrieve the associatedData from the entity
+							final String associatedDataName = associatedDataSchema.getName();
+							if (associatedDataSchema.isLocalized()) {
+								Assert.isTrue(
+									parsedArguments.localeParameterPosition().isPresent(),
+									"localized associated data `" + associatedDataSchema.getName() + "` must have a locale parameter!"
+								);
+								if (method.isAnnotationPresent(RemoveWhenExists.class)) {
+									if (method.getReturnType().equals(proxyState.getProxyClass())) {
+										return removeLocalizedAssociatedDataWithBuilderResult(associatedDataName);
+									} else if (method.getReturnType().equals(void.class)) {
+										return removeLocalizedAssociatedDataWithVoidResult(associatedDataName);
+									} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
+										//noinspection rawtypes
+										final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
+										if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+											//noinspection unchecked
+											return removeLocalizedAssociatedDataWithComplexDataObjectCollectionResult(
+												associatedDataName, associatedDataSchema.getType(),
+												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
+											);
+										} else {
+											//noinspection unchecked
+											return removeLocalizedAssociatedDataWithValueCollectionResult(
+												associatedDataName,
+												(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
+											);
+										}
+									} else {
+										//noinspection rawtypes
+										final Class expectedType = method.getReturnType();
+										//noinspection unchecked
+										return removeLocalizedAssociatedDataWithValueResult(
+											associatedDataName,
+											ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
+												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup) :
+												(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
+										);
+									}
+								} else {
+									// now we need to identify the argument type
+									final Parameter valueParameter = method.getParameters()[parsedArguments.valueParameterPosition()];
+									// prepare the conversion function
+									if (Collection.class.isAssignableFrom(valueParameter.getType()) && !ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+										final Function<Serializable, Serializable> converterFct = it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
+										if (method.getReturnType().equals(proxyState.getProxyClass())) {
+											return setLocalizedAssociatedDataAsCollectionWithBuilderResult(
+												parsedArguments.valueParameterPosition(),
+												parsedArguments.localeParameterPosition().getAsInt(),
+												associatedDataName,
+												converterFct, associatedDataSchema.getPlainType()
+											);
+										} else {
+											return setLocalizedAssociatedDataAsCollectionWithVoidResult(
+												parsedArguments.valueParameterPosition(),
+												parsedArguments.localeParameterPosition().getAsInt(),
+												associatedDataName,
+												converterFct, associatedDataSchema.getPlainType()
+											);
+										}
+									} else {
+										final Function<Serializable, Serializable> converterFct = getConverterFunction(
+											proxyState.getProxyClass(), valueParameter, associatedDataSchema.getPlainType()
+										);
+										if (method.getReturnType().equals(proxyState.getProxyClass())) {
+											return setLocalizedAssociatedDataAsValueWithBuilderResult(
+												parsedArguments.valueParameterPosition(),
+												parsedArguments.localeParameterPosition().getAsInt(),
+												associatedDataName,
+												converterFct
+											);
+										} else {
+											return setLocalizedAssociatedDataAsValueWithVoidResult(
+												parsedArguments.valueParameterPosition(),
+												parsedArguments.localeParameterPosition().getAsInt(),
+												associatedDataName,
+												converterFct
+											);
+										}
+									}
+								}
+							} else {
+								if (method.isAnnotationPresent(RemoveWhenExists.class)) {
+									Assert.isTrue(
+										method.getParameterCount() == 0,
+										"Non-localized associated data `" + associatedDataSchema.getName() + "` must not have a locale parameter!"
+									);
+
+									if (method.getReturnType().equals(proxyState.getProxyClass())) {
+										return removeAssociatedDataWithBuilderResult(associatedDataName);
+									} else if (method.getReturnType().equals(void.class)) {
+										return removeAssociatedDataWithVoidResult(associatedDataName);
+									} else if (Collection.class.isAssignableFrom(method.getReturnType())) {
+										//noinspection rawtypes
+										final Class expectedType = GenericsUtils.getMethodReturnType(proxyState.getProxyClass(), method);
+										if (ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+											//noinspection unchecked
+											return removeAssociatedDataWithComplexDataObjectCollectionResult(
+												associatedDataName,
+												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup)
+											);
+										} else {
+											//noinspection unchecked
+											return removeAssociatedDataWithValueCollectionResult(
+												associatedDataName, associatedDataSchema.getType(),
+												(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
+											);
+										}
+									} else {
+										//noinspection rawtypes
+										final Class expectedType = method.getReturnType();
+										//noinspection unchecked
+										return removeAssociatedDataWithValueResult(
+											associatedDataName,
+											ComplexDataObject.class.equals(associatedDataSchema.getPlainType()) ?
+												(value, reflectionLookup) -> ComplexDataObjectConverter.getOriginalForm(value, expectedType, reflectionLookup) :
+												(value, reflectionLookup) -> EvitaDataTypes.toTargetType(value, expectedType)
+										);
+									}
+								} else {
+									Assert.isTrue(
+										method.getParameterCount() == 1,
+										"Non-localized associated data `" + associatedDataSchema.getName() + "` must not have a locale parameter!"
+									);
+									// now we need to identify the argument type
+									final Parameter valueParameter = method.getParameters()[parsedArguments.valueParameterPosition()];
+									// prepare the conversion function
+									if (Collection.class.isAssignableFrom(valueParameter.getType()) && !ComplexDataObject.class.equals(associatedDataSchema.getPlainType())) {
+										final Function<Serializable, Serializable> converterFct = it -> EvitaDataTypes.toTargetType(it, associatedDataSchema.getPlainType());
+										if (method.getReturnType().equals(proxyState.getProxyClass())) {
+											return setAssociatedDataAsCollectionWithBuilderResult(
+												parsedArguments.valueParameterPosition(), associatedDataName,
+												converterFct, associatedDataSchema.getPlainType()
+											);
+										} else {
+											return setAssociatedDataAsCollectionWithVoidResult(
+												parsedArguments.valueParameterPosition(), associatedDataName,
+												converterFct, associatedDataSchema.getPlainType()
+											);
+										}
+									} else {
+										final Function<Serializable, Serializable> converterFct = getConverterFunction(
+											proxyState.getProxyClass(), valueParameter, associatedDataSchema.getPlainType()
+										);
+										if (method.getReturnType().equals(proxyState.getProxyClass())) {
+											return setAssociatedDataAsValueWithBuilderResult(
+												parsedArguments.valueParameterPosition(), associatedDataName, converterFct
+											);
+										} else {
+											return setAssociatedDataAsValueWithVoidResult(
+												parsedArguments.valueParameterPosition(), associatedDataName, converterFct
+											);
+										}
+									}
+								}
+							}
+						}
+					}
+				)
+				.orElse(null)
+		);
 	}
 
 }

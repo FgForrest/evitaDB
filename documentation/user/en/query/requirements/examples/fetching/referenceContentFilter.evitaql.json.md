@@ -21,7 +21,7 @@
             "referencedEntity": {
               "primaryKey": 103869,
               "attributes": {
-                "code": "display-type-tft"
+                "code": "display-typee-tft"
               }
             }
           },
@@ -276,7 +276,7 @@
             "referencedEntity": {
               "primaryKey": 103884,
               "attributes": {
-                "code": "connector-type-c"
+                "code": "connector-typee-c"
               }
             }
           }

@@ -6,6 +6,8 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
+        "cs",
+        "de",
         "en"
       ],
       "attributes": {
@@ -21,6 +23,8 @@
             "type": "Group",
             "version": 1,
             "allLocales": [
+              "cs",
+              "de",
               "en"
             ],
             "attributes": {
@@ -36,9 +40,9 @@
                   "type": "Tag",
                   "version": 1,
                   "allLocales": [
+                    "cs",
                     "de",
-                    "en",
-                    "cs"
+                    "en"
                   ],
                   "attributes": {
                     "global": {

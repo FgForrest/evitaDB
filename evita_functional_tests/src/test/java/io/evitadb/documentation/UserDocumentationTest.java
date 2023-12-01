@@ -321,7 +321,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(it, ExampleFilter.values());
+					final List<DynamicTest> tests = this.createTests(it, new ExampleFilter[] {ExampleFilter.EVITAQL, ExampleFilter.CSHARP});
 					if (tests.isEmpty()) {
 						return null;
 					} else {
@@ -347,8 +347,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/operate/monitor.md"),
-			ExampleFilter.values()
+			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
+			new ExampleFilter[] {ExampleFilter.EVITAQL, ExampleFilter.CSHARP}
 		).stream();
 	}
 

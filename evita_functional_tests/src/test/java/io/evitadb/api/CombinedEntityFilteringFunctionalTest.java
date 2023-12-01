@@ -212,7 +212,7 @@ public class CombinedEntityFilteringFunctionalTest {
 								priceInCurrency(CURRENCY_CZK),
 								priceInPriceLists(PRICE_LIST_BASIC),
 								priceBetween(from, to),
-								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(4))
+								hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(3))
 							)
 						),
 						require(
@@ -232,12 +232,12 @@ public class CombinedEntityFilteringFunctionalTest {
 							.stream()
 							.anyMatch(category -> {
 								final String categoryId = String.valueOf(category.getReferencedPrimaryKey());
-								// is either category 4
-								return Objects.equals(categoryId, String.valueOf(4)) ||
-									// or has parent category 4
+								// is either category 3
+								return Objects.equals(categoryId, String.valueOf(3)) ||
+									// or has parent category 3
 									categoryHierarchy.getParentItems(categoryId)
 										.stream()
-										.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(4)));
+										.anyMatch(it -> Objects.equals(it.getCode(), String.valueOf(3)));
 							});
 						return hasPrice && isWithinCategory;
 					},
@@ -318,14 +318,15 @@ public class CombinedEntityFilteringFunctionalTest {
 								referenceHaving(
 									Entities.BRAND,
 									entityHaving(
-										attributeStartsWith(ATTRIBUTE_NAME, "S")
+										attributeStartsWith(ATTRIBUTE_NAME, "L")
 									)
 								)
 							)
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							priceType(QueryPriceMode.WITH_TAX)
 						)
 					),
 					EntityReference.class
@@ -341,7 +342,7 @@ public class CombinedEntityFilteringFunctionalTest {
 							.filter(Objects::nonNull)
 							.collect(Collectors.toSet());
 						final boolean hasBrandStartingWithChar = names.stream()
-							.anyMatch(it -> it.startsWith("S"));
+							.anyMatch(it -> it.startsWith("L"));
 						return hasPrice && hasBrandStartingWithChar;
 					},
 					result.getRecordData()

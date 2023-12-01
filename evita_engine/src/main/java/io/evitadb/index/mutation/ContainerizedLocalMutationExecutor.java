@@ -127,7 +127,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull
 	private final Function<String, EntitySchema> otherEntitiesSchemaAccessor;
 	@Nonnull
-	private final IndexMaintainer<EntityIndexKey, EntityIndex<?>> entityIndexCreatingAccessor;
+	private final IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor;
 	private final boolean removeOnly;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
@@ -138,12 +138,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer,
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Function<String, EntitySchema> otherEntitiesSchemaAccessor,
-		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex<?>> entityIndexCreatingAccessor,
+		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
 		boolean removeOnly
 	) {
 		super(storageContainerBuffer, schemaAccessor);

@@ -7,6 +7,7 @@ perex: |
   filtering constraints that you will commonly use when building queries.  
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 <Note type="info">

@@ -26,6 +26,7 @@ package io.evitadb.test.client.query.graphql;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.test.client.query.FilterConstraintToJsonConverter;
@@ -35,6 +36,7 @@ import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Common ancestor for GraphQL require constraint converters with helper methods and common converters.
@@ -44,6 +46,7 @@ import java.util.Optional;
 abstract class RequireConverter {
 
 	@Nonnull protected final CatalogSchemaContract catalogSchema;
+	@Nonnull protected final Query query;
 	@Nonnull protected final JsonNodeFactory jsonNodeFactory;
 
 	@Nonnull protected final GraphQLInputJsonPrinter inputJsonPrinter;
@@ -51,13 +54,20 @@ abstract class RequireConverter {
 	@Nonnull protected final OrderConstraintToJsonConverter orderConstraintToJsonConverter;
 	@Nonnull protected final RequireConstraintToJsonConverter requireConstraintToJsonConverter;
 
-	public RequireConverter(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
+	public RequireConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                        @Nonnull Query query,
+	                        @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
 		this.catalogSchema = catalogSchema;
+		this.query = query;
 		this.inputJsonPrinter = inputJsonPrinter;
 		this.jsonNodeFactory = new JsonNodeFactory(true);
 		this.filterConstraintToJsonConverter = new FilterConstraintToJsonConverter(catalogSchema);
 		this.orderConstraintToJsonConverter = new OrderConstraintToJsonConverter(catalogSchema);
-		this.requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(catalogSchema);
+		this.requireConstraintToJsonConverter = new RequireConstraintToJsonConverter(
+			catalogSchema,
+			new AtomicReference<>(this.filterConstraintToJsonConverter),
+			new AtomicReference<>(this.orderConstraintToJsonConverter)
+		);
 	}
 
 	@Nonnull

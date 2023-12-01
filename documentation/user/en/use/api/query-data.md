@@ -5,7 +5,8 @@ perex: |
     entity fetching and related recommendations.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 The query in evitaDB is represented by a tree of nested "constraints" divided into for parts:

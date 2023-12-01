@@ -41,11 +41,12 @@ module evita.engine {
 	exports io.evitadb.core.sequence;
 	exports io.evitadb.index;
 	exports io.evitadb.index.bool;
+	exports io.evitadb.index.cardinality;
 	exports io.evitadb.index.map;
 	exports io.evitadb.index.list;
 	exports io.evitadb.index.range;
 	exports io.evitadb.index.price.model;
-	exports io.evitadb.index.histogram;
+	exports io.evitadb.index.invertedIndex;
 	exports io.evitadb.index.bitmap;
 	exports io.evitadb.index.attribute;
 	exports io.evitadb.index.hierarchy;

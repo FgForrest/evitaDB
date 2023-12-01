@@ -1,0 +1,18 @@
+query(
+    collection('Product'),
+    filterBy(
+        hierarchyWithin(
+            'categories',
+            attributeEquals('code', 'e-readers')
+        ),
+        attributeEquals('status', 'ACTIVE')
+    ),
+    require(
+        facetSummaryOfReference(
+            'parameterValues',
+            COUNTS,
+            entityFetch(attributeContent('code')),
+            entityGroupFetch(attributeContent('code'))
+        )
+    )
+)

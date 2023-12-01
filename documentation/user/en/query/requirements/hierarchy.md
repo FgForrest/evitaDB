@@ -7,6 +7,7 @@ perex: |
 date: '5.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 There are many types of menus that can be found on e-commerce sites. Starting with mega menus of various types ...

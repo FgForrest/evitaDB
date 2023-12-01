@@ -6,6 +6,8 @@ perex: |
   development of e-commerce projects.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 **Work in progress**

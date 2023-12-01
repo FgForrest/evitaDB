@@ -47,6 +47,7 @@ import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -65,110 +66,13 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	public static final SetParentEntityMethodClassifier INSTANCE = new SetParentEntityMethodClassifier();
 
-	public SetParentEntityMethodClassifier() {
-		super(
-			"setParentEntity",
-			(method, proxyState) -> {
-				// first we need to identify whether the method returns a parent entity
-				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
-				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ParentEntity.class);
-				if (parentEntity == null || !proxyState.getEntitySchema().isWithHierarchy()) {
-					return null;
-				}
-
-				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
-				final int parameterCount = method.getParameterCount();
-				if (parameterCount == 0 && method.isAnnotationPresent(RemoveWhenExists.class)) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return removeParentEntityWithEntityBuilderResult();
-					} else if (Boolean.class.isAssignableFrom(returnType) || boolean.class.isAssignableFrom(returnType)) {
-						return removeParentEntityWithBooleanResult(returnType);
-					} else if (NumberUtils.isIntConvertibleNumber(returnType)) {
-						return removeParentEntityWithParentIdResult(returnType);
-					} else if (void.class.isAssignableFrom(returnType)) {
-						return removeParentEntityWithVoidResult();
-					} else {
-						return removeParentEntityWithParentEntityResult(returnType);
-					}
-				}
-
-				OptionalInt parentIdIndex = OptionalInt.empty();
-				OptionalInt consumerIndex = OptionalInt.empty();
-				@SuppressWarnings("rawtypes")
-				Optional<Class> consumerType = Optional.empty();
-				for (int i = 0; i < parameterCount; i++) {
-					final Class<?> parameterType = method.getParameterTypes()[i];
-					if (NumberUtils.isIntConvertibleNumber(parameterType)) {
-						parentIdIndex = OptionalInt.of(i);
-					} else if (Consumer.class.isAssignableFrom(parameterType)) {
-						consumerIndex = OptionalInt.of(i);
-						final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[i]);
-						consumerType = Optional.of(genericType.get(0).getResolvedType());
-					}
-				}
-
-				final String entityType = proxyState.getEntitySchema().getName();
-				@SuppressWarnings("rawtypes") final Class parameterType = method.getParameterTypes()[0];
-
-				final Optional<EntityRecognizedIn> entityRecognizedIn = assertEntityAnnotationOnReferencedClassIsConsistent(
-					reflectionLookup, entityType,
-					parameterType,
-					consumerType.orElse(null)
-				);
-
-				if (parameterCount == 1 && parentIdIndex.isPresent() && entityRecognizedIn.isEmpty()) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return setParentIdWithBuilderResult();
-					} else {
-						return setParentIdWithVoidResult();
-					}
-				} else if (parameterCount == 1 && EntityClassifier.class.isAssignableFrom(parameterType) && entityRecognizedIn.isEmpty()) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return setParentClassifierWithBuilderResult(entityType);
-					} else {
-						return setParentClassifierWithVoidResult(entityType);
-					}
-				} else if (parameterCount == 1 && entityRecognizedIn.map(EntityRecognizedIn.PARAMETER::equals).orElse(false)) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						return setParentEntityWithBuilderResult(entityType);
-					} else {
-						return setParentEntityWithVoidResult(entityType);
-					}
-				} else if (parameterCount == 1 && entityRecognizedIn.map(EntityRecognizedIn.CONSUMER::equals).orElse(false)) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						//noinspection unchecked
-						return createParentEntityWithEntityBuilderResult(consumerType.orElse(null));
-					} else {
-						//noinspection unchecked
-						return createParentEntityWithVoidResult(consumerType.orElse(null));
-					}
-				} else if (parameterCount == 2 && entityRecognizedIn.map(EntityRecognizedIn.CONSUMER::equals).orElse(false) && parentIdIndex.isPresent()) {
-					if (returnType.equals(proxyState.getProxyClass())) {
-						//noinspection unchecked,OptionalGetWithoutIsPresent
-						return createParentEntityByIdWithEntityBuilderResult(
-							consumerType.orElse(null),
-							parentIdIndex.getAsInt(), consumerIndex.getAsInt()
-						);
-					} else {
-						//noinspection unchecked,OptionalGetWithoutIsPresent
-						return createParentEntityByIdWithVoidResult(
-							consumerType.orElse(null),
-							parentIdIndex.getAsInt(), consumerIndex.getAsInt()
-						);
-					}
-				}
-				return null;
-			}
-		);
-	}
-
 	/**
 	 * Asserts that the entity annotation on the referenced class is consistent with the entity type of the parent.
 	 *
 	 * @param reflectionLookup the reflection lookup
 	 * @param entityType       expected entity type of the parent
 	 * @param parameterType    the parameter type to look for the annotation on
-	 * @param consumerType       the return type to look for the annotation on
+	 * @param consumerType     the return type to look for the annotation on
 	 */
 	@Nonnull
 	private static Optional<EntityRecognizedIn> assertEntityAnnotationOnReferencedClassIsConsistent(
@@ -228,14 +132,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull String entityType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final EntityClassifier parent = (EntityClassifier) args[0];
-			if (parent == null) {
-				entityBuilder.removeParent();
-			} else {
-				entityBuilder.setParent(parent.getPrimaryKey());
-				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
-			}
+			setParentEntity(entityType, args, theState);
 			return null;
 		};
 	}
@@ -252,16 +149,31 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 		@Nonnull String entityType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final EntityClassifier parent = (EntityClassifier) args[0];
-			if (parent == null) {
-				entityBuilder.removeParent();
-			} else {
-				entityBuilder.setParent(parent.getPrimaryKey());
-				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
-			}
+			setParentEntity(entityType, args, theState);
 			return proxy;
 		};
+	}
+
+	/**
+	 * Sets the parent entity and register the reference to the proxy state.
+	 *
+	 * @param entityType the type of the parent entity
+	 * @param args       the arguments passed to the method
+	 * @param theState   the proxy state
+	 */
+	private static void setParentEntity(
+		@Nonnull String entityType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final EntityClassifier parent = (EntityClassifier) args[0];
+		if (parent == null) {
+			entityBuilder.removeParent();
+		} else {
+			entityBuilder.setParent(parent.getPrimaryKey());
+			theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
+		}
 	}
 
 	/**
@@ -273,18 +185,10 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityWithEntityBuilderResult(
-		@Nonnull Class<? extends Serializable> expectedType
+		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
-				theState.getEntitySchema(), expectedType,
-				ProxyType.PARENT,
-				entityReference -> entityBuilder.setParent(entityReference.getPrimaryKey())
-			);
-			//noinspection unchecked
-			final Consumer<Serializable> consumer = (Consumer<Serializable>) args[0];
-			consumer.accept(referencedEntityInstance);
+			createParentEntity(expectedType, args, theState);
 			return proxy;
 		};
 	}
@@ -298,20 +202,37 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityWithVoidResult(
-		@Nonnull Class<? extends Serializable> expectedType
+		@Nonnull Class<?> expectedType
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
-				theState.getEntitySchema(), expectedType,
-				ProxyType.PARENT,
-				entityReference -> entityBuilder.setParent(entityReference.getPrimaryKey())
-			);
-			//noinspection unchecked
-			final Consumer<Serializable> consumer = (Consumer<Serializable>) args[0];
-			consumer.accept(referencedEntityInstance);
+			createParentEntity(expectedType, args, theState);
 			return null;
 		};
+	}
+
+	/**
+	 * Creates a parent entity and sets it as the parent of the proxy object.
+	 *
+	 * @param expectedType the type of the wrapped parent object
+	 * @param args         the arguments passed to the method
+	 * @param theState     the state of the proxy object
+	 */
+	private static void createParentEntity(
+		@Nonnull Class<?> expectedType,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		//noinspection unchecked
+		final Serializable referencedEntityInstance = theState.createReferencedEntityProxyWithCallback(
+			theState.getEntitySchema(),
+			(Class<? extends Serializable>) expectedType,
+			ProxyType.PARENT,
+			entityReference -> entityBuilder.setParent(entityReference.getPrimaryKey())
+		);
+		//noinspection unchecked
+		final Consumer<Serializable> consumer = (Consumer<Serializable>) args[0];
+		consumer.accept(referencedEntityInstance);
 	}
 
 	/**
@@ -323,20 +244,12 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityByIdWithEntityBuilderResult(
-		@Nonnull Class<? extends Serializable> expectedType,
+		@Nonnull Class<?> expectedType,
 		int parentIdLocation,
 		int consumerLocation
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-				theState.getEntitySchema(), expectedType, ProxyType.PARENT, parentId
-			);
-			entityBuilder.setParent(parentId);
-			//noinspection unchecked
-			final Consumer<Serializable> consumer = (Consumer<Serializable>) args[consumerLocation];
-			consumer.accept(referencedEntityInstance);
+			createParentEntityById(expectedType, parentIdLocation, consumerLocation, args, theState);
 			return proxy;
 		};
 	}
@@ -350,22 +263,42 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> createParentEntityByIdWithVoidResult(
-		@Nonnull Class<? extends Serializable> expectedType,
+		@Nonnull Class<?> expectedType,
 		int parentIdLocation,
 		int consumerLocation
 	) {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
-			final EntityBuilder entityBuilder = theState.getEntityBuilder();
-			final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
-			final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
-				theState.getEntitySchema(), expectedType, ProxyType.PARENT, parentId
-			);
-			entityBuilder.setParent(parentId);
-			//noinspection unchecked
-			final Consumer<Serializable> consumer = (Consumer<Serializable>) args[consumerLocation];
-			consumer.accept(referencedEntityInstance);
+			createParentEntityById(expectedType, parentIdLocation, consumerLocation, args, theState);
 			return null;
 		};
+	}
+
+	/**
+	 * Creates a parent entity by its ID and sets it on the proxy.
+	 *
+	 * @param expectedType     the type of the wrapped parent object
+	 * @param parentIdLocation the index of the parent ID in the args array
+	 * @param consumerLocation the index of the consumer in the args array
+	 * @param args             the arguments passed to the method
+	 * @param theState         the current state of the proxy
+	 */
+	private static void createParentEntityById(
+		@Nonnull Class<?> expectedType,
+		int parentIdLocation,
+		int consumerLocation,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final int parentId = EvitaDataTypes.toTargetType((Serializable) args[parentIdLocation], int.class);
+		//noinspection unchecked
+		final Serializable referencedEntityInstance = theState.getOrCreateReferencedEntityProxy(
+			theState.getEntitySchema(), (Class<? extends Serializable>) expectedType, ProxyType.PARENT, parentId
+		);
+		entityBuilder.setParent(parentId);
+		//noinspection unchecked
+		final Consumer<Serializable> consumer = (Consumer<Serializable>) args[consumerLocation];
+		consumer.accept(referencedEntityInstance);
 	}
 
 	/**
@@ -410,11 +343,8 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	 *
 	 * @return the method implementation
 	 */
-	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nonnull
-	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithBooleanResult(
-		@Nonnull Class returnType
-	) {
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeParentEntityWithBooleanResult() {
 		return (proxy, theMethod, args, theState, invokeSuper) -> {
 			final EntityBuilder entityBuilder = theState.getEntityBuilder();
 			final Optional<EntityClassifierWithParent> parentEntity = entityBuilder.getParentEntity();
@@ -499,7 +429,7 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 						"Entity class type `" + theState.getProxyClass() + "` parent must represent same entity type, " +
 							" but the parameter object refers to `" + parent.getType() + "` entity type!"
 					)
-			);
+				);
 				entityBuilder.setParent(parent.getPrimaryKey());
 				theState.registerReferencedEntityObject(entityType, parent.getPrimaryKey(), parent, ProxyType.PARENT);
 			}
@@ -583,11 +513,145 @@ public class SetParentEntityMethodClassifier extends DirectMethodClassification<
 	}
 
 	/**
+	 * Returns parsed arguments based on the method parameters.
+	 *
+	 * @param method           the method for which arguments need to be parsed
+	 * @param proxyState       the state of the proxy
+	 * @param parameterCount   the number of parameters in the method
+	 * @param reflectionLookup the reflection lookup object
+	 * @return the parsed arguments object
+	 */
+	@Nonnull
+	private static ParsedArguments getParsedArguments(
+		@Nonnull Method method,
+		@Nonnull SealedEntityProxyState proxyState,
+		int parameterCount,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		OptionalInt parentIdIndex = OptionalInt.empty();
+		OptionalInt consumerIndex = OptionalInt.empty();
+		Optional<Class<?>> consumerType = Optional.empty();
+		for (int i = 0; i < parameterCount; i++) {
+			final Class<?> parameterType = method.getParameterTypes()[i];
+			if (NumberUtils.isIntConvertibleNumber(parameterType)) {
+				parentIdIndex = OptionalInt.of(i);
+			} else if (Consumer.class.isAssignableFrom(parameterType)) {
+				consumerIndex = OptionalInt.of(i);
+				final List<GenericBundle> genericType = GenericsUtils.getGenericType(proxyState.getProxyClass(), method.getGenericParameterTypes()[i]);
+				consumerType = Optional.of(genericType.get(0).getResolvedType());
+			}
+		}
+
+		final String entityType = proxyState.getEntitySchema().getName();
+		@SuppressWarnings("rawtypes") final Class parameterType = method.getParameterTypes()[0];
+
+		final Optional<EntityRecognizedIn> entityRecognizedIn = assertEntityAnnotationOnReferencedClassIsConsistent(
+			reflectionLookup, entityType,
+			parameterType,
+			consumerType.orElse(null)
+		);
+		return new ParsedArguments(parentIdIndex, consumerIndex, consumerType, entityType, parameterType, entityRecognizedIn);
+	}
+
+	public SetParentEntityMethodClassifier() {
+		super(
+			"setParentEntity",
+			(method, proxyState) -> {
+				// first we need to identify whether the method returns a parent entity
+				final ReflectionLookup reflectionLookup = proxyState.getReflectionLookup();
+				final ParentEntity parentEntity = reflectionLookup.getAnnotationInstanceForProperty(method, ParentEntity.class);
+				if (parentEntity == null || !proxyState.getEntitySchema().isWithHierarchy()) {
+					return null;
+				}
+
+				@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
+				final int parameterCount = method.getParameterCount();
+				if (parameterCount == 0 && method.isAnnotationPresent(RemoveWhenExists.class)) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						return removeParentEntityWithEntityBuilderResult();
+					} else if (Boolean.class.isAssignableFrom(returnType) || boolean.class.isAssignableFrom(returnType)) {
+						return removeParentEntityWithBooleanResult();
+					} else if (NumberUtils.isIntConvertibleNumber(returnType)) {
+						return removeParentEntityWithParentIdResult(returnType);
+					} else if (void.class.isAssignableFrom(returnType)) {
+						return removeParentEntityWithVoidResult();
+					} else {
+						return removeParentEntityWithParentEntityResult(returnType);
+					}
+				}
+
+				final ParsedArguments parsedArguments = getParsedArguments(method, proxyState, parameterCount, reflectionLookup);
+
+				if (parameterCount == 1 && parsedArguments.parentIdIndex().isPresent() && parsedArguments.entityRecognizedIn().isEmpty()) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						return setParentIdWithBuilderResult();
+					} else {
+						return setParentIdWithVoidResult();
+					}
+				} else if (parameterCount == 1 && EntityClassifier.class.isAssignableFrom(parsedArguments.parameterType()) && parsedArguments.entityRecognizedIn().isEmpty()) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						return setParentClassifierWithBuilderResult(parsedArguments.entityType());
+					} else {
+						return setParentClassifierWithVoidResult(parsedArguments.entityType());
+					}
+				} else if (parameterCount == 1 && parsedArguments.entityRecognizedIn().map(EntityRecognizedIn.PARAMETER::equals).orElse(false)) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						return setParentEntityWithBuilderResult(parsedArguments.entityType());
+					} else {
+						return setParentEntityWithVoidResult(parsedArguments.entityType());
+					}
+				} else if (parameterCount == 1 && parsedArguments.entityRecognizedIn().map(EntityRecognizedIn.CONSUMER::equals).orElse(false)) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						return createParentEntityWithEntityBuilderResult(parsedArguments.consumerType().orElse(null));
+					} else {
+						return createParentEntityWithVoidResult(parsedArguments.consumerType().orElse(null));
+					}
+				} else if (parameterCount == 2 && parsedArguments.entityRecognizedIn().map(EntityRecognizedIn.CONSUMER::equals).orElse(false) && parsedArguments.parentIdIndex().isPresent()) {
+					if (returnType.equals(proxyState.getProxyClass())) {
+						//noinspection OptionalGetWithoutIsPresent
+						return createParentEntityByIdWithEntityBuilderResult(
+							parsedArguments.consumerType().orElse(null),
+							parsedArguments.parentIdIndex().getAsInt(), parsedArguments.consumerIndex().getAsInt()
+						);
+					} else {
+						//noinspection OptionalGetWithoutIsPresent
+						return createParentEntityByIdWithVoidResult(
+							parsedArguments.consumerType().orElse(null),
+							parsedArguments.parentIdIndex().getAsInt(), parsedArguments.consumerIndex().getAsInt()
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Represents identification of the place which has been recognized as parent representation.
 	 */
 	private enum EntityRecognizedIn {
 		PARAMETER,
 		CONSUMER
+	}
+
+	/**
+	 * Represents the parsed arguments from method signature for the sake of parent mutation.
+	 *
+	 * @param parentIdIndex      the index of the parent ID in the args array
+	 * @param consumerIndex      the index of the consumer in the args array
+	 * @param consumerType       the type of the consumer argument
+	 * @param entityType         the type of the entity
+	 * @param parameterType      the type of the parameter
+	 * @param entityRecognizedIn the place where the entity was recognized
+	 */
+	private record ParsedArguments(
+		@Nonnull OptionalInt parentIdIndex,
+		@Nonnull OptionalInt consumerIndex,
+		@Nonnull Optional<Class<?>> consumerType,
+		@Nonnull String entityType,
+		@Nonnull Class<?> parameterType,
+		@Nonnull Optional<EntityRecognizedIn> entityRecognizedIn
+	) {
 	}
 
 }

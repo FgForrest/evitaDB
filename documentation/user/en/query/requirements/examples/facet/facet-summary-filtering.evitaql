@@ -5,11 +5,11 @@ query(
     ),
     require(
         facetSummary(
-          COUNTS,
-          filterBy(attributeContains('code', 'ar')),
-          filterGroupBy(attributeStartsWith('code', 'o')),
-          entityFetch(attributeContent('code')),
-          entityGroupFetch(attributeContent('code'))
+            COUNTS,
+            filterBy(attributeContains('code', 'ar')),
+            filterGroupBy(attributeStartsWith('code', 'o')),
+            entityFetch(attributeContent('code')),
+            entityGroupFetch(attributeContent('code'))
         )
     )
 )

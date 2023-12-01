@@ -1,0 +1,53 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "userFilter" : [
+      {
+        "facetParameterValuesHaving" : [
+          {
+            "entityHaving" : {
+              "attributeCodeInSet" : [
+                "ram-memory-64"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "require" : {
+    "facetParameterValuesSummary" : {
+      "statisticsDepth" : "IMPACT",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      },
+      "filterBy" : {
+        "attributeCodeContains" : "4"
+      },
+      "filterGroupBy" : {
+        "attributeCodeInSet" : [
+          "ram-memory",
+          "rom-memory"
+        ]
+      }
+    },
+    "facetParameterValuesGroupsDisjunction" : {
+      "filterBy" : {
+        "attributeCodeInSet" : [
+          "ram-memory",
+          "rom-memory"
+        ]
+      }
+    }
+  }
+}

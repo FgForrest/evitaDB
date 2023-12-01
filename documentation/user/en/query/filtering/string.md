@@ -6,6 +6,7 @@ perex: |
   looking for entities with attributes that contain a specific string.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 <Note type="info">

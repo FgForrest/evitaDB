@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -155,7 +156,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		@Nonnull String associatedDataName,
 		@Nullable T associatedDataValue
 	) {
-		if (associatedDataValue == null) {
+		if (associatedDataValue == null || associatedDataValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAssociatedData(associatedDataName);
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
@@ -201,7 +202,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Override
 	@Nonnull
 	public <T extends Serializable> AssociatedDataBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
-		if (associatedDataValue == null) {
+		if (associatedDataValue == null || associatedDataValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAssociatedData(associatedDataName, locale);
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);

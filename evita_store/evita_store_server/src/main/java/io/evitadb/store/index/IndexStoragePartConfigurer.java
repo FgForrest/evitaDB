@@ -26,8 +26,9 @@ package io.evitadb.store.index;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.histogram.InvertedIndex;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.cardinality.CardinalityIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.range.TransactionalRangePoint;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
@@ -65,6 +66,7 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(FilterIndexStoragePart.class, new SerialVersionBasedSerializer<>(new FilterIndexStoragePartSerializer(keyCompressor), FilterIndexStoragePart.class), index++);
 		kryo.register(SortIndexStoragePart.class, new SerialVersionBasedSerializer<>(new SortIndexStoragePartSerializer(keyCompressor), SortIndexStoragePart.class), index++);
 		kryo.register(ChainIndexStoragePart.class, new SerialVersionBasedSerializer<>(new ChainIndexStoragePartSerializer(keyCompressor), ChainIndexStoragePart.class), index++);
+		kryo.register(CardinalityIndexStoragePart.class, new SerialVersionBasedSerializer<>(new CardinalityIndexStoragePartSerializer(keyCompressor), CardinalityIndexStoragePart.class), index++);
 
 		kryo.register(EntityIndexType.class, new EnumNameSerializer<>(), index++);
 		kryo.register(AttributeIndexType.class, new EnumNameSerializer<>(), index++);
@@ -76,6 +78,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 
 		kryo.register(RangeIndex.class, new SerialVersionBasedSerializer<>(new IntRangeIndexSerializer(), RangeIndex.class), index++);
 		kryo.register(TransactionalRangePoint.class, new SerialVersionBasedSerializer<>(new TransactionalIntRangePointSerializer(), TransactionalRangePoint.class), index++);
+
+		kryo.register(CardinalityIndex.class, new SerialVersionBasedSerializer<>(new CardinalityIndexSerializer(), CardinalityIndex.class), index++);
 
 		kryo.register(PriceListAndCurrencySuperIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencySuperIndexStoragePartSerializer(keyCompressor), PriceListAndCurrencySuperIndexStoragePart.class), index++);
 		kryo.register(PriceListAndCurrencyRefIndexStoragePart.class, new SerialVersionBasedSerializer<>(new PriceListAndCurrencyRefIndexStoragePartSerializer(keyCompressor), PriceListAndCurrencyRefIndexStoragePart.class), index++);

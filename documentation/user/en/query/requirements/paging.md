@@ -7,6 +7,7 @@ perex: |
 date: '23.7.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Page

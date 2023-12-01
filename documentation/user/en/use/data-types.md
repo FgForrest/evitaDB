@@ -3,9 +3,10 @@ title: Data types
 perex: |
     The article gives an introduction to data types in EvitaDB query language, including basic and complex types,
     and provides code examples to demonstrate their usage.
-date: "23.8.2023"
-author: "Ing. Jan Novotný"
-proofreading: "done"
+date: '23.8.2023'
+author: 'Ing. Jan Novotný'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 This document lists all data types supported by evitaDB that can be used in

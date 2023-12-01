@@ -10,11 +10,11 @@ query(
     ),
     require(
         facetSummary(
-          COUNTS,
-          orderBy(attributeNatural('name', ASC)),
-          orderGroupBy(attributeNatural('name', ASC)),
-          entityFetch(attributeContent('name')),
-          entityGroupFetch(attributeContent('name'))
+            COUNTS,
+            orderBy(attributeNatural('name', ASC)),
+            orderGroupBy(attributeNatural('name', ASC)),
+            entityFetch(attributeContent('name')),
+            entityGroupFetch(attributeContent('name'))
         )
     )
 )

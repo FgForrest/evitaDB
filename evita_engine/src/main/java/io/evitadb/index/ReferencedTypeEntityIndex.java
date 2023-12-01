@@ -23,32 +23,53 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.Transaction;
+import io.evitadb.index.ReferencedTypeEntityIndex.ReferencedTypeEntityIndexChanges;
 import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.cardinality.CardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.VoidPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
+import io.evitadb.index.transactionalMemory.TransactionalContainerChanges;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
+import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.spi.model.storageParts.index.EntityIndexStoragePart;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
+
+import static io.evitadb.core.Transaction.getTransactionalMemoryLayer;
+import static io.evitadb.core.Transaction.isTransactionAvailable;
+import static io.evitadb.index.attribute.AttributeIndex.createAttributeKey;
+import static java.util.Optional.ofNullable;
 
 /**
  * Referenced type entity index exists once per {@link EntitySchemaContract#getReference(String)} and indexes not
@@ -60,7 +81,10 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityIndex> {
+public class ReferencedTypeEntityIndex extends EntityIndex implements
+	TransactionalLayerProducer<ReferencedTypeEntityIndexChanges, ReferencedTypeEntityIndex>,
+	IndexDataStructure,
+	Serializable {
 	/**
 	 * No prices are maintained in this index.
 	 */
@@ -76,7 +100,12 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	 * determined by the presence of the referenced primary key in {@link #entityIds}.
 	 */
 	@Nonnull
-	private final TransactionalMap<Integer, Integer> primaryKeyCardinality;
+	private final CardinalityIndex primaryKeyCardinality;
+	/**
+	 * This transactional map (index) contains for each attribute single instance of {@link FilterIndex}
+	 * (respective single instance for each attribute-locale combination in case of language specific attribute).
+	 */
+	@Nonnull private final TransactionalMap<AttributeKey, CardinalityIndex> cardinalityIndexes;
 
 	public ReferencedTypeEntityIndex(
 		int primaryKey,
@@ -84,7 +113,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 		@Nonnull Supplier<EntitySchema> schemaAccessor
 	) {
 		super(primaryKey, entityIndexKey, schemaAccessor);
-		this.primaryKeyCardinality = new TransactionalMap<>(new HashMap<>());
+		this.primaryKeyCardinality = new CardinalityIndex(Integer.class);
+		this.cardinalityIndexes = new TransactionalMap<>(new HashMap<>(), CardinalityIndex.class, Function.identity());
 	}
 
 	public ReferencedTypeEntityIndex(
@@ -97,14 +127,16 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 		@Nonnull AttributeIndex attributeIndex,
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
-		@Nonnull Map<Integer, Integer> primaryKeyCardinality
+		@Nonnull CardinalityIndex primaryKeyCardinality,
+		@Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes
 	) {
 		super(
 			primaryKey, entityIndexKey, version, schemaAccessor,
 			entityIds, entityIdsByLanguage,
 			attributeIndex, hierarchyIndex, facetIndex, VoidPriceIndex.INSTANCE
 		);
-		this.primaryKeyCardinality = new TransactionalMap<>(primaryKeyCardinality);
+		this.primaryKeyCardinality = primaryKeyCardinality;
+		this.cardinalityIndexes = new TransactionalMap<>(cardinalityIndexes, CardinalityIndex.class, Function.identity());
 	}
 
 	@Nonnull
@@ -122,7 +154,8 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	@Override
 	public boolean isEmpty() {
 		return super.isEmpty() &&
-			this.primaryKeyCardinality.isEmpty();
+			this.primaryKeyCardinality.isEmpty() &&
+			this.cardinalityIndexes.isEmpty();
 	}
 
 	@Override
@@ -145,51 +178,27 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 		);
 	}
 
-	/*
-		TRANSACTIONAL MEMORY IMPLEMENTATION
-	 */
+	@Nonnull
+	@Override
+	protected Stream<AttributeIndexStorageKey> getAttributeIndexStorageKeyStream() {
+		return Stream.concat(
+			super.getAttributeIndexStorageKeyStream(),
+			ofNullable(cardinalityIndexes)
+				.map(TransactionalMap::keySet)
+				.map(set -> set.stream().map(attributeKey -> new AttributeIndexStorageKey(indexKey, AttributeIndexType.CARDINALITY, attributeKey)))
+				.orElseGet(Stream::empty)
+		);
+	}
 
 	@Nonnull
 	@Override
-	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		// we can safely throw away dirty flag now
-		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
-		return new ReferencedTypeEntityIndex(
-			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality, transaction)
-		);
-	}
-
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
-		this.primaryKeyCardinality.removeLayer(transactionalLayer);
-	}
-
-	/**
-	 * @see #primaryKeyCardinality
-	 */
-	@Override
-	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
-		throw new UnsupportedOperationException(
-			"ReferencedTypeEntityIndex doesn't support this operation, you need to call method: `insertPrimaryKeyIfMissing(int, int, WritableEntityStorageContainerAccessor)`"
-		);
-	}
-
-	/**
-	 * @see #primaryKeyCardinality
-	 */
-	@Override
-	public boolean removePrimaryKey(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
-		throw new UnsupportedOperationException(
-			"ReferencedTypeEntityIndex doesn't support this operation, you need to call method: `removePrimaryKey(int, int, WritableEntityStorageContainerAccessor)`"
-		);
+	public Collection<StoragePart> getModifiedStorageParts() {
+		final Collection<StoragePart> dirtyParts = super.getModifiedStorageParts();
+		for (Entry<AttributeKey, CardinalityIndex> entry : cardinalityIndexes.entrySet()) {
+			ofNullable(entry.getValue().createStoragePart(primaryKey, entry.getKey()))
+				.ifPresent(dirtyParts::add);
+		}
+		return dirtyParts;
 	}
 
 	/**
@@ -198,21 +207,13 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	 *
 	 * @see #primaryKeyCardinality
 	 */
-	public void insertPrimaryKeyIfMissing(int entityPrimaryKey, int referencedEntityPrimaryKey, @Nonnull EntityStoragePartAccessor containerAccessor) {
-		final boolean added = super.insertPrimaryKeyIfMissing(referencedEntityPrimaryKey, containerAccessor);
-		if (!added) {
-			this.primaryKeyCardinality.compute(
-				entityPrimaryKey,
-				(key, oldValue) -> {
-					if (oldValue == null) {
-						return 1;
-					} else {
-						return oldValue + 1;
-					}
-				}
-			);
-			this.dirty.setToTrue();
+	@Override
+	public boolean insertPrimaryKeyIfMissing(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+		this.dirty.setToTrue();
+		if (this.primaryKeyCardinality.addRecord(entityPrimaryKey, entityPrimaryKey)) {
+			return super.insertPrimaryKeyIfMissing(entityPrimaryKey, entityStoragePartAccessor);
 		}
+		return false;
 	}
 
 	/**
@@ -222,24 +223,196 @@ public class ReferencedTypeEntityIndex extends EntityIndex<ReferencedTypeEntityI
 	 *
 	 * @see #primaryKeyCardinality
 	 */
-	public void removePrimaryKey(int entityPrimaryKey, int referencedEntityPrimaryKey, @Nonnull EntityStoragePartAccessor containerAccessor) {
-		final int result = this.primaryKeyCardinality.compute(
-			entityPrimaryKey,
-			(key, oldValue) -> {
-				if (oldValue == null) {
-					return -1;
-				} else {
-					return oldValue - 1;
-				}
+	@Override
+	public boolean removePrimaryKey(int entityPrimaryKey, @Nonnull EntityStoragePartAccessor entityStoragePartAccessor) {
+		this.dirty.setToTrue();
+		if (this.primaryKeyCardinality.removeRecord(entityPrimaryKey, entityPrimaryKey)) {
+			return super.removePrimaryKey(entityPrimaryKey, entityStoragePartAccessor);
+		}
+		return false;
+	}
+
+	/**
+	 * This method delegates call to {@link #insertFilterAttribute(AttributeSchemaContract, Set, Locale, Object, int)}
+	 * but tracks the cardinality of the referenced primary key in {@link #cardinalityIndexes}.
+	 * @param attributeSchema
+	 * @param allowedLocales
+	 * @param locale
+	 * @param value
+	 * @param recordId
+	 */
+	@Override
+	public void insertFilterAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
+	) {
+		// first retrieve or create the cardinality index for given attribute
+		final CardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
+			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			lookupKey -> {
+				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
+				ofNullable(getTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
+				return newCardinalityIndex;
 			}
 		);
-		if (result == -1) {
-			super.removePrimaryKey(referencedEntityPrimaryKey, containerAccessor);
-		} else {
-			if (result == 0) {
-				this.primaryKeyCardinality.remove(entityPrimaryKey);
+		if (value instanceof Object[] valueArray) {
+			// for array values we need to add only new items to the index (their former cardinality was zero)
+			final Object[] onlyNewItemsValueArray = (Object[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
+			int onlyNewItemsValueArrayIndex = 0;
+			for (Object valueItem : valueArray) {
+				if (theCardinalityIndex.addRecord((Serializable) valueItem, recordId)) {
+					onlyNewItemsValueArray[onlyNewItemsValueArrayIndex++] = valueItem;
+				}
 			}
-			this.dirty.setToTrue();
+			if (onlyNewItemsValueArrayIndex > 0) {
+				final Object[] delta = Arrays.copyOfRange(onlyNewItemsValueArray, 0, onlyNewItemsValueArrayIndex);
+				super.addDeltaFilterAttribute(
+					attributeSchema, allowedLocales, locale,
+					delta,
+					recordId
+				);
+			}
+		} else {
+			// for non-array values we need to call super method only if cardinality was zero
+			if (theCardinalityIndex.addRecord((Serializable) value, recordId)) {
+				super.insertFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
+			}
 		}
 	}
+
+	@Override
+	public void removeFilterAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
+	) {
+		// first retrieve or create the cardinality index for given attribute
+		final CardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
+			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			lookupKey -> {
+				final CardinalityIndex newCardinalityIndex = new CardinalityIndex(attributeSchema.getPlainType());
+				ofNullable(getTransactionalMemoryLayer(this))
+					.ifPresent(it -> it.addCreatedItem(newCardinalityIndex));
+				return newCardinalityIndex;
+			}
+		);
+		if (value instanceof Object[] valueArray) {
+			// for array values we need to remove only items which cardinality reaches zero
+			final Object[] onlyRemovedItemsValueArray = (Object[]) Array.newInstance(valueArray.getClass().getComponentType(), valueArray.length);
+			int onlyRemovedItemsValueArrayIndex = 0;
+			for (Object valueItem : valueArray) {
+				if (theCardinalityIndex.removeRecord((Serializable) valueItem, recordId)) {
+					onlyRemovedItemsValueArray[onlyRemovedItemsValueArrayIndex++] = valueItem;
+				}
+			}
+			if (onlyRemovedItemsValueArrayIndex > 0) {
+				final Object[] delta = Arrays.copyOfRange(onlyRemovedItemsValueArray, 0, onlyRemovedItemsValueArrayIndex);
+				super.removeDeltaFilterAttribute(
+					attributeSchema, allowedLocales, locale,
+					delta,
+					recordId
+				);
+			}
+		} else {
+			// for non-array values we need to call super method only if cardinality reaches zero
+			if (theCardinalityIndex.removeRecord((Serializable) value, recordId)) {
+				super.insertFilterAttribute(attributeSchema, allowedLocales, locale, value, recordId);
+			}
+		}
+	}
+
+	@Override
+	public void insertSortAttribute(AttributeSchemaContract attributeSchema, Set<Locale> allowedLocales, Locale locale, Object value, int recordId) {
+		// the sort index of reference type index is not maintained, because the entity might reference multiple
+		// entities and the sort index couldn't handle multiple values
+	}
+
+	@Override
+	public void removeSortAttribute(AttributeSchemaContract attributeSchema, Set<Locale> allowedLocales, Locale locale, Object value, int recordId) {
+		// the sort index of reference type index is not maintained, because the entity might reference multiple
+		// entities and the sort index couldn't handle multiple values
+	}
+
+	@Override
+	public void insertSortAttributeCompound(SortableAttributeCompoundSchemaContract compoundSchemaContract, Function<String, Class<?>> attributeTypeProvider, Locale locale, Object[] value, int recordId) {
+		// the sort index of reference type index is not maintained, because the entity might reference multiple
+		// entities and the sort index couldn't handle multiple values
+	}
+
+	@Override
+	public void removeSortAttributeCompound(SortableAttributeCompoundSchemaContract compoundSchemaContract, Locale locale, Object[] value, int recordId) {
+		// the sort index of reference type index is not maintained, because the entity might reference multiple
+		// entities and the sort index couldn't handle multiple values
+	}
+
+	/*
+		TransactionalLayerCreator implementation
+	 */
+
+	@Nullable
+	@Override
+	public ReferencedTypeEntityIndexChanges createLayer() {
+		return isTransactionAvailable() ? new ReferencedTypeEntityIndexChanges() : null;
+	}
+
+	@Nonnull
+	@Override
+	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		// we can safely throw away dirty flag now
+		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		final ReferencedTypeEntityIndex referencedTypeEntityIndex = new ReferencedTypeEntityIndex(
+			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes, transaction)
+		);
+
+		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
+		return referencedTypeEntityIndex;
+	}
+
+	@Override
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		super.removeTransactionalMemoryOfReferencedProducers(transactionalLayer);
+		this.primaryKeyCardinality.removeLayer(transactionalLayer);
+		this.cardinalityIndexes.removeLayer(transactionalLayer);
+
+		final ReferencedTypeEntityIndexChanges changes = transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		ofNullable(changes).ifPresent(it -> it.cleanAll(transactionalLayer));
+	}
+
+	/**
+	 * This class collects changes in {@link #cardinalityIndexes} transactional maps.
+	 */
+	public static class ReferencedTypeEntityIndexChanges {
+		private final TransactionalContainerChanges<Void, CardinalityIndex, CardinalityIndex> cardinalityIndexChanges = new TransactionalContainerChanges<>();
+
+		public void addCreatedItem(@Nonnull CardinalityIndex cardinalityIndex) {
+			cardinalityIndexChanges.addCreatedItem(cardinalityIndex);
+		}
+
+		public void addRemovedItem(@Nonnull CardinalityIndex cardinalityIndex) {
+			cardinalityIndexChanges.addRemovedItem(cardinalityIndex);
+		}
+
+		public void clean(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			cardinalityIndexChanges.clean(transactionalLayer);
+		}
+
+		public void cleanAll(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+			cardinalityIndexChanges.cleanAll(transactionalLayer);
+		}
+
+	}
+
 }

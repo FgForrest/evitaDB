@@ -6,7 +6,8 @@ perex: |
   to transformations.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 The evitaDB query language consists of a nested set of functions. Each function has its name and set of arguments 

@@ -24,10 +24,8 @@
 package io.evitadb.api.proxy;
 
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 
 import javax.annotation.Nonnull;
@@ -42,7 +40,12 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SealedEntityProxy extends EvitaProxy, ReferencedEntityBuilderProvider {
+public interface SealedEntityProxy extends 
+	EvitaProxy,
+	EntityContractAccessor,
+	EntityBuilderAccessor,
+	ReferencedEntityBuilderProvider
+{
 
 	/**
 	 * Returns the primary key of the underlying sealed entity. The primary key might be null if the entity hasn't been
@@ -54,18 +57,11 @@ public interface SealedEntityProxy extends EvitaProxy, ReferencedEntityBuilderPr
 	Integer getPrimaryKey();
 
 	/**
-	 * Returns the underlying sealed entity that is wrapped into a requested proxy type.
+	 * Retrieves an {@link Optional} that contains an {@link EntityBuilderWithCallback} instance.
+	 * The {@link EntityBuilderWithCallback} contains both {@link EntityBuilder} and callback that should be called
+	 * when the builder mutations is applied via {@link EvitaSessionContract#upsertEntity(Serializable)} method.
 	 *
-	 * @return the underlying sealed entity
-	 */
-	@Nonnull
-	EntityContract getEntity();
-
-	/**
-	 * Returns the entity mutation that contains all the {@link LocalMutation} related to the wrapped
-	 * {@link #getEntity()} opened for write.
-	 *
-	 * @return the entity mutation or empty value if no mutations were performed
+	 * @return an {@link Optional} that contains an {@link EntityBuilderWithCallback} instance, if present
 	 */
 	@Nonnull
 	Optional<EntityBuilderWithCallback> getEntityBuilderWithCallback();

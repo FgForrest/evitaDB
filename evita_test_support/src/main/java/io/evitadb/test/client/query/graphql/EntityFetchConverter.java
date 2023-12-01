@@ -23,7 +23,10 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.PriceInCurrency;
+import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -44,6 +47,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.Associate
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ParentsFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceBigDecimalFieldHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
@@ -68,15 +72,16 @@ import java.util.function.Consumer;
 public class EntityFetchConverter extends RequireConverter {
 
 	public EntityFetchConverter(@Nonnull CatalogSchemaContract catalogSchema,
+								@Nonnull Query query,
 	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
 	                    @Nullable String entityType,
 						@Nullable Locale locale,
 	                    @Nullable EntityFetchRequire entityFetch) {
-		final Optional<EntitySchemaContract> entitySchema = catalogSchema.getEntitySchema(entityType);
+		final Optional<EntitySchemaContract> entitySchema = Optional.ofNullable(entityType).flatMap(catalogSchema::getEntitySchema);
 
 		fieldsBuilder.addPrimitiveField(EntityDescriptor.PRIMARY_KEY);
 
@@ -312,14 +317,51 @@ public class EntityFetchConverter extends RequireConverter {
 			if (fetchMode == PriceContentMode.NONE) {
 				return;
 			} else if (fetchMode == PriceContentMode.RESPECTING_FILTER) {
-				entityFieldsBuilder.addObjectField(
-					EntityDescriptor.PRICE_FOR_SALE,
-					priceForSaleBuilder -> {
-						priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
-						priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
-						priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+				final PriceInPriceLists priceInPriceLists = QueryUtils.findFilter(query, PriceInPriceLists.class);
+				final PriceInCurrency priceInCurrency = QueryUtils.findFilter(query, PriceInCurrency.class);
+				final boolean isEligibleForPriceForSale = priceInPriceLists != null && priceInCurrency != null;
+
+				if (isEligibleForPriceForSale) {
+					entityFieldsBuilder.addObjectField(
+						EntityDescriptor.PRICE_FOR_SALE,
+						priceForSaleBuilder -> {
+							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
+							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
+							priceForSaleBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+						}
+					);
+				} else {
+					final List<ArgumentSupplier> argumentSuppliers = new ArrayList<>(2);
+					if (priceInPriceLists != null) {
+						argumentSuppliers.add(
+							offset -> new Argument(
+								PricesFieldHeaderDescriptor.PRICE_LISTS,
+								offset,
+								priceInPriceLists.getPriceLists()
+							)
+						);
 					}
-				);
+					if (priceInCurrency != null) {
+						argumentSuppliers.add(
+							offset -> new Argument(
+								PricesFieldHeaderDescriptor.CURRENCY,
+								offset,
+								priceInCurrency.getCurrency()
+							)
+						);
+					}
+
+					// there will be not price for sale, so we need to fetch all prices
+					entityFieldsBuilder.addObjectField(
+						EntityDescriptor.PRICES,
+						pricesBuilder -> {
+							pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITHOUT_TAX, getPriceValueFieldArguments(locale));
+							pricesBuilder.addPrimitiveField(PriceDescriptor.PRICE_WITH_TAX, getPriceValueFieldArguments(locale));
+							pricesBuilder.addPrimitiveField(PriceDescriptor.TAX_RATE);
+						},
+						argumentSuppliers.toArray(ArgumentSupplier[]::new)
+					);
+				}
 			} else if (fetchMode == PriceContentMode.ALL) {
 				entityFieldsBuilder.addObjectField(
 					EntityDescriptor.PRICES,

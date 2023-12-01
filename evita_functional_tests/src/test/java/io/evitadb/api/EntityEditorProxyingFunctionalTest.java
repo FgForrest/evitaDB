@@ -1871,6 +1871,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				final Optional<EntityMutation> mutation = product8.toMutation();
 				assertTrue(mutation.isPresent());
 				assertEquals(7, mutation.get().getLocalMutations().size());
+				assertEquals(7, product8.getEntityBuilder().toMutation().orElseThrow().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = product8.toInstance();
 				assertEquals(0, modifiedInstance.getAllPricesAsList().size());

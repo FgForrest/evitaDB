@@ -23,12 +23,14 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.FacetSummary;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -46,7 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -62,9 +64,10 @@ public class FacetSummaryConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchBuilder;
 
 	public FacetSummaryConverter(@Nonnull CatalogSchemaContract catalogSchema,
+                                 @Nonnull Query query,
 	                             @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+		super(catalogSchema, query, inputJsonPrinter);
+		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -88,11 +91,14 @@ public class FacetSummaryConverter extends RequireConverter {
 					.values()
 					.stream()
 					.filter(ReferenceSchemaContract::isFaceted)
-					.map(referenceSchema -> getFacetSummaryOfReference(
-						referenceSchema,
-						facetSummaryRequests.get(referenceSchema.getName()),
-						facetSummary
-					))
+					.map(referenceSchema -> {
+						final FacetSummaryOfReference facetSummaryOfReference = facetSummaryRequests.get(referenceSchema.getName());
+						if (facetSummaryOfReference == null) {
+							return null;
+						}
+						return getFacetSummaryOfReference(referenceSchema, facetSummaryOfReference, facetSummary);
+					})
+					.filter(Objects::nonNull)
 					.forEach(facetSummaryOfReference -> {
 						final ReferenceSchemaContract referenceSchema = entitySchema.getReference(facetSummaryOfReference.getReferenceName())
 							.orElseThrow();
@@ -116,6 +122,9 @@ public class FacetSummaryConverter extends RequireConverter {
 	private FacetSummaryOfReference getFacetSummaryOfReference(@Nonnull ReferenceSchemaContract referenceSchema,
 	                                                           @Nullable FacetSummaryOfReference facetSummaryRequest,
 	                                                           @Nullable FacetSummary defaultRequest) {
+		if (facetSummaryRequest == null && defaultRequest == null) {
+			throw new EvitaInternalError("Either facet summary request or default request must be present!");
+		}
 		return ofNullable(facetSummaryRequest)
 			.map(referenceRequest -> {
 				if (defaultRequest == null) {
@@ -123,7 +132,7 @@ public class FacetSummaryConverter extends RequireConverter {
 				}
 				return new FacetSummaryOfReference(
 					referenceRequest.getReferenceName(),
-					referenceRequest.getFacetStatisticsDepth(),
+					referenceRequest.getStatisticsDepth(),
 					referenceRequest.getFilterBy().or(defaultRequest::getFilterBy).orElse(null),
 					referenceRequest.getFilterGroupBy().or(defaultRequest::getFilterGroupBy).orElse(null),
 					referenceRequest.getOrderBy().or(defaultRequest::getOrderBy).orElse(null),
@@ -136,7 +145,7 @@ public class FacetSummaryConverter extends RequireConverter {
 						.orElse(defaultRequest.getGroupEntityRequirement().orElse(null))
 				);
 			})
-			.orElse(new FacetSummaryOfReference(
+			.orElseGet(() -> new FacetSummaryOfReference(
 				referenceSchema.getName(),
 				defaultRequest.getStatisticsDepth(),
 				defaultRequest.getFilterBy().orElse(null),
@@ -265,7 +274,7 @@ public class FacetSummaryConverter extends RequireConverter {
 			.addPrimitiveField(FacetStatisticsDescriptor.REQUESTED)
 			.addPrimitiveField(FacetStatisticsDescriptor.COUNT);
 
-		if (facetSummaryOfReference.getFacetStatisticsDepth() == FacetStatisticsDepth.IMPACT) {
+		if (facetSummaryOfReference.getStatisticsDepth() == FacetStatisticsDepth.IMPACT) {
 			facetStatisticsBuilder.addObjectField(
 				FacetStatisticsDescriptor.IMPACT,
 				impactBuilder -> impactBuilder

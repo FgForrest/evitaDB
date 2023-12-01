@@ -142,20 +142,35 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 				final CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> invocationHandler;
 				if (returnType.equals(proxyClass)) {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
-						final PriceContract thePrice = priceExtractor.apply(args);
-						theState.getEntityBuilder().setPrice(thePrice);
+						upsertPrice(priceExtractor, args, theState);
 						return proxy;
 					};
 				} else {
 					invocationHandler = (proxy, theMethod, args, theState, invokeSuper) -> {
-						final PriceContract thePrice = priceExtractor.apply(args);
-						theState.getEntityBuilder().setPrice(thePrice);
+						upsertPrice(priceExtractor, args, theState);
 						return null;
 					};
 				}
 				return invocationHandler;
 			})
 			.orElse(null);
+	}
+
+	/**
+	 * Upserts the price for the given method in the proxy class.
+	 *
+	 * @param priceExtractor function that converts method arguments to constructor call of
+	 *                       {@link io.evitadb.api.requestResponse.data.structure.Price#Price(int, String, Currency, Integer, BigDecimal, BigDecimal, BigDecimal, DateTimeRange, boolean)}.
+	 * @param args           method arguments
+	 * @param theState       proxy state
+	 */
+	private static void upsertPrice(
+		@Nonnull Function<Object[], PriceContract> priceExtractor,
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final PriceContract thePrice = priceExtractor.apply(args);
+		theState.getEntityBuilder().setPrice(thePrice);
 	}
 
 	/**
@@ -183,39 +198,41 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		if (PriceContract.class.isAssignableFrom(method.getParameterTypes()[0].getComponentType())) {
 			if (returnType.equals(proxyClass)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
-					final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
-					if (initialBuilder) {
-						entityBuilder.removeAllPrices();
-					}
-					final Object[] thePrices = (Object[]) args[0];
-					for (Object thePrice : thePrices) {
-						entityBuilder.setPrice((PriceContract) thePrice);
-					}
-					if (!initialBuilder) {
-						entityBuilder.removeAllNonTouchedPrices();
-					}
+					upsertPricesAsArray(args, theState);
 					return proxy;
 				};
 			} else {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
-					final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
-					if (initialBuilder) {
-						entityBuilder.removeAllPrices();
-					}
-					final Object[] thePrices = (Object[]) args[0];
-					for (Object thePrice : thePrices) {
-						entityBuilder.setPrice((PriceContract) thePrice);
-					}
-					if (!initialBuilder) {
-						entityBuilder.removeAllNonTouchedPrices();
-					}
+					upsertPricesAsArray(args, theState);
 					return null;
 				};
 			}
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Upserts prices as an array into the entity.
+	 *
+	 * @param args     an array of prices to be upserted
+	 * @param theState the state of the sealed entity proxy
+	 */
+	private static void upsertPricesAsArray(
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
+		if (initialBuilder) {
+			entityBuilder.removeAllPrices();
+		}
+		final Object[] thePrices = (Object[]) args[0];
+		for (Object thePrice : thePrices) {
+			entityBuilder.setPrice((PriceContract) thePrice);
+		}
+		if (!initialBuilder) {
+			entityBuilder.removeAllNonTouchedPrices();
 		}
 	}
 
@@ -246,33 +263,42 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		if (!genericType.isEmpty() && PriceContract.class.isAssignableFrom(genericType.get(0).getResolvedType())) {
 			if (returnType.equals(proxyClass)) {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
-					final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
-					if (initialBuilder) {
-						entityBuilder.removeAllPrices();
-					}
-					final Collection thePrices = (Collection) args[0];
-					for (Object thePrice : thePrices) {
-						entityBuilder.setPrice((PriceContract) thePrice);
-					}
-					if (!initialBuilder) {
-						entityBuilder.removeAllNonTouchedPrices();
-					}
+					upsertPricesAsCollection(args, theState);
 					return proxy;
 				};
 			} else {
 				return (proxy, theMethod, args, theState, invokeSuper) -> {
-					final EntityBuilder entityBuilder = theState.getEntityBuilder();
-					final Collection thePrices = (Collection) args[0];
-					for (Object thePrice : thePrices) {
-						entityBuilder.setPrice((PriceContract) thePrice);
-					}
-					entityBuilder.removeAllNonTouchedPrices();
+					upsertPricesAsCollection(args, theState);
 					return null;
 				};
 			}
 		} else {
 			return null;
+		}
+	}
+
+	/**
+	 * Upserts a collection of prices into the entity.
+	 *
+	 * @param args      the method arguments
+	 * @param theState  the state of the sealed entity proxy
+	 */
+	private static void upsertPricesAsCollection(
+		@Nonnull Object[] args,
+		@Nonnull SealedEntityProxyState theState
+	) {
+		final EntityBuilder entityBuilder = theState.getEntityBuilder();
+		final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
+		if (initialBuilder) {
+			entityBuilder.removeAllPrices();
+		}
+		@SuppressWarnings("unchecked")
+		final Collection<? extends PriceContract> thePrices = (Collection<? extends PriceContract>) args[0];
+		for (PriceContract thePrice : thePrices) {
+			entityBuilder.setPrice(thePrice);
+		}
+		if (!initialBuilder) {
+			entityBuilder.removeAllNonTouchedPrices();
 		}
 	}
 
@@ -573,7 +599,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 						//noinspection rawtypes,unchecked
 						return removedPrices.stream()
 							.mapToInt(PriceContract::priceId)
-							.mapToObj(it -> EvitaDataTypes.toTargetType(it, (Class)itemType))
+							.mapToObj(it -> EvitaDataTypes.toTargetType(it, (Class) itemType))
 							.toList();
 					};
 				} else if (PriceKey.class.equals(itemType)) {
@@ -607,7 +633,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 							//noinspection DataFlowIssue,unchecked,rawtypes
 							Array.set(
 								result, i++,
-								EvitaDataTypes.toTargetType(price.priceId(), (Class)itemType)
+								EvitaDataTypes.toTargetType(price.priceId(), (Class) itemType)
 							);
 						}
 						return result;
@@ -764,7 +790,7 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 						//noinspection DataFlowIssue,unchecked,rawtypes
 						Array.set(
 							result, i,
-							EvitaDataTypes.toTargetType(priceKey.priceId(), (Class)itemType)
+							EvitaDataTypes.toTargetType(priceKey.priceId(), (Class) itemType)
 						);
 					}
 					return result;
