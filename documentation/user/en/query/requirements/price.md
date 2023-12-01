@@ -38,7 +38,7 @@ between `€100` and `€105`. The following query will do that:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Example query to filter products with price between `100€` and `105€`](/documentation/user/en/query/requirements/examples/price/price-type.evitaql)
+[Example query to filter products with price between `€100` and `€105`](/documentation/user/en/query/requirements/examples/price/price-type.evitaql)
 
 </SourceCodeTabs>
 
@@ -54,17 +54,17 @@ The result contains some products, which you can see in the following table:
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude>[Results filtered by price between 100€ and 105€](/documentation/user/en/query/requirements/examples/price/price-type.evitaql.md)</MDInclude>
+<MDInclude>[Results filtered by price between €100 and €105](/documentation/user/en/query/requirements/examples/price/price-type.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Results filtered by price between 100€ and 105€](/documentation/user/en/query/requirements/examples/price/price-type.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[Results filtered by price between €100 and €105](/documentation/user/en/query/requirements/examples/price/price-type.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="recordPage">[Results filtered by price between 100€ and 105€](/documentation/user/en/query/requirements/examples/price/price-type.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Results filtered by price between €100 and €105](/documentation/user/en/query/requirements/examples/price/price-type.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -75,7 +75,7 @@ in this range with the price without tax. To do this, we need to modify the quer
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Example query to filter products with price between `100€` and `105€` without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql)
+[Example query to filter products with price between `€100` and `€105` without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql)
 
 </SourceCodeTabs>
 
@@ -92,17 +92,17 @@ difference - in regular UI you'd choose to show the price without tax) with more
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude>[Different results filtered by price between 100€ and 105€ without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql.md)</MDInclude>
+<MDInclude>[Different results filtered by price between €100 and €105 without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.recordPage">[Different results filtered by price between 100€ and 105€ without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.recordPage">[Different results filtered by price between €100 and €105 without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="recordPage">[Different results filtered by price between 100€ and 105€ without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="recordPage">[Different results filtered by price between €100 and €105 without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 

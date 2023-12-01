@@ -87,8 +87,7 @@ page(
 The `page` 
 <LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>) requirement</LanguageSpecific>
 <LanguageSpecific to="graphql">approach</LanguageSpecific>
-controls the number and slice of entities returned in the query response
-<LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
+controls the number and slice of entities returned in the query response<LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
 If no 
 <LanguageSpecific to="evitaql,java,rest,csharp">page requirement is</LanguageSpecific>
 <LanguageSpecific to="graphql">page arguments are</LanguageSpecific> used 
@@ -230,8 +229,7 @@ strip(
 The `strip` 
 <LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>) requirement</LanguageSpecific>
 <LanguageSpecific to="graphql">approach</LanguageSpecific>
-controls the number and slice of entities returned in the query response
-<LanguageSpecific to="graphql"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LanguageSpecific>.
+controls the number and slice of entities returned in the query response<LanguageSpecific to="graphql"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LanguageSpecific>.
 If the requested strip exceeds the number of
 available records, a result from the zero offset with retained limit is returned. An empty result is only returned if
 the query returns no result at all or the limit is set to zero. By automatically returning the first strip result when
