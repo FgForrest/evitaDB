@@ -1,4 +1,3 @@
-import {Component} from "react";
 ---
 title: Hierarchy extra results
 perex: |
