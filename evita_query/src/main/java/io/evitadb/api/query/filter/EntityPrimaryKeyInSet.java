@@ -53,7 +53,7 @@ import java.util.Arrays;
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
-	implements EntityConstraint<FilterConstraint>, IndexUsingConstraint {
+	implements EntityConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 
 	private EntityPrimaryKeyInSet(Serializable... arguments) {

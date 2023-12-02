@@ -260,7 +260,8 @@ public class QueryPlanner {
 					);
 
 					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex);
-					ofNullable(prefetchFormulaVisitor).ifPresent(filterByVisitor::registerFormulaPostProcessorIfNotPresent);
+					ofNullable(prefetchFormulaVisitor)
+						.ifPresent(it -> filterByVisitor.registerFormulaPostProcessorIfNotPresent(PrefetchFormulaVisitor.class, () -> it));
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
 					// we need the original trees to contain only non-cached forms of formula if debug mode is enabled
 					if (debugCachedVariantTrees) {
@@ -411,6 +412,7 @@ public class QueryPlanner {
 	 * and slices appropriate part of the result to respect limit/offset requirements from the query. No sorting/slicing
 	 * is done in this method, only the instance of {@link Sorter} capable of doing it is created and returned.
 	 */
+	@Nonnull
 	private static List<QueryPlanBuilder> createSorter(
 		@Nonnull QueryContext queryContext,
 		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
@@ -476,6 +478,7 @@ public class QueryPlanner {
 	 * account (which is a great advantage comparing to computation in multiple requests as needed in other database
 	 * solutions).
 	 */
+	@Nonnull
 	private static List<QueryPlanBuilder> createExtraResultProducers(
 		@Nonnull QueryContext queryContext,
 		@Nonnull List<QueryPlanBuilder> builders

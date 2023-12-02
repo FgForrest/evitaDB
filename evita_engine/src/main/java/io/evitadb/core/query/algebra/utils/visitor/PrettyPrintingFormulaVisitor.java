@@ -27,6 +27,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import lombok.Data;
 
+import javax.annotation.Nonnull;
 import java.util.IdentityHashMap;
 
 /**
@@ -72,7 +73,7 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		result.append(" ".repeat(Math.max(0, level * indent)));
 		final FormulaInstance alreadySeenFormula = formulasSeen.get(formula);
 		if (alreadySeenFormula != null) {
