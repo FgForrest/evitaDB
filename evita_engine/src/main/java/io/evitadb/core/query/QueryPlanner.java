@@ -118,7 +118,7 @@ public class QueryPlanner {
 		context.pushStep(QueryPhase.PLANNING);
 		try {
 			// determine the indexes that should be used for filtering
-			final IndexSelectionResult indexSelectionResult = selectIndexes(context);
+			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
 			// if we found empty target index, we may quickly return empty result - one key condition is not fulfilled
 			if (indexSelectionResult.isEmpty()) {
@@ -175,7 +175,7 @@ public class QueryPlanner {
 		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY);
 		try {
 			// determine the indexes that should be used for filtering
-			final IndexSelectionResult indexSelectionResult = selectIndexes(context);
+			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
 			// if we found empty target index, we may quickly return empty result - one key condition is not fulfilled
 			if (indexSelectionResult.isEmpty()) {
@@ -218,13 +218,14 @@ public class QueryPlanner {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} or {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains
 	 * limited subset of the entities related to that placement/relation.
 	 */
-	private static IndexSelectionResult selectIndexes(@Nonnull QueryContext queryContext) {
+	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryContext queryContext) {
 		queryContext.pushStep(QueryPhase.PLANNING_INDEX_USAGE);
 		try {
 			final IndexSelectionVisitor indexSelectionVisitor = new IndexSelectionVisitor(queryContext);
 			ofNullable(queryContext.getFilterBy()).ifPresent(indexSelectionVisitor::visit);
-			return new IndexSelectionResult(
-				indexSelectionVisitor.getTargetIndexes(),
+			//noinspection rawtypes,unchecked
+			return new IndexSelectionResult<>(
+				(List)indexSelectionVisitor.getTargetIndexes(),
 				indexSelectionVisitor.isTargetIndexQueriedByOtherConstraints()
 			);
 		} finally {
@@ -340,7 +341,7 @@ public class QueryPlanner {
 		@Nonnull QueryContext queryContext
 	) {
 		if (sorter == null) {
-			return sorter;
+			return null;
 		} else {
 			final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
 			final LinkedList<Sorter> sorters = new LinkedList<>();
@@ -397,7 +398,7 @@ public class QueryPlanner {
 	 * {@link SelectionFormula} which would also limit its performance boost to a large extent.
 	 */
 	@Nullable
-	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(@Nonnull TargetIndexes targetIndex) {
+	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(@Nonnull TargetIndexes<?> targetIndex) {
 		if (targetIndex.isGlobalIndex() || targetIndex.isCatalogIndex()) {
 			return new PrefetchFormulaVisitor();
 		} else {
@@ -412,7 +413,7 @@ public class QueryPlanner {
 	 */
 	private static List<QueryPlanBuilder> createSorter(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes<?>> targetIndexes,
+		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull List<QueryPlanBuilder> builders
 	) {
 		queryContext.pushStep(QueryPhase.PLANNING_SORT);
