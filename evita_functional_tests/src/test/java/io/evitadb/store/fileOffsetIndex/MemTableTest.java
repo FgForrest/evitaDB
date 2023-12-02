@@ -21,18 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable;
+package io.evitadb.store.fileOffsetIndex;
 
 import com.esotericsoftware.kryo.io.Input;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.MemTableFileStatistics;
+import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.memTable.MemTable.MemTableFileStatistics;
-import io.evitadb.store.memTable.model.MemTableRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -66,7 +66,7 @@ import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies functionality of {@link MemTable} operations.
+ * This test verifies functionality of {@link FileOffsetIndex} operations.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -74,7 +74,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class MemTableTest implements TimeBoundedTestSupport {
 	public static final String ENTITY_TYPE = "whatever";
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "memtable.kryo");
-	private final MemTableRecordTypeRegistry memTableRecordTypeRegistry = new MemTableRecordTypeRegistry();
+	private final FileOffsetIndexRecordTypeRegistry memTableRecordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
 
 	@BeforeEach
 	void setUp() {
@@ -86,16 +86,16 @@ class MemTableTest implements TimeBoundedTestSupport {
 		targetFile.toFile().delete();
 	}
 
-	@DisplayName("Hundreds entities should be stored in MemTable and retrieved intact.")
+	@DisplayName("Hundreds entities should be stored in FileOffsetIndex and retrieved intact.")
 	@Test
 	void shouldSerializeAndReconstructBigMemTable() {
 		final StorageOptions options = StorageOptions.temporary();
 		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
 		observableOutputKeeper.prepare();
 
-		final MemTable memTable = new MemTable(
+		final FileOffsetIndex memTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo(),
 				false
@@ -112,10 +112,10 @@ class MemTableTest implements TimeBoundedTestSupport {
 		}
 
 		log.info("Flushing table (" + transactionId + ")");
-		final MemTableDescriptor memTableInfo = memTable.flush(transactionId);
-		final MemTable loadedMemTable = new MemTable(
+		final FileOffsetIndexDescriptor memTableInfo = memTable.flush(transactionId);
+		final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				memTableInfo.getFileLocation(),
 				memTableInfo
 			),
@@ -138,7 +138,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 		observableOutputKeeper.free();
 
 		assertTrue(memTable.memTableEquals(loadedMemTable));
-		/* 600 records +1 record for th MemTable itself */
+		/* 600 records +1 record for th FileOffsetIndex itself */
 		assertEquals(601, memTable.verifyContents().getRecordCount());
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
 	}
@@ -159,11 +159,11 @@ class MemTableTest implements TimeBoundedTestSupport {
 			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
 		);
 
-		final MemTableDescriptor memTableInfo = insertionResult.descriptor();
+		final FileOffsetIndexDescriptor memTableInfo = insertionResult.descriptor();
 
-		final MemTable loadedMemTable = new MemTable(
+		final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				memTableInfo.getFileLocation(),
 				memTableInfo
 			),
@@ -187,7 +187,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 		observableOutputKeeper.free();
 
 		assertTrue(insertionResult.memTable().memTableEquals(loadedMemTable));
-		/* 300 records +6 record for th MemTable itself */
+		/* 300 records +6 record for th FileOffsetIndex itself */
 		assertEquals(306, loadedMemTable.verifyContents().getRecordCount());
 	}
 
@@ -206,11 +206,11 @@ class MemTableTest implements TimeBoundedTestSupport {
 			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
 		);
 
-		final MemTableDescriptor memTableInfo = insertionResult.descriptor();
+		final FileOffsetIndexDescriptor memTableInfo = insertionResult.descriptor();
 
-		final MemTable loadedMemTable = new MemTable(
+		final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				memTableInfo.getFileLocation(),
 				memTableInfo
 			),
@@ -241,7 +241,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 		observableOutputKeeper.free();
 
 		assertTrue(insertionResult.memTable().memTableEquals(loadedMemTable));
-		/* 300 records +6 record for th MemTable itself */
+		/* 300 records +6 record for th FileOffsetIndex itself */
 		assertEquals(306, loadedMemTable.verifyContents().getRecordCount());
 	}
 
@@ -252,9 +252,9 @@ class MemTableTest implements TimeBoundedTestSupport {
 		final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(options);
 		outputKeeper.prepare();
 
-		final MemTable memTable = new MemTable(
+		final FileOffsetIndex memTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo(),
 				false
@@ -275,7 +275,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 		assertThrows(IllegalStateException.class, () -> memTable.flush(0L));
 	}
 
-	@ParameterizedTest(name = "MemTable should survive generational randomized test applying modifications on it")
+	@ParameterizedTest(name = "FileOffsetIndex should survive generational randomized test applying modifications on it")
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
@@ -283,9 +283,9 @@ class MemTableTest implements TimeBoundedTestSupport {
 		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
 		observableOutputKeeper.prepare();
 
-		final MemTable memTable = new MemTable(
+		final FileOffsetIndex memTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo(),
 				false
@@ -352,12 +352,12 @@ class MemTableTest implements TimeBoundedTestSupport {
 					}
 				}
 
-				final MemTableDescriptor memTableInfo = memTable.flush(transactionId++);
+				final FileOffsetIndexDescriptor memTableInfo = memTable.flush(transactionId++);
 
 				long start = System.nanoTime();
-				final MemTable loadedMemTable = new MemTable(
+				final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
 					targetFile,
-					new MemTableDescriptor(
+					new FileOffsetIndexDescriptor(
 						memTableInfo.getFileLocation(),
 						memTableInfo
 					),
@@ -402,9 +402,9 @@ class MemTableTest implements TimeBoundedTestSupport {
 		int removedRecords,
 		int iterationCount
 	) {
-		final MemTable memTable = new MemTable(
+		final FileOffsetIndex memTable = new FileOffsetIndex(
 			targetFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
 				createKryo(),
 				false
@@ -414,7 +414,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 			observableOutputKeeper
 		);
 
-		MemTableDescriptor memTableInfo = null;
+		FileOffsetIndexDescriptor memTableInfo = null;
 
 		long transactionId = 0;
 		for (int j = 0; j < iterationCount; j++) {
@@ -488,7 +488,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 
 	}
 
-	private record InsertionOutput(@Nonnull MemTable memTable, @Nonnull MemTableDescriptor descriptor) {}
+	private record InsertionOutput(@Nonnull FileOffsetIndex memTable, @Nonnull FileOffsetIndexDescriptor descriptor) {}
 
 	private record TestState(long transactionId, int roundTrip) {
 	}

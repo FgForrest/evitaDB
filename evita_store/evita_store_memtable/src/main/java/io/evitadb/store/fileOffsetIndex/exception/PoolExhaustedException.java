@@ -21,27 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable;
+package io.evitadb.store.fileOffsetIndex.exception;
 
-import io.evitadb.api.configuration.StorageOptions;
-import org.junit.jupiter.api.Test;
+import io.evitadb.store.exception.StorageException;
 
+import javax.annotation.Nonnull;
+import java.io.Serial;
 import java.nio.file.Path;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 /**
- * This test verifies {@link MemTableSerializationService} contract.
+ * Exception is thrown when there is attempt to get another instance from the shared pool and the pool has already
+ * given away all possible instances that was allowed and there is no room for additional ones.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class MemTableSerializationServiceTest {
+public class PoolExhaustedException extends StorageException {
+	@Serial private static final long serialVersionUID = -3132735681170812077L;
 
-	@Test
-	void shouldComputeExpectedRecordCountProperly() {
-		final StorageOptions testOptions = new StorageOptions(Path.of(""), 1, 0, 55, 1, false);
-		assertEquals(new MemTableSerializationService.ExpectedCounts(0, 1), MemTableSerializationService.INSTANCE.computeExpectedRecordCount(testOptions, 0));
-		assertEquals(new MemTableSerializationService.ExpectedCounts(1, 1), MemTableSerializationService.INSTANCE.computeExpectedRecordCount(testOptions, 1));
-		assertEquals(new MemTableSerializationService.ExpectedCounts(2, 1), MemTableSerializationService.INSTANCE.computeExpectedRecordCount(testOptions, 2));
+	public PoolExhaustedException(int maxOpenedReadHandles, @Nonnull Path targetFile) {
+		super("Maximal count of opened handles (" + maxOpenedReadHandles + ") to file " + targetFile + " is exhausted!");
 	}
 }

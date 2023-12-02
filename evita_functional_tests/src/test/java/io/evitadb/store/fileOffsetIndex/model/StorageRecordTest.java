@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.model;
+package io.evitadb.store.fileOffsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
@@ -29,9 +29,9 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.KryoDataInput;
 import com.esotericsoftware.kryo.io.KryoDataOutput;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,8 +57,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static io.evitadb.store.memTable.model.StorageRecord.isBitSet;
-import static io.evitadb.store.memTable.model.StorageRecord.setBit;
+import static io.evitadb.store.fileOffsetIndex.model.StorageRecord.isBitSet;
+import static io.evitadb.store.fileOffsetIndex.model.StorageRecord.setBit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

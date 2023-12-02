@@ -23,7 +23,7 @@
 
 package io.evitadb.store.kryo;
 
-import io.evitadb.store.memTable.MemTable.MemTableKryoPool;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.MemTableKryoPool;
 import io.evitadb.store.service.KeyCompressor;
 
 import javax.annotation.Nonnull;

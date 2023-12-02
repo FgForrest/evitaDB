@@ -21,24 +21,28 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.store.exception.StorageException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown during deserialization when Kryo instance is being initialized and there is attempt to register
- * new class for the id that is already occupied by another class type.
+ * Exception is throw when file sync fails and file contents in a buffer were probably not synced fully to
+ * the persistent storage.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class IncompatibleClassExchangeException extends EvitaInternalError {
-	@Serial private static final long serialVersionUID = 554754761227624562L;
+public class SyncFailedException extends StorageException {
+	@Serial private static final long serialVersionUID = 6704506229433286702L;
 
-	public IncompatibleClassExchangeException(int id, @Nonnull Class<?> existingType, @Nonnull Class<?> type) {
-		super("Id " + id + " is already occupied by " + existingType +
-			" and cannot be set to " + type + " as necessary!");
+	public SyncFailedException(@Nonnull Throwable cause) {
+		super(
+			"FileOffsetIndex contents were not flushed to disk because of `" + cause.getMessage() + "`.",
+			"FileOffsetIndex contents were not flushed to disk!",
+			cause
+		);
 	}
+
 }

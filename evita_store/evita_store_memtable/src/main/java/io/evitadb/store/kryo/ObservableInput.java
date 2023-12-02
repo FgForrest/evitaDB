@@ -25,9 +25,9 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
-import io.evitadb.store.memTable.exception.CorruptedRecordException;
-import io.evitadb.store.memTable.exception.KryoSerializationException;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
+import io.evitadb.store.fileOffsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.fileOffsetIndex.exception.KryoSerializationException;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
 import lombok.Getter;
 

@@ -21,18 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
 import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.store.memTable.MemTable;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Exception is thrown when record was written to the {@link MemTable} but {@link MemTable#flush(long)}
+ * Exception is thrown when record was written to the {@link FileOffsetIndex} but {@link FileOffsetIndex#flush(long)}
  * method was not yet called and record is present in intermediate buffers and was not yet fully written to the disk.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -41,6 +41,6 @@ public class RecordNotYetWrittenException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -9102021006732628881L;
 
 	public <T extends Serializable> RecordNotYetWrittenException(long primaryKey, @Nonnull Class<T> recordType, KryoException exception) {
-		super("The record `" + recordType + "` with id `" + primaryKey + "` was not yet written to MemTable!", exception);
+		super("The record `" + recordType + "` with id `" + primaryKey + "` was not yet written to FileOffsetIndex!", exception);
 	}
 }

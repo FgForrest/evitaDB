@@ -21,24 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
-
-import io.evitadb.store.exception.EvitaIOException;
+import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is thrown when target directory contains data of different catalog than requested.
+ * Exception is thrown during deserialization when Kryo instance is being initialized and there is attempt to register
+ * new class for the id that is already occupied by another class type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class UnexpectedCatalogContentsException extends EvitaIOException {
-	@Serial private static final long serialVersionUID = -8706337223338039217L;
+public class IncompatibleClassExchangeException extends EvitaInternalError {
+	@Serial private static final long serialVersionUID = 554754761227624562L;
 
-	public UnexpectedCatalogContentsException(@Nonnull String message) {
-		super(message);
+	public IncompatibleClassExchangeException(int id, @Nonnull Class<?> existingType, @Nonnull Class<?> type) {
+		super("Id " + id + " is already occupied by " + existingType +
+			" and cannot be set to " + type + " as necessary!");
 	}
-
 }

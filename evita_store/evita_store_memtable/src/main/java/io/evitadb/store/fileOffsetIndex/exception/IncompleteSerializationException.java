@@ -21,14 +21,15 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndexSerializationService;
 
 import java.io.Serial;
 
 /**
- * Exception is thrown by {@link io.evitadb.store.memTable.MemTableSerializationService} when there are still
+ * Exception is thrown by {@link FileOffsetIndexSerializationService} when there are still
  * pending updates after the flush have happened. This is surely unexpected situation.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -37,6 +38,6 @@ public class IncompleteSerializationException extends EvitaInternalError {
 	@Serial private static final long serialVersionUID = -4768609495278900538L;
 
 	public IncompleteSerializationException(int entryCount) {
-		super("MemTable changes were not written completely - there is: " + entryCount + " left unsaved!");
+		super("FileOffsetIndex changes were not written completely - there is: " + entryCount + " left unsaved!");
 	}
 }

@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.stream;
+package io.evitadb.store.fileOffsetIndex.stream;
 
 
 import io.evitadb.store.exception.StorageException;

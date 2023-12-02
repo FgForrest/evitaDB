@@ -21,18 +21,18 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable;
+package io.evitadb.store.fileOffsetIndex;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.MemTableBuilder;
+import io.evitadb.store.fileOffsetIndex.exception.IncompleteSerializationException;
+import io.evitadb.store.fileOffsetIndex.model.NonFlushedValue;
+import io.evitadb.store.fileOffsetIndex.model.RecordKey;
+import io.evitadb.store.fileOffsetIndex.model.StorageRecord;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.memTable.MemTable.MemTableBuilder;
-import io.evitadb.store.memTable.exception.IncompleteSerializationException;
-import io.evitadb.store.memTable.model.NonFlushedValue;
-import io.evitadb.store.memTable.model.RecordKey;
-import io.evitadb.store.memTable.model.StorageRecord;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.utils.Assert;
 import lombok.Data;
@@ -46,24 +46,24 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * This service allows to (de)serialize {@link MemTable} using {@link Kryo} from data file. Data file contains chain
- * of MemTable fragments limited to {@link StorageOptions#outputBufferSize()} size. Each fragment except root one
- * points to previous fragment a MemTable deserialization means all fragments needs to be read and deserialized.
- * MemTable fragments contain:
+ * This service allows to (de)serialize {@link FileOffsetIndex} using {@link Kryo} from data file. Data file contains chain
+ * of FileOffsetIndex fragments limited to {@link StorageOptions#outputBufferSize()} size. Each fragment except root one
+ * points to previous fragment a FileOffsetIndex deserialization means all fragments needs to be read and deserialized.
+ * FileOffsetIndex fragments contain:
  *
  * - insertedKeys + insertedLocations
  * - deletedLocations
  *
  * During deserialization deletedLocations take precedence over inserted locations and matching keys are skipped.
  *
- * Serialization allows serialization of entire {@link MemTable} divided into requested parts due to size limitation
- * or allows serialization only of changes made to the {@link MemTable} since it has been created (or deserialized).
+ * Serialization allows serialization of entire {@link FileOffsetIndex} divided into requested parts due to size limitation
+ * or allows serialization only of changes made to the {@link FileOffsetIndex} since it has been created (or deserialized).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class MemTableSerializationService {
-	public static final MemTableSerializationService INSTANCE = new MemTableSerializationService();
+public class FileOffsetIndexSerializationService {
+	public static final FileOffsetIndexSerializationService INSTANCE = new FileOffsetIndexSerializationService();
 	/**
 	 * Length of single mem table record is 12B: startingPosition (long), length (int)
 	 */
@@ -74,21 +74,21 @@ public class MemTableSerializationService {
 	public static final int MEM_TABLE_RECORD_SIZE = 8 + 1 + 8 + 4;
 
 	/**
-	 * Serializes entire {@link MemTable} to the file. Only active keys are stored to the data file.
+	 * Serializes entire {@link FileOffsetIndex} to the file. Only active keys are stored to the data file.
 	 */
-	public FileLocation serialize(@Nonnull MemTable memTable, @Nonnull ObservableOutput<?> output, long transactionId) {
+	public FileLocation serialize(@Nonnull FileOffsetIndex memTable, @Nonnull ObservableOutput<?> output, long transactionId) {
 		final Collection<NonFlushedValue> nonFlushedEntries = memTable.getNonFlushedEntries();
 		final Iterator<NonFlushedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
 		output.flush();
-		// this holds file location pointer to the last stored MemTable fragment and is used to allow single direction pointing
+		// this holds file location pointer to the last stored FileOffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(memTable.getMemTableFileLocation());
 		final ExpectedCounts memTableRecordCount = computeExpectedRecordCount(memTable.getOptions(), nonFlushedEntries.size());
 		for (int i = 0; i < memTableRecordCount.getFragments(); i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
-					output, MemTable.SINGLE_NODE_ID, transactionId, i + 1 == memTableRecordCount.getFragments(),
+					output, FileOffsetIndex.SINGLE_NODE_ID, transactionId, i + 1 == memTableRecordCount.getFragments(),
 					stream -> {
 						final FileLocation lsrl = lastStorageRecordLocation.get();
 						if (lsrl == null) {
@@ -131,7 +131,7 @@ public class MemTableSerializationService {
 	}
 
 	/**
-	 * Deserializes {@link MemTable} from the fragment identified by `fileLocation`.
+	 * Deserializes {@link FileOffsetIndex} from the fragment identified by `fileLocation`.
 	 */
 	public void deserialize(@Nonnull ObservableInput<RandomAccessFileInputStream> input, @Nonnull FileLocation fileLocation, @Nonnull MemTableBuilder memTableBuilder) {
 		// this set holds all record keys that were removed
@@ -190,7 +190,7 @@ public class MemTableSerializationService {
 			if (head) {
 				Assert.isTrue(
 					readRecord.isClosesTransaction(),
-					"Head MemTable must have transaction finalization flag set, but it has not!"
+					"Head FileOffsetIndex must have transaction finalization flag set, but it has not!"
 				);
 				head = false;
 			} else {
@@ -206,7 +206,7 @@ public class MemTableSerializationService {
 	}
 
 	/**
-	 * Computes number of records that are required to store MemTable record pointers of specified count.
+	 * Computes number of records that are required to store FileOffsetIndex record pointers of specified count.
 	 */
 	ExpectedCounts computeExpectedRecordCount(@Nonnull StorageOptions storageOptions, int recordCount) {
 		final int maxRecordCountPerStorageRecords = (storageOptions.outputBufferSize() - StorageRecord.getOverheadSize() - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) / MEM_TABLE_RECORD_SIZE;

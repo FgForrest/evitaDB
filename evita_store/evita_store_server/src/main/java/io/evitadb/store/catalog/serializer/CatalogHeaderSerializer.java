@@ -47,7 +47,7 @@ public class CatalogHeaderSerializer extends AbstractPersistentStorageHeaderSeri
 		output.writeVarInt(object.getLastEntityCollectionPrimaryKey(), true);
 
 		final FileLocation memTableLocation = object.getFileLocation();
-		Assert.isPremiseValid(memTableLocation != null, "MemTable location is unexpectedly null!");
+		Assert.isPremiseValid(memTableLocation != null, "FileOffsetIndex location is unexpectedly null!");
 
 		output.writeVarLong(memTableLocation.startingPosition(), true);
 		output.writeVarInt(memTableLocation.recordLength(), true);

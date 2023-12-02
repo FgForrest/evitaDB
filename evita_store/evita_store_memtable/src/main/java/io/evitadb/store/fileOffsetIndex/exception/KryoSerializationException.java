@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
 import io.evitadb.exception.EvitaInternalError;
 

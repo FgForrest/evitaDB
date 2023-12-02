@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable;
+package io.evitadb.store.fileOffsetIndex;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.store.compressor.ReadOnlyKeyCompressor;
@@ -40,17 +40,17 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * This DTO contains all data that needs to be known when {@link MemTable} is flushed to the disk.
- * It contains pointer to the last MemTable fragment as well as all class with ids that has been registered during
- * MemTable serialization process. These data needs to be stored elsewhere and used for correct MemTable reinitialization.
+ * This DTO contains all data that needs to be known when {@link FileOffsetIndex} is flushed to the disk.
+ * It contains pointer to the last FileOffsetIndex fragment as well as all class with ids that has been registered during
+ * FileOffsetIndex serialization process. These data needs to be stored elsewhere and used for correct FileOffsetIndex reinitialization.
  *
- * Descriptor is evitaDB agnostic and can be used separately along with MemTable object without any specifics tied
+ * Descriptor is evitaDB agnostic and can be used separately along with FileOffsetIndex object without any specifics tied
  * to the Evita objects.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Data
-public class MemTableDescriptor implements PersistentStorageDescriptor {
+public class FileOffsetIndexDescriptor implements PersistentStorageDescriptor {
 
 	/**
 	 * Descriptor version is incremented with each update. Version is not stored on the disk, it serves only to distinguish
@@ -58,7 +58,7 @@ public class MemTableDescriptor implements PersistentStorageDescriptor {
 	 */
 	@Getter private final long version;
 	/**
-	 * Contains location of the last MemTable fragment for this version of the header / collection.
+	 * Contains location of the last FileOffsetIndex fragment for this version of the header / collection.
 	 */
 	@Nullable private final FileLocation fileLocation;
 	/**
@@ -74,20 +74,20 @@ public class MemTableDescriptor implements PersistentStorageDescriptor {
 	 */
 	@Nonnull private final Kryo writeKryo;
 	/**
-	 * Reference to the function that allows creating new {@link VersionedKryo} instances for reading {@link MemTable}
+	 * Reference to the function that allows creating new {@link VersionedKryo} instances for reading {@link FileOffsetIndex}
 	 * contents using up-to-date configuration specified in {@link VersionedKryoKeyInputs}.
 	 *
 	 * This function is passed from outside in constructor.
 	 */
 	@Nonnull private final Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory;
 	/**
-	 * Reference to the function that allows creating new {@link VersionedKryo} instances for reading {@link MemTable}.
+	 * Reference to the function that allows creating new {@link VersionedKryo} instances for reading {@link FileOffsetIndex}.
 	 * This is internal object that wraps {@link #kryoFactory} and allows only to propagate passed version that reflects
 	 * the key changes in {@link VersionedKryoKeyInputs}.
 	 */
 	@Nonnull private final Function<Long, VersionedKryo> readKryoFactory;
 
-	public MemTableDescriptor(@Nonnull PersistentStorageDescriptor memTableHeader, @Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory, boolean transactional) {
+	public FileOffsetIndexDescriptor(@Nonnull PersistentStorageDescriptor memTableHeader, @Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory, boolean transactional) {
 		this.version = 1L;
 		this.fileLocation = memTableHeader.getFileLocation();
 		this.kryoFactory = kryoFactory;
@@ -101,7 +101,7 @@ public class MemTableDescriptor implements PersistentStorageDescriptor {
 		);
 	}
 
-	public MemTableDescriptor(@Nonnull FileLocation fileLocation, @Nonnull MemTableDescriptor memTableDescriptor) {
+	public FileOffsetIndexDescriptor(@Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexDescriptor memTableDescriptor) {
 		this.version = memTableDescriptor.version + 1;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = memTableDescriptor.kryoFactory;

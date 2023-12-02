@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable;
+package io.evitadb.store.fileOffsetIndex;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
@@ -30,22 +30,22 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.exception.InvalidStoragePathException;
 import io.evitadb.store.exception.StorageException;
+import io.evitadb.store.fileOffsetIndex.WriteOnlyFileHandle.ExclusiveWriteAccess;
+import io.evitadb.store.fileOffsetIndex.exception.CorruptedKeyValueRecordException;
+import io.evitadb.store.fileOffsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.fileOffsetIndex.exception.PoolExhaustedException;
+import io.evitadb.store.fileOffsetIndex.exception.RecordNotYetWrittenException;
+import io.evitadb.store.fileOffsetIndex.exception.SyncFailedException;
+import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
+import io.evitadb.store.fileOffsetIndex.model.NonFlushedValue;
+import io.evitadb.store.fileOffsetIndex.model.RecordKey;
+import io.evitadb.store.fileOffsetIndex.model.StorageRecord;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.memTable.WriteOnlyFileHandle.ExclusiveWriteAccess;
-import io.evitadb.store.memTable.exception.CorruptedKeyValueRecordException;
-import io.evitadb.store.memTable.exception.CorruptedRecordException;
-import io.evitadb.store.memTable.exception.PoolExhaustedException;
-import io.evitadb.store.memTable.exception.RecordNotYetWrittenException;
-import io.evitadb.store.memTable.exception.SyncFailedException;
-import io.evitadb.store.memTable.model.MemTableRecordTypeRegistry;
-import io.evitadb.store.memTable.model.NonFlushedValue;
-import io.evitadb.store.memTable.model.RecordKey;
-import io.evitadb.store.memTable.model.StorageRecord;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
@@ -85,22 +85,22 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
- * MemTable represents simple key-value storage that is append-only. Ie. no data are ever overwritten in the file created
- * by MemTable. We know that appending the file is very fast operation in all OSes and all types of hard drives - so this
+ * FileOffsetIndex represents simple key-value storage that is append-only. Ie. no data are ever overwritten in the file created
+ * by FileOffsetIndex. We know that appending the file is very fast operation in all OSes and all types of hard drives - so this
  * implementation build on top of this idea.
  *
- * The key concept here is that the file might contain "dead" data that are not mapped by current MemTable instance.
+ * The key concept here is that the file might contain "dead" data that are not mapped by current FileOffsetIndex instance.
  * This dead content of the file needs to be cleaned (or vacuumed) periodically so that OS page cache is more efficient
  * and does not contain fragments of the dead data.
  *
- * Single {@link FileLocation} information needs to be kept outside MemTable. This location points to the last part
- * of the MemTable fragment written in the file. This fragment contains latest "updates" (ie. inserts / deletes)
- * to the MemTable and refers to previous fragment that contains updates done before. This chain points to initial
- * fragment that has no ancestor and this fragment contains the initial load of the MemTable records. MemTable fragments
+ * Single {@link FileLocation} information needs to be kept outside FileOffsetIndex. This location points to the last part
+ * of the FileOffsetIndex fragment written in the file. This fragment contains latest "updates" (ie. inserts / deletes)
+ * to the FileOffsetIndex and refers to previous fragment that contains updates done before. This chain points to initial
+ * fragment that has no ancestor and this fragment contains the initial load of the FileOffsetIndex records. FileOffsetIndex fragments
  * are limited to the {@link #writeHandle} buffer limit - this is by default {@link StorageOptions#outputBufferSize()} in Bytes.
- * So even the initial MemTable state might be split into several MemTable fragments.
+ * So even the initial FileOffsetIndex state might be split into several FileOffsetIndex fragments.
  *
- * MemTable contains only set of keys that points to file locations in the mapped file. This is how main operations are
+ * FileOffsetIndex contains only set of keys that points to file locations in the mapped file. This is how main operations are
  * handled:
  *
  * WRITE:
@@ -114,14 +114,14 @@ import static java.util.Optional.ofNullable;
  *
  * DELETE:
  * - removes record in the {@link #keyToLocations}
- * - information about the remove is also tracked in MemoryFragment (when written to disk) so that when MemTable is
+ * - information about the remove is also tracked in MemoryFragment (when written to disk) so that when FileOffsetIndex is
  * reconstructed from fragments the record inserted in previous fragments will be ignored as well
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
 @ThreadSafe
-public class MemTable {
+public class FileOffsetIndex {
 	/**
 	 * Constant that contains currently the single node id. This is reserved for future use when those node ids should
 	 * distinguish different origin nodes in clustered environments.
@@ -136,18 +136,18 @@ public class MemTable {
 	 */
 	public static final int HISTOGRAM_INITIAL_CAPACITY = 16;
 	/**
-	 * Contains path to the file mapped by the MemTable. No other processes / threads should write to this file except
-	 * this MemTable instance.
+	 * Contains path to the file mapped by the FileOffsetIndex. No other processes / threads should write to this file except
+	 * this FileOffsetIndex instance.
 	 */
 	@Getter private final Path targetFile;
 	/**
-	 * Contains configuration options for the {@link MemTable},
+	 * Contains configuration options for the {@link FileOffsetIndex},
 	 */
 	@Getter private final StorageOptions options;
 	/**
 	 * Contains configuration of record types that could be stored into the mem-table.
 	 */
-	private final MemTableRecordTypeRegistry recordTypeRegistry;
+	private final FileOffsetIndexRecordTypeRegistry recordTypeRegistry;
 	/**
 	 * Single {@link Kryo} instance used for writing - it's internal {@link KeyCompressor} may be modified.
 	 */
@@ -173,35 +173,35 @@ public class MemTable {
 	 */
 	private final AtomicBoolean shutdownDownProcedureActive = new AtomicBoolean(false);
 	/**
-	 * Map contains counts for each type of record stored in MemTable.
+	 * Map contains counts for each type of record stored in FileOffsetIndex.
 	 */
 	private final ConcurrentHashMap<Byte, Integer> histogram;
 	/**
-	 * Keeps track of maximum record size ever written to this MemTable. The number doesn't respect record removals and
+	 * Keeps track of maximum record size ever written to this FileOffsetIndex. The number doesn't respect record removals and
 	 * should be used only for informational purposes.
 	 */
 	private final AtomicInteger maxRecordSize = new AtomicInteger(0);
 	/**
-	 * Keeps track of total size of records held in this MemTable. This number reflect the gross size of all ACTIVE
-	 * records except the MemTable index. The removals and dead data are not reflected by this property.
+	 * Keeps track of total size of records held in this FileOffsetIndex. This number reflect the gross size of all ACTIVE
+	 * records except the FileOffsetIndex index. The removals and dead data are not reflected by this property.
 	 */
 	private final AtomicLong totalSize = new AtomicLong(0);
 	/**
-	 * Contains flag signalizing that MemTable is open and can be used. Flag is set to false on {@link #close()} operation.
+	 * Contains flag signalizing that FileOffsetIndex is open and can be used. Flag is set to false on {@link #close()} operation.
 	 * No additional calls are allowed after that.
 	 */
 	@Getter private boolean operative = true;
 	/**
-	 * MemTable descriptor used when creating MemTable instance or created on last {@link #flush(long)} operation.
-	 * Contains all information necessary to read/write data in MemTable instance using {@link Kryo}.
+	 * FileOffsetIndex descriptor used when creating FileOffsetIndex instance or created on last {@link #flush(long)} operation.
+	 * Contains all information necessary to read/write data in FileOffsetIndex instance using {@link Kryo}.
 	 */
-	private MemTableDescriptor memTableDescriptor;
+	private FileOffsetIndexDescriptor memTableDescriptor;
 	/**
 	 * Main index that keeps track of record keys file locations. Used for persisted record reading.
 	 */
 	private Map<RecordKey, FileLocation> keyToLocations;
 	/**
-	 * Non flushed values contains all values that has been modified in this MemTable instance and their locations were
+	 * Non flushed values contains all values that has been modified in this FileOffsetIndex instance and their locations were
 	 * not yet flushed to the disk. They might have been written to the disk, but their location is still only in memory
 	 * and in case of crash they wouldn't be retrievable. Flush persists all file locations to disk and performs sync.
 	 */
@@ -212,11 +212,11 @@ public class MemTable {
 	 */
 	private long lastSyncedPosition;
 
-	public MemTable(
+	public FileOffsetIndex(
 		@Nonnull Path targetFile,
-		@Nonnull MemTableDescriptor memTableDescriptor,
+		@Nonnull FileOffsetIndexDescriptor memTableDescriptor,
 		@Nonnull StorageOptions options,
-		@Nonnull MemTableRecordTypeRegistry recordTypeRegistry,
+		@Nonnull FileOffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
 		this.targetFile = targetFile;
@@ -254,7 +254,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns version of the current MemTableDescriptor instance. This version can be used to recognize, whether
+	 * Returns version of the current FileOffsetIndexDescriptor instance. This version can be used to recognize, whether
 	 * there was any real change made before and after {@link #flush(long)} or {@link #close()} operations.
 	 */
 	public long getVersion() {
@@ -269,7 +269,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns unmodifiable collection of all ACTIVE entries in the MemTable.
+	 * Returns unmodifiable collection of all ACTIVE entries in the FileOffsetIndex.
 	 */
 	public Collection<Entry<RecordKey, FileLocation>> getEntries() {
 		assertOperative();
@@ -277,7 +277,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns unmodifiable collection of all ACTIVE keys in the MemTable.
+	 * Returns unmodifiable collection of all ACTIVE keys in the FileOffsetIndex.
 	 */
 	public Collection<RecordKey> getKeys() {
 		assertOperative();
@@ -285,7 +285,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns unmodifiable collection of all ACTIVE file locations in the MemTable.
+	 * Returns unmodifiable collection of all ACTIVE file locations in the FileOffsetIndex.
 	 */
 	public Collection<FileLocation> getFileLocations() {
 		assertOperative();
@@ -293,7 +293,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns current count of ACTIVE entries in MemTable.
+	 * Returns current count of ACTIVE entries in FileOffsetIndex.
 	 */
 	public int count() {
 		assertOperative();
@@ -301,7 +301,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns current count of ACTIVE entries of certain type in MemTable.
+	 * Returns current count of ACTIVE entries of certain type in FileOffsetIndex.
 	 */
 	public int count(Class<? extends StoragePart> recordType) {
 		assertOperative();
@@ -346,7 +346,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns value assigned to the particular location in MemTable. This method is optimized for sequential access
+	 * Returns value assigned to the particular location in FileOffsetIndex. This method is optimized for sequential access
 	 * by {@link #getEntries()} or {@link #getFileLocations()} avoiding unnecessary index lookup.
 	 */
 	@Nullable
@@ -391,7 +391,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns value assigned to the particular location in MemTable. This method is optimized for sequential access
+	 * Returns value assigned to the particular location in FileOffsetIndex. This method is optimized for sequential access
 	 * by {@link #getEntries()} or {@link #getFileLocations()} avoiding unnecessary index lookup.
 	 */
 	@Nullable
@@ -400,7 +400,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns true if {@link MemTable} contains record with this id and type.
+	 * Returns true if {@link FileOffsetIndex} contains record with this id and type.
 	 */
 	public <T extends StoragePart> boolean contains(long primaryKey, Class<T> recordType) {
 		assertOperative();
@@ -413,8 +413,8 @@ public class MemTable {
 	}
 
 	/**
-	 * Stores or overwrites record with passed primary key in MemTable. Values of different types are distinguished by
-	 * the MemTable so that two different types of objects with same primary keys don't overwrite each other.
+	 * Stores or overwrites record with passed primary key in FileOffsetIndex. Values of different types are distinguished by
+	 * the FileOffsetIndex so that two different types of objects with same primary keys don't overwrite each other.
 	 *
 	 * @param transactionId will be propagated to {@link StorageRecord#getTransactionId()}
 	 * @param value         value to be stored
@@ -437,7 +437,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Removes existing record with passed primary key in MemTable. True is returned if particular record is found and
+	 * Removes existing record with passed primary key in FileOffsetIndex. True is returned if particular record is found and
 	 * removed.
 	 *
 	 * TOBEDONE JNO - shouldn't we also track transactionId as in put method?!
@@ -470,7 +470,7 @@ public class MemTable {
 	}
 
 	/**
-	 * This method will check whether the related MemTable file is consistent with internal rules - it checks:
+	 * This method will check whether the related FileOffsetIndex file is consistent with internal rules - it checks:
 	 *
 	 * - whether there is non interrupted monotonic row of transactionIds
 	 * - whether the final record has control bit that closes the transaction
@@ -579,12 +579,12 @@ public class MemTable {
 	}
 
 	/**
-	 * Flushes current state of the MemTable to the disk. File contents are in sync when this method finalizes.
+	 * Flushes current state of the FileOffsetIndex to the disk. File contents are in sync when this method finalizes.
 	 *
 	 * @param transactionId will be propagated to {@link StorageRecord#getTransactionId()}
 	 */
 	@Nonnull
-	public MemTableDescriptor flush(long transactionId) {
+	public FileOffsetIndexDescriptor flush(long transactionId) {
 		assertOperative();
 		return writeHandle.execute(
 			"Writing mem table to disk",
@@ -596,7 +596,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Closes the MemTable and writes all data to disk. File contents are in sync when this method finalizes.
+	 * Closes the FileOffsetIndex and writes all data to disk. File contents are in sync when this method finalizes.
 	 * No additional operations with this instance will be possible after calling this method. All file handles are
 	 * released.
 	 */
@@ -632,7 +632,7 @@ public class MemTable {
 					readOnlyFileHandle.forceClose();
 					readHandleIt.remove();
 				}
-				// at last flush MemTable and close write handle
+				// at last flush FileOffsetIndex and close write handle
 				return writeHandle.executeIgnoringOperationalCheck(
 					"Releasing file " + targetFile + " handle",
 					exclusiveWriteAccess -> {
@@ -642,7 +642,7 @@ public class MemTable {
 					}
 				);
 			} else {
-				throw new EvitaInternalError("MemTable is already being closed!");
+				throw new EvitaInternalError("FileOffsetIndex is already being closed!");
 			}
 		} finally {
 			shutdownDownProcedureActive.compareAndExchange(true, false);
@@ -650,7 +650,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Returns position of last fragment of the current {@link MemTable} in the tracked file.
+	 * Returns position of last fragment of the current {@link FileOffsetIndex} in the tracked file.
 	 */
 	public FileLocation getMemTableFileLocation() {
 		return memTableDescriptor.getFileLocation();
@@ -664,7 +664,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Method allows to execute custom "(de)serialization" function in the context of current MemTable Kryo read
+	 * Method allows to execute custom "(de)serialization" function in the context of current FileOffsetIndex Kryo read
 	 * instance. The serialization MUST NOT attempt to produce new keys via. {@link KeyCompressor} otherwise the
 	 * exception will be thrown.
 	 */
@@ -686,9 +686,9 @@ public class MemTable {
 	 */
 
 	/**
-	 * Just for testing purposes - verifies whether the MemTable contents equals the other MemTable contents.
+	 * Just for testing purposes - verifies whether the FileOffsetIndex contents equals the other FileOffsetIndex contents.
 	 */
-	boolean memTableEquals(@Nonnull MemTable o) {
+	boolean memTableEquals(@Nonnull FileOffsetIndex o) {
 		if (this == o) return true;
 		return keyToLocations.equals(o.keyToLocations);
 	}
@@ -707,7 +707,7 @@ public class MemTable {
 				() -> new InvalidStoragePathException("Storage path doesn't represent a directory: " + directory)
 			);
 		} else {
-			// read file from disk and initialize MemTable from the file
+			// read file from disk and initialize FileOffsetIndex from the file
 			// this should initialize keyToLocations index unless error occurs
 			return readMemTable(memTableLocation);
 		}
@@ -725,17 +725,17 @@ public class MemTable {
 	}
 
 	/**
-	 * Checks whether the MemTable is still opened and operative.
+	 * Checks whether the FileOffsetIndex is still opened and operative.
 	 */
 	private void assertOperative() {
 		isPremiseValid(
 			operative || Boolean.TRUE.equals(shutdownDownProcedureActive.get()),
-			"MemTable has been already closed!"
+			"FileOffsetIndex has been already closed!"
 		);
 	}
 
 	/**
-	 * Reads MemTable from the disk using write handle.
+	 * Reads FileOffsetIndex from the disk using write handle.
 	 */
 	private MemTableBuilder readMemTable(@Nonnull FileLocation location) {
 		return readOnlyHandlePool.borrowAndExecute(
@@ -743,7 +743,7 @@ public class MemTable {
 				exclusiveReadAccess -> {
 					final MemTableBuilder builder = new MemTableBuilder();
 					return readKryoPool.borrowAndExecute(kryo -> {
-						MemTableSerializationService.INSTANCE.deserialize(
+						FileOffsetIndexSerializationService.INSTANCE.deserialize(
 							exclusiveReadAccess.readOnlyStream(),
 							location,
 							builder
@@ -756,13 +756,13 @@ public class MemTable {
 	}
 
 	/**
-	 * Flushes current MemTable data (and it's changes) to the disk. File is synced within this method. Frequent flushes
+	 * Flushes current FileOffsetIndex data (and it's changes) to the disk. File is synced within this method. Frequent flushes
 	 * limit the I/O performance.
 	 */
-	private MemTableDescriptor doFlush(long transactionId, @Nonnull MemTableDescriptor memTableDescriptor, @Nonnull ExclusiveWriteAccess writeAccess) {
+	private FileOffsetIndexDescriptor doFlush(long transactionId, @Nonnull FileOffsetIndexDescriptor memTableDescriptor, @Nonnull ExclusiveWriteAccess writeAccess) {
 		if (!this.nonFlushedValues.isEmpty()) {
 			final ObservableOutput<FileOutputStream> writeOnlyStream = writeAccess.getWriteOnlyStream();
-			final FileLocation fileLocation = MemTableSerializationService.INSTANCE.serialize(
+			final FileLocation fileLocation = FileOffsetIndexSerializationService.INSTANCE.serialize(
 				this,
 				writeOnlyStream,
 				transactionId
@@ -773,7 +773,7 @@ public class MemTable {
 			// now empty all NonFlushedValues and move them to current state
 			promoteNonFlushedValuesToSharedState();
 
-			final MemTableDescriptor newMemTableDescriptor = new MemTableDescriptor(
+			final FileOffsetIndexDescriptor newMemTableDescriptor = new FileOffsetIndexDescriptor(
 				fileLocation,
 				memTableDescriptor
 			);
@@ -805,7 +805,7 @@ public class MemTable {
 			);
 			// propagate changes in KeyCompressor to the read kryo pool
 			if (memTableDescriptor.resetDirty()) {
-				this.memTableDescriptor = new MemTableDescriptor(
+				this.memTableDescriptor = new FileOffsetIndexDescriptor(
 					memTableDescriptor.getFileLocation(),
 					memTableDescriptor
 				);
@@ -876,7 +876,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Method removes existing record from the MemTable. This method should be called only from {@link QueueWriter} and never
+	 * Method removes existing record from the FileOffsetIndex. This method should be called only from {@link QueueWriter} and never
 	 * directly from the code. All writes are serialized by exclusive write access.
 	 */
 	private void doRemove(long primaryKey, @Nonnull Class<? extends StoragePart> valueType) {
@@ -896,7 +896,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Method stores new record to the MemTable. This method should be called only from {@link QueueWriter} and never
+	 * Method stores new record to the FileOffsetIndex. This method should be called only from {@link QueueWriter} and never
 	 * directly from the code. All writes are serialized by exclusive write access.
 	 */
 	private void doPut(long transactionId, long primaryKey, @Nonnull StoragePart value, @Nonnull ExclusiveWriteAccess exclusiveWriteAccess) {
@@ -922,7 +922,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Method retrieves existing record from the MemTable.
+	 * Method retrieves existing record from the FileOffsetIndex.
 	 */
 	private <T extends Serializable> StorageRecord<T> doGet(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
 		return readOnlyHandlePool.borrowAndExecute(
@@ -947,7 +947,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Method retrieves existing record from the MemTable without parsing its contents.
+	 * Method retrieves existing record from the FileOffsetIndex without parsing its contents.
 	 */
 	private <T extends Serializable> StorageRecord<byte[]> doGetBinary(@Nonnull Class<T> recordType, long primaryKey, @Nonnull FileLocation it) {
 		return readOnlyHandlePool.borrowAndExecute(
@@ -972,7 +972,7 @@ public class MemTable {
 	}
 
 	/**
-	 * Contains statistics about the MemTable file.
+	 * Contains statistics about the FileOffsetIndex file.
 	 */
 	@RequiredArgsConstructor
 	@ToString
@@ -1054,16 +1054,16 @@ public class MemTable {
 		}
 
 		/**
-		 * Returns count of all non-flushed records affecting {@link MemTable#histogram} - may be positive or negative.
-		 * Represents the diff against {@link MemTable#histogram}.
+		 * Returns count of all non-flushed records affecting {@link FileOffsetIndex#histogram} - may be positive or negative.
+		 * Represents the diff against {@link FileOffsetIndex#histogram}.
 		 */
 		public int count() {
 			return nonFlushedValuesHistogram.values().stream().mapToInt(it -> it).sum();
 		}
 
 		/**
-		 * Returns count of all non-flushed records of specific type affecting {@link MemTable#histogram} - may be
-		 * positive or negative. Represents the diff against {@link MemTable#histogram}.
+		 * Returns count of all non-flushed records of specific type affecting {@link FileOffsetIndex#histogram} - may be
+		 * positive or negative. Represents the diff against {@link FileOffsetIndex#histogram}.
 		 */
 		public int count(byte recordTypeId) {
 			return ofNullable(nonFlushedValuesHistogram.get(recordTypeId)).orElse(0);
@@ -1072,8 +1072,8 @@ public class MemTable {
 	}
 
 	/**
-	 * This class is used to build initial MemTable in {@link MemTableSerializationService} and switch atomically
-	 * the real (operative) MemTable contents atomically once it's done.
+	 * This class is used to build initial FileOffsetIndex in {@link FileOffsetIndexSerializationService} and switch atomically
+	 * the real (operative) FileOffsetIndex contents atomically once it's done.
 	 */
 	public static class MemTableBuilder {
 		@Getter private final ConcurrentHashMap<RecordKey, FileLocation> builtIndex = new ConcurrentHashMap<>(KEY_HASH_MAP_INITIAL_SIZE);
@@ -1190,7 +1190,7 @@ public class MemTable {
 							throw new PoolExhaustedException(options.maxOpenedReadHandles(), targetFile);
 						}
 						final ReadOnlyFileHandle readOnlyFileHandle = new ReadOnlyFileHandle(
-							targetFile, options.computeCRC32C(), MemTable.this::assertOperative
+							targetFile, options.computeCRC32C(), FileOffsetIndex.this::assertOperative
 						);
 						readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;

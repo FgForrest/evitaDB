@@ -58,7 +58,7 @@ public class ObservableOutputKeeper {
 
 	/**
 	 * Method allowing to access {@link StorageOptions} internal settings so that we can pass only {@link ObservableOutputKeeper}
-	 * in the {@link io.evitadb.store.memTable.WriteOnlyFileHandle} class.
+	 * in the {@link io.evitadb.store.fileOffsetIndex.WriteOnlyFileHandle} class.
 	 */
 	public long getLockTimeoutSeconds() {
 		return options.lockTimeoutSeconds();

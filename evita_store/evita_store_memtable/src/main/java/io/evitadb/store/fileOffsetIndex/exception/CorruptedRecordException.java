@@ -21,24 +21,40 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
 import io.evitadb.store.exception.StorageException;
+import lombok.Getter;
 
-import javax.annotation.Nonnull;
 import java.io.Serial;
-import java.nio.file.Path;
 
 /**
- * Exception is thrown when there is attempt to get another instance from the shared pool and the pool has already
- * given away all possible instances that was allowed and there is no room for additional ones.
+ * Exception is thrown when record is found to be corrupted after fetching from the persistent storage. Corrupted error
+ * is the record which CRC32C checksum doesn't match, or the expected record length differs from really read data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class PoolExhaustedException extends StorageException {
-	@Serial private static final long serialVersionUID = -3132735681170812077L;
+public class CorruptedRecordException extends StorageException {
+	@Serial private static final long serialVersionUID = -8235314570778971426L;
+	/**
+	 * Expected value (i.e. either checksum value or size in bytes).
+	 */
+	@Getter private final long expected;
+	/**
+	 * Real value (i.e. either checksum value or size in bytes).
+	 */
+	@Getter private final long real;
 
-	public PoolExhaustedException(int maxOpenedReadHandles, @Nonnull Path targetFile) {
-		super("Maximal count of opened handles (" + maxOpenedReadHandles + ") to file " + targetFile + " is exhausted!");
+	public CorruptedRecordException(String message, long expected, long real) {
+		super(message);
+		this.expected = expected;
+		this.real = real;
 	}
+
+	public CorruptedRecordException(String message, Throwable cause) {
+		super(message, cause);
+		this.expected = -1L;
+		this.real = -1L;
+	}
+
 }

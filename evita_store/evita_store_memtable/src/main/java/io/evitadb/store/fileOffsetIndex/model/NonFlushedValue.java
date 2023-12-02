@@ -21,9 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.model;
+package io.evitadb.store.fileOffsetIndex.model;
 
-import io.evitadb.store.memTable.MemTable;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
 import io.evitadb.store.model.FileLocation;
 
 import java.io.Serial;
@@ -31,7 +31,7 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /**
- * This DTO allows to keep the object that was written to the {@link MemTable} but its location
+ * This DTO allows to keep the object that was written to the {@link FileOffsetIndex} but its location
  * was not yet flushed to the disk.
  *
  * @param primaryKey   Contains primary key of the stored container.

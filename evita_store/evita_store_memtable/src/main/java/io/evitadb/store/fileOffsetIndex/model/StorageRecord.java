@@ -21,13 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.model;
+package io.evitadb.store.fileOffsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.store.fileOffsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.memTable.exception.CorruptedRecordException;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.utils.Assert;
 import lombok.Data;

@@ -21,11 +21,11 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable;
+package io.evitadb.store.fileOffsetIndex;
 
 import io.evitadb.store.exception.StorageException;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.kryo.ObservableInput;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

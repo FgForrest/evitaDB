@@ -53,7 +53,7 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	@Getter private final String entityType;
 	/**
 	 * Contains key index extracted from {@link KeyCompressor} that is necessary for
-	 * bootstraping {@link KeyCompressor} used for MemTable deserialization.
+	 * bootstraping {@link KeyCompressor} used for FileOffsetIndex deserialization.
 	 */
 	@Getter private final Map<Integer, Object> idToKeyIndex;
 	/**

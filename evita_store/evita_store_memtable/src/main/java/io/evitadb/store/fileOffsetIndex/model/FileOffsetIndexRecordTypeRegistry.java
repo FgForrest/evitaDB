@@ -21,10 +21,10 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.model;
+package io.evitadb.store.fileOffsetIndex.model;
 
 import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.store.memTable.MemTable;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.StoragePartRegistry;
 import io.evitadb.utils.Assert;
@@ -37,16 +37,22 @@ import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
 
 /**
- * This enum contains all supported classes that can be stored in {@link MemTable}. This
+ * This enum contains all supported classes that can be stored in {@link FileOffsetIndex}. This
  * enum is used for translating full Class to a small number to minimize memory overhead.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class MemTableRecordTypeRegistry {
+public class FileOffsetIndexRecordTypeRegistry {
+	/**
+	 * Maps the class types of StorageParts to corresponding byte IDs.
+	 */
 	private final Map<Class<? extends StoragePart>, Byte> typeToIdIndex = new HashMap<>(64);
+	/**
+	 * Maps the byte IDs to corresponding class types of StorageParts.
+	 */
 	private final Map<Byte, Class<? extends StoragePart>> idToTypeIndex = new HashMap<>(64);
 
-	public MemTableRecordTypeRegistry() {
+	public FileOffsetIndexRecordTypeRegistry() {
 		ServiceLoader.load(StoragePartRegistry.class)
 			.stream()
 			.map(Provider::get)
@@ -55,7 +61,7 @@ public class MemTableRecordTypeRegistry {
 	}
 
 	/**
-	 * Registers new type that could be stored into the {@link MemTable} along with its unique id.
+	 * Registers new type that could be stored into the {@link FileOffsetIndex} along with its unique id.
 	 */
 	public void registerMemTableType(byte id, Class<? extends StoragePart> type) {
 		Assert.isPremiseValid(!this.idToTypeIndex.containsKey(id), () -> "The id is already set to `" + this.idToTypeIndex.get(id) + "` class!");
@@ -70,7 +76,7 @@ public class MemTableRecordTypeRegistry {
 	@Nonnull
 	public Class<? extends StoragePart> typeFor(byte id) {
 		return Optional.ofNullable(idToTypeIndex.get(id))
-			.orElseThrow(() -> new EvitaInternalError("Type id " + id + " cannot be handled by MemTable!"));
+			.orElseThrow(() -> new EvitaInternalError("Type id " + id + " cannot be handled by FileOffsetIndex!"));
 	}
 
 	/**
@@ -78,7 +84,7 @@ public class MemTableRecordTypeRegistry {
 	 */
 	public byte idFor(@Nonnull Class<? extends StoragePart> type) {
 		return Optional.ofNullable(typeToIdIndex.get(type))
-			.orElseThrow(() -> new EvitaInternalError("Type " + type + " cannot be handled by MemTable!"));
+			.orElseThrow(() -> new EvitaInternalError("Type " + type + " cannot be handled by FileOffsetIndex!"));
 	}
 
 }

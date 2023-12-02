@@ -21,28 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.model;
 
-import io.evitadb.store.exception.StorageException;
-import lombok.Getter;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
 
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This exception is used to swallow {@link CorruptedRecordException} and add data that will extend the error context
- * for the catcher.
+ * Each record that is stored via {@link StorageRecord} and maintained by {@link FileOffsetIndex}
+ * must be uniquely identified by this key.
  *
+ * @param recordType Id of the record type gathered from {@link FileOffsetIndexRecordTypeRegistry#idFor(Class)}
+ * @param primaryKey Primary key of the record.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class CorruptedKeyValueRecordException extends StorageException {
-	@Serial private static final long serialVersionUID = -1397355818882319526L;
-	@Getter private final Class<? extends Serializable> recordType;
-	@Getter private final long primaryKey;
+public record RecordKey(byte recordType, long primaryKey) implements Serializable, Comparable<RecordKey> {
+	@Serial private static final long serialVersionUID = 7212147121525140183L;
 
-	public CorruptedKeyValueRecordException(String message, Class<? extends Serializable> recordType, long primaryKey, CorruptedRecordException cause) {
-		super(message, cause);
-		this.recordType = recordType;
-		this.primaryKey = primaryKey;
+	/**
+	 * Comparable keys are optimal for HashMaps handling.
+	 */
+	@Override
+	public int compareTo(RecordKey o) {
+		final int result = Byte.compare(recordType, o.recordType);
+		return result == 0 ? Long.compare(primaryKey, o.primaryKey) : result;
 	}
+
 }

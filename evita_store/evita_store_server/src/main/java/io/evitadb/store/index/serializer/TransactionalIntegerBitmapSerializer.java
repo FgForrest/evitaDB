@@ -33,7 +33,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.store.memTable.exception.KryoSerializationException;
+import io.evitadb.store.fileOffsetIndex.exception.KryoSerializationException;
 import org.roaringbitmap.RoaringBitmap;
 
 import java.io.IOException;

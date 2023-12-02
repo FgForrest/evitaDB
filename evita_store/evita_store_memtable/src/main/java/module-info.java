@@ -4,10 +4,10 @@
 module evita.store.memtable {
 
 	exports io.evitadb.store.kryo;
-	exports io.evitadb.store.memTable;
-	exports io.evitadb.store.memTable.stream;
-	exports io.evitadb.store.memTable.exception;
-	exports io.evitadb.store.memTable.model;
+	exports io.evitadb.store.fileOffsetIndex;
+	exports io.evitadb.store.fileOffsetIndex.stream;
+	exports io.evitadb.store.fileOffsetIndex.exception;
+	exports io.evitadb.store.fileOffsetIndex.model;
 
 	uses io.evitadb.store.service.StoragePartRegistry;
 

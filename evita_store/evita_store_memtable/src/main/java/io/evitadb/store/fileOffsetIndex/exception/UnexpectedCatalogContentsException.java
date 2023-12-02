@@ -21,28 +21,24 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.memTable.exception;
+package io.evitadb.store.fileOffsetIndex.exception;
 
-import io.evitadb.store.exception.StorageException;
+
+import io.evitadb.store.exception.EvitaIOException;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Exception is throw when file sync fails and file contents in a buffer were probably not synced fully to
- * the persistent storage.
+ * Exception is thrown when target directory contains data of different catalog than requested.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public class SyncFailedException extends StorageException {
-	@Serial private static final long serialVersionUID = 6704506229433286702L;
+public class UnexpectedCatalogContentsException extends EvitaIOException {
+	@Serial private static final long serialVersionUID = -8706337223338039217L;
 
-	public SyncFailedException(@Nonnull Throwable cause) {
-		super(
-			"MemTable contents were not flushed to disk because of `" + cause.getMessage() + "`.",
-			"MemTable contents were not flushed to disk!",
-			cause
-		);
+	public UnexpectedCatalogContentsException(@Nonnull String message) {
+		super(message);
 	}
 
 }
