@@ -1303,8 +1303,8 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
-	 * {@link EntityCollection#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} or
-	 * {@link EntityCollection#enrichEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} methods.
+	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
+	 * {@link EntityCollection#enrichEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  methods.
 	 */
 	@Nonnull
 	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {

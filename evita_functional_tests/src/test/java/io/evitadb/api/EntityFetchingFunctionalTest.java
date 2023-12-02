@@ -4082,6 +4082,62 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should throw exception when accessing explicitly specified localized attributes without specifying locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenAccessingExplicitlySpecifiedLocalizedAttributesWithoutSpecifyingLocale(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(2)
+							),
+							require(
+								entityFetch(
+									attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_URL)
+								)
+							)
+						)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing explicitly specified localized associated data without specifying locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenAccessingExplicitlySpecifiedLocalizedAssociatedDataWithoutSpecifyingLocale(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(2)
+							),
+							require(
+								entityFetch(
+									associatedDataContent(ASSOCIATED_DATA_LABELS)
+								)
+							)
+						)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should throw exception when accessing non-fetched attributes")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
