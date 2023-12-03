@@ -73,8 +73,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Slf4j
 class FileOffsetIndexTest implements TimeBoundedTestSupport {
 	public static final String ENTITY_TYPE = "whatever";
-	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "memtable.kryo");
-	private final FileOffsetIndexRecordTypeRegistry memTableRecordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
+	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "fileOffsetIndex.kryo");
+	private final FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
 
 	@BeforeEach
 	void setUp() {
@@ -88,12 +88,12 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 
 	@DisplayName("Hundreds entities should be stored in FileOffsetIndex and retrieved intact.")
 	@Test
-	void shouldSerializeAndReconstructBigMemTable() {
+	void shouldSerializeAndReconstructBigFileOffsetIndex() {
 		final StorageOptions options = StorageOptions.temporary();
 		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
 		observableOutputKeeper.prepare();
 
-		final FileOffsetIndex memTable = new FileOffsetIndex(
+		final FileOffsetIndex fileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
@@ -101,33 +101,33 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				false
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 		final int recordCount = 600;
 
 		final long transactionId = 1;
 		for (int i = 1; i <= recordCount; i++) {
-			memTable.put(transactionId, new EntityBodyStoragePart(i));
+			fileOffsetIndex.put(transactionId, new EntityBodyStoragePart(i));
 		}
 
 		log.info("Flushing table (" + transactionId + ")");
-		final FileOffsetIndexDescriptor memTableInfo = memTable.flush(transactionId);
-		final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
+		final FileOffsetIndexDescriptor fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
+		final FileOffsetIndex loadedFileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
-				memTableInfo.getFileLocation(),
-				memTableInfo
+				fileOffsetIndexDescriptor.getFileLocation(),
+				fileOffsetIndexDescriptor
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 
 		long duration = 0L;
 		for (int i = 1; i <= recordCount; i++) {
 			long start = System.nanoTime();
-			final EntityBodyStoragePart actual = memTable.get(i, EntityBodyStoragePart.class);
+			final EntityBodyStoragePart actual = fileOffsetIndex.get(i, EntityBodyStoragePart.class);
 			duration += System.nanoTime() - start;
 			assertEquals(
 				new EntityBodyStoragePart(i),
@@ -137,9 +137,9 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 
 		observableOutputKeeper.free();
 
-		assertTrue(memTable.fileOffsetIndexEquals(loadedMemTable));
+		assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 600 records +1 record for th FileOffsetIndex itself */
-		assertEquals(601, memTable.verifyContents().getRecordCount());
+		assertEquals(601, fileOffsetIndex.verifyContents().getRecordCount());
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
 	}
 
@@ -155,7 +155,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 		final int removedRecords = 10;
 		final int iterationCount = 6;
 
-		final InsertionOutput insertionResult = createRecordsInMemTable(
+		final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
 			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
 		);
 
@@ -168,7 +168,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				fileOffsetIndexInfo
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 
@@ -186,7 +186,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 
 		observableOutputKeeper.free();
 
-		assertTrue(insertionResult.memTable().fileOffsetIndexEquals(loadedFileOffsetIndex));
+		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 300 records +6 record for th FileOffsetIndex itself */
 		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
 	}
@@ -202,25 +202,25 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 		final int removedRecords = 10;
 		final int iterationCount = 6;
 
-		final InsertionOutput insertionResult = createRecordsInMemTable(
+		final InsertionOutput insertionResult = createRecordsInFileOffsetIndex(
 			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
 		);
 
-		final FileOffsetIndexDescriptor memTableInfo = insertionResult.descriptor();
+		final FileOffsetIndexDescriptor fileOffsetIndexDescriptor = insertionResult.descriptor();
 
-		final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
+		final FileOffsetIndex loadedFileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
-				memTableInfo.getFileLocation(),
-				memTableInfo
+				fileOffsetIndexDescriptor.getFileLocation(),
+				fileOffsetIndexDescriptor
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 
 		for (int i = 1; i <= recordCount * iterationCount; i++) {
-			final byte[] actualBinary = loadedMemTable.getBinary(i, EntityBodyStoragePart.class);
+			final byte[] actualBinary = loadedFileOffsetIndex.getBinary(i, EntityBodyStoragePart.class);
 			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
 				assertNull(actualBinary);
 			} else {
@@ -228,7 +228,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				final VersionedKryo kryo = createKryo()
 					.apply(
 						new VersionedKryoKeyInputs(
-							loadedMemTable.getReadOnlyKeyCompressor(), 1
+							loadedFileOffsetIndex.getReadOnlyKeyCompressor(), 1
 						)
 					);
 				assertEquals(
@@ -240,9 +240,9 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 
 		observableOutputKeeper.free();
 
-		assertTrue(insertionResult.memTable().fileOffsetIndexEquals(loadedMemTable));
+		assertTrue(insertionResult.fileOffsetIndex().fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 300 records +6 record for th FileOffsetIndex itself */
-		assertEquals(306, loadedMemTable.verifyContents().getRecordCount());
+		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
 	}
 
 	@DisplayName("No operation should be allowed after close")
@@ -252,7 +252,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 		final ObservableOutputKeeper outputKeeper = new ObservableOutputKeeper(options);
 		outputKeeper.prepare();
 
-		final FileOffsetIndex memTable = new FileOffsetIndex(
+		final FileOffsetIndex fileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
@@ -260,19 +260,19 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				false
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			outputKeeper
 		);
-		memTable.put(0L, new EntityBodyStoragePart(1));
-		memTable.close();
+		fileOffsetIndex.put(0L, new EntityBodyStoragePart(1));
+		fileOffsetIndex.close();
 		outputKeeper.free();
 
-		assertThrows(IllegalStateException.class, () -> memTable.get(1, EntityBodyStoragePart.class));
-		assertThrows(IllegalStateException.class, () -> memTable.put(0L, new EntityBodyStoragePart(2)));
-		assertThrows(IllegalStateException.class, memTable::getEntries);
-		assertThrows(IllegalStateException.class, memTable::getKeys);
-		assertThrows(IllegalStateException.class, memTable::getFileLocations);
-		assertThrows(IllegalStateException.class, () -> memTable.flush(0L));
+		assertThrows(IllegalStateException.class, () -> fileOffsetIndex.get(1, EntityBodyStoragePart.class));
+		assertThrows(IllegalStateException.class, () -> fileOffsetIndex.put(0L, new EntityBodyStoragePart(2)));
+		assertThrows(IllegalStateException.class, fileOffsetIndex::getEntries);
+		assertThrows(IllegalStateException.class, fileOffsetIndex::getKeys);
+		assertThrows(IllegalStateException.class, fileOffsetIndex::getFileLocations);
+		assertThrows(IllegalStateException.class, () -> fileOffsetIndex.flush(0L));
 	}
 
 	@ParameterizedTest(name = "FileOffsetIndex should survive generational randomized test applying modifications on it")
@@ -283,7 +283,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
 		observableOutputKeeper.prepare();
 
-		final FileOffsetIndex memTable = new FileOffsetIndex(
+		final FileOffsetIndex fileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
@@ -291,7 +291,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				false
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 
@@ -330,13 +330,13 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				for (RecordOperation plannedOp : plannedOps) {
 					switch (plannedOp.getOperation()) {
 						case INSERT -> {
-							memTable.put(transactionId, new EntityBodyStoragePart(plannedOp.getRecordId()));
+							fileOffsetIndex.put(transactionId, new EntityBodyStoragePart(plannedOp.getRecordId()));
 							plannedOp.setVersion(1);
 						}
 						case UPDATE -> {
-							final EntityBodyStoragePart existingContainer = memTable.get(plannedOp.getRecordId(), EntityBodyStoragePart.class);
+							final EntityBodyStoragePart existingContainer = fileOffsetIndex.get(plannedOp.getRecordId(), EntityBodyStoragePart.class);
 							Assert.notNull(existingContainer, "The container with id " + plannedOp.getRecordId() + " unexpectedly not found!");
-							memTable.put(transactionId, new EntityBodyStoragePart(
+							fileOffsetIndex.put(transactionId, new EntityBodyStoragePart(
 								existingContainer.getVersion() + 1,
 								existingContainer.getPrimaryKey(),
 								existingContainer.getParent(),
@@ -347,33 +347,33 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 							plannedOp.setVersion(existingContainer.getVersion() + 1);
 						}
 						case REMOVE -> {
-							memTable.remove(plannedOp.getRecordId(), EntityBodyStoragePart.class);
+							fileOffsetIndex.remove(plannedOp.getRecordId(), EntityBodyStoragePart.class);
 						}
 					}
 				}
 
-				final FileOffsetIndexDescriptor memTableInfo = memTable.flush(transactionId++);
+				final FileOffsetIndexDescriptor fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId++);
 
 				long start = System.nanoTime();
-				final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
+				final FileOffsetIndex loadedFileOffsetIndex = new FileOffsetIndex(
 					targetFile,
 					new FileOffsetIndexDescriptor(
-						memTableInfo.getFileLocation(),
-						memTableInfo
+						fileOffsetIndexDescriptor.getFileLocation(),
+						fileOffsetIndexDescriptor
 					),
 					options,
-					memTableRecordTypeRegistry,
+					fileOffsetIndexRecordTypeRegistry,
 					observableOutputKeeper
 				);
 				long end = System.nanoTime();
 
 				observableOutputKeeper.free();
 
-				assertTrue(memTable.fileOffsetIndexEquals(loadedMemTable));
+				assertTrue(fileOffsetIndex.fileOffsetIndexEquals(loadedFileOffsetIndex));
 
-				final FileOffsetIndexStatistics stats = memTable.verifyContents();
+				final FileOffsetIndexStatistics stats = fileOffsetIndex.verifyContents();
 				for (RecordOperation plannedOp : plannedOps) {
-					final EntityBodyStoragePart entityStorageContainer = memTable.get(plannedOp.getRecordId(), EntityBodyStoragePart.class);
+					final EntityBodyStoragePart entityStorageContainer = fileOffsetIndex.get(plannedOp.getRecordId(), EntityBodyStoragePart.class);
 					if (plannedOp.getOperation() == Operation.REMOVE) {
 						Assert.isTrue(entityStorageContainer == null, "Cnt " + plannedOp.getRecordId() + " should be null but was not!");
 					} else {
@@ -384,7 +384,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 
 				System.out.println(
 					"Round trip #" + testState.roundTrip() + " (loaded in " +
-						StringUtils.formatNano(end - start) + ", " + loadedMemTable.count() +
+						StringUtils.formatNano(end - start) + ", " + loadedFileOffsetIndex.count() +
 						" living recs. / " + stats.getRecordCount() + " total recs.)"
 				);
 
@@ -395,14 +395,14 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 		);
 	}
 
-	private InsertionOutput createRecordsInMemTable(
+	private InsertionOutput createRecordsInFileOffsetIndex(
 		StorageOptions options,
 		ObservableOutputKeeper observableOutputKeeper,
 		int recordCount,
 		int removedRecords,
 		int iterationCount
 	) {
-		final FileOffsetIndex memTable = new FileOffsetIndex(
+		final FileOffsetIndex fileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
@@ -410,11 +410,11 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				false
 			),
 			options,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 
-		FileOffsetIndexDescriptor memTableInfo = null;
+		FileOffsetIndexDescriptor fileOffsetIndexDescriptor = null;
 
 		long transactionId = 0;
 		for (int j = 0; j < iterationCount; j++) {
@@ -423,22 +423,22 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 				for (int i = 1; i < removedRecords; i++) {
 					final int primaryKey = i + (j - 1) * recordCount;
 					log.info("Removal of rec with PK:   " + primaryKey);
-					memTable.remove(primaryKey, EntityBodyStoragePart.class);
+					fileOffsetIndex.remove(primaryKey, EntityBodyStoragePart.class);
 				}
 			}
 			for (int i = 1; i <= recordCount; i++) {
 				final int primaryKey = j * recordCount + i;
 				log.info("Insertion of rec with PK (tx " + transactionId + "): " + primaryKey);
-				memTable.put(
+				fileOffsetIndex.put(
 					transactionId,
 					new EntityBodyStoragePart(primaryKey));
 			}
 
 			log.info("Flushing table (tx " + transactionId + ")");
-			memTableInfo = memTable.flush(transactionId);
+			fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
 		}
 
-		return new InsertionOutput(memTable, Objects.requireNonNull(memTableInfo));
+		return new InsertionOutput(fileOffsetIndex, Objects.requireNonNull(fileOffsetIndexDescriptor));
 	}
 
 	private int getNonExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
@@ -488,7 +488,7 @@ class FileOffsetIndexTest implements TimeBoundedTestSupport {
 
 	}
 
-	private record InsertionOutput(@Nonnull FileOffsetIndex memTable, @Nonnull FileOffsetIndexDescriptor descriptor) {}
+	private record InsertionOutput(@Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull FileOffsetIndexDescriptor descriptor) {}
 
 	private record TestState(long transactionId, int roundTrip) {
 	}
