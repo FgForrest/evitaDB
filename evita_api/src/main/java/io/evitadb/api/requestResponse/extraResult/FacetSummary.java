@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.PrettyPrintable;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;

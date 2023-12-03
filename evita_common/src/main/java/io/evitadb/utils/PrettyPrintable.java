@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.api.requestResponse.extraResult;
+package io.evitadb.utils;
 
 import javax.annotation.Nonnull;
 
