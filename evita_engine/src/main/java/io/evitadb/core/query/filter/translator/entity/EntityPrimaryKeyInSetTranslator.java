@@ -28,6 +28,7 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -105,7 +106,7 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 				return FormulaFactory.and(
 						FormulaFactory.or(
 							superSetFormulas.stream()
-								.map(ConstantFormula::new)
+								.map(it -> it.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(it))
 								.toArray(Formula[]::new)
 						),
 						resultFormula
