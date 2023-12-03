@@ -27,7 +27,7 @@ import com.esotericsoftware.kryo.io.Input;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.MemTableFileStatistics;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -71,7 +71,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-class MemTableTest implements TimeBoundedTestSupport {
+class FileOffsetIndexTest implements TimeBoundedTestSupport {
 	public static final String ENTITY_TYPE = "whatever";
 	private final Path targetFile = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "memtable.kryo");
 	private final FileOffsetIndexRecordTypeRegistry memTableRecordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
@@ -137,7 +137,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 
 		observableOutputKeeper.free();
 
-		assertTrue(memTable.memTableEquals(loadedMemTable));
+		assertTrue(memTable.fileOffsetIndexEquals(loadedMemTable));
 		/* 600 records +1 record for th FileOffsetIndex itself */
 		assertEquals(601, memTable.verifyContents().getRecordCount());
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
@@ -159,13 +159,13 @@ class MemTableTest implements TimeBoundedTestSupport {
 			options, observableOutputKeeper, recordCount, removedRecords, iterationCount
 		);
 
-		final FileOffsetIndexDescriptor memTableInfo = insertionResult.descriptor();
+		final FileOffsetIndexDescriptor fileOffsetIndexInfo = insertionResult.descriptor();
 
-		final FileOffsetIndex loadedMemTable = new FileOffsetIndex(
+		final FileOffsetIndex loadedFileOffsetIndex = new FileOffsetIndex(
 			targetFile,
 			new FileOffsetIndexDescriptor(
-				memTableInfo.getFileLocation(),
-				memTableInfo
+				fileOffsetIndexInfo.getFileLocation(),
+				fileOffsetIndexInfo
 			),
 			options,
 			memTableRecordTypeRegistry,
@@ -173,7 +173,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 		);
 
 		for (int i = 1; i <= recordCount * iterationCount; i++) {
-			final EntityBodyStoragePart actual = loadedMemTable.get(i, EntityBodyStoragePart.class);
+			final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(i, EntityBodyStoragePart.class);
 			if (i < recordCount * (iterationCount - 1) && i % recordCount < removedRecords && i % recordCount > 0) {
 				assertNull(actual);
 			} else {
@@ -186,9 +186,9 @@ class MemTableTest implements TimeBoundedTestSupport {
 
 		observableOutputKeeper.free();
 
-		assertTrue(insertionResult.memTable().memTableEquals(loadedMemTable));
+		assertTrue(insertionResult.memTable().fileOffsetIndexEquals(loadedFileOffsetIndex));
 		/* 300 records +6 record for th FileOffsetIndex itself */
-		assertEquals(306, loadedMemTable.verifyContents().getRecordCount());
+		assertEquals(306, loadedFileOffsetIndex.verifyContents().getRecordCount());
 	}
 
 	@Test
@@ -240,7 +240,7 @@ class MemTableTest implements TimeBoundedTestSupport {
 
 		observableOutputKeeper.free();
 
-		assertTrue(insertionResult.memTable().memTableEquals(loadedMemTable));
+		assertTrue(insertionResult.memTable().fileOffsetIndexEquals(loadedMemTable));
 		/* 300 records +6 record for th FileOffsetIndex itself */
 		assertEquals(306, loadedMemTable.verifyContents().getRecordCount());
 	}
@@ -369,9 +369,9 @@ class MemTableTest implements TimeBoundedTestSupport {
 
 				observableOutputKeeper.free();
 
-				assertTrue(memTable.memTableEquals(loadedMemTable));
+				assertTrue(memTable.fileOffsetIndexEquals(loadedMemTable));
 
-				final MemTableFileStatistics stats = memTable.verifyContents();
+				final FileOffsetIndexStatistics stats = memTable.verifyContents();
 				for (RecordOperation plannedOp : plannedOps) {
 					final EntityBodyStoragePart entityStorageContainer = memTable.get(plannedOp.getRecordId(), EntityBodyStoragePart.class);
 					if (plannedOp.getOperation() == Operation.REMOVE) {

@@ -284,7 +284,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		} else {
 			this.indexes = loadIndexes(entityHeader);
 		}
-		// sanity check whether we deserialized the memtable we expect to
+		// sanity check whether we deserialized the file offset index we expect to
 		Assert.isTrue(
 			entityHeader.getEntityType().equals(getSchema().getName()),
 			"Deserialized schema name differs from expected entity type - expected " + entityHeader.getEntityType() + " got " + getSchema().getName()

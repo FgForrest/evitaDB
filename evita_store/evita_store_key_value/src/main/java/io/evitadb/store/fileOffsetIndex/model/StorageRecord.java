@@ -180,8 +180,8 @@ public class StorageRecord<T> {
 
 	/**
 	 * Constructor that is used for READING unknown record from the input stream. Constructor should be used for sequential
-	 * reading of the data store contents when MEMTABLE has been already read and we know locations of active records as
-	 * well as their type.
+	 * reading of the data store contents when file offset index has been already read and we know locations of active
+	 * records as well as their type.
 	 *
 	 * This constructor excepts that it is possible to resolve any file location to record type. If type cannot be resolved
 	 * it is assumed record is "dead" and reading it's contents is skipped entirely.
@@ -253,7 +253,7 @@ public class StorageRecord<T> {
 
 	/**
 	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
-	 * be used for random access reading of arbitrary records o reading lead record for the MEMTABLE.
+	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
 	 */
 	public StorageRecord(@Nonnull ObservableInput<RandomAccessFileInputStream> input, @Nonnull FileLocation location, @Nonnull BiFunction<ObservableInput<RandomAccessFileInputStream>, Integer, T> reader) {
 		input.seek(location);

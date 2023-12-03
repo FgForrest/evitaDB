@@ -57,13 +57,13 @@ public class FileOffsetIndexRecordTypeRegistry {
 			.stream()
 			.map(Provider::get)
 			.flatMap(it -> it.listStorageParts().stream())
-			.forEach(it -> registerMemTableType(it.id(), it.partType()));
+			.forEach(it -> registerFileOffsetIndexType(it.id(), it.partType()));
 	}
 
 	/**
 	 * Registers new type that could be stored into the {@link FileOffsetIndex} along with its unique id.
 	 */
-	public void registerMemTableType(byte id, Class<? extends StoragePart> type) {
+	public void registerFileOffsetIndexType(byte id, Class<? extends StoragePart> type) {
 		Assert.isPremiseValid(!this.idToTypeIndex.containsKey(id), () -> "The id is already set to `" + this.idToTypeIndex.get(id) + "` class!");
 		Assert.isPremiseValid(!this.typeToIdIndex.containsKey(type), () -> "The class has already set id `" + this.typeToIdIndex.get(type) + "`!");
 		this.idToTypeIndex.put(id, type);

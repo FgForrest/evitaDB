@@ -159,11 +159,11 @@ public class FileOffsetIndex {
 	/**
 	 * Pool of {@link Kryo} instances which are not thread safe and are used for reading.
 	 */
-	private final MemTableKryoPool readKryoPool;
+	private final FileOffsetIndexKryoPool readKryoPool;
 	/**
 	 * Pool of {@link ObservableInput} instances which are not thread safe.
 	 */
-	private final MemTableObservableInputPool readOnlyHandlePool = new MemTableObservableInputPool();
+	private final FileOffsetIndexObservableInputPool readOnlyHandlePool = new FileOffsetIndexObservableInputPool();
 	/**
 	 * List of all currently opened handles.
 	 */
@@ -195,7 +195,7 @@ public class FileOffsetIndex {
 	 * FileOffsetIndex descriptor used when creating FileOffsetIndex instance or created on last {@link #flush(long)} operation.
 	 * Contains all information necessary to read/write data in FileOffsetIndex instance using {@link Kryo}.
 	 */
-	private FileOffsetIndexDescriptor memTableDescriptor;
+	private FileOffsetIndexDescriptor fileOffsetDescriptor;
 	/**
 	 * Main index that keeps track of record keys file locations. Used for persisted record reading.
 	 */
@@ -214,35 +214,35 @@ public class FileOffsetIndex {
 
 	public FileOffsetIndex(
 		@Nonnull Path targetFile,
-		@Nonnull FileOffsetIndexDescriptor memTableDescriptor,
+		@Nonnull FileOffsetIndexDescriptor fileOffsetDescriptor,
 		@Nonnull StorageOptions options,
 		@Nonnull FileOffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper
 	) {
 		this.targetFile = targetFile;
 		this.options = options;
-		this.memTableDescriptor = memTableDescriptor;
+		this.fileOffsetDescriptor = fileOffsetDescriptor;
 		this.recordTypeRegistry = recordTypeRegistry;
 
 		this.readOnlyOpenedHandles = new ArrayList<>(options.maxOpenedReadHandles());
-		this.readKryoPool = new MemTableKryoPool(
+		this.readKryoPool = new FileOffsetIndexKryoPool(
 			options.maxOpenedReadHandles(),
-			version -> this.memTableDescriptor.getReadKryoFactory().apply(version)
+			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
-		this.writeKryo = memTableDescriptor.getWriteKryo();
+		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
 		try {
-			final MemTableBuilder memTableBuilder = initializeMemTableFromFile(
-				targetFile, memTableDescriptor.getFileLocation(), options
+			final FileOffsetIndexBuilder fileOffsetIndexBuilder = initializeFileOffsetIndexFromFile(
+				targetFile, fileOffsetDescriptor.getFileLocation(), options
 			);
-			this.keyToLocations = ofNullable(memTableBuilder)
-				.map(MemTableBuilder::getBuiltIndex)
+			this.keyToLocations = ofNullable(fileOffsetIndexBuilder)
+				.map(FileOffsetIndexBuilder::getBuiltIndex)
 				.orElseGet(() -> new ConcurrentHashMap<>(KEY_HASH_MAP_INITIAL_SIZE));
-			this.histogram = ofNullable(memTableBuilder)
-				.map(MemTableBuilder::getHistogram)
+			this.histogram = ofNullable(fileOffsetIndexBuilder)
+				.map(FileOffsetIndexBuilder::getHistogram)
 				.orElseGet(() -> new ConcurrentHashMap<>(HISTOGRAM_INITIAL_CAPACITY));
-			ofNullable(memTableBuilder)
+			ofNullable(fileOffsetIndexBuilder)
 				.ifPresent(it -> this.totalSize.set(it.getTotalSize()));
-			ofNullable(memTableBuilder)
+			ofNullable(fileOffsetIndexBuilder)
 				.ifPresent(it -> this.maxRecordSize.set(it.getMaxSize()));
 			this.writeHandle = new WriteOnlyFileHandle(
 				targetFile, this::assertOperative, observableOutputKeeper
@@ -258,14 +258,14 @@ public class FileOffsetIndex {
 	 * there was any real change made before and after {@link #flush(long)} or {@link #close()} operations.
 	 */
 	public long getVersion() {
-		return memTableDescriptor.getVersion();
+		return fileOffsetDescriptor.getVersion();
 	}
 
 	/**
 	 * Returns readable instance of key compressor.
 	 */
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		return memTableDescriptor.getReadOnlyKeyCompressor();
+		return fileOffsetDescriptor.getReadOnlyKeyCompressor();
 	}
 
 	/**
@@ -425,7 +425,7 @@ public class FileOffsetIndex {
 			"Storing record",
 			exclusiveWriteAccess -> {
 				final long partId = ofNullable(value.getUniquePartId())
-					.orElseGet(() -> value.computeUniquePartIdAndSet(memTableDescriptor.getWriteKeyCompressor()));
+					.orElseGet(() -> value.computeUniquePartIdAndSet(fileOffsetDescriptor.getWriteKeyCompressor()));
 				doPut(
 					transactionId,
 					partId, value,
@@ -476,12 +476,12 @@ public class FileOffsetIndex {
 	 * - whether the final record has control bit that closes the transaction
 	 * - whether all the records has CRC-32C checksum valid (when CRC32-C checksums are enabled)
 	 */
-	public MemTableFileStatistics verifyContents() {
+	public FileOffsetIndexStatistics verifyContents() {
 		return readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> this.readKryoPool.borrowAndExecute(
 					kryo -> {
-						final MemTableFileStatistics result = new MemTableFileStatistics(this.keyToLocations.size(), this.totalSize.get());
+						final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(this.keyToLocations.size(), this.totalSize.get());
 						@SuppressWarnings("resource") final ObservableInput<RandomAccessFileInputStream> stream = exclusiveReadAccess.readOnlyStream();
 						final RandomAccessFileInputStream is = stream.getInputStream();
 						is.seek(0);
@@ -589,8 +589,8 @@ public class FileOffsetIndex {
 		return writeHandle.execute(
 			"Writing mem table to disk",
 			it -> {
-				this.memTableDescriptor = doFlush(transactionId, memTableDescriptor, it);
-				return memTableDescriptor;
+				this.fileOffsetDescriptor = doFlush(transactionId, fileOffsetDescriptor, it);
+				return fileOffsetDescriptor;
 			}
 		);
 	}
@@ -636,9 +636,9 @@ public class FileOffsetIndex {
 				return writeHandle.executeIgnoringOperationalCheck(
 					"Releasing file " + targetFile + " handle",
 					exclusiveWriteAccess -> {
-						this.memTableDescriptor = doFlush(0L, memTableDescriptor, exclusiveWriteAccess);
+						this.fileOffsetDescriptor = doFlush(0L, fileOffsetDescriptor, exclusiveWriteAccess);
 						exclusiveWriteAccess.close();
-						return memTableDescriptor.getFileLocation();
+						return fileOffsetDescriptor.getFileLocation();
 					}
 				);
 			} else {
@@ -652,8 +652,8 @@ public class FileOffsetIndex {
 	/**
 	 * Returns position of last fragment of the current {@link FileOffsetIndex} in the tracked file.
 	 */
-	public FileLocation getMemTableFileLocation() {
-		return memTableDescriptor.getFileLocation();
+	public FileLocation getFileOffsetIndexLocation() {
+		return fileOffsetDescriptor.getFileLocation();
 	}
 
 	/**
@@ -688,14 +688,14 @@ public class FileOffsetIndex {
 	/**
 	 * Just for testing purposes - verifies whether the FileOffsetIndex contents equals the other FileOffsetIndex contents.
 	 */
-	boolean memTableEquals(@Nonnull FileOffsetIndex o) {
+	boolean fileOffsetIndexEquals(@Nonnull FileOffsetIndex o) {
 		if (this == o) return true;
 		return keyToLocations.equals(o.keyToLocations);
 	}
 
-	private MemTableBuilder initializeMemTableFromFile(@Nonnull Path targetFile, @Nullable FileLocation memTableLocation, @Nonnull StorageOptions options) throws IOException {
+	private FileOffsetIndexBuilder initializeFileOffsetIndexFromFile(@Nonnull Path targetFile, @Nullable FileLocation fileOffsetIndexLocation, @Nonnull StorageOptions options) throws IOException {
 		final File targetFileRef = targetFile.toFile();
-		if (memTableLocation == null || !targetFileRef.exists()) {
+		if (fileOffsetIndexLocation == null || !targetFileRef.exists()) {
 			final File directory = targetFileRef.getParentFile();
 			// ensure directory exits
 			if (!directory.exists()) {
@@ -709,7 +709,7 @@ public class FileOffsetIndex {
 		} else {
 			// read file from disk and initialize FileOffsetIndex from the file
 			// this should initialize keyToLocations index unless error occurs
-			return readMemTable(memTableLocation);
+			return readFileOffsetIndex(fileOffsetIndexLocation);
 		}
 
 		// create empty file if no file exists
@@ -737,11 +737,11 @@ public class FileOffsetIndex {
 	/**
 	 * Reads FileOffsetIndex from the disk using write handle.
 	 */
-	private MemTableBuilder readMemTable(@Nonnull FileLocation location) {
+	private FileOffsetIndexBuilder readFileOffsetIndex(@Nonnull FileLocation location) {
 		return readOnlyHandlePool.borrowAndExecute(
 			readOnlyFileHandle -> readOnlyFileHandle.execute(
 				exclusiveReadAccess -> {
-					final MemTableBuilder builder = new MemTableBuilder();
+					final FileOffsetIndexBuilder builder = new FileOffsetIndexBuilder();
 					return readKryoPool.borrowAndExecute(kryo -> {
 						FileOffsetIndexSerializationService.INSTANCE.deserialize(
 							exclusiveReadAccess.readOnlyStream(),
@@ -759,7 +759,7 @@ public class FileOffsetIndex {
 	 * Flushes current FileOffsetIndex data (and it's changes) to the disk. File is synced within this method. Frequent flushes
 	 * limit the I/O performance.
 	 */
-	private FileOffsetIndexDescriptor doFlush(long transactionId, @Nonnull FileOffsetIndexDescriptor memTableDescriptor, @Nonnull ExclusiveWriteAccess writeAccess) {
+	private FileOffsetIndexDescriptor doFlush(long transactionId, @Nonnull FileOffsetIndexDescriptor fileOffsetIndexDescriptor, @Nonnull ExclusiveWriteAccess writeAccess) {
 		if (!this.nonFlushedValues.isEmpty()) {
 			final ObservableOutput<FileOutputStream> writeOnlyStream = writeAccess.getWriteOnlyStream();
 			final FileLocation fileLocation = FileOffsetIndexSerializationService.INSTANCE.serialize(
@@ -773,18 +773,18 @@ public class FileOffsetIndex {
 			// now empty all NonFlushedValues and move them to current state
 			promoteNonFlushedValuesToSharedState();
 
-			final FileOffsetIndexDescriptor newMemTableDescriptor = new FileOffsetIndexDescriptor(
+			final FileOffsetIndexDescriptor newFileOffsetIndexDescriptor = new FileOffsetIndexDescriptor(
 				fileLocation,
-				memTableDescriptor
+				fileOffsetIndexDescriptor
 			);
 
-			if (memTableDescriptor.resetDirty()) {
+			if (fileOffsetIndexDescriptor.resetDirty()) {
 				this.readKryoPool.expireAllPreviouslyCreated();
 			}
 
-			return newMemTableDescriptor;
+			return newFileOffsetIndexDescriptor;
 		} else {
-			return memTableDescriptor;
+			return fileOffsetIndexDescriptor;
 		}
 	}
 
@@ -804,10 +804,10 @@ public class FileOffsetIndex {
 				}
 			);
 			// propagate changes in KeyCompressor to the read kryo pool
-			if (memTableDescriptor.resetDirty()) {
-				this.memTableDescriptor = new FileOffsetIndexDescriptor(
-					memTableDescriptor.getFileLocation(),
-					memTableDescriptor
+			if (fileOffsetDescriptor.resetDirty()) {
+				this.fileOffsetDescriptor = new FileOffsetIndexDescriptor(
+					fileOffsetDescriptor.getFileLocation(),
+					fileOffsetDescriptor
 				);
 				this.readKryoPool.expireAllPreviouslyCreated();
 			}
@@ -976,7 +976,7 @@ public class FileOffsetIndex {
 	 */
 	@RequiredArgsConstructor
 	@ToString
-	public static class MemTableFileStatistics {
+	public static class FileOffsetIndexStatistics {
 		@Getter private final long livingRecordCount;
 		@Getter private final long livingRecordSize;
 		@Getter private int recordCount;
@@ -1075,7 +1075,7 @@ public class FileOffsetIndex {
 	 * This class is used to build initial FileOffsetIndex in {@link FileOffsetIndexSerializationService} and switch atomically
 	 * the real (operative) FileOffsetIndex contents atomically once it's done.
 	 */
-	public static class MemTableBuilder {
+	public static class FileOffsetIndexBuilder {
 		@Getter private final ConcurrentHashMap<RecordKey, FileLocation> builtIndex = new ConcurrentHashMap<>(KEY_HASH_MAP_INITIAL_SIZE);
 		@Getter private final ConcurrentHashMap<Byte, Integer> histogram = new ConcurrentHashMap<>(HISTOGRAM_INITIAL_CAPACITY);
 		@Getter private long totalSize;
@@ -1099,7 +1099,7 @@ public class FileOffsetIndex {
 	 * This class is used to safely borrow and return Kryo instances to the pool.
 	 */
 	@ThreadSafe
-	public static class MemTableKryoPool extends Pool<VersionedKryo> {
+	public static class FileOffsetIndexKryoPool extends Pool<VersionedKryo> {
 		/**
 		 * Function allows creating new instance of {@link VersionedKryo} with current Pool version.
 		 */
@@ -1110,7 +1110,7 @@ public class FileOffsetIndex {
 		 */
 		private long version = 1L;
 
-		public MemTableKryoPool(int maxInstancesKept, @Nonnull Function<Long, VersionedKryo> supplier) {
+		public FileOffsetIndexKryoPool(int maxInstancesKept, @Nonnull Function<Long, VersionedKryo> supplier) {
 			super(true, false, maxInstancesKept);
 			this.supplier = supplier;
 		}
@@ -1165,10 +1165,10 @@ public class FileOffsetIndex {
 	 * This class is used to monitor and limit {@link ReadOnlyFileHandle} pool. It creates new handles on demand in
 	 * locked fashion and verifies that maximum opened handles limit is not exceeded.
 	 */
-	private class MemTableObservableInputPool extends Pool<ReadOnlyFileHandle> {
+	private class FileOffsetIndexObservableInputPool extends Pool<ReadOnlyFileHandle> {
 		private final ReentrantLock readFilesLock = new ReentrantLock();
 
-		private MemTableObservableInputPool() {
+		private FileOffsetIndexObservableInputPool() {
 			super(true, false);
 		}
 

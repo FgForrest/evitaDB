@@ -26,12 +26,12 @@ package io.evitadb.store.kryo;
 import com.esotericsoftware.kryo.ClassResolver;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.ReferenceResolver;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.FileOffsetIndexKryoPool;
 import lombok.Getter;
 
 /**
  * This class overrides basic {@link Kryo} implementation and adds information about the version
- * of the {@link FileOffsetIndex.MemTableKryoPool} that was used for creating those instances.
+ * of the {@link FileOffsetIndexKryoPool} that was used for creating those instances.
  * Version serves to safely discard all instances once they become obsolete.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

@@ -896,7 +896,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * This method writes all changed storage parts into the MemTable of {@link EntityCollection} and then stores
+	 * This method writes all changed storage parts into the file offset index of {@link EntityCollection} and then stores
 	 * {@link CatalogBootstrap} marking transactionId as committed.
 	 */
 	void flushTransaction(long transactionId, @Nonnull CommitUpdateInstructionSet commitInstructionSet) {
@@ -925,7 +925,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
 	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
-	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the MemTable executed
+	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
 	 * in BULK / non-transactional mode.
 	 */
 	void flush() {

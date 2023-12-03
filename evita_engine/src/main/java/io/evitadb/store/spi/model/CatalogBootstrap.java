@@ -43,8 +43,8 @@ import java.util.stream.Collectors;
  * evitaDB catalog header that contains all key information for loading/persisting single catalog of evitaDB to disk.
  *
  * TOBEDONE JNO - we should change the format of the bootstrap file to fixed length file that would contain minuscule
- * records that will map catalog memtable file location only. All key information should be part of the catalog memfile.
- * This way we could any time revert database to a previous moment in time.
+ * records that will map catalog file offset index file location only. All key information should be part of the catalog
+ * file offset index file. This way we could any time revert database to a previous moment in time.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -67,7 +67,7 @@ public class CatalogBootstrap {
 	/**
 	 * Contains index of all {@link EntityCollection} headers that are necessary for accessing the entities.
 	 *
-	 * TOBEDONE JNO - THIS COULD BE PART OF CATALOG MEMTABLE IN THE FUTURE
+	 * TOBEDONE JNO - THIS COULD BE PART OF CATALOG FILE OFFSET INDEX IN THE FUTURE
 	 */
 	@Getter private final Map<String, EntityCollectionHeader> collectionHeaders;
 

@@ -31,7 +31,7 @@ import javax.annotation.Nonnull;
 
 /**
  * This DTO is a key allowing to identify proper {@link AttributeIndexStoragePart} implementation and store/load it from
- * {@link io.evitadb.storage.MemTable}. This key is maintained by {@link EntityIndexStoragePart} so that every entity index
+ * file offset index. This key is maintained by {@link EntityIndexStoragePart} so that every entity index
  * knows where its attribute indexes are stored.
  */
 public record AttributeIndexStorageKey(

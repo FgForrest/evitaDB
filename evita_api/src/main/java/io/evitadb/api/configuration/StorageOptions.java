@@ -42,13 +42,13 @@ import java.util.Optional;
  *                             Locks are used to get handle to open file. Set of open handles is limited to
  *                             {@link #maxOpenedReadHandles} for read operations and single write handle for write
  *                             operations (only single thread is expected to append to a file).
- * @param waitOnCloseSeconds   This timeout represents a time that will MemTable wait for processes to release their
+ * @param waitOnCloseSeconds   This timeout represents a time that will file offset index wait for processes to release their
  *                             read handles to file. After this timeout files will be closed by force and processes may
  *                             experience an exception.
  * @param outputBufferSize     The output buffer size determines how large a buffer is kept in memory for output
  *                             purposes. The size of the buffer limits the maximum size of an individual record in the
  *                             key/value data store.
- * @param maxOpenedReadHandles Maximum number of simultaneously opened {@link java.io.InputStream} to MemTable file.
+ * @param maxOpenedReadHandles Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
  * @param computeCRC32C        Contains setting that determined whether CRC32C checksums will be computed for written
  *                             records and also whether the CRC32C checksum will be checked on record read.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

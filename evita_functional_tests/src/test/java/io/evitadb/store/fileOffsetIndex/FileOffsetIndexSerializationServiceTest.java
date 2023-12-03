@@ -35,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-class MemTableSerializationServiceTest {
+class FileOffsetIndexSerializationServiceTest {
 
 	@Test
 	void shouldComputeExpectedRecordCountProperly() {

@@ -87,13 +87,13 @@ public class FileOffsetIndexDescriptor implements PersistentStorageDescriptor {
 	 */
 	@Nonnull private final Function<Long, VersionedKryo> readKryoFactory;
 
-	public FileOffsetIndexDescriptor(@Nonnull PersistentStorageDescriptor memTableHeader, @Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory, boolean transactional) {
+	public FileOffsetIndexDescriptor(@Nonnull PersistentStorageDescriptor fileOffsetIndexHeader, @Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory, boolean transactional) {
 		this.version = 1L;
-		this.fileLocation = memTableHeader.getFileLocation();
+		this.fileLocation = fileOffsetIndexHeader.getFileLocation();
 		this.kryoFactory = kryoFactory;
 		// create writable instances
-		this.writeKeyCompressor = new ReadWriteKeyCompressor(memTableHeader.getCompressedKeys());
-		this.readOnlyKeyCompressor = transactional ? new ReadOnlyKeyCompressor(memTableHeader.getCompressedKeys()) : this.writeKeyCompressor;
+		this.writeKeyCompressor = new ReadWriteKeyCompressor(fileOffsetIndexHeader.getCompressedKeys());
+		this.readOnlyKeyCompressor = transactional ? new ReadOnlyKeyCompressor(fileOffsetIndexHeader.getCompressedKeys()) : this.writeKeyCompressor;
 		this.writeKryo = kryoFactory.apply(new VersionedKryoKeyInputs(writeKeyCompressor, 1));
 		// create read only instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
@@ -101,14 +101,14 @@ public class FileOffsetIndexDescriptor implements PersistentStorageDescriptor {
 		);
 	}
 
-	public FileOffsetIndexDescriptor(@Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexDescriptor memTableDescriptor) {
-		this.version = memTableDescriptor.version + 1;
+	public FileOffsetIndexDescriptor(@Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexDescriptor fileOffsetIndexDescriptor) {
+		this.version = fileOffsetIndexDescriptor.version + 1;
 		this.fileLocation = fileLocation;
-		this.kryoFactory = memTableDescriptor.kryoFactory;
+		this.kryoFactory = fileOffsetIndexDescriptor.kryoFactory;
 		// keep all write instances
-		this.writeKeyCompressor = memTableDescriptor.writeKeyCompressor;
+		this.writeKeyCompressor = fileOffsetIndexDescriptor.writeKeyCompressor;
 		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(getCompressedKeys());
-		this.writeKryo = memTableDescriptor.writeKryo;
+		this.writeKryo = fileOffsetIndexDescriptor.writeKryo;
 		// reset read only instances according to current state of write instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
 			new VersionedKryoKeyInputs(

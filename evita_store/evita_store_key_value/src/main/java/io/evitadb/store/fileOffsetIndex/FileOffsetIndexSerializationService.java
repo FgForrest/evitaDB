@@ -25,7 +25,7 @@ package io.evitadb.store.fileOffsetIndex;
 
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.configuration.StorageOptions;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.MemTableBuilder;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.FileOffsetIndexBuilder;
 import io.evitadb.store.fileOffsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.fileOffsetIndex.model.NonFlushedValue;
 import io.evitadb.store.fileOffsetIndex.model.RecordKey;
@@ -76,19 +76,19 @@ public class FileOffsetIndexSerializationService {
 	/**
 	 * Serializes entire {@link FileOffsetIndex} to the file. Only active keys are stored to the data file.
 	 */
-	public FileLocation serialize(@Nonnull FileOffsetIndex memTable, @Nonnull ObservableOutput<?> output, long transactionId) {
-		final Collection<NonFlushedValue> nonFlushedEntries = memTable.getNonFlushedEntries();
+	public FileLocation serialize(@Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull ObservableOutput<?> output, long transactionId) {
+		final Collection<NonFlushedValue> nonFlushedEntries = fileOffsetIndex.getNonFlushedEntries();
 		final Iterator<NonFlushedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
 		output.flush();
 		// this holds file location pointer to the last stored FileOffsetIndex fragment and is used to allow single direction pointing
-		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(memTable.getMemTableFileLocation());
-		final ExpectedCounts memTableRecordCount = computeExpectedRecordCount(memTable.getOptions(), nonFlushedEntries.size());
-		for (int i = 0; i < memTableRecordCount.getFragments(); i++) {
+		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(fileOffsetIndex.getFileOffsetIndexLocation());
+		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(fileOffsetIndex.getOptions(), nonFlushedEntries.size());
+		for (int i = 0; i < fileOffsetIndexRecordCount.getFragments(); i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
-					output, FileOffsetIndex.SINGLE_NODE_ID, transactionId, i + 1 == memTableRecordCount.getFragments(),
+					output, FileOffsetIndex.SINGLE_NODE_ID, transactionId, i + 1 == fileOffsetIndexRecordCount.getFragments(),
 					stream -> {
 						final FileLocation lsrl = lastStorageRecordLocation.get();
 						if (lsrl == null) {
@@ -103,7 +103,7 @@ public class FileOffsetIndexSerializationService {
 						// iterate over entries (iterator is global and continues where last fragment finished)
 						// we need to stop at the point when we know we would not be able to store any more records
 						int cnt = 0;
-						while (entries.hasNext() && cnt++ < memTableRecordCount.getRecordsInFragment()) {
+						while (entries.hasNext() && cnt++ < fileOffsetIndexRecordCount.getRecordsInFragment()) {
 							final NonFlushedValue nonFlushedValue = entries.next();
 							stream.writeLong(nonFlushedValue.primaryKey());
 							stream.writeByte(nonFlushedValue.recordType());
@@ -111,7 +111,7 @@ public class FileOffsetIndexSerializationService {
 							stream.writeLong(fileLocation.startingPosition());
 							stream.writeInt(fileLocation.recordLength());
 						}
-						return memTable;
+						return fileOffsetIndex;
 					}
 				).getFileLocation()
 			);
@@ -133,29 +133,29 @@ public class FileOffsetIndexSerializationService {
 	/**
 	 * Deserializes {@link FileOffsetIndex} from the fragment identified by `fileLocation`.
 	 */
-	public void deserialize(@Nonnull ObservableInput<RandomAccessFileInputStream> input, @Nonnull FileLocation fileLocation, @Nonnull MemTableBuilder memTableBuilder) {
+	public void deserialize(@Nonnull ObservableInput<RandomAccessFileInputStream> input, @Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexBuilder fileOffsetIndexBuilder) {
 		// this set holds all record keys that were removed
 		final Set<RecordKey> removedEntries = new HashSet<>(16_384);
 		// this variable holds location of the previous mem table fragment
-		final AtomicReference<FileLocation> memTableFragmentLocation = new AtomicReference<>(fileLocation);
+		final AtomicReference<FileLocation> fileOffsetIndexFragmentLocation = new AtomicReference<>(fileLocation);
 		boolean head = true;
 		Long transactionId = null;
 		do {
 			final StorageRecord<Object> readRecord = new StorageRecord<>(
 				input,
-				memTableFragmentLocation.get(),
+				fileOffsetIndexFragmentLocation.get(),
 				(stream, length) -> {
 					// compute the length of the payload - this determines the moment when to stop reading
 					final int effectiveLength = length - ObservableOutput.TAIL_MANDATORY_SPACE;
 					// read previous memory fragment locations
-					final long previousMemTableFragmentPosition = stream.readLong();
-					final int previousMemTableFragmentLength = stream.readInt();
-					if (previousMemTableFragmentPosition == -1) {
+					final long previousFileOffsetIndexFragmentPosition = stream.readLong();
+					final int previousFileOffsetIndexFragmentLength = stream.readInt();
+					if (previousFileOffsetIndexFragmentPosition == -1) {
 						// if previous fragment position is -1, it means this fragment is root one
-						memTableFragmentLocation.set(null);
+						fileOffsetIndexFragmentLocation.set(null);
 					} else {
-						memTableFragmentLocation.set(
-							new FileLocation(previousMemTableFragmentPosition, previousMemTableFragmentLength)
+						fileOffsetIndexFragmentLocation.set(
+							new FileLocation(previousFileOffsetIndexFragmentPosition, previousFileOffsetIndexFragmentLength)
 						);
 					}
 
@@ -172,9 +172,9 @@ public class FileOffsetIndexSerializationService {
 						} else {
 							final RecordKey recordKey = new RecordKey(recordType, primaryKey);
 							final boolean wasRemoved = removedEntries.contains(recordKey);
-							final boolean wasUpdated = memTableBuilder.contains(recordKey);
+							final boolean wasUpdated = fileOffsetIndexBuilder.contains(recordKey);
 							if (!wasRemoved && !wasUpdated) {
-								memTableBuilder.register(
+								fileOffsetIndexBuilder.register(
 									recordKey,
 									new FileLocation(startingPosition, recordLength)
 								);
@@ -202,7 +202,7 @@ public class FileOffsetIndexSerializationService {
 			transactionId = readRecord.getTransactionId();
 
 			// repeat reading fragments until root fragment is found
-		} while (memTableFragmentLocation.get() != null);
+		} while (fileOffsetIndexFragmentLocation.get() != null);
 	}
 
 	/**

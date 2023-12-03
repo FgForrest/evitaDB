@@ -1,7 +1,7 @@
 /**
  * Module contains the evitaDB key-value store implementation.
  */
-module evita.store.memtable {
+module evita.store.key.value {
 
 	exports io.evitadb.store.kryo;
 	exports io.evitadb.store.fileOffsetIndex;

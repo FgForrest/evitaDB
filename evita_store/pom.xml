@@ -35,7 +35,7 @@
 
     <modules>
 	    <module>evita_store_common</module>
-	    <module>evita_store_memtable</module>
+	    <module>evita_store_key_value</module>
 	    <module>evita_store_entity</module>
 	    <module>evita_store_server</module>
     </modules>
