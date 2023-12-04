@@ -1,1 +1,1 @@
-implementation 'io.evitadb:evita_external_api_graphql:0.8.ALPHA'
+implementation 'io.evitadb:evita_external_api_graphql:0.9.ALPHA'

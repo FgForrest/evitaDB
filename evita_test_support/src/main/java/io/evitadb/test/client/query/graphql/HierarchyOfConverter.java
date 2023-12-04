@@ -61,10 +61,9 @@ public class HierarchyOfConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchConverter;
 
 	public HierarchyOfConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                            @Nonnull Query query,
-	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
+	                            @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -288,7 +287,7 @@ public class HierarchyOfConverter extends RequireConverter {
 				offset -> new Argument(
 					HierarchyParentsHeaderDescriptor.SIBLINGS,
 					offset,
-					inputJsonPrinter.print(siblingsArgument).stripLeading()
+					siblingsArgument
 				)
 			);
 		}

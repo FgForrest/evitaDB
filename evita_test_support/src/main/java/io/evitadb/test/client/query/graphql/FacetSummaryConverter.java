@@ -64,10 +64,9 @@ public class FacetSummaryConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchBuilder;
 
 	public FacetSummaryConverter(@Nonnull CatalogSchemaContract catalogSchema,
-                                 @Nonnull Query query,
-	                             @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
-		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
+                                 @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchBuilder = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
