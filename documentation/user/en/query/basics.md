@@ -324,7 +324,7 @@ If the constraint targets an attribute that is of array type, the constraint aut
 
 For example let's have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
 array attribute named `oneDayDeliveryCountries` with the following values: `GB`, `FR`, `CZ`. The filtering constraint
-[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: <LanguageSpecific to="evitaql,java,csharp">`attributeEquals('oneDayDeliveryCountries', 'GB')`</LanguageSpecific>
+[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: <LanguageSpecific to="evitaql,java,csharp">`attributeEquals("oneDayDeliveryCountries", "GB")`</LanguageSpecific>
 <LanguageSpecific to="graphql">`attributeOneDayDeliveryCountriesEquals: "GB"`</LanguageSpecific>
 <LanguageSpecific to="rest">`"attributeOneDayDeliveryCountriesEquals": "GB"`</LanguageSpecific>
 will match the entity, because the *GB* is one of the array values.
@@ -339,11 +339,14 @@ array attribute called `validity` that contains multiple time periods when the e
 ```
 
 In short, the entity is only valid in January, June, and December 2023. If we want to know if it's possible to access
-(e.g. buy a product) in May using the constraint <LanguageSpecific to="evitaql,java,csharp">`attributeInRange('validity', '2023-05-05T00:00:00+01:00')`</LanguageSpecific>
+(e.g. buy a product) in May using the constraint <LanguageSpecific to="evitaql,java,csharp">`attributeInRange("validity", "2023-05-05T00:00:00+01:00")`</LanguageSpecific>
 <LanguageSpecific to="graphql">`attributeValidityInRange: "2023-05-05T00:00:00+01:00"`</LanguageSpecific>
 <LanguageSpecific to="rest">`"attributeValidityInRange": "2023-05-05T00:00:00+01:00"`</LanguageSpecific>, the result
 will be empty because none of the `validity` array ranges matches that date and time. Of course, if we ask for an entity
-that is valid in June using `attributeInRange('validity', '2023-06-05T00:00:00+01:00')`, the entity will be returned
+that is valid in June using
+<LanguageSpecific to="evitaql,java,csharp">`attributeInRange("validity", "2023-06-05T00:00:00+01:00")`</LanguageSpecific>
+<LanguageSpecific to="graphql">`attributeValidityInRange: "2023-06-05T00:00:00+01:00"`</LanguageSpecific>
+<LanguageSpecific to="rest">`"attributeValidityInRange": "2023-06-05T00:00:00+01:00"`</LanguageSpecific>, the entity will be returned
 because there is a single date/time range in the array that satisfies this constraint.
 
 ## Header
