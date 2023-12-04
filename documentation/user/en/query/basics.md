@@ -196,13 +196,10 @@ disjunction meaning (boolean OR) and `()` signs for aggregation.
 
 To make constraints more understandable, we have created a set of internal rules for naming constraints:
 
-1. the name of the entity should be in a form (tense) that matches the English query phrase:
-  *query collection ..., and filter entities by ..., and order result by ..., and require ...*
-  - the query should be understandable to someone who is not familiar with evitaDB's syntax and internal mechanisms.
-2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` -
-  followed by a word that captures the essence of the constraint.
-3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else,
-  and might relax rule #2 (since the context will be apparent from the parent constraint).
+1. the name of the entity should be in a form (tense) that matches the English query phrase: *query collection ..., and filter entities by ..., and order result by ..., and require ...*
+    - the query should be understandable to someone who is not familiar with evitaDB's syntax and internal mechanisms.
+2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` - followed by a word that captures the essence of the constraint.
+3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else, and might relax rule #2 (since the context will be apparent from the parent constraint).
 
 ## Generic query rules
 
