@@ -1052,9 +1052,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected String constructConstraintDescription(@Nonnull ConstraintDescriptor constraintDescriptor) {
 		// TOBEDONE LHO: proper link to docs, decide on link structure (check https://www.markdownguide.org/extended-syntax/#heading-ids)
-		return constraintDescriptor.shortDescription() +
-			" [More](https://docs.evitadb.io/query_language#" + constraintDescriptor.constraintClass().getSimpleName() +
-			")";
+		//  seems like GQL editor cannot render the MD links
+		return constraintDescriptor.shortDescription();
 	}
 
 	/**

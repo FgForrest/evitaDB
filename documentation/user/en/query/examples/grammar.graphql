@@ -5,7 +5,10 @@
     },
     orderBy: [{
       attributeCodeNatural: DESC
-    }]
+    }],
+    require: {
+      priceType: WITH_TAX
+    }
   ) {
     recordPage {
       data {

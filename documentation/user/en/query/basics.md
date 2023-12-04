@@ -9,16 +9,40 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-The evitaDB query language consists of a nested set of functions. Each function has its name and set of arguments
-enclosed in brackets `functionName(arguments)`, argument can be a plain value of supported
-[data type](../use/data-types.md) or another function. Arguments and functions are separated by a comma
+<LanguageSpecific to="evitaql,java,csharp">
+
+The evitaDB query language consists of a nested set of functions representing individual "constraints".
+Each constraint (function) has its name and set of arguments enclosed in brackets `constraintName(arguments)`,
+argument can be a plain value of supported [data type](../use/data-types.md) or another constraint.
+Arguments and constraints are separated by a comma
 `argument1, argument2`. Strings are enclosed in <LanguageSpecific to="evitaql">`'this is string'` or </LanguageSpecific>`"this is string"`.
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+The evitaDB query language consists of a nested JSON objects and primitives representing individual "constraints".
+Each constraint (represented either by nested object or simple primitive value) has its name specified by the property key
+and set of arguments defined as property value. Argument can be a plain value of supported [data type](../use/data-types.md)
+or another constraint. Arguments and constraints can be written in number of different styles, depending on a particular constraint
+and its support arguments:
+
+- as primitive value when constraint takes single primitive argument
+	- `constraintName: "string argument"
+	- `constraintName: [ value1, value2 ]`
+- as nested object containing multiple arguments (e.g., multiple primitive arguments)
+	- `constraintName: { argument1: 100, argument2: [ 45 ] }`
+- as nested object containing child constraints
+	- `constraintName: { childConstraintName: "string argument" }`
+
+There also may be different combinations of these.
+
+</LanguageSpecific>
 
 This language is expected to be used by human operators, at the code level the query is represented by
 a query object tree, which can be constructed directly without any intermediate string language form (as
 opposed to the SQL language, which is strictly string typed).
 
-Query has these four parts:
+Query has these four <LanguageSpecific to="graphql">_logical_</LanguageSpecific> parts:
 
 - **[header](#header):** defines the queried entity collection (it's mandatory unless the filter contains
   constraints targeting globally unique attributes)
@@ -46,6 +70,24 @@ Or more complex one:
 [Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
 </SourceCodeTabs>
 
+<LanguageSpecific to="graphql">
+
+Where the _header_ part (queried collection) is part of the GraphQL query name itself, and the _filter_, _order_, and _require_
+parts are defined using GraphQL arguments of that GraphQL query.
+On top of that, GraphQL has kind of a unique representation of the _require_ part. Even though you can define _require_
+constraints as GraphQL argument, there are only generic constraints that defines rules for the calculations.
+The main require part that defines the completeness of returned entities (and extra results) is defined using output fields
+of the GraphQL query. This way, unlike in the other APIs, you specifically define the output form of the query result from
+what the domain evitaDB schema allows you to fetch.
+
+</LanguageSpecific>
+<LanguageSpecific to="rest">
+Where the _header_ part (queried collection) is part a URL path, and the _filter_, _order_, and _require_ parts are defined
+as properties of the input JSON object.
+</LanguageSpecific>
+
+<LangaugeSpecific to="evitaql,java,csharp">
+
 Any part of the query is optional. Only the `collection` part is usually mandatory, but there is an exception to this rule.
 If the `filterBy` part contains a constraint that targets a globally unique attribute, the `collection` part can be omitted
 as well because evitaDB can pick the implicit collection of that globally unique attribute automatically.
@@ -53,13 +95,39 @@ However, there can be at most one part of each `collection`, `filterBy`, `orderB
 Any part can be swapped (the order is not important). I.e. the following query is still a valid query and represents
 the simplest query possible:
 
+</LangaugeSpecific>
+<LanguageSpecific to="graphql,rest">
+
+Almost any part of the query is optional. Only the `collection` is usually mandatory, but there is an exception to this rule.
+You always need to use specific <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="rest">REST endpoint</LanguageSpecific>
+where the name of the collection is already defined, however, you can
+use generic <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="rest">REST endpoint</LanguageSpecific>
+(although, it is very limited due to the nature of the generated schema)
+and use a constraint that targets a globally unique attribute. In this case, the `collection`
+part can be omitted because evitaDB can pick the implicit collection of that globally unique attribute automatically.
+<LanguageSpecific to="graphql">Other parts defined using arguments are optional, but due to the nature of the GraphQL, you have to define at least
+one output field.</LanguageSpecific>
+<LanguageSpecific to="rest">Other parts defined using properties of input JSON object are optional.</LanguageSpecific>
+However, there can be at most one part of each _header_, _filter_, _order_, and _require_ in the query.
+
+Another specific in the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific>
+query grammar is that the constraint names usually contains classifiers of targeted data (e.g. name of attribute).
+This is important difference from other APIs, and it's because this way the
+<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific>
+schema for constraint property value can be specific to the constraint and targeted data and an IDE can provide
+proper auto-completion and validation of the constraint arguments.
+
+I.e. the following query is still a valid query and represents the simplest query possible:
+
+</LanguageSpecific>
+
 <SourceCodeTabs langSpecificTabOnly>
 
 [Example of the simplest query](/documentation/user/en/query/examples/simplestQuery.evitaql)
 </SourceCodeTabs>
 
-... or even this one (although it is recommended to keep the order for better readability: `collection`, `filterBy`,
-`orderBy`, `require`):
+... or even this one (although it is recommended to keep the order for better readability:
+<LanguageSpecific to="evitaql,java,csharp">`collection`</LanguageSpecific>, `filterBy`, `orderBy`, `require`):
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -92,6 +160,20 @@ constraintName(
     the standalone constraints can be used
   </dd>
 </dl>
+
+<LanguageSpecific to="graphql,rest">
+
+<Note type="warning">
+
+This syntax format is currently specific to the base evitaQL language and doesn't reflect the differences in the
+<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific> API.
+However, you can still benefit as the naming and accepted arguments are the same (only in slightly different format).
+<LanguageSpecific to="graphql">The bigger changing in the _require_ part of the GraphQL queries do have specific documentation
+however.</LanguageSpecific>
+
+</Note>
+
+</LanguageSpecific>
 
 #### Variadic arguments
 
@@ -198,7 +280,7 @@ To make constraints more understandable, we have created a set of internal rules
 
 1. the name of the entity should be in a form (tense) that matches the English query phrase: *query collection ..., and filter entities by ..., and order result by ..., and require ...*
     - the query should be understandable to someone who is not familiar with evitaDB's syntax and internal mechanisms.
-2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` - followed by a word that captures the essence of the constraint.
+2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` - followed <LanguageSpecific to="graphql,rest">usually by classifier of targeted data, which is followed</LanguageSpecific> by a word that captures the essence of the constraint.
 3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else, and might relax rule #2 (since the context will be apparent from the parent constraint).
 
 ## Generic query rules
@@ -237,8 +319,12 @@ because there is a single date/time range in the array that satisfies this const
 
 ## Header
 
-Only a `collection` constraint is allowed in this part of the query. It defines the entity type that the query will
-target. It can be omitted if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute.
+<LanguageSpecific to="evitaql,java,csharp">Only a `collection` constraint</LanguageSpecific>is allowed in this part of the query.
+<LanguageSpecific to="graphql,rest">Only a collection definition is allowed and is defined as part of <LanguageSpecific to="graphql">a GraphQL query name</LanguageSpecific><LanguageSpecific to="graphql">an endpoint URL</LanguageSpecific>.</LanguageSpecific>
+It defines the entity type that the query will
+target. It can be omitted
+<LanguageSpecific to="graphql,rest">when using generic <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="graphql">endpoint</LanguageSpecific></LanguageSpecific>
+if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute.
 This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the
 existing entities (see the [routing](../solve/routing.md) chapter for a detailed guide).
 

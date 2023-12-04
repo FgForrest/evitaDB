@@ -1,3 +1,5 @@
+POST /rest/evita/Product/query
+
 {
   "filterBy" : {
     "entityPrimaryKeyInSet" : [1, 2, 3]
