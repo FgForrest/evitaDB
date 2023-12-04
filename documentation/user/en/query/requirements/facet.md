@@ -413,8 +413,7 @@ requirements with specific filters for each reference type.
 
 </LanguageSpecific>
 
-The filter conditions can only target properties on the target entity and cannot target reference attributes in
-the source entity that are specific to a relationship with the target entity.
+<MDInclude>[Behaviour of filtering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
 
 </Note>
 
@@ -493,7 +492,10 @@ requirements with specific ordering constraints for each reference type.
 </LanguageSpecific>
 
 The ordering constraints can only target properties on the target entity and cannot target reference attributes in
-the source entity that are specific to a relationship with the target entity.
+the source entity that are specific to a relationship with the target entity. Even though it is technically possible to
+order by attributes of references themself, because we don't have direct relation
+with specific entity here, it would be too difficult to wrap a mind around this concept. That's why we don't support this
+approach and you can order directly referenced entities only.
 
 </Note>
 
@@ -657,6 +659,12 @@ changes the default behavior of the facet summary calculation for the facet grou
 constraint. Instead of logical disjunction (logical OR), the facet options in the facet groups are combined with logical
 conjunction (logical AND).
 
+<Note type="warning">
+
+<MDInclude>[Behaviour of filtering on referenced entities in facet groups conjunction constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
+
+</Note>
+
 To understand the difference between the default behavior and the behavior of this requirement, let's compare the facet
 summary calculation for the same query with and without this requirement. We will need a query that targets some
 reference (let's say `groups`) and pretend that the user has already requested (checked) some of the facets. If we now
@@ -740,6 +748,12 @@ changes the default behavior of the facet summary calculation for the facet grou
 Instead of logical AND, the facet options in the facet groups are combined with logical OR with facets from different
 facet groups.
 
+<Note type="warning">
+
+<MDInclude>[Behaviour of filtering on referenced entities in facet groups disjunction constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
+
+</Note>
+
 To understand the difference between the default behavior and the behavior of this constraint, let's compare the facet
 summary calculation for the same query with and without this constraint. We will need a query that targets some
 reference (let's say `parameterValues`) and pretend that the user has already requested (checked) some of the facets.
@@ -814,6 +828,12 @@ The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGro
 the behavior of the facet option in all facet groups specified in the `filterBy` constraint. Instead of returning only
 those items that have a reference to that particular faceted entity, the query result will return only those items that
 don't have a reference to it.
+
+<Note type="warning">
+
+<MDInclude>[Behaviour of filtering on referenced entities in facet groups negation constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
+
+</Note>
 
 To demonstrate this effect, we need a query that targets some reference (let's say `parameterValues`) and makes some of
 the listed group as negated.
