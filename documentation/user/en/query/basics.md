@@ -80,7 +80,7 @@ Or more complex one:
 Where the _header_ part (queried collection) is part of the GraphQL query name itself, and the _filter_, _order_, and _require_
 parts are defined using GraphQL arguments of that GraphQL query.
 On top of that, GraphQL has kind of a unique representation of the _require_ part. Even though you can define _require_
-constraints as GraphQL argument, there are only generic constraints that defines rules for the calculations.
+constraints as GraphQL argument, these are only generic constraints that defines rules for the calculations.
 The main require part that defines the completeness of returned entities (and extra results) is defined using output fields
 of the GraphQL query. This way, unlike in the other APIs, you specifically define the output form of the query result from
 what the domain evitaDB schema allows you to fetch.
@@ -122,10 +122,10 @@ one output field.</LanguageSpecific>
 <LanguageSpecific to="rest">Other parts defined using properties of input JSON object are optional.</LanguageSpecific>
 However, there can be at most one part of each _header_, _filter_, _order_, and _require_ in the query.
 
-Another specific in the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific>
+Another specific in the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific>
 query grammar is that the constraint names usually contains classifiers of targeted data (e.g. name of attribute).
 This is important difference from other APIs, and it's because this way the
-<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific>
+<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific>
 schema for constraint property value can be specific to the constraint and targeted data and an IDE can provide
 proper auto-completion and validation of the constraint arguments.
 
@@ -151,10 +151,10 @@ I.e. the following query is still a valid query and represents the simplest quer
 
 <NoteTitle toggles="true">
 
-##### What to read more about how the grammar was designed?
+##### Want to read more about how the grammar was designed?
 </NoteTitle>
 
-You can read more about the specific of the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific>
+You can read more about the specifics of the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific>
 query grammar [here](/documentation/blog/en/02-designing-evita-query-language-for-graphql-api.md).
 
 </Note>
@@ -192,10 +192,9 @@ constraintName(
 <Note type="warning">
 
 This syntax format is currently specific to the base evitaQL language and doesn't reflect the differences in the
-<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific> API.
-However, you can still benefit as the naming and accepted arguments are the same (only in slightly different format).
-<LanguageSpecific to="graphql">The bigger changing in the _require_ part of the GraphQL queries do have specific documentation
-however.</LanguageSpecific>
+<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific> API.
+However, you can still benefit from this syntax as the naming and accepted arguments are the same (only in slightly different format).
+<LanguageSpecific to="graphql">The more specific GraphQL constraints/queries do have specific documentation however.</LanguageSpecific>
 
 </Note>
 
@@ -325,7 +324,8 @@ If the constraint targets an attribute that is of array type, the constraint aut
 
 For example let's have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
 array attribute named `oneDayDeliveryCountries` with the following values: `GB`, `FR`, `CZ`. The filtering constraint
-[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: `attributeEquals('oneDayDeliveryCountries', 'GB')`
+[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: <LanguageSpecific to="evitaql,java,csharp">`attributeEquals('oneDayDeliveryCountries', 'GB')`</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">`attributeOneDayDeliveryCountriesEquals: "GB"`</LanguageSpecific>
 will match the entity, because the *GB* is one of the array values.
 
 Let's look at a more complicated, but more useful example. Let's have a [`DateTimeRange`](../use/data-types.md#datetimerange)
@@ -338,18 +338,19 @@ array attribute called `validity` that contains multiple time periods when the e
 ```
 
 In short, the entity is only valid in January, June, and December 2023. If we want to know if it's possible to access
-(e.g. buy a product) in May using the constraint `attributeInRange('validity', '2023-05-05T00:00:00+01:00')`, the result
+(e.g. buy a product) in May using the constraint <LanguageSpecific to="evitaql,java,csharp">`attributeInRange('validity', '2023-05-05T00:00:00+01:00')`</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">`attributeValidityInRange: "2023-05-05T00:00:00+01:00"`</LanguageSpecific>, the result
 will be empty because none of the `validity` array ranges matches that date and time. Of course, if we ask for an entity
 that is valid in June using `attributeInRange('validity', '2023-06-05T00:00:00+01:00')`, the entity will be returned
 because there is a single date/time range in the array that satisfies this constraint.
 
 ## Header
 
-<LanguageSpecific to="evitaql,java,csharp">Only a `collection` constraint</LanguageSpecific>is allowed in this part of the query.
-<LanguageSpecific to="graphql,rest">Only a collection definition is allowed and is defined as part of <LanguageSpecific to="graphql">a GraphQL query name</LanguageSpecific><LanguageSpecific to="graphql">an endpoint URL</LanguageSpecific>.</LanguageSpecific>
+<LanguageSpecific to="evitaql,java,csharp">Only a `collection` constraint is allowed in this part of the query</LanguageSpecific>.
+<LanguageSpecific to="graphql,rest">Only a collection definition is allowed and is defined as part of <LanguageSpecific to="graphql">a GraphQL query name</LanguageSpecific><LanguageSpecific to="rest">an endpoint URL</LanguageSpecific>.</LanguageSpecific>
 It defines the entity type that the query will
 target. It can be omitted
-<LanguageSpecific to="graphql,rest">when using generic <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="graphql">endpoint</LanguageSpecific></LanguageSpecific>
+<LanguageSpecific to="graphql,rest">when using generic <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="rest">endpoint</LanguageSpecific></LanguageSpecific>
 if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute.
 This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the
 existing entities (see the [routing](../solve/routing.md) chapter for a detailed guide).
@@ -477,14 +478,21 @@ Currently, these requirements are available to you:
 Paging requirements control how large and which subset of the large filtered entity set is actually returned in
 the output.
 
+<LanguageSpecific to="evitaql,java,rest,csharp">
 - [page](requirements/paging.md#page)
 - [strip](requirements/paging.md#strip)
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
+- [`list` queries](requirements/paging.md#pagination-of-list-queries)
+- [`query` queries - `recordPage`](requirements/paging.md#pagination-of-query-queries)
+- [`query` queries - `recordStrip`](requirements/paging.md#pagination-of-query-queries)
+</LanguageSpecific>
 
 ### Fetching (completeness)
 
-Fetching requirements control the completeness of the returned entities. By default, only a
+Fetching requirements control the completeness of the returned entities. <LanguageSpecific to="evitaql,java,rest,csharp">By default, only a
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
-is returned in query response. In order an entity body is returned, some of the following requirements needs to be part
+is returned in query response.</LanguageSpecific> In order an entity body is returned, some of the following requirements needs to be part
 of it:
 
 - [entity fetch](requirements/fetching.md#entity-fetch)
@@ -493,7 +501,9 @@ of it:
 - [price content](requirements/fetching.md#price-content)
 - [reference content](requirements/fetching.md#reference-content)
 - [hierarchy content](requirements/fetching.md#hierarchy-content)
+<LanguageSpecific to="evitaql,java,rest,csharp">
 - [data in locale](requirements/fetching.md#data-in-locale)
+</LanguageSpecific>
 
 ### Hierarchy
 
