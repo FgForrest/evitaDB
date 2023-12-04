@@ -346,7 +346,7 @@ because there is a single date/time range in the array that satisfies this const
 
 ## Header
 
-<LanguageSpecific to="evitaql,java,csharp">Only a `collection` constraint is allowed in this part of the query</LanguageSpecific>.
+<LanguageSpecific to="evitaql,java,csharp">Only a `collection` constraint is allowed in this part of the query.</LanguageSpecific>
 <LanguageSpecific to="graphql,rest">Only a collection definition is allowed and is defined as part of <LanguageSpecific to="graphql">a GraphQL query name</LanguageSpecific><LanguageSpecific to="rest">an endpoint URL</LanguageSpecific>.</LanguageSpecific>
 It defines the entity type that the query will
 target. It can be omitted
@@ -484,8 +484,8 @@ the output.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 - [`list` queries](requirements/paging.md#pagination-of-list-queries)
-- [`query` queries - `recordPage`](requirements/paging.md#pagination-of-query-queries)
-- [`query` queries - `recordStrip`](requirements/paging.md#pagination-of-query-queries)
+- [`query` queries - `recordPage`](requirements/paging.md#page-recordpage)
+- [`query` queries - `recordStrip`](requirements/paging.md#page-recordstrip)
 </LanguageSpecific>
 
 ### Fetching (completeness)
@@ -501,9 +501,7 @@ of it:
 - [price content](requirements/fetching.md#price-content)
 - [reference content](requirements/fetching.md#reference-content)
 - [hierarchy content](requirements/fetching.md#hierarchy-content)
-<LanguageSpecific to="evitaql,java,rest,csharp">
-- [data in locale](requirements/fetching.md#data-in-locale)
-</LanguageSpecific>
+<LanguageSpecific to="evitaql,java,rest,csharp">- [data in locale](requirements/fetching.md#data-in-locale)</LanguageSpecific>
 
 ### Hierarchy
 
