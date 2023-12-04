@@ -163,7 +163,7 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 ## Connect the C# client
 
-Open your .NET IDE and create an <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass> instance:
+Open your .NET IDE and create an instance of <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>:
 
 <SourceCodeTabs local>
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.cs)

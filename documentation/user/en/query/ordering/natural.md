@@ -75,14 +75,8 @@ constraint in the `filterBy` part of the query:
 [List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.evitaql)
 </SourceCodeTabs>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The correct [collator](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/Collator.html) is used to 
+The correct <LanguageSpecific to="evitaql,java,rest,graphql">[collator](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/Collator.html)</LanguageSpecific><LanguageSpecific to="csharp">collator on the database side</LanguageSpecific> is used to 
 order the localized attribute string, so that the order is consistent with the national customs of the language.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The correct collator on the database side is used to 
-order the localized attribute string, so that the order is consistent with the national customs of the language.
-</LanguageSpecific>
 
 <Note type="info">
 

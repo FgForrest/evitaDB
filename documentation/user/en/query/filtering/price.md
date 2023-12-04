@@ -81,8 +81,8 @@ breakdown of the procedure.
 
 </Note>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The price for sale selection depends on <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass>
+
+The price for sale selection depends on <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/PriceInnerRecordHandling.cs</SourceClass></LanguageSpecific>
 mode the [entity has set](../../use/data-model.md#entity), but for all of the modes there is a common denominator - 
 the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `sellable` that conform to
 the selected [currency](#price-in-currency) and [price lists](#price-in-price-lists) and are valid at the specified
@@ -105,32 +105,6 @@ For non-default price inner record handling modes, the price is calculated this 
       valid only if the total is within the specified price range.
    </dd>
 </dl>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The price for sale selection depends on <SourceClass>EvitaDB.Client/Models/Data/PriceInnerRecordHandling.cs</SourceClass>
-mode the [entity has set](../../use/data-model.md#entity), but for all of the modes there is a common denominator - 
-the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `sellable` that conform to
-the selected [currency](#price-in-currency) and [price lists](#price-in-price-lists) and are valid at the specified
-[time](#price-valid-in). The first price that matches all of these criteria in the order of the price lists in the
-[price list constraint argument](#price-in-price-lists) is selected as the price for sale.
-
-For non-default price inner record handling modes, the price is calculated this way:
-
-<dl>
-   <dt>FirstOccurrence</dt>
-   <dd>
-      The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same 
-      inner record id. If the [price between](#price-between) constraint is specified, the price is the lowest selling
-      price valid for the specified price range.
-   </dd>
-   <dt>Sum</dt>
-   <dd>
-      The sales price is calculated as the sum of the sales prices calculated separately for blocks of prices with 
-      the same inner record ID. If the [price between](#price-between) constraint is specified, the sales price is 
-      valid only if the total is within the specified price range.
-   </dd>
-</dl>
-</LanguageSpecific>
 
 ## Price in currency
 
@@ -164,17 +138,9 @@ that may be provided in its raw form without the need to create an instance of t
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInCurrency.java</SourceClass> constraint
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInCurrency.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInCurrency.cs</SourceClass></LanguageSpecific> constraint
 can be used to limit the result set to entities that have a price in the specified currency. Except for the [standard
 use-case](#typical-usage-of-price-constraints) you can also create query with this constraint only:
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Queries/Filter/PriceInCurrency.cs</SourceClass> constraint
-can be used to limit the result set to entities that have a price in the specified currency. Except for the [standard
-use-case](#typical-usage-of-price-constraints) you can also create query with this constraint only:
-</LanguageSpecific>
-
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -226,27 +192,14 @@ priceInPriceLists(
     </dd>
 </dl>
 
-<LanguageSpecific to="java,evitaql,rest,graphql">
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass> constraint
+The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInPriceLists.cs</SourceClass></LanguageSpecific> constraint
 defines the allowed set(s) of price lists that the entity must have to be included in the result set. The order of 
 the price lists in the argument is important for the final price for sale calculation - see the 
 [price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md). 
-Price list names are represented by plain [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+Price list names are represented by plain <LanguageSpecific to="java,evitaql,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://docs.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
 and are case-sensitive. Price lists don't have to be stored in the database as an entity, and if they are, they are not 
 currently associated with the price list code defined in the prices of other entities. The pricing structure is simple 
 and flat for now (but this may change in the future).
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Queries/Filter/PriceInPriceLists.cs</SourceClass> constraint
-defines the allowed set(s) of price lists that the entity must have to be included in the result set. The order of 
-the price lists in the argument is important for the final price for sale calculation - see the 
-[price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md). 
-Price list names are represented by plain [string](https://docs.microsoft.com/en-us/dotnet/api/system.string)
-and are case-sensitive. Price lists don't have to be stored in the database as an entity, and if they are, they are not 
-currently associated with the price list code defined in the prices of other entities. The pricing structure is simple 
-and flat for now (but this may change in the future).
-</LanguageSpecific>
-
 
 Except for the [standard use-case](#typical-usage-of-price-constraints) you can also create query with this constraint 
 only:
@@ -293,32 +246,17 @@ priceValidIn(
 )
 ```
 
-<LanguageSpecific to="java,evitaql,rest,graphql">
 <dl>
     <dt>argument:offsetDateTime!</dt>
     <dd>
         A mandatory argument of date and time (with offset) in the format `yyyy-MM-ddTHH:mm:ssXXX`, for example
-        `2007-12-03T10:15:30+01:00`. In Java language you can use directly [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
+        `2007-12-03T10:15:30+01:00`. <LanguageSpecific to="java,evitaql,rest,graphql">In Java language you can use directly [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)</LanguageSpecific><LanguageSpecific to="csharp">In C# language you can use directly [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)</LanguageSpecific>
     </dd>
 </dl>
 
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass> excludes all
+The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass></LanguageSpecific> excludes all
 entities that don't have a valid price for sale at the specified date and time. If the price doesn't have a validity
 property specified, it passes all validity checks.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-<dl>
-    <dt>argument:dateTimeOffset!</dt>
-    <dd>
-        A mandatory argument of date and time (with offset) in the format 'yyyy-MM-ddTHH:mm:ssXXX', for example
-        `2007-12-03T10:15:30+01:00`. In C# language you can use directly [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)
-    </dd>
-</dl>
-
-The <SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass> excludes all
-entities that don't have a valid price for sale at the specified date and time. If the price doesn't have a validity
-property specified, it passes all validity checks.
-</LanguageSpecific>
 
 To demonstrate the effect of validity constraints, let's create a query that lists products in the *Christmas 
 Electronics* category and tries to access prices in their *Christmas Price List*, with a fallback to the *Basic Price 
@@ -404,6 +342,7 @@ priceBetween(
 ```
 
 <LanguageSpecific to="java,evitaql,rest,graphql">
+
 <dl>
     <dt>argument:bigDecimal!</dt>
     <dd>
@@ -422,8 +361,11 @@ restricts the result set to items that have a price for sale within the specifie
 typically set by the user interface to allow the user to filter products by price, and should be nested inside
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
 the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
+
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
+
 <dl>
     <dt>argument:decimal!</dt>
     <dd>
@@ -442,6 +384,7 @@ restricts the result set to items that have a price for sale within the specifie
 typically set by the user interface to allow the user to filter products by price, and should be nested inside
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
 the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
+
 </LanguageSpecific>
 
 To demonstrate the price range constraint, let's create a query that lists products in the *E-readers* category and

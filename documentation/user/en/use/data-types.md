@@ -419,20 +419,12 @@ and byte as upper bound.
 
 ## Predecessor
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Predecessor.java</SourceClass> is a special data type 
-used to define a single oriented linked list of entities of the same type. It represents a pointer to a previous entity 
-in the list. The head element is a special case and is represented by the constant `Predecessor#HEAD`. The predecessor 
-attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localised) of an 
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Predecessor.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass></LanguageSpecific> is a special data type
+used to define a single oriented linked list of entities of the same type. It represents a pointer to a previous entity
+in the list. The head element is a special case and is represented by the constant `Predecessor#HEAD`. The predecessor
+attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localised) of an
 entity or its reference to another entity. It cannot be used to filter entities, but is very useful for sorting.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass> is a special data type 
-used to define a single oriented linked list of entities of the same type. It represents a pointer to a previous entity 
-in the list. The head element is a special case and is represented by the constant `Predecessor#Head`. The predecessor 
-attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localised) of an 
-entity or its reference to another entity. It cannot be used to filter entities, but is very useful for sorting.
-</LanguageSpecific>
 
 ### Motivation for linked lists in database sorting
 
@@ -459,18 +451,10 @@ There are alternatives approaches to this problem, but they all have their downs
 [the article "Keeping an ordered collection in PostgreSQL" by Nicolas Goy](https://medium.com/the-missing-bit/keeping-an-ordered-collection-in-postgresql-9da0348c4bbe). We went through similar journey and
 concluded that the linked list is the least of all evils:
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
 - It doesn't require mass updates of surrounding entities or occasional "reshuffling".
 - it doesn't force the client logic to be complicated (and it plays well with the UI drag'n'drop repositioning flow)
-- it is very data efficient - it only requires a single [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) 
+- it is very data efficient - it only requires a single <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific><LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
   (4B) per single item in the list
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-- It doesn't require mass updates of surrounding entities or occasional "reshuffling".
-- it doesn't force the client logic to be complicated (and it plays well with the UI drag'n'drop repositioning flow)
-- it is very data efficient - it only requires a single [int](https://learn.microsoft.com/en-us/dotnet/api/system.int32) 
-  (4B) per single item in the list
-</LanguageSpecific>
 
 </Note>
 
@@ -505,24 +489,17 @@ consistent for all other transactions.
 
 ## Complex data types
 
-<LanguageSpecific to="evitaql,java">
+<LanguageSpecific to="evitaql,java,csharp">
 
 The complex types are types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple 
-evitaDB types). Complex types are stored in a 
-<SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass> data structure that is 
+evitaDB types). Complex types are stored in a
+<LanguageSpecific to="evitaql,java"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/ComplexDataObject.cs</SourceClass></LanguageSpecific> data structure that is 
 intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept 
 and store any valid JSON document.
 
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
 
-The complex types are types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple
-evitaDB types). Complex types are stored in a
-<SourceClass>EvitaDB.Client/DataTypes/ComplexDataObject.cs</SourceClass> data structure that is
-intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept
-and store any valid JSON document.
-
-</LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
 
 The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple

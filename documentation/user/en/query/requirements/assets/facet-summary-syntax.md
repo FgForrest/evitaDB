@@ -15,20 +15,8 @@ facetSummary(
     <dd>
         <p>**Default:** `COUNTS`</p>
 
-        <p>
-            <LanguageSpecific to="java,evitaql,rest,graphql">
-            </LanguageSpecific>
-
-        </p>
-        <LanguageSpecific to="java,evitaql,rest,graphql">
-            <p>optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
+        <p>optional argument of type <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass></LanguageSpecific>
             that allows you to specify the computation depth of the facet summary:</p>
-        </LanguageSpecific>
-
-        <LanguageSpecific to="csharp">
-            <p>optional argument of type <SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass>
-            that allows you to specify the computation depth of the facet summary:</p>
-        </LanguageSpecific>
 
         <p>
         - **COUNTS**: each facet contains the number of results that match the facet option only 

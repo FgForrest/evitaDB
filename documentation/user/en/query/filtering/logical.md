@@ -46,14 +46,8 @@ and(
     </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/And.java</SourceClass> container represents 
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/And.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/And.cs</SourceClass></LanguageSpecific> container represents 
 a [logical conjunction](https://en.wikipedia.org/wiki/Logical_conjunction), that is demonstrated on following table:
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Queries/Filter/And.cs</SourceClass> container represents 
-a [logical conjunction](https://en.wikipedia.org/wiki/Logical_conjunction), that is demonstrated on following table:
-</LanguageSpecific>
 
 |   A   |   B   | A ∧ B |
 |:-----:|:-----:|:-----:|
@@ -114,14 +108,8 @@ or(
     </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/Or.java</SourceClass> container represents 
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/Or.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/Or.cs</SourceClass></LanguageSpecific> container represents 
 a [logical disjunction](https://en.wikipedia.org/wiki/Logical_disjunction), that is demonstrated on following table:
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Queries/Filter/Or.cs</SourceClass> container represents 
-a [logical conjunction](https://en.wikipedia.org/wiki/Logical_conjunction), that is demonstrated on following table:
-</LanguageSpecific>
 
 |   A   |   B   | A ∨ B |
 |:-----:|:-----:|:-----:|
@@ -181,14 +169,8 @@ not(
     </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/Not.java</SourceClass> container represents 
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/Not.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/Not.cs</SourceClass></LanguageSpecific> container represents 
 a [logical negation](https://en.wikipedia.org/wiki/Negation), that is demonstrated on following table:
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The <SourceClass>EvitaDB.Client/Queries/Filter/Not.cs</SourceClass> container represents
-a [logical conjunction](https://en.wikipedia.org/wiki/Logical_conjunction), that is demonstrated on following table:
-</LanguageSpecific>
 
 |   A   |  ¬ A  |
 |:-----:|:-----:|

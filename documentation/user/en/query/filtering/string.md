@@ -35,18 +35,10 @@ attributeContains(
     </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
 The `attributeContains` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
-for the occurrence of the string. The constraint behaves exactly like the [Java `contains` method](https://www.javatpoint.com/java-string-contains). 
+for the occurrence of the string. The constraint behaves exactly like the <LanguageSpecific to="evitaql,java,rest,graphql">[Java `contains` method](https://www.javatpoint.com/java-string-contains)</LanguageSpecific><LanguageSpecific to="csharp">[C# `Contains` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.contains)</LanguageSpecific>. 
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact 
 match of the searched string anywhere in the attribute value.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The `attributeContains` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
-for the occurrence of the string. The constraint behaves exactly like the [C# `Contains` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.contains). 
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact 
-match of the searched string anywhere in the attribute value.
-</LanguageSpecific>
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -103,20 +95,10 @@ attributeStartsWith(
     </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
 The `attributeStartsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
-and checks if it starts with the specified string. The constraint behaves exactly like the 
-[Java `startsWith` method](https://www.javatpoint.com/java-string-startswith).
+and checks if it starts with the specified string. The constraint behaves exactly like the <LanguageSpecific to="evitaql,java,rest,graphql">[Java `startsWith` method](https://www.javatpoint.com/java-string-startswith)</LanguageSpecific><LanguageSpecific to="csharp">[C# `StartsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.startswith)</LanguageSpecific>.
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact 
 match of the search string at the beginning of the attribute value.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The `attributeStartsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
-and checks if it starts with the specified string. The constraint behaves exactly like the 
-[C# `StartsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.startswith).
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact 
-match of the search string at the beginning of the attribute value.
-</LanguageSpecific>
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -173,21 +155,11 @@ attributeEndsWith(
     </dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,rest,graphql">
 The `attributeEndssWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 and checks if it ends with the specified string. The constraint behaves exactly like the
-[Java `endsWith` method](https://www.javatpoint.com/java-string-endswith).
+<LanguageSpecific to="evitaql,java,rest,graphql">[Java `endsWith` method](https://www.javatpoint.com/java-string-endswith)</LanguageSpecific><LanguageSpecific to="csharp">[C# `EndsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.endswith)</LanguageSpecific>.
 It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
 match of the search string at the end of the attribute value.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-The `attributeEndssWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
-and checks if it ends with the specified string. The constraint behaves exactly like the
-[C# `EndsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.endswith).
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the search string at the end of the attribute value.
-</LanguageSpecific>
-
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

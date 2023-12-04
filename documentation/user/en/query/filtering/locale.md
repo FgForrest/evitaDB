@@ -28,19 +28,8 @@ entityLocaleEquals(
     </dd>
 </dl>
 
-<LanguageSpecific to="java">
-
-If you are working with evitaDB in Java, you can use [`Locale`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html) 
+If you are working with evitaDB in Java, you can use <LanguageSpecific to="java">[`Locale`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LanguageSpecific><LanguageSpecific to="csharp">[`CultureInfo`](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LanguageSpecific>  
 instead of the language tag. This is a natural way to work with locale specific data on the platform.
-
-</LanguageSpecific>
-
-<LanguageSpecific to="csharp">
-
-If you are working with evitaDB in C#, you can use [`CultureInfo`](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)
-instead of the language tag. This is a natural way to work with locale specific data on the platform.
-
-</LanguageSpecific>
 
 <Note type="question">
 
