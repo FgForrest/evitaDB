@@ -1,28 +1,28 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         userFilter(
           facetHaving(
-            'parameterValues',
+            "parameterValues",
             entityHaving(
-              attributeInSet('code', 'ram-memory-64')
+              attributeInSet("code", "ram-memory-64")
             )
           )
         )
     ),
     require(
         facetSummaryOfReference(
-            'parameterValues',
+            "parameterValues",
             IMPACT,
-            filterBy(attributeContains('code', '4')),
-            filterGroupBy(attributeInSet('code', 'ram-memory', 'rom-memory')),
-            entityFetch(attributeContent('code')),
-            entityGroupFetch(attributeContent('code'))
+            filterBy(attributeContains("code", "4")),
+            filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+            entityFetch(attributeContent("code")),
+            entityGroupFetch(attributeContent("code"))
         ),
         facetGroupsDisjunction(
-            'parameterValues',
+            "parameterValues",
             filterBy(
-              attributeInSet('code', 'ram-memory', 'rom-memory')
+              attributeInSet("code", "ram-memory", "rom-memory")
             )
         )
     )

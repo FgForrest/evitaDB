@@ -1,5 +1,5 @@
 query(
     require(entityFetch()),
-    orderBy(attributeNatural('code', ASC)),
-    collection('Product')
+    orderBy(attributeNatural("code", ASC)),
+    collection("Product")
 )

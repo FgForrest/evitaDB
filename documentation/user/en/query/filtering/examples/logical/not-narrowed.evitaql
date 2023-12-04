@@ -1,5 +1,5 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         entityPrimaryKeyInSet(110513, 66567, 106742, 66574, 66556, 110066),
         not(

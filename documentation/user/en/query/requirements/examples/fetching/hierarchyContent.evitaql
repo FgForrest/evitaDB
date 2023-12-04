@@ -1,7 +1,7 @@
 query(
-    collection('Category'),
+    collection("Category"),
     filterBy(
-        attributeEquals('code', 'smartwatches')
+        attributeEquals("code", "smartwatches")
     ),
     require(
         entityFetch(

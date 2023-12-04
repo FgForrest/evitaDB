@@ -1,15 +1,15 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         referenceHaving(
-            'brand',
+            "brand",
             entityPrimaryKeyInSet(66465)
         )
     ),
     require(
         entityFetch(
-            attributeContent('code'),
-            referenceContent('brand')
+            attributeContent("code"),
+            referenceContent("brand")
         )
     )
 )

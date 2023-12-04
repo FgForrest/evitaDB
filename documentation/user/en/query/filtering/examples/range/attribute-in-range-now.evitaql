@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeInRangeNow('validity')
+        attributeInRangeNow("validity")
     ),
     require(
        entityFetch(
-           attributeContent('code')
+           attributeContent("code")
        )
     )
 )

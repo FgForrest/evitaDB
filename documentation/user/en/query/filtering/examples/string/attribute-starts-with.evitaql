@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeStartsWith('code', 'garmin')
+        attributeStartsWith("code", "garmin")
     ),
     require(
        entityFetch(
-           attributeContent('code')
+           attributeContent("code")
        )
     )
 )

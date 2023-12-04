@@ -1,5 +1,5 @@
 query(
-    collection('Product'),
+    collection("Product"),
     require(
         page(2, 5)
     )

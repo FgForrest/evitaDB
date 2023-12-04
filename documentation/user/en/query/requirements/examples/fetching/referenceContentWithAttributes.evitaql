@@ -1,19 +1,19 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         entityPrimaryKeyInSet(105703)
     ),
     require(
         entityFetch(
-            attributeContent('code'),
+            attributeContent("code"),
             referenceContentWithAttributes(
-                'parameterValues',
-                attributeContent('variant'),
+                "parameterValues",
+                attributeContent("variant"),
                 entityFetch(
-                    attributeContent('code')
+                    attributeContent("code")
                 ),
                 entityGroupFetch(
-                    attributeContent('code')
+                    attributeContent("code")
                 )
             )
         )

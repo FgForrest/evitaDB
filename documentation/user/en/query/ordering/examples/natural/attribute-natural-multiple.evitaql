@@ -1,12 +1,12 @@
 query(
-    collection('Product'),
+    collection("Product"),
     orderBy(
-        attributeNatural('ean', ASC),
-        attributeNatural('catalogNumber', DESC)
+        attributeNatural("ean", ASC),
+        attributeNatural("catalogNumber", DESC)
     ),
     require(
         entityFetch(
-            attributeContent('code', 'ean', 'catalogNumber')
+            attributeContent("code", "ean", "catalogNumber")
         )
     )
 )

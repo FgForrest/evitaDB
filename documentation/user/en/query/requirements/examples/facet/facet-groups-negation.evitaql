@@ -1,18 +1,18 @@
 query(
-    collection('Product'),
+    collection("Product"),
     require(
         facetSummaryOfReference(
-            'parameterValues',
+            "parameterValues",
             IMPACT,
-            filterBy(attributeContains('code', '4')),
-            filterGroupBy(attributeInSet('code', 'ram-memory', 'rom-memory')),
-            entityFetch(attributeContent('code')),
-            entityGroupFetch(attributeContent('code'))
+            filterBy(attributeContains("code", "4")),
+            filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+            entityFetch(attributeContent("code")),
+            entityGroupFetch(attributeContent("code"))
         ),
         facetGroupsNegation(
-            'parameterValues',
+            "parameterValues",
             filterBy(
-              attributeInSet('code', 'ram-memory')
+              attributeInSet("code", "ram-memory")
             )
         )
     )
