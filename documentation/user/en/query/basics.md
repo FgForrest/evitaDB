@@ -56,7 +56,12 @@ Query has these four <LanguageSpecific to="graphql">_logical_</LanguageSpecific>
 
 ## Grammar
 
-The grammar of the query is as follows:
+<LanguageSpecific to="evitaql,java,csharp">
+The grammar of a query is as follows:
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+The grammar of a full query is as follows:
+</LanguageSpecific>
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -80,10 +85,17 @@ The main require part that defines the completeness of returned entities (and ex
 of the GraphQL query. This way, unlike in the other APIs, you specifically define the output form of the query result from
 what the domain evitaDB schema allows you to fetch.
 
+There are other simpler variations of the GraphQL query grammar described [here](../use/api/query-data.md#defining-queries-in-graphql-api)
+in more detail, but the underlying logic is always the same.
+
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 Where the _header_ part (queried collection) is part a URL path, and the _filter_, _order_, and _require_ parts are defined
 as properties of the input JSON object.
+
+There are other simpler variations of the REST query grammar described [here](../use/api/query-data.md#defining-queries-in-rest-api)
+in more detail, but the underlying logic is always the same.
+
 </LanguageSpecific>
 
 <LanguageSpecific to="evitaql,java,csharp">
@@ -133,6 +145,20 @@ I.e. the following query is still a valid query and represents the simplest quer
 
 [Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
 </SourceCodeTabs>
+
+<LanguageSpecific to="graphql,rest">
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What to read more about how the grammar was designed?
+</NoteTitle>
+
+You can read more about the specific of the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="graphql">REST</LanguageSpecific>
+query grammar [here](/documentation/blog/en/02-designing-evita-query-language-for-graphql-api.md).
+
+</Note>
+</LanguageSpecific>
 
 ### Syntax format
 
