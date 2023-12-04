@@ -27,7 +27,7 @@ or another constraint. Arguments and constraints can be written in number of dif
 and its support arguments:
 
 - as primitive value when constraint takes single primitive argument
-	- `constraintName: "string argument"
+	- `constraintName: "string argument"`
 	- `constraintName: [ value1, value2 ]`
 - as nested object containing multiple arguments (e.g., multiple primitive arguments)
 	- `constraintName: { argument1: 100, argument2: [ 45 ] }`
