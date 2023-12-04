@@ -8,9 +8,7 @@ author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-The query in evitaDB is represented by a tree of nested "constraints" divided into four parts:
-
-<LanguageSpecific to="evitaql,java,rest">
+The [query in evitaDB](../query/basics.md) is represented by a tree of nested "constraints" divided into four <LanguageSpecific to="graphql">_logical_</LanguageSpecific> parts:
 
 <dl>
     <dt>`collection`</dt>
@@ -25,25 +23,22 @@ The query in evitaDB is represented by a tree of nested "constraints" divided in
     performed on them</dd>
 </dl>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
-
-<dl>
-    <dt>`filterBy`</dt>
-    <dd>it limits the number of results returned</dd>
-    <dt>`orderBy`</dt>
-    <dd>it specifies the order in which the results are returned</dd>
-    <dt>`require`</dt>
-    <dd>it allows you to pass additional information, e.g. some additional query-scoped options</dd>
-</dl>
-
-</LanguageSpecific>
+<LanguageSpecific to="evitaql,java,csharp">
 
 The *evitaQL* (evitaDB Query Language) entry point is represented by
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class, and looks like this
 a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with
-the name of the function, followed by a set of arguments in parentheses. You can even use other functions
+the name of the constraint, followed by a set of arguments in parentheses. You can even use other functions
 in those arguments. An example of such a query might look like this:
+
+</LanguageSpecific>
+<LanguageSpecific to="graphql,rest">
+
+The *evitaQL* (evitaDB Query Language) is represented by JSON object of nested constraints. Each nested property
+always starts with name of the constraint followed by a set of arguments as property value. You can even use other
+constraints in those arguments. An example of such a query might look like this:
+
+</LanguageSpecific>
 
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 
@@ -60,18 +55,22 @@ in those arguments. An example of such a query might look like this:
 > *calculated with an impact analysis of how the result would look if the user selected some other parameters in*
 > *addition to the two selected ones.*
 
+<LanguageSpecific to="evitaql">
+
 evitaQL is represented by a simple
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) which is parsed to
 an abstract syntax tree consisting of constraints
 (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>) encapsulated in
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
 
+</LanguageSpecific>
+
 We have designed the *evitaQL* string representation to look similar to a query defined directly in the *Java* language.
 We also try to preserve the "look & feel" of the original evitaQL in different languages / APIs like REST, GraphQL or C#
 while respecting the conventions and capabilities of the respective language.
 
 evitaQL is used in the gRPC protocol and can optionally be used for the embedded Java environment. It can also be used
-in evitaDB console (once it's implemented). The GraphQL and REST Web API use a similar format, but adapted to
+in [evitaDB console](/documentation/blog/en/09-our-new-web-client-evitalab). The GraphQL and REST Web API use a similar format, but adapted to
 the protocol conventions (so that we can take advantage of the Open API / GQL schema).
 
 <LanguageSpecific to="java">
