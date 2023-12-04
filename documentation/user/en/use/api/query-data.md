@@ -314,6 +314,8 @@ where the `catalog-name` would be the name of a concrete [catalog](/documentatio
 `entity-collection` would be the name of a concrete [entity collection](/documentation/user/en/use/data-model.md#collection),
 for example `/rest/evita/product/get` or `/rest/evita/category/query`.
 
+### `get` queries
+
 The `/get` endpoints only support a very simplified variant of the filter and requirements part of a query using URL query
 parameters. As a result, you will only get a specific entity object without unnecessary data around it.
 These simplified endpoints are primarily intended to be used when developing or exploring the API by unique keys,
@@ -323,6 +325,8 @@ as they provide quick access to entities.
 
 [Java query example](/documentation/user/en/use/api/example/rest-get-query-example.rest)
 </SourceCodeTabs>
+
+### `list` queries
 
 The `/list` endpoints support full filter and order parts of an evitaDB query, but the requirement part is limited only
 to fetching entity bodies, not extra results. As a result, you will get a simple list of entities without having to deal
@@ -334,6 +338,8 @@ requirements are needed.
 
 [Java query example](/documentation/user/en/use/api/example/rest-list-query-example.rest)
 </SourceCodeTabs>
+
+### `query` queries
 
 The `/query` endpoints support full-featured queries, which are the main queries you should use when
 the number of entities is not known in advance or extra results are needed, as they support
