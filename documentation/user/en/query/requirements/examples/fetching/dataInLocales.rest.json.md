@@ -9,8 +9,8 @@
         "cs"
       ],
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ],
       "attributes": {
         "global": {

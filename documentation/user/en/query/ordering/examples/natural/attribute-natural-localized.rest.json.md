@@ -10,8 +10,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -29,8 +29,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -48,8 +48,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -67,8 +67,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -86,8 +86,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -105,8 +105,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -124,8 +124,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -143,8 +143,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -162,8 +162,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -181,8 +181,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -200,8 +200,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -219,8 +219,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -238,8 +238,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -257,8 +257,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -276,8 +276,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -295,8 +295,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -314,8 +314,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -333,8 +333,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -352,8 +352,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {
@@ -371,8 +371,8 @@
           "cs"
         ],
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "localized": {

@@ -14,12 +14,12 @@
         },
         {
           "index": 2,
-          "occurrences": 1125,
+          "occurrences": 1123,
           "threshold": 139.00
         },
         {
           "index": 3,
-          "occurrences": 149,
+          "occurrences": 151,
           "threshold": 196.00
         },
         {
@@ -35,17 +35,17 @@
     "width": {
       "buckets": [
         {
-          "occurrences": 1298,
+          "occurrences": 1304,
           "threshold": 15.90
         },
         {
           "index": 1,
-          "occurrences": 361,
+          "occurrences": 364,
           "threshold": 114.32
         },
         {
           "index": 2,
-          "occurrences": 2224,
+          "occurrences": 2215,
           "threshold": 212.74
         },
         {
