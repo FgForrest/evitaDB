@@ -86,7 +86,7 @@ Where the _header_ part (queried collection) is part a URL path, and the _filter
 as properties of the input JSON object.
 </LanguageSpecific>
 
-<LangaugeSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,csharp">
 
 Any part of the query is optional. Only the `collection` part is usually mandatory, but there is an exception to this rule.
 If the `filterBy` part contains a constraint that targets a globally unique attribute, the `collection` part can be omitted
@@ -95,7 +95,7 @@ However, there can be at most one part of each `collection`, `filterBy`, `orderB
 Any part can be swapped (the order is not important). I.e. the following query is still a valid query and represents
 the simplest query possible:
 
-</LangaugeSpecific>
+</LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
 
 Almost any part of the query is optional. Only the `collection` is usually mandatory, but there is an exception to this rule.
