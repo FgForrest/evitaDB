@@ -1,0 +1,5 @@
+query(
+    require(entityFetch()),
+    orderBy(attributeNatural('code', ASC)),
+    collection('Product')
+)

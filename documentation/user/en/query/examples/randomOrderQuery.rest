@@ -1,0 +1,8 @@
+{
+  "orderBy" : [{
+    "attributeCodeNatural" : "ASC"
+  }],
+  "require" : {
+    "entityFetch" : {}
+  }
+}

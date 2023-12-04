@@ -2,92 +2,69 @@
 title: Query language
 perex: |
   The query language is the core of any database machine. evitaDB has chosen a functional form of the language instead
-  of a SQL-like language, which is more consistent with how it works internally and, most importantly, much more open 
+  of a SQL-like language, which is more consistent with how it works internally and, most importantly, much more open
   to transformations.
 date: '15.12.2022'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
 ---
 
-The evitaDB query language consists of a nested set of functions. Each function has its name and set of arguments 
-enclosed in brackets (`functionName(arguments)`), argument can be a plain value of supported 
-[data type](../use/data-types.md) or another function. Arguments and functions are separated by a comma 
-(`argument1, argument2`). Strings are enclosed in (`'this is string'`).
+The evitaDB query language consists of a nested set of functions. Each function has its name and set of arguments
+enclosed in brackets `functionName(arguments)`, argument can be a plain value of supported
+[data type](../use/data-types.md) or another function. Arguments and functions are separated by a comma
+`argument1, argument2`. Strings are enclosed in `'this is string'` or `"this is string"`.
 
-This language is expected to be used by human operators, at the code level the query is represented by 
-a query object tree, which can be constructed directly without any intermediate string language form (as 
+This language is expected to be used by human operators, at the code level the query is represented by
+a query object tree, which can be constructed directly without any intermediate string language form (as
 opposed to the SQL language, which is strictly string typed).
 
 Query has these four parts:
 
-- **[header](#header):** defines the queried entity collection (it's mandatory unless the filter contains 
+- **[header](#header):** defines the queried entity collection (it's mandatory unless the filter contains
   constraints targeting globally unique attributes)
-- **[filter](#filter-by):** defines constraints that limit the entities returned (optional, if missing, all entities in 
+- **[filter](#filter-by):** defines constraints that limit the entities returned (optional, if missing, all entities in
   the collection are returned)
-- **[order](#order-by):** defines the order in which entities are returned (optional, if missing entities are sorted by 
+- **[order](#order-by):** defines the order in which entities are returned (optional, if missing entities are sorted by
   primary integer key in ascending order)
-- **[require](#require):** contains additional information for the query engine - such as pagination settings, 
-  requirements for completeness of returned entities, and requirements for calculation of accompanying data structures 
+- **[require](#require):** contains additional information for the query engine - such as pagination settings,
+  requirements for completeness of returned entities, and requirements for calculation of accompanying data structures
   (optional, if missing, only primary keys of entities are returned).
 
 ## Grammar
 
 The grammar of the query is as follows:
 
-``` evitaql
-query(
-    collection('Product'),
-    filterBy(entityPrimaryKeyInSet(1, 2, 3)),
-    orderBy(attributeNatural('name', DESC)),
-    require(entityFetch())
-)
-```
+<SourceCodeTabs langSpecificTabOnly>
+
+[Example of grammar of a query](/documentation/user/en/query/examples/grammar.evitaql)
+</SourceCodeTabs>
 
 Or more complex one:
 
-``` evitaql
-query(
-    collection('Product'),
-    filterBy(
-       and(
-          entityPrimaryKeyInSet(1, 2, 3),
-          attributeEquals('visibility', 'VISIBLE')
-       )
-    ),
-    orderBy(
-        attributeNatural('name', ASC),
-        attributeNatural('priority', DESC)
-    ),
-    require(
-        entityFetch(
-			attributeContentAll(), priceContentAll()
-		),
-        facetSummary()
-    )
-)
-```
+<SourceCodeTabs langSpecificTabOnly>
 
-Any part of the query is optional, but at least `filterBy` or `collection` is mandatory. There can be at most one 
-part of type `filterBy`, `orderBy`, and `require` in the query. Any part can be swapped (the order is not 
-important). I.e. the following query is still a valid query:
+[Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
+</SourceCodeTabs>
 
-``` evitaql
-query(
-    collection('Product'),   
-    require(entityFetch())
-)
-```
+Any part of the query is optional. Only the `collection` part is usually mandatory, but there is an exception to this rule.
+If the `filterBy` part contains a constraint that targets a globally unique attribute, the `collection` part can be omitted
+as well.
+However, there can be at most one part of each `collection`, `filterBy`, `orderBy`, and `require` in the query.
+Any part can be swapped (the order is not important). I.e. the following query is still a valid query and represents
+the simplest query possible:
 
-... or even this one (although it is recommended to keep the order for better readability: `collection`, `filterBy`, 
+<SourceCodeTabs langSpecificTabOnly>
+
+[Example of the simplest query](/documentation/user/en/query/examples/simplestQuery.evitaql)
+</SourceCodeTabs>
+
+... or even this one (although it is recommended to keep the order for better readability: `collection`, `filterBy`,
 `orderBy`, `require`):
 
-``` evitaql
-query(
-    require(entityFetch()),
-    orderBy(attributeNatural('name', ASC)),
-    collection('Product')
-)
-```
+<SourceCodeTabs langSpecificTabOnly>
+
+[Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
+</SourceCodeTabs>
 
 ### Syntax format
 
@@ -108,17 +85,17 @@ constraintName(
   </dd>
   <dt>constraint:type,specification</dt>
   <dd>
-    constraint represents an argument of constraint type - the supertype (`filter`/`order`/`require`) of the constraint 
+    constraint represents an argument of constraint type - the supertype (`filter`/`order`/`require`) of the constraint
     is always specified before the colon, for example: `filterConstraint:any`;
-    
-    after the colon, the exact type of allowed constraint is listed, or the keyword `any' is used if any of 
+
+    after the colon, the exact type of allowed constraint is listed, or the keyword `any' is used if any of
     the standalone constraints can be used
   </dd>
 </dl>
 
 #### Variadic arguments
 
-If the argument can be multiple values of the same type (an array type), the specification is appended with a special 
+If the argument can be multiple values of the same type (an array type), the specification is appended with a special
 character:
 
 <dl>
@@ -182,7 +159,7 @@ Mandatory argument is denoted by `!` (exclamation) sign or in case of variadic a
 
 #### Combined arguments
 
-The specification list might have a combined expression using `|` for combining multiple specification in logical 
+The specification list might have a combined expression using `|` for combining multiple specification in logical
 disjunction meaning (boolean OR) and `()` signs for aggregation.
 
 <Note type="info">
@@ -195,7 +172,7 @@ disjunction meaning (boolean OR) and `()` signs for aggregation.
 <dl>
   <dt>`filterConstraint:(having|excluding)`</dt>
   <dd>
-    either `having` or `excluding`, or none, but not both, and no filtering constraint of other type 
+    either `having` or `excluding`, or none, but not both, and no filtering constraint of other type
     is allowed
   </dd>
   <dt>`filterConstraint:(having|excluding)!`</dt>
@@ -208,7 +185,7 @@ disjunction meaning (boolean OR) and `()` signs for aggregation.
   </dd>
   <dt>`filterConstraint:(having|excluding)+`</dt>
   <dd>
-    either `having` or `excluding` a filter constraint, or both, but at least one of them and no filter constraint 
+    either `having` or `excluding` a filter constraint, or both, but at least one of them and no filter constraint
     of other type is allowed
   </dd>
 </dl>
@@ -223,9 +200,9 @@ To make constraints more understandable, we have created a set of internal rules
 *query collection ..., and filter entities by ..., and order result by ..., and require ...*
 
 the query should be understandable to someone who is not familiar with evitaDB's syntax and internal mechanisms.
-2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` - 
+2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` -
 followed by a word that captures the essence of the constraint.
-3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else, 
+3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else,
 and might relax rule #2 (since the context will be apparent from the parent constraint).
 
 ## Generic query rules
@@ -240,14 +217,14 @@ the automatic conversion.
 ### Array types targeted by the constraint
 
 If the constraint targets an attribute that is of array type, the constraint automatically matches an entity in case
-**any** of the attribute array items satisfies it. 
+**any** of the attribute array items satisfies it.
 
-For example let's have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
+For example let's have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
 array attribute named `oneDayDeliveryCountries` with the following values: `GB`, `FR`, `CZ`. The filtering constraint
 [`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: `attributeEquals('oneDayDeliveryCountries', 'GB')`
 will match the entity, because the *GB* is one of the array values.
 
-Let's look at a more complicated, but more useful example. Let's have a [`DateTimeRange`](../use/data-types.md#datetimerange) 
+Let's look at a more complicated, but more useful example. Let's have a [`DateTimeRange`](../use/data-types.md#datetimerange)
 array attribute called `validity` that contains multiple time periods when the entity can be used:
 
 ```plain
@@ -256,22 +233,22 @@ array attribute called `validity` that contains multiple time periods when the e
 [2023-12-01T00:00:00+01:00,2024-01-01T00:00:00+01:00]
 ```
 
-In short, the entity is only valid in January, June, and December 2023. If we want to know if it's possible to access 
-(e.g. buy a product) in May using the constraint `attributeInRange('validity', '2023-05-05T00:00:00+01:00')`, the result 
-will be empty because none of the `validity` array ranges matches that date and time. Of course, if we ask for an entity 
-that is valid in June using `attributeInRange('validity', '2023-06-05T00:00:00+01:00')`, the entity will be returned 
+In short, the entity is only valid in January, June, and December 2023. If we want to know if it's possible to access
+(e.g. buy a product) in May using the constraint `attributeInRange('validity', '2023-05-05T00:00:00+01:00')`, the result
+will be empty because none of the `validity` array ranges matches that date and time. Of course, if we ask for an entity
+that is valid in June using `attributeInRange('validity', '2023-06-05T00:00:00+01:00')`, the entity will be returned
 because there is a single date/time range in the array that satisfies this constraint.
 
 ## Header
 
-Only a `collection` constraint is allowed in this part of the query. It defines the entity type that the query will 
-target. It can be omitted if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute. 
-This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the 
+Only a `collection` constraint is allowed in this part of the query. It defines the entity type that the query will
+target. It can be omitted if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute.
+This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the
 existing entities (see the [routing](../solve/routing.md) chapter for a detailed guide).
 
 ## Filter by
 
-Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's 
+Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
 similar to the "where" clause in SQL. Currently, these filtering constraints are available for use.
 
 ### Logical constraints
@@ -312,7 +289,7 @@ the resulting output to only include values that satisfy the constraint.
 
 ### String constraints
 
-String constraints are similar to [Comparable](#comparable-constraints), but operate only on the 
+String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) attribute datatype and
 allow operations specific to it:
 
@@ -340,7 +317,7 @@ Price constraints allow filtering entities by matching a price they posses:
 
 ### Reference constraints
 
-Reference constraints allow filtering of entities by existence of reference attributes specified on their 
+Reference constraints allow filtering of entities by existence of reference attributes specified on their
 references/relationships to other entities, or a filtering constraint on the referenced entity itself:
 
 - [reference having](filtering/references.md#reference-having)
@@ -349,7 +326,7 @@ references/relationships to other entities, or a filtering constraint on the ref
 
 ### Hierarchy constraints
 
-Hierarchy constraints take advantage of references to a hierarchical set of entities (forming a tree) and allow 
+Hierarchy constraints take advantage of references to a hierarchical set of entities (forming a tree) and allow
 filtering of entities by the fact that they refer to a particular part of the tree:
 
 - [hierarchy within](filtering/hierarchy.md#hierarchy-within)
@@ -360,14 +337,14 @@ filtering of entities by the fact that they refer to a particular part of the tr
 
 ### Special constraints
 
-Special constraints are used only for the definition of a filter constraint scope, which has a different treatment in 
+Special constraints are used only for the definition of a filter constraint scope, which has a different treatment in
 calculations:
 
 - [user filter](filtering/behavioral.md#user-filter)
 
 ## Order by
 
-Order constraints allow you to define a rule that controls the order of entities in the response. It's similar to the 
+Order constraints allow you to define a rule that controls the order of entities in the response. It's similar to the
 "order by" clause in SQL. Currently, these ordering constraints are available for use:
 
 - [entityPrimaryKeyInFilter](ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
@@ -383,13 +360,13 @@ Order constraints allow you to define a rule that controls the order of entities
 
 ## Require
 
-Requirements have no direct parallel in other database languages. They define sideway calculations, paging, the amount 
+Requirements have no direct parallel in other database languages. They define sideway calculations, paging, the amount
 of data fetched for each returned entity, and so on, but never affect the number or order of returned entities.
 Currently, these requirements are available to you:
 
 ### Paging
 
-Paging requirements control how large and which subset of the large filtered entity set is actually returned in 
+Paging requirements control how large and which subset of the large filtered entity set is actually returned in
 the output.
 
 - [page](requirements/paging.md#page)
@@ -397,8 +374,8 @@ the output.
 
 ### Fetching (completeness)
 
-Fetching requirements control the completeness of the returned entities. By default, only a 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass> 
+Fetching requirements control the completeness of the returned entities. By default, only a
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
 is returned in query response. In order an entity body is returned, some of the following requirements needs to be part
 of it:
 
@@ -430,8 +407,8 @@ organizes the entities into a more understandable tree-like categorization:
 
 ### Facets
 
-Facet requirements trigger the computation of an additional data structure that lists all entity faceted references, 
-organized into a group with a calculated count of all entities that match each respective facet. Alternatively, 
+Facet requirements trigger the computation of an additional data structure that lists all entity faceted references,
+organized into a group with a calculated count of all entities that match each respective facet. Alternatively,
 the summary could include a calculation of how many entities will be left when that particular facet is added to
 the filter:
 
@@ -442,7 +419,7 @@ the filter:
 
 ### Histogram
 
-Histogram requests trigger the calculation of an additional data structure that contains a histogram of entities 
+Histogram requests trigger the calculation of an additional data structure that contains a histogram of entities
 aggregated by their numeric value in a particular attribute or by their sales price:
 
 - [attribute histogram](requirements/histogram.md#attribute-histogram)
@@ -450,7 +427,7 @@ aggregated by their numeric value in a particular attribute or by their sales pr
 
 ### Price
 
-The price requirement controls which form of price for sale is taken into account when entities are filtered, ordered, 
+The price requirement controls which form of price for sale is taken into account when entities are filtered, ordered,
 or their histograms are calculated:
 
 - [price type](requirements/price.md#price-type)

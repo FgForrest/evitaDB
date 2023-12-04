@@ -2,21 +2,21 @@
 title: Histogram
 date: '7.11.2023'
 perex: |
-    Histograms serve a pivotal role in e-commerce parametrized filtering by visually representing the distribution of 
+    Histograms serve a pivotal role in e-commerce parametrized filtering by visually representing the distribution of
     product attributes, enabling customers to adjust their search criteria efficiently. They facilitate a more
     interactive and precise filtering experience, allowing users to modify the range of properties like price or size
-    based on actual item availability. 
+    based on actual item availability.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 ---
 
 There are actually only a few use cases in e-commerce websites where histograms are used. The most common is the price
-histogram, which is used to filter products by price. You can see an example of such a histogram on the Booking.com 
+histogram, which is used to filter products by price. You can see an example of such a histogram on the Booking.com
 website:
 
 ![Booking.com price histogram filter](assets/price-histogram.png "Booking.com price histogram filter")
 
-It's a shame that the histogram isn't used more often, because it's a very useful tool for gaining insight into 
+It's a shame that the histogram isn't used more often, because it's a very useful tool for gaining insight into
 the distribution of product attributes with high cardinality values such as weight, height, width and so on.
 
 The histogram data structure is optimized for frontend rendering. It contains the following fields:
@@ -43,7 +43,7 @@ attributeHistogram(
 )
 ```
 
-<dl> 
+<dl>
     <dt>argument:int!</dt>
     <dd>
         the number of columns (buckets) in the histogram; number should be chosen so that the histogram fits well
@@ -58,15 +58,13 @@ attributeHistogram(
 
 </LanguageSpecific>
 
-[//]: # (todo tpz csharp class after merge)
-
 The <LanguageSpecific to="evitaql,java,csharp"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/AttributeHistogram.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="graphql,rest">attribute histogram</LanguageSpecific>
-can be computed from any [filterable attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized) 
-whose type is numeric. The histogram is computed only from the attributes of elements that match the current mandatory 
-part of the filter. The interval related constraints - i.e. [`attributeBetween`](../filtering/comparable.md#attribute-between) 
-and [`priceBetween`](../filtering/price.md#price-between) in the [`userFilter`](../filtering/behavioral.md#user-filter) 
-part are excluded for the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range 
+can be computed from any [filterable attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
+whose type is numeric. The histogram is computed only from the attributes of elements that match the current mandatory
+part of the filter. The interval related constraints - i.e. [`attributeBetween`](../filtering/comparable.md#attribute-between)
+and [`priceBetween`](../filtering/price.md#price-between) in the [`userFilter`](../filtering/behavioral.md#user-filter)
+part are excluded for the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range
 based on the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
 
 To demonstrate the use of the histogram, we will use the following example:
@@ -114,7 +112,7 @@ The histogram result in JSON format is a bit more verbose, but it's still quite 
 <LanguageSpecific to="evitaql,java,rest,csharp">
 
 ```evitaql-syntax
-priceHistogram(   
+priceHistogram(
     argument:int!
 )
 ```
@@ -129,14 +127,12 @@ priceHistogram(
 
 </LanguageSpecific>
 
-[//]: # (todo tpz csharp class after merge)
-
 The <LanguageSpecific to="evitaql,java,csharp"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/PriceHistogram.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="graphql,rest">price histogram</LanguageSpecific>
-is computed from the [price for sale](../filtering/price.md). The interval related constraints - i.e. 
-[`attributeBetween`](../filtering/comparable.md#attribute-between) and [`priceBetween`](../filtering/price.md#price-between) 
-in the [`userFilter`](../filtering/behavioral.md#user-filter) part are excluded for the sake of histogram calculation. 
-If this weren't the case, the user narrowing the filtered range based on the histogram results would be driven into 
+is computed from the [price for sale](../filtering/price.md). The interval related constraints - i.e.
+[`attributeBetween`](../filtering/comparable.md#attribute-between) and [`priceBetween`](../filtering/price.md#price-between)
+in the [`userFilter`](../filtering/behavioral.md#user-filter) part are excluded for the sake of histogram calculation.
+If this weren't the case, the user narrowing the filtered range based on the histogram results would be driven into
 a narrower and narrower range and eventually into a dead end.
 
 The [`priceType`](price.md#price-type) requirement the source price property for the histogram computation. If no
