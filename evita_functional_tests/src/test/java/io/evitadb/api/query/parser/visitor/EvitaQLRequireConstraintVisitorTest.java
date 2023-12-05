@@ -960,7 +960,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			COUNTS, "a", "b", "c", "d"
 		);
 		assertEquals(
-			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint11
 		);
 
@@ -989,6 +989,96 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(
 			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
 			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()))",
+			COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random())),
+			constraint15
+		);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)))",
+			COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d"))),
+			constraint16
+		);
+
+		final RequireConstraint constraint17 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)))",
+			COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b"))),
+			constraint17
+		);
+
+		final RequireConstraint constraint18 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderBy(random()))",
+			COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random())),
+			constraint18
+		);
+
+		final RequireConstraint constraint19 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), null, null, orderGroupBy(attributeNatural("e"))),
+			constraint19
+		);
+
+		final RequireConstraint constraint20 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint20
+		);
+
+		final RequireConstraint constraint21 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint21
+		);
+
+		final RequireConstraint constraint22 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint22
+		);
+
+		final RequireConstraint constraint23 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint23
+		);
+
+		final RequireConstraint constraint24 = parseRequireConstraint(
+			"facetSummary(?, filterGroupBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterGroupBy(attributeEquals("a", "b")), orderBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint24
 		);
 	}
 
@@ -1048,7 +1138,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			"parameter", COUNTS, "a", "b", "c", "d"
 		);
 		assertEquals(
-			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint11
 		);
 
@@ -1077,6 +1167,96 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(
 			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
 			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()))",
+			"x", COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random())),
+			constraint15
+		);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)))",
+			"x", COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d"))),
+			constraint16
+		);
+
+		final RequireConstraint constraint17 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)))",
+			"x", COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b"))),
+			constraint17
+		);
+
+		final RequireConstraint constraint18 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderBy(random()))",
+			"x", COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random())),
+			constraint18
+		);
+
+		final RequireConstraint constraint19 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), null, null, orderGroupBy(attributeNatural("e"))),
+			constraint19
+		);
+
+		final RequireConstraint constraint20 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint20
+		);
+
+		final RequireConstraint constraint21 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			"x", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint21
+		);
+
+		final RequireConstraint constraint22 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			"x", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint22
+		);
+
+		final RequireConstraint constraint23 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint23
+		);
+
+		final RequireConstraint constraint24 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterGroupBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterGroupBy(attributeEquals("a", "b")), orderBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint24
 		);
 	}
 

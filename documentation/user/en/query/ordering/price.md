@@ -24,11 +24,13 @@ priceNatural(
     </dd>
 </dl>
 
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/order/PriceNatural.java</SourceClass> constraint 
+
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/order/PriceNatural.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Order/PriceNatural.cs</SourceClass></LanguageSpecific> constraint
 allows output entities to be sorted by their [selling price](../filtering/price.md#price-for-sale-computation-algorithm) 
 in their natural numeric order. It requires only the order direction and the price constraints in the `filterBy` section
 of the query. The price variant (with or without tax) is determined by the [`priceType`](../requirements/price.md#price-type) 
 requirement of the query (price with tax is used by default).
+</LanguageSpecific>
 
 To sort products by their selling price (currently considering only `basic` price list and `CZK`), we can use 
 the following query:

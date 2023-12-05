@@ -29,11 +29,12 @@ priceType(
     </dd>
 </dl>
 
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass> requirement 
+
+The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass></LanguageSpecific> requirement 
 controls which price type is used when calculating the sales price and filtering or sorting by it. If no such 
 requirement is specified, **the price with tax is used by default**.
 
-To demonstrate the effect of this requirement, let's say the user wants to find all products with a selling price 
+heloTo demonstrate the effect of this requirement, let's say the user wants to find all products with a selling price 
 between `€100` and `€105`. The following query will do that:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>

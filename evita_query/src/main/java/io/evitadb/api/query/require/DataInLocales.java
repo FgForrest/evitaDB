@@ -58,7 +58,7 @@ import java.util.stream.Stream;
  *
  * <pre>
  * dataInLocales("en-US")
- * <pre>
+ * </pre>
  *
  * Example that fetches all available global and localized data:
  *

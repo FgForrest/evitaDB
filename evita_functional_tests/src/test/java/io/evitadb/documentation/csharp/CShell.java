@@ -25,6 +25,7 @@ package io.evitadb.documentation.csharp;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.documentation.DocumentationProfile;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -76,9 +77,16 @@ public class CShell {
     private static final Pattern COMPILE = Pattern.compile("\\p{C}");
 
     /**
+     * Profile of the documentation that is currently being tested - either localhost or the default; the latter represents
+     * evita demo instance.
+     */
+    private final DocumentationProfile profile;
+
+    /**
      * Constructor for CShell. It downloads the C# query validator executable if it is not present in the temporary folder.
      */
-    public CShell() {
+    public CShell(@Nonnull DocumentationProfile profile) {
+        this.profile = profile;
         if (!Files.exists(Paths.get(VALIDATOR_PATH))) {
             downloadValidator();
         }
@@ -95,7 +103,7 @@ public class CShell {
      */
     @Nonnull
     public String evaluate(String command, @Nonnull String outputFormat, @Nullable String sourceVariable) throws CsharpExecutionException, CsharpCompilationException {
-        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable);
+        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable, profile);
         final StringBuilder actualOutput = new StringBuilder(64);
         try {
             // Start the process
@@ -221,18 +229,20 @@ public class CShell {
      * encountered during the execution to the standard output
      */
     @Nonnull
-    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable) {
+    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable, @Nonnull DocumentationProfile profile) {
         final ProcessBuilder processBuilder;
         final String commandToSend = COMPILE.matcher(isWindows() ? command.replace("\"", "\\\"") : command).replaceAll("");
+        final String host = profile.equals(DocumentationProfile.LOCALHOST) ? "localhost" : "demo.evitadb.io";
         if (sourceVariable == null) {
-            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat);
+            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat);
         } else {
-            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat, sourceVariable);
+            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat, sourceVariable);
         }
 
         // This is here for debugging purposes of future added tests
 
-		/*System.out.println("\""+commandToSend+"\"" + "\n");
+		/*System.out.println("\""+command.replace("\"", "\\\"")+"\"" + "\n");
+		System.out.println("\""+host+"\"" + "\n");
 		System.out.println("\""+outputFormat+"\"" + "\n");
 		if (sourceVariable != null) {
 			System.out.println("\""+sourceVariable+"\"" + "\n");

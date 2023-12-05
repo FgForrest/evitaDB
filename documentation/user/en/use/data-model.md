@@ -62,7 +62,7 @@ in the relational world would be "a set of logically related linked tables".
 Collections in evitaDB are not isolated and entities in them can be related to entities in different collections.
 Currently, the relationships are only unidirectional.
 
-<Note type="info">
+<LanguageSpecific type="info">
 
 <NoteTitle toggles="true">
 
@@ -88,24 +88,32 @@ Minimal entity definition consists of:
 Other entity data is purely optional and may not be used at all. The primary key can be set to `NULL` and let
 the database generate it automatically.
 
-<LanguageSpecific to="java">
-This minimal entity structure is covered by interface
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>.
+<LanguageSpecific to="java,csharp">
+
+This minimal entity structure is covered by interface 
+<LanguageSpecific to="java><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass></LanguageSpecific>.
+
 Full entity with data, references, attributes and associated data is represented by interface
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass>.
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass></LanguageSpecific>.
+
 </LanguageSpecific>
 
 ### Entity type
 
-Entity type must be [String type](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html).
-Entity type is the main business key (equivalent to a *table name* in relational database) - all data of entities of
+Entity type must be a <LanguageSpecific to="evitaql,java,rest,graphql">[String type](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+<LanguageSpecific to="csharp">[string type](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>.
+
+Entity type is the main business key (equivalent to a *table name* in relational database) - all data of entities of 
 the same type is stored in a separate index. Within the entity type the entity is uniquely represented by
 [the primary key](#primary-key).
 
 ### Primary key
 
-Primary key must be [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) positive
-number (max. 2<sup>63</sup>-1). It can be used for fast lookup of entity(s). Primary key must be unique
+Primary key must be <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific>
+<LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific> positive 
+number (max. 2<sup>63</sup>-1). It can be used for fast lookup of entity(s). Primary key must be unique 
 within the same [entity type](#entity-type).
 
 It can be left `NULL` if it is to be generated automatically by the database. The primary key allows evitaDB to decide
@@ -154,6 +162,19 @@ Hierarchy placement is represented by `parent` field in:
 
 Hierarchy definition is part of main entity schema:
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass>
+
+</Note>
+
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
+
+<Note type="info">
+
+Hierarchy placement is represented by `Parent` property in:
+<SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass>.
+
+Hierarchy definition is part of main entity schema:
+<SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass>
 
 </Note>
 
@@ -208,14 +229,17 @@ Attributes are also recommended to be used for frequently used data that accompa
 "perex", "main motive"), even if you don't necessarily need it for filtering/sorting purposes. evitaDB stores and
 fetches all attributes in a single block, so keeping this frequently used data in attributes reduces the overall I/O.
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 <Note type="info">
+
 The attribute provider ([entity](#entity-type) or [reference](#references)) is represented by the interface:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IAttributes.cs</SourceClass></LanguageSpecific>
 
 The attribute schema is described by:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IAttributeSchema.cs</SourceClass></LanguageSpecific>
 
 </Note>
 
@@ -233,7 +257,8 @@ that's why evitaDB provides special treatment for them.
 #### Data types in attributes
 
 Attributes allow using [variety of data types](data-types.md) and their arrays. The database supports all basic types,
-date-time types and <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass> types. Range
+date-time types and <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass></LanguageSpecific> types. Range
 values are allowed using a special type of [query](../query/basics.md) filtering constraint -
 [`inRange`](../query/filtering/range.md). This filtering constraint allows to filter entities that are inside the range
 boundaries.
@@ -271,14 +296,17 @@ The [search query](../query/basics.md) must contain specific
 Associated data are stored and fetched separately by their name and *locale* (if the associated data is
 [localized](#localized-associated-data)).
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 <Note type="info">
+
 AssociatedData provider ([entity](#entity-type)) is represented by the interface:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IAssociatedData.cs</SourceClass></LanguageSpecific>
 
 Associated data schema is described by:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IAssociatedDataSchema.cs</SourceClass></LanguageSpecific>.
 
 </Note>
 
@@ -298,17 +326,21 @@ The references, as the name suggests, refer to other entities (of the same or di
 allow entity filtering by the attributes defined on the reference relation or the attributes of the referenced entities.
 The references enable [statistics](../query/requirements/facet.md) computation if facet index is enabled for this
 referenced entity type. The reference is uniquely represented by
-[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
+<LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific>
+<LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
 positive number (max. 2<sup>63</sup>-1) and
-[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+<LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+<LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
 entity type and may represent a <Term>facet</Term> that is part of one or more
 <Term name="facet group">facet groups</Term>, also identified by
-[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html). The reference identifier in an entity
+<LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific>
+<LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>. The reference identifier in an entity
 is unique and belongs to a single group id. Among multiple entities, the reference to the same referenced entity may be
 part of different groups.
 
 The referenced entity type can refer to another entity managed by evitaDB, or it can refer to any external entity that
-has a unique [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) key as its identifier. We
+has a unique <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific>
+<LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific> key as its identifier. We
 expect that evitaDB will only partially manage data and that it will coexist with other systems in a runtime - such as
 content management systems, warehouse systems, ERPs and so on.
 
@@ -316,14 +348,17 @@ The references may carry additional key-value data related to this entity relati
 the relationship to a stock). The data on references is subject to the same rules as
 [entity attributes](#attributes-unique-filterable-sortable-localized).
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 <Note type="info">
-Reference is represented by the interface:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>.
+
+Reference is represented by the interface: 
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass><SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass></SourceClass></LanguageSpecific>.
 
 Reference schema is described by:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LanguageSpecific>.
 
 </Note>
 
@@ -342,7 +377,8 @@ The price has the following structure:
 
 <dl>
     <dt>
-        [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `priceId`
+        <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `priceId`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32) `PriceId`</LanguageSpecific>
     </dt>
     <dd>
 	    Contains the identification of the price in the external systems. This ID is expected to be used for
@@ -354,7 +390,8 @@ The price has the following structure:
         Entity B).
     </dd>
     <dt>
-        [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) `priceList`
+        <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) `priceList`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string) `PriceList`</LanguageSpecific>
     </dt>
     <dd>
         Contains the identification of the price list in the external system. Every price must refer to a price list.
@@ -364,45 +401,53 @@ The price has the following structure:
         words, it makes no sense to have multiple concurrently valid prices for the same entity that are rooted in the
         same price list.
     </dd>
-    <dt>[Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) `currency`</dt>
+    <dt>
+        <LanguageSpecific to="evitaql,java,rest,graphql">[Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) `currency`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[Currency](https://github.com/FgForrest/evitaDB-C-Sharp-client/blob/master/EvitaDB.Client/DataTypes/Currency.cs) `Currency`</LanguageSpecific>
+    </dt>
     <dd>
         Identification of the currency. Three-letter form according to [ISO 4217](https://en.wikipedia.org/wiki/ISO_4217).
     </dd>
-    <dt>[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `innerRecordId`</dt>
+    <dt>
+        <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `innerRecordId`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32) `InnerRecordId`</LanguageSpecific>
+    </dt>
     <dd>
         Some special products (such as master products or product sets) may contain prices of all "child" products so
         that the aggregating product can display them in certain views of the product. In this case, it is necessary
         to distinguish the projected prices of the subordinate products in the product that represents them.
     </dd>
     <dt>
-        [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
-        `priceWithoutTax`
+        <LanguageSpecific to="evitaql,java,rest,graphql">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) `priceWithoutTax`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) `PriceWithoutTax`</LanguageSpecific>
     </dt>
     <dd>
         Price without tax.
     </dd>
     <dt>
-        [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
-        `priceWithTax`
+        <LanguageSpecific to="evitaql,java,rest,graphql">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) `priceWithTax`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) `PriceWithTax`</LanguageSpecific>
     </dt>
     <dd>
         Price with tax.
     </dd>
     <dt>
-        [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html)
-        `taxRate`
+        <LanguageSpecific to="evitaql,java,rest,graphql">[BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) `taxRate`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) `TaxRate`</LanguageSpecific>
     </dt>
     <dd>
         Tax percentage (i.e. for 19% it'll be 19.00)
     </dd>
     <dt>
-        [DateTimeRange](data-types.md#datetimerange) `validity`
+        [DateTimeRange](data-types.md#datetimerange) <LanguageSpecific to="evitaql,java,rest,graphql">`validity`</LanguageSpecific>
+        <LanguageSpecific to="csharp">`Validity`</LanguageSpecific>
     </dt>
     <dd>
         Date and time interval for which the price is valid (inclusive).
     </dd>
     <dt>
-        [boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`
+        <LanguageSpecific to="evitaql,java,rest,graphql">[boolean](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) `sellable`</LanguageSpecific>
+        <LanguageSpecific to="csharp">[bool](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/builtin-types/bool) `Sellable`</LanguageSpecific>
     </dt>
     <dd>
         Controls whether the price is subject to filtering/sorting logic, unindexed prices will be fetched along with
@@ -412,17 +457,20 @@ The price has the following structure:
     </dd>
 </dl>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 <Note type="info">
 Price provider is represented by the interface:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PricesContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PricesContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IPrices.cs</SourceClass></LanguageSpecific>
 
 Single price is represented by the interface:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IPrice.cs</SourceClass></LanguageSpecific>
 
 Price schema is part of main entity schema:
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="java"><SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass></LanguageSpecific>
 
 </Note>
 
