@@ -466,7 +466,7 @@ Order constraints allow you to define a rule that controls the order of entities
 - [entityPrimaryKeyExact](ordering/constant.md#exact-entity-primary-key-order)
 - [attributeSetInFilter](ordering/constant.md#exact-entity-attribute-value-order-used-in-filter)
 - [attributeSetExact](ordering/constant.md#exact-entity-attribute-value-order)
-- [attribute natural](ordering/natural.md#attribute-natural)
+- [attribute natural](ordering/comparable.md#attribute-natural)
 - [price natural](ordering/price.md#price-natural)
 - [reference property](ordering/reference.md#reference-property)
 - [entity property](ordering/reference.md#entity-property)

@@ -1,8 +1,8 @@
 ---
-title: Natural ordering
+title: Comparable ordering
 perex: |
-  Natural ordering is the most common type of ordering. It allows you to sort entities by their attributes in their 
-  natural order (numerical, alphabetical, temporal, etc.).
+  Natural ordering on comparable data types is the most common type of ordering. It allows you to sort entities by their
+  attributes in their natural order (numerical, alphabetical, temporal, etc.).
 date: '25.6.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
@@ -37,7 +37,7 @@ To sort products by the number of their sales (the best-selling products first),
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-non-localized.evitaql)
+[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -49,19 +49,19 @@ To sort products by the number of their sales (the best-selling products first),
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-non-localized.evitaql.md)</MDInclude>
+<MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-non-localized.graphql.json.md)</MDInclude>
+<MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
 
-<MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-non-localized.rest.json.md)</MDInclude>
+<MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -72,7 +72,7 @@ constraint in the `filterBy` part of the query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.evitaql)
+[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.evitaql)
 </SourceCodeTabs>
 
 The correct [collator](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/Collator.html) is used to 
@@ -87,19 +87,19 @@ order the localized attribute string, so that the order is consistent with the n
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.evitaql.md)</MDInclude>
+<MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.graphql.json.md)</MDInclude>
+<MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
 
-<MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/natural/attribute-natural-localized.rest.json.md)</MDInclude>
+<MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -112,7 +112,7 @@ attribute, they are not sorted by the second attribute, but by the primary key (
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/natural/attribute-natural-multiple.evitaql)
+[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -124,19 +124,19 @@ attribute, they are not sorted by the second attribute, but by the primary key (
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/natural/attribute-natural-multiple.evitaql.md)</MDInclude>
+<MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/natural/attribute-natural-multiple.graphql.json.md)</MDInclude>
+<MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
 
-<MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/natural/attribute-natural-multiple.rest.json.md)</MDInclude>
+<MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -173,7 +173,7 @@ To sort products by their primary key in descending order, we can use the follow
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.evitaql)
+[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.evitaql)
 </SourceCodeTabs>
 
 <Note type="info">
@@ -185,19 +185,19 @@ To sort products by their primary key in descending order, we can use the follow
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.evitaql.md)</MDInclude>
+<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.evitaql.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="graphql">
 
-<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.graphql.json.md)</MDInclude>
+<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 <LanguageSpecific to="rest">
 
-<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.rest.json.md)</MDInclude>
+<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
