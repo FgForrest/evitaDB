@@ -921,6 +921,67 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldFailToDefineReferencesToManagedEntitiesThatDontExist() {
+		assertThrows(
+			CollectionNotFoundException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema("someEntity")
+						.withReferenceToEntity(
+							"someReference",
+							"nonExistingEntity",
+							Cardinality.ONE_OR_MORE
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineReferencesToManagedEntityGroupThatDoesntExist() {
+		assertThrows(
+			CollectionNotFoundException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(
+							"someEntity"
+						)
+						.withReferenceTo(
+							"someReference",
+							"nonExistingEntityNonManagedEntity",
+							Cardinality.ONE_OR_MORE,
+							whichIs -> whichIs.withGroupTypeRelatedToEntity("nonExistingGroup")
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldCreateReferencesToNonManagedEntityAndGroup() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(
+						"someEntity"
+					)
+					.withReferenceTo(
+						"someReference",
+						"nonExistingEntityNonManagedEntity",
+						Cardinality.ONE_OR_MORE,
+						whichIs -> whichIs.withGroupType("nonExistingNonManagedGroup")
+					).updateVia(session);
+
+				assertNotNull(session.getEntitySchema("someEntity"));
+			}
+		);
+	}
+
+	@Test
 	void shouldFailGracefullyWhenRequestingHierarchyOnNonHierarchyEntity() {
 		evita.updateCatalog(
 			TEST_CATALOG,

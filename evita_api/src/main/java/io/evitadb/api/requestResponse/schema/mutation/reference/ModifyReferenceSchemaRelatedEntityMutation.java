@@ -107,6 +107,10 @@ public class ModifyReferenceSchemaRelatedEntityMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		if (this.referencedEntityTypeManaged) {
+			// check that the referenced entity type exists
+			catalogSchema.getEntitySchemaOrThrowException(this.referencedEntityType);
+		}
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing
