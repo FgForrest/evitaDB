@@ -723,6 +723,18 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
 	/**
+	 * Enter a parse tree produced by the {@code entityPrimaryKeyExactNatural}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void enterEntityPrimaryKeyExactNatural(EvitaQLParser.EntityPrimaryKeyExactNaturalContext ctx);
+	/**
+	 * Exit a parse tree produced by the {@code entityPrimaryKeyExactNatural}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 */
+	void exitEntityPrimaryKeyExactNatural(EvitaQLParser.EntityPrimaryKeyExactNaturalContext ctx);
+	/**
 	 * Enter a parse tree produced by the {@code entityPrimaryKeyExactConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -1758,6 +1770,16 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitClassifierWithBetweenValuesArgs(EvitaQLParser.ClassifierWithBetweenValuesArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#optionalValueArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#optionalValueArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#valueArgs}.
 	 * @param ctx the parse tree

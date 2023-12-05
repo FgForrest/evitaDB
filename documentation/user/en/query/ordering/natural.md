@@ -148,3 +148,57 @@ known until a query time. If you want to sort by multiple attributes in the conv
 the default attribute name. The sortable attribute compound will cover multiple attributes and prepares a special
 sort index for this particular combination of attributes, respecting the predefined order and NULL values behaviour.
 In the query, you can then use the compound name instead of the default attribute name and achieve the expected results.
+
+## Primary key natural
+
+```evitaql-syntax
+primaryKeyNatural(   
+    argument:enum(ASC|DESC)
+)
+```
+
+<dl>
+    <dt>argument:enum(ASC|DESC)</dt>
+    <dd>
+        the ordering direction (ascending or descending), **default value** is `ASC`
+    </dd>
+</dl>
+
+If no ordering constraint is specified in the query, the entities are sorted by their primary key in ascending order. 
+If you want to sort them in descending order, you can use the `primaryKeyNatural` constraint with the `DESC` argument.
+Although the constraint also accepts the `ASC` argument, it doesn't make sense to use it because this is the default
+ordering behavior.
+
+To sort products by their primary key in descending order, we can use the following query:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.evitaql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### List of products sorted by primary key in descending order
+</NoteTitle>
+
+<LanguageSpecific to="evitaql,java,csharp">
+
+<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.evitaql.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="rest">
+
+<MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/natural/primary-key-natural.rest.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>

@@ -440,6 +440,13 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx);
 	/**
+	 * Visit a parse tree produced by the {@code entityPrimaryKeyExactNatural}
+	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitEntityPrimaryKeyExactNatural(EvitaQLParser.EntityPrimaryKeyExactNaturalContext ctx);
+	/**
 	 * Visit a parse tree produced by the {@code entityPrimaryKeyExactConstraint}
 	 * labeled alternative in {@link EvitaQLParser#orderConstraint}.
 	 * @param ctx the parse tree
@@ -1046,6 +1053,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitClassifierWithBetweenValuesArgs(EvitaQLParser.ClassifierWithBetweenValuesArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#optionalValueArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#valueArgs}.
 	 * @param ctx the parse tree

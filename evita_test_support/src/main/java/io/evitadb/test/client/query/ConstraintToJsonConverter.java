@@ -40,6 +40,7 @@ import io.evitadb.api.query.descriptor.ConstraintType;
 import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
@@ -421,6 +422,7 @@ public abstract class ConstraintToJsonConverter {
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
 			return convertContext.dataLocator();
 		}
-		return dataLocatorResolver.resolveChildParameterDataLocator(convertContext.dataLocator(), desiredChildDomain);
+		return dataLocatorResolver.resolveChildParameterDataLocator(convertContext.dataLocator(), desiredChildDomain)
+			.orElseThrow(() -> new EvitaInternalError("There are no data for `" + constraintDescriptor.constraintClass().getSimpleName() + "`, seems like invalid input query."));
 	}
 }

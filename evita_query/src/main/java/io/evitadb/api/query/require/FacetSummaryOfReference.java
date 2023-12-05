@@ -180,9 +180,9 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		@Nonnull @Classifier String referenceName,
 		@Nonnull FacetStatisticsDepth statisticsDepth,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
-		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterGroupBy filterGroupBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderGroupBy orderGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) OrderGroupBy orderGroupBy,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
 	) {
 		super(

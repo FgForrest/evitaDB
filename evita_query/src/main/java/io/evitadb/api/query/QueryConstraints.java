@@ -1832,6 +1832,28 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The constraint allows to sort output entities by primary key values in the exact order.
+	 * 
+	 * Example usage:
+	 * 
+	 * <pre>
+	 * query(
+	 *    orderBy(
+	 *       entityPrimaryKeyNatural(DESC)
+	 *    )
+	 * )
+	 * </pre>
+	 * 
+	 * The example will return the selected entities (if present) in the descending order of their primary keys. Since
+	 * the entities are by default ordered by their primary key in ascending order, it has no sense to use this constraint
+	 * with {@link OrderDirection#ASC} direction.
+	*/
+	@Nonnull
+	static EntityPrimaryKeyNatural entityPrimaryKeyNatural(@Nullable OrderDirection direction) {
+		return new EntityPrimaryKeyNatural(direction == null ? OrderDirection.ASC : direction);
+	}
+
+	/**
 	 * The constraint allows to sort output entities by primary key values in the exact order that was used for filtering
 	 * them. The constraint requires presence of exactly one {@link EntityPrimaryKeyInSet} constraint in filter part of
 	 * the query. It uses {@link EntityPrimaryKeyInSet#getPrimaryKeys()} array for sorting the output of the query.

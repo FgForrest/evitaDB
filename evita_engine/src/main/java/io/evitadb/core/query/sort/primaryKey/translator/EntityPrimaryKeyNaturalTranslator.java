@@ -21,37 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation;
+package io.evitadb.core.query.sort.primaryKey.translator;
 
-import org.junit.jupiter.api.DynamicTest;
+import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.core.query.sort.OrderByVisitor;
+import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.primaryKey.ReversedSorter;
+import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.stream.Stream;
 
 /**
- * Test context factory wraps access to the {@link TestContext} instance and provides optional {@link DynamicTest}
- * required to init and tear down the {@link TestContext}.
+ * This implementation of {@link OrderingConstraintTranslator} converts {@link io.evitadb.api.query.order.EntityPrimaryKeyNatural} to {@link Sorter}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface TestContextFactory<T extends TestContext> {
+public class EntityPrimaryKeyNaturalTranslator implements OrderingConstraintTranslator<EntityPrimaryKeyNatural> {
 
-	/**
-	 * The test required to instantiate and init the {@link TestContext}.
-	 */
-	@Nullable
-	DynamicTest getInitTest(@Nonnull DocumentationProfile profile);
-
-	/**
-	 * The test required to tear down the {@link TestContext}.
-	 */
-	@Nullable
-	DynamicTest getTearDownTest(@Nonnull DocumentationProfile profile);
-
-	/**
-	 * Returns the {@link TestContext} instance.
-	 */
 	@Nonnull
-	T getContext();
+	@Override
+	public Stream<Sorter> createSorter(@Nonnull EntityPrimaryKeyNatural entityPrimaryKeyNatural, @Nonnull OrderByVisitor orderByVisitor) {
+		return entityPrimaryKeyNatural.getOrderDirection() == OrderDirection.DESC ? Stream.of(ReversedSorter.INSTANCE) : Stream.empty();
+	}
 
 }

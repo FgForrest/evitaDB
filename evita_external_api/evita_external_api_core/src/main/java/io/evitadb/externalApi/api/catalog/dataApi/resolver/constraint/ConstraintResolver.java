@@ -485,8 +485,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	                                     @Nonnull ConstraintValueStructure constraintValueStructure,
 	                                     @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                     @Nullable Object value) {
-		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
-		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator);
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, childParameterDescriptor.domain());
+		if (childDataLocator.isEmpty()) {
+			// we don't have data for the switch, thus we don't want to build this child parameter
+			return null;
+		}
+		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator.get());
 
 		final ResolvedChildParameterArgument argument = extractChildParameterFromValue(
 			childResolveContext,
@@ -689,8 +693,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 			additionalChildParameterDescriptor
 		);
 
-		final DataLocator childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, additionalChildParameterDescriptor.domain());
-		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator);
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(resolveContext, parsedConstraintDescriptor, additionalChildParameterDescriptor.domain());
+		if (childDataLocator.isEmpty()) {
+			// we don't have data for the switch, thus we don't want to build this child parameter
+			return null;
+		}
+		final ConstraintResolveContext childResolveContext = resolveContext.switchToChildContext(childDataLocator.get());
 		return convertAdditionalChildParameterArgumentToInstantiationArg(childResolveContext, argument, additionalChildParameterDescriptor);
 	}
 
@@ -839,12 +847,12 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 * @param desiredChildDomain desired domain for child constraints
 	 */
 	@Nonnull
-	private DataLocator resolveChildDataLocator(@Nonnull ConstraintResolveContext resolveContext,
-	                                            @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                            @Nonnull ConstraintDomain desiredChildDomain) {
+	private Optional<DataLocator> resolveChildDataLocator(@Nonnull ConstraintResolveContext resolveContext,
+	                                                      @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                      @Nonnull ConstraintDomain desiredChildDomain) {
 		final ConstraintDescriptor constraintDescriptor = parsedConstraintDescriptor.constraintDescriptor();
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
-			return resolveContext.dataLocator();
+			return Optional.of(resolveContext.dataLocator());
 		}
 		return dataLocatorResolver.resolveChildParameterDataLocator(resolveContext.dataLocator(), desiredChildDomain);
 	}
