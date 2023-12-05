@@ -127,6 +127,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";
 	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
+	private static final String EMPTY_COLLECTION_ENTITY = "someCollectionWithoutEntities";
 	private final DataGenerator dataGenerator = new DataGenerator();
 
 	/**
@@ -528,6 +529,13 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.map(session::upsertEntity)
 				.toList();
 
+			session.defineEntitySchema(EMPTY_COLLECTION_ENTITY)
+				.withGeneratedPrimaryKey()
+				.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+				.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+				.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
+				.updateVia(session);
+
 			return new DataCarrier(
 				tuple(
 					"originalProductEntities",
@@ -569,6 +577,45 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				)
 			);
 		});
+	}
+
+	@DisplayName("Should return empty facet summary for empty collection")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test()
+	void shouldReturnEmptyFacetSummaryForEmptyCollection(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(EMPTY_COLLECTION_ENTITY),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							facetSummaryOfReference(
+								Entities.PRODUCT,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(
+									referenceHaving(
+										Entities.PARAMETER,
+										filterBy(
+											entityHaving(entityPrimaryKeyInSet(1))
+										)
+									)
+								),
+								null
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
+				assertNotNull(facetSummary);
+				assertTrue(facetSummary.getReferenceStatistics().isEmpty());
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return products matching random facet")
