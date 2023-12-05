@@ -35,7 +35,7 @@ import java.util.List;
 
 /**
  * Persistent service defines shared contract for services that allow to work with persistent data storage based on
- * MemTable object. There is usually single file for one key EvitaDB object (catalog, entity-collection).
+ * file offset index object. There is usually single file for one key EvitaDB object (catalog, entity-collection).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

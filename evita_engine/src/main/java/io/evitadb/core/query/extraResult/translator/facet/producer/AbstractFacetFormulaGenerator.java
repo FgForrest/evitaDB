@@ -185,7 +185,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		// evaluate and set flag that signalizes visitor is within UserFilterFormula scope
 		boolean isUserFilter = formula instanceof UserFilterFormula;
 		if (isUserFilter) {

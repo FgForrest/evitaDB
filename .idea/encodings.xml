@@ -43,8 +43,8 @@
     <file url="file://$PROJECT_DIR$/evita_store/evita_store_common/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/evita_store_entity/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/evita_store_entity/src/main/resources" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/evita_store/evita_store_memtable/src/main/java" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/evita_store/evita_store_memtable/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_key_value/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_store/evita_store_key_value/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/evita_store_server/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/evita_store_server/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_store/evita_store_spi/src/main/java" charset="UTF-8" />

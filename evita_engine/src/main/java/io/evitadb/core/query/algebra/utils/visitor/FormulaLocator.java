@@ -60,7 +60,7 @@ public class FormulaLocator<T> implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		if (formulaType.isInstance(formula)) {
 			this.found = true;
 		} else {

@@ -78,7 +78,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Reads entity from persistent storage by its primary key.
-	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `memTable`
+	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `fileOffsetIndex`
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
@@ -91,7 +91,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Reads entity from persistent storage by its primary key.
-	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `memTable`
+	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `fileOffsetIndex`
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
@@ -105,7 +105,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
-	 * in `evitaRequest`. Passed `memTable` is used for reading data from underlying data store.
+	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
 	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
 	 * additional data.
 	 *
@@ -125,7 +125,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
-	 * in `evitaRequest`. Passed `memTable` is used for reading data from underlying data store.
+	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
 	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
 	 * additional data.
 	 *

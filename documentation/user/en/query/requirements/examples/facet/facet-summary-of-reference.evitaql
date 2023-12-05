@@ -1,28 +1,28 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'e-readers')
+            "categories",
+            attributeEquals("code", "e-readers")
         ),
-        attributeEquals('status', 'ACTIVE'),
-        entityLocaleEquals('en')
+        attributeEquals("status", "ACTIVE"),
+        entityLocaleEquals("en")
     ),
     require(
         facetSummaryOfReference(
-          'brand',
+          "brand",
           COUNTS,
-          orderBy(attributeNatural('name', ASC)),
-          entityFetch(attributeContent('name'))
+          orderBy(attributeNatural("name", ASC)),
+          entityFetch(attributeContent("name"))
         ),
         facetSummaryOfReference(
-          'parameterValues',
+          "parameterValues",
           COUNTS,
-          filterGroupBy(attributeEquals('isVisibleInFilter', true)),
-          orderBy(attributeNatural('order', ASC)),
-          orderGroupBy(attributeNatural('order', ASC)),
-          entityFetch(attributeContent('name')),
-          entityGroupFetch(attributeContent('name'))
+          filterGroupBy(attributeEquals("isVisibleInFilter", true)),
+          orderBy(attributeNatural("order", ASC)),
+          orderGroupBy(attributeNatural("order", ASC)),
+          entityFetch(attributeContent("name")),
+          entityGroupFetch(attributeContent("name"))
         )
     )
 )

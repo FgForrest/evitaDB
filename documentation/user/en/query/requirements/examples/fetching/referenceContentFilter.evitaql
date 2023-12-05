@@ -1,28 +1,28 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         entityPrimaryKeyInSet(103885)
     ),
     require(
         entityFetch(
-            attributeContent('code'),
+            attributeContent("code"),
             referenceContent(
-                'parameterValues',
+                "parameterValues",
                 filterBy(
                     entityHaving(
                         referenceHaving(
-                            'parameter',
+                            "parameter",
                             entityHaving(
-                                attributeEquals('isVisibleInDetail', true)
+                                attributeEquals("isVisibleInDetail", true)
                             )
                         )
                     )
                 ),
                 entityFetch(
-                    attributeContent('code')
+                    attributeContent("code")
                 ),
                 entityGroupFetch(
-                    attributeContent('code', 'isVisibleInDetail')
+                    attributeContent("code", "isVisibleInDetail")
                 )
             )
         )

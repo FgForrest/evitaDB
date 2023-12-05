@@ -41,9 +41,8 @@ import java.util.function.Consumer;
 public abstract class HistogramConverter extends RequireConverter {
 
 	protected HistogramConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                             @Nonnull Query query,
-	                             @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
+	                             @Nonnull Query query) {
+		super(catalogSchema, query);
 	}
 
 	@Nonnull

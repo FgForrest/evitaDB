@@ -55,12 +55,12 @@ public class PersistentStorageHeader implements PersistentStorageDescriptor, Ser
 	 */
 	@Getter private final long version;
 	/**
-	 * Contains location of the last MemTable fragment for this version of the header / collection.
+	 * Contains location of the last file offset index fragment for this version of the header / collection.
 	 */
 	@Getter @Nullable protected final FileLocation fileLocation;
 	/**
 	 * Contains key index extracted from {@link KeyCompressor} that is necessary for
-	 * bootstraping {@link KeyCompressor} used for MemTable deserialization.
+	 * bootstraping {@link KeyCompressor} used for file offset index deserialization.
 	 */
 	@Getter @Nonnull protected final Map<Integer, Object> compressedKeys;
 

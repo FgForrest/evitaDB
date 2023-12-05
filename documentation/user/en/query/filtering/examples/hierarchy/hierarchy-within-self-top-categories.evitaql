@@ -1,5 +1,5 @@
 query(
-    collection('Category'),
+    collection("Category"),
     filterBy(
         hierarchyWithinRootSelf(
             directRelation()
@@ -7,7 +7,7 @@ query(
     ),
     require(
         entityFetch(
-            attributeContent('code')
+            attributeContent("code")
         )
     )
 )

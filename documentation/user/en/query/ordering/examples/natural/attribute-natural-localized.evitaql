@@ -1,14 +1,14 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        entityLocaleEquals('cs')
+        entityLocaleEquals("cs")
     ),
     orderBy(
-        attributeNatural('name', ASC)
+        attributeNatural("name", ASC)
     ),
     require(
         entityFetch(
-            attributeContent('name')
+            attributeContent("name")
         )
     )
 )

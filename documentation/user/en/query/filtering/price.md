@@ -388,7 +388,7 @@ the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.m
 </LanguageSpecific>
 
 To demonstrate the price range constraint, let's create a query that lists products in the *E-readers* category and
-filters only those between `150€` and `170.5€`:
+filters only those between `€150` and `€170.5`:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

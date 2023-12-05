@@ -129,4 +129,11 @@ public class FlattenedFormula extends CachePayloadHeader implements Formula {
 	public String toString() {
 		return "FLATTENED: " +  memoizedResult.toString();
 	}
+
+	@Nonnull
+	@Override
+	public String prettyPrint() {
+		return toString();
+	}
+
 }

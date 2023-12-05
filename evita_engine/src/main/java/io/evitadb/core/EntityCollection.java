@@ -284,7 +284,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		} else {
 			this.indexes = loadIndexes(entityHeader);
 		}
-		// sanity check whether we deserialized the memtable we expect to
+		// sanity check whether we deserialized the file offset index we expect to
 		Assert.isTrue(
 			entityHeader.getEntityType().equals(getSchema().getName()),
 			"Deserialized schema name differs from expected entity type - expected " + entityHeader.getEntityType() + " got " + getSchema().getName()
@@ -1417,7 +1417,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 * When the persistence service was closed in the meantime (for example the underlying file was renamed),
 	 * the service is automatically recreated.
 	 */
-	private <T> T doWithPersistenceService(Supplier<T> lambda) {
+	private <T> T doWithPersistenceService(@Nonnull Supplier<T> lambda) {
 		if (this.persistenceService.isClosed()) {
 			// if the service was closed in the meantime - just recreate it
 			this.persistenceService = this.catalogPersistenceService.createEntityCollectionPersistenceService(getEntityType(), getEntityTypePrimaryKey());

@@ -8,19 +8,19 @@
       {
         "index": 0,
         "threshold": "15.90",
-        "occurrences": 1298,
+        "occurrences": 1304,
         "requested": false
       },
       {
         "index": 1,
         "threshold": "114.32",
-        "occurrences": 361,
+        "occurrences": 364,
         "requested": false
       },
       {
         "index": 2,
         "threshold": "212.74",
-        "occurrences": 2224,
+        "occurrences": 2215,
         "requested": false
       },
       {
@@ -57,13 +57,13 @@
       {
         "index": 2,
         "threshold": "139.00",
-        "occurrences": 1125,
+        "occurrences": 1123,
         "requested": false
       },
       {
         "index": 3,
         "threshold": "196.00",
-        "occurrences": 149,
+        "occurrences": 151,
         "requested": false
       },
       {

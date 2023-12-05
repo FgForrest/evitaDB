@@ -1,20 +1,20 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'e-readers')
+            "categories",
+            attributeEquals("code", "e-readers")
         ),
-        attributeEquals('status', 'ACTIVE'),
-        entityLocaleEquals('en')
+        attributeEquals("status", "ACTIVE"),
+        entityLocaleEquals("en")
     ),
     require(
         facetSummary(
             COUNTS,
-            orderBy(attributeNatural('name', ASC)),
-            orderGroupBy(attributeNatural('name', ASC)),
-            entityFetch(attributeContent('name')),
-            entityGroupFetch(attributeContent('name'))
+            orderBy(attributeNatural("name", ASC)),
+            orderGroupBy(attributeNatural("name", ASC)),
+            entityFetch(attributeContent("name")),
+            entityGroupFetch(attributeContent("name"))
         )
     )
 )

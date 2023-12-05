@@ -113,15 +113,15 @@ Let's have the following products:
 
 | Product       | Baseline price | Price list A | Price list B                                               | Price list C |
 |---------------|----------------|--------------|------------------------------------------------------------|--------------|
-| Honor 10      | 10000€         |              | 9000€<br/>(valid 1.1.2020 00:00:000 - 31.1.2020 23:59:59)  | 7500€        |
-| HUAWEI 20 Pro | 12000€         | 14000€       |                                                            | 8500€        |
-| iPhone Xs Max | 21000€         | 23000€       | 19000€<br/>(valid 1.1.2020 01:00:000 - 31.1.2020 22:59:59) |              |
+| Honor 10      | €10000         |              | €9000<br/>(valid 1.1.2020 00:00:000 - 31.1.2020 23:59:59)  | €7500        |
+| HUAWEI 20 Pro | €12000         | €14000       |                                                            | €8500        |
+| iPhone Xs Max | €21000         | €23000       | €19000<br/>(valid 1.1.2020 01:00:000 - 31.1.2020 22:59:59) |              |
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-#### What if you need to define validity for the entire price list?
+##### What if you need to define validity for the entire price list?
 
 </NoteTitle>
 
@@ -150,9 +150,9 @@ These results are expected for the following queries:
 
 | Product       | Price for sale |
 |---------------|----------------|
-| Honor 10      | 10000€         |
-| HUAWEI 20 Pro | 14000€         |
-| iPhone Xs Max | 23000€         |
+| Honor 10      | €10000         |
+| HUAWEI 20 Pro | €14000         |
+| iPhone Xs Max | €23000         |
 
 The `A` price list has higher priority, and as such, prices from this price list should be used when available.
 The `Honor 10` doesn't have a price in this has no price in this price list, so the `Baseline` price will be used for
@@ -167,9 +167,9 @@ it.
 
 | Product       | Price for sale |
 |---------------|----------------|
-| Honor 10      | 10000€         |
-| HUAWEI 20 Pro | 14000€         |
-| iPhone Xs Max | 23000€         |
+| Honor 10      | €10000         |
+| HUAWEI 20 Pro | €14000         |
+| iPhone Xs Max | €23000         |
 
 In this case, price list `B` is the most prioritized price list from the query, but the time validity of its prices
 doesn't match the constraints, so none of them will be part of the evaluation process. Price list `C` has the lowest
@@ -185,9 +185,9 @@ result is the same as in the first query.
 
 | Product       | Price for sale |
 |---------------|----------------|
-| Honor 10      | 9000€          |
-| HUAWEI 20 Pro | 14000€         |
-| iPhone Xs Max | 19000€         |
+| Honor 10      | €9000          |
+| HUAWEI 20 Pro | €14000         |
+| iPhone Xs Max | €19000         |
 
 Pricelist `B` is the highest priority pricelist from this request, and the validity of its prices matches the request,
 so it's part of the evaluation process. Price list `C` has the lowest priority, so if there is a price in price list
@@ -197,13 +197,13 @@ so it's part of the evaluation process. Price list `C` has the lowest priority, 
 
 - **price lists:** `B`, `A`, `Baseline`, `C` (argument order controls price list priority)
 - **valid in:** `2.1.2020 13:00:00`
-- **price between:** `8000€` and `10000€` (both inclusive)
+- **price between:** `€8000` and `€10000` (both inclusive)
 
 **Expected result:**
 
 | Product  | Price for sale |
 |----------|----------------|
-| Honor 10 | 9000€          |
+| Honor 10 | €9000          |
 
 The query is the same as the third query with the addition of the Price Range filter. The result contains only the
 `Honor 10` product, which is the only product with a matching price. The other products have prices that would match
@@ -224,7 +224,7 @@ filter products by price.
 
 The entity will also provide calculated prices for each of the product variants, selecting the first price ranked by
 priority for each inner entity identifier. This information can be used to display the price range for the product with
-variants (i.e. price from 5€ to 6.5€) or to calculate an average price for sale of all product variants.
+variants (i.e. price from €5 to €6.5) or to calculate an average price for sale of all product variants.
 
 ### Model example
 
@@ -232,12 +232,12 @@ Let's have the following products:
 
 | Product        | Master product    | Baseline price | Price list A | Price list B                                            | Price list C |
 |----------------|-------------------|----------------|--------------|---------------------------------------------------------|--------------|
-| Variant: blue  | T-Shirt I Rock    | 10€            |              | 9€<br/>(valid 1.1.2020 00:00:000 - 31.1.2020 23:59:59)  | 7.5€         |
-| Variant: red   | T-Shirt I Rock    | 12€            | 14€          |                                                         | 8.5€         |
-| Variant: green | T-Shirt I Rock    | 21€            | 23€          | 19€<br/>(valid 1.1.2020 01:00:000 - 31.1.2020 22:59:59) |              |
-| Variant: blue  | Jumper X-Mas Deer | 26€            |              | 19€<br/>(valid 1.1.2020 02:00:000 - 31.1.2020 21:59:59) | 9€           |
-| Variant: red   | Jumper X-Mas Deer | 26€            | 22€          |                                                         | 9€           |
-| Variant: green | Jumper X-Mas Deer | 26€            | 21€          | 18€<br/>(valid 1.1.2020 03:00:000 - 31.1.2020 20:59:59) |              |
+| Variant: blue  | T-Shirt I Rock    | €10            |              | €9<br/>(valid 1.1.2020 00:00:000 - 31.1.2020 23:59:59)  | €7.5         |
+| Variant: red   | T-Shirt I Rock    | €12            | €14          |                                                         | €8.5         |
+| Variant: green | T-Shirt I Rock    | €21            | €23          | €19<br/>(valid 1.1.2020 01:00:000 - 31.1.2020 22:59:59) |              |
+| Variant: blue  | Jumper X-Mas Deer | €26            |              | €19<br/>(valid 1.1.2020 02:00:000 - 31.1.2020 21:59:59) | €9           |
+| Variant: red   | Jumper X-Mas Deer | €26            | €22          |                                                         | €9           |
+| Variant: green | Jumper X-Mas Deer | €26            | €21          | €18<br/>(valid 1.1.2020 03:00:000 - 31.1.2020 20:59:59) |              |
 
 These results are expected for the following queries:
 
@@ -250,11 +250,11 @@ These results are expected for the following queries:
 
 | Product           | Price for sale  |
 |-------------------|-----------------|
-| T-Shirt I Rock    | from 10€ to 21€ |
-| Jumper X-Mas Deer | 26€             |
+| T-Shirt I Rock    | from €10 to €21 |
+| Jumper X-Mas Deer | €26             |
 
 The `Jumper X-Mas Deer` has a single price for sale because all its variants in the `Baseline` price list have the same
-price. The `T-Shirt I Rock` must signal that its cheapest price is `10€` and its most expensive price is `21€`.
+price. The `T-Shirt I Rock` must signal that its cheapest price is `€10` and its most expensive price is `€21`.
 
 #### Second query
 
@@ -265,8 +265,8 @@ price. The `T-Shirt I Rock` must signal that its cheapest price is `10€` and i
 
 | Product           | Price for sale  |
 |-------------------|-----------------|
-| T-Shirt I Rock    | from 10€ to 21€ |
-| Jumper X-Mas Deer | 26€             |
+| T-Shirt I Rock    | from €10 to €21 |
+| Jumper X-Mas Deer | €26             |
 
 The result in this query is the same as in the first query. The prices in price list `B` cannot be used because their
 validity period is not valid and price list `C` has the lowest priority and the prices in `Baseline` will override it.
@@ -280,8 +280,8 @@ validity period is not valid and price list `C` has the lowest priority and the 
 
 | Product           | Price for sale  |
 |-------------------|-----------------|
-| T-Shirt I Rock    | from 9€ to 19€  |
-| Jumper X-Mas Deer | from 18€ to 22€ |
+| T-Shirt I Rock    | from €9 to €19  |
+| Jumper X-Mas Deer | from €18 to €22 |
 
 The result in this query will be determined by prices from price list `B`, all of which are now valid. Price list `C`
 has the lowest priority and won't be used at all. The price list `Baseline` wouldn't be used either, because all
@@ -291,13 +291,13 @@ products have a price in one of the higher priority price lists - i.e. price lis
 
 - **price lists:** `B`, `A`, `Baseline`, `C` (argument order controls price list priority)
 - **valid in:** `2.1.2020 13:00:00`
-- **price range between:** `8€` and `11€` (both inclusive)
+- **price range between:** `€8` and `€11` (both inclusive)
 
 **Expected result:**
 
 | Product        | Price for sale |
 |----------------|----------------|
-| T-Shirt I Rock | from 9€ to 19€ |
+| T-Shirt I Rock | from €9 to €19 |
 
 The query is the same as the third query with the addition of the Price Range filter. The result contains only the
 product `T-Shirt I Rock`, which has at least one variant with a price that matches the price range.
@@ -329,12 +329,12 @@ Let's have the following products:
 
 | Product             | Product set | Baseline price | Price list A | Price list B                                             | Price list C |
 |---------------------|-------------|----------------|--------------|----------------------------------------------------------|--------------|
-| Frame               | Drawer      | 100€           |              | 90€<br/>(valid 1.1.2020 00:00:000 - 31.1.2020 23:59:59)  | 75€          |
-| Set of knobs        | Drawer      | 120€           | 140€         |                                                          | 85€          |
-| Hinges              | Drawer      | 210€           | 230€         | 190€<br/>(valid 1.1.2020 01:00:000 - 31.1.2020 22:59:59) |              |
-| Head/footboard slat | Bed         | 260€           |              | 190€<br/>(valid 1.1.2020 02:00:000 - 31.1.2020 21:59:59) | 90€          |
-| Torso               | Bed         | 260€           | 220€         |                                                          | 90€          |
-| Drawers             | Bed         | 260€           | 210€         | 180€<br/>(valid 1.1.2020 03:00:000 - 31.1.2020 20:59:59) |              |
+| Frame               | Drawer      | €100           |              | €90<br/>(valid 1.1.2020 00:00:000 - 31.1.2020 23:59:59)  | €75          |
+| Set of knobs        | Drawer      | €120           | €140         |                                                          | €85          |
+| Hinges              | Drawer      | €210           | €230         | €190<br/>(valid 1.1.2020 01:00:000 - 31.1.2020 22:59:59) |              |
+| Head/footboard slat | Bed         | €260           |              | €190<br/>(valid 1.1.2020 02:00:000 - 31.1.2020 21:59:59) | €90          |
+| Torso               | Bed         | €260           | €220         |                                                          | €90          |
+| Drawers             | Bed         | €260           | €210         | €180<br/>(valid 1.1.2020 03:00:000 - 31.1.2020 20:59:59) |              |
 
 These results are expected for the following queries:
 
@@ -347,8 +347,8 @@ These results are expected for the following queries:
 
 | Product | Price for sale            |
 |---------|---------------------------|
-| Drawer  | 430€ (100€ + 120€ + 210€) |
-| Bed     | 780€ (260€ + 260€ + 260€) |
+| Drawer  | €430 (€100 + €120 + €210) |
+| Bed     | €780 (€260 + €260 + €260) |
 
 Product sets have a selling price that is the sum of the selling prices of their parts.
 
@@ -361,8 +361,8 @@ Product sets have a selling price that is the sum of the selling prices of their
 
 | Product | Price for sale            |
 |---------|---------------------------|
-| Drawer  | 470€ (100€ + 140€ + 230€) |
-| Bed     | 690€ (260€ + 220€ + 210€) |
+| Drawer  | €470 (€100 + €140 + €230) |
+| Bed     | €690 (€260 + €220 + €210) |
 
 Price list `B` cannot be used in the calculation because none of its prices meet the validity condition. Price list `C`
 would be used if there are no prices in price list `Baseline` or in price list `A`, which is also not fulfilled.
@@ -378,8 +378,8 @@ price list.
 
 | Product | Price for sale            |
 |---------|---------------------------|
-| Drawer  | 420€ (90€ + 140€ + 190€)  |
-| Bed     | 590€ (190€ + 220€ + 180€) |
+| Drawer  | €420 (€90 + €140 + €190)  |
+| Bed     | €590 (€190 + €220 + €180) |
 
 Price list `B` can now be used because its validity constraint is satisfied by the prices in this price list. The parts
 that don't have a price in price list `B` will use their price from a second price list with the highest priority -
@@ -389,13 +389,13 @@ price list `A`.
 
 - **price lists:** `B`, `A`, `Baseline`, `C` (argument order controls price list priority)
 - **valid in:** `2.1.2020 13:00:00`
-- **price between:** `0€` and `500€`
+- **price between:** `€0` and `€500`
 
 **Expected result:**
 
 | Product | Price for sale           |
 |---------|--------------------------|
-| Drawer  | 420€ (90€ + 140€ + 190€) |
+| Drawer  | €420 (€90 + €140 + €190) |
 
 The query is the same as the third query with the addition of a price range filter. The result will contain only the
 `Drawer` product whose sum of selling price of its parts is in the specified range.

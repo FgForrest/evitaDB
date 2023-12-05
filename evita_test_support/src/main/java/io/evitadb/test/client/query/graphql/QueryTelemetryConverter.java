@@ -39,9 +39,8 @@ import javax.annotation.Nullable;
 public class QueryTelemetryConverter extends RequireConverter {
 
 	public QueryTelemetryConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                               @Nonnull Query query,
-	                               @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
+	                               @Nonnull Query query) {
+		super(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder extraResultsBuilder,

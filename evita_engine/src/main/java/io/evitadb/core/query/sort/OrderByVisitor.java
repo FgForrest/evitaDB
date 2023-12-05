@@ -119,7 +119,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * is not used to resolve entire query filter.
 	 */
 	@Getter @Nonnull
-	private final List<TargetIndexes<?>> targetIndexes;
+	private final List<? extends TargetIndexes<?>> targetIndexes;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -141,7 +141,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes<?>> targetIndexes,
+		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula
 	) {
@@ -153,7 +153,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes<?>> targetIndexes,
+		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {

@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeLessThan('battery-capacity', 125)
+        attributeLessThan("battery-capacity", 125)
     ),
     require(
        entityFetch(
-           attributeContent('code', 'battery-capacity')
+           attributeContent("code", "battery-capacity")
        )
     )
 )

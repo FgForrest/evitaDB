@@ -4,12 +4,11 @@
     {
       "primaryKey": 64703,
       "associatedData": {
-        "AssociatedDataKey[associatedDataName=localization, locale=en]": [
-          {
-            "code": "name",
-            "label": "Samsung"
+        "AssociatedDataKey[associatedDataName=localization, locale=en]": {
+          "labels": {
+            "name": "Samsung"
           }
-        ],
+        },
         "AssociatedDataKey[associatedDataName=allActiveUrls, locale=null]": [
           {
             "locale": "cs",

@@ -167,7 +167,7 @@ Facet summary:
 	parameterValues: 114010 [41]:
 		[ ] 104525 (10)
 		[ ] 114011 (31)
-	stocks: 0 [41]:
+	stocks: non-grouped [41]:
 		[ ] 119334 (41)
 	tags: 0 [35]:
 		[ ] 9 (2)

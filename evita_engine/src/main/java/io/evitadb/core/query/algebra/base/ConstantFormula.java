@@ -46,7 +46,7 @@ public class ConstantFormula extends AbstractFormula {
 
 	public ConstantFormula(@Nonnull Bitmap delegate) {
 		super();
-		Assert.isTrue(delegate.size() > 0, "For empty bitmaps use EmptyFormula.INSTANCE!");
+		Assert.isTrue(!delegate.isEmpty(), "For empty bitmaps use EmptyFormula.INSTANCE!");
 		this.delegate = delegate;
 	}
 

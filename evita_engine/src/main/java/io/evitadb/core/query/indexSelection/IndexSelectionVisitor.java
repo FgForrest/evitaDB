@@ -50,6 +50,7 @@ import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
+import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
@@ -75,7 +76,7 @@ import java.util.Optional;
  */
 public class IndexSelectionVisitor implements ConstraintVisitor {
 	private final QueryContext queryContext;
-	@Getter private final List<TargetIndexes> targetIndexes = new LinkedList<>();
+	@Getter private final List<TargetIndexes<? extends Index<?>>> targetIndexes = new LinkedList<>();
 	@Getter private boolean targetIndexQueriedByOtherConstraints;
 	private FilterByVisitor filterByVisitor;
 

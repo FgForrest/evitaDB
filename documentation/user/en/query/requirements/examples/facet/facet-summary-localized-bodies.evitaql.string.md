@@ -167,7 +167,7 @@ Facet summary:
 	parameterValues: 'Connector' [41]:
 		[ ] 'Micro USB' (10)
 		[ ] 'USB' (31)
-	stocks: 0 [41]:
+	stocks: non-grouped [41]:
 		[ ] 'Evita' (41)
 	tags: 0 [35]:
 		[ ] 'Sale' (2)

@@ -58,7 +58,7 @@
             "referencedEntity": {
               "primaryKey": 103884,
               "attributes": {
-                "code": "connector-typee-c"
+                "code": "connector-type-c"
               }
             },
             "attributes": {
@@ -96,7 +96,7 @@
             "referencedEntity": {
               "primaryKey": 103889,
               "attributes": {
-                "code": "display-typee-retina-display"
+                "code": "display-type-retina-display"
               }
             },
             "attributes": {

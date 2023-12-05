@@ -60,7 +60,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 
 		if (filterByVisitor.isEntityTypeKnown()) {
 			filterByVisitor.registerFormulaPostProcessorIfNotPresent(
-				new LocaleOptimizingPostProcessor()
+				LocaleOptimizingPostProcessor.class, LocaleOptimizingPostProcessor::new
 			);
 
 			if (filterByVisitor.isPrefetchPossible()) {
@@ -136,7 +136,7 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 			}
 
 			@Override
-			public void visit(Formula formula) {
+			public void visit(@Nonnull Formula formula) {
 				final boolean formerConjunctiveScope = this.conjunctiveScope;
 				try {
 					if (!FilterByVisitor.isConjunctiveFormula(formula.getClass())) {
