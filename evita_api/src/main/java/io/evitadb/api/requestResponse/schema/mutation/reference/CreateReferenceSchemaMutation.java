@@ -188,6 +188,14 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
+		if (this.referencedEntityTypeManaged) {
+			// check that the referenced entity type exists
+			catalogSchema.getEntitySchemaOrThrowException(this.referencedEntityType);
+		}
+		if (this.referencedGroupTypeManaged) {
+			// check that the referenced group entity type exists
+			catalogSchema.getEntitySchemaOrThrowException(this.referencedGroupType);
+		}
 		final ReferenceSchemaContract newReferenceSchema = this.mutate(entitySchema, null);
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
