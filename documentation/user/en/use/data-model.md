@@ -91,7 +91,7 @@ the database generate it automatically.
 <LanguageSpecific to="java,csharp">
 
 This minimal entity structure is covered by interface 
-<LanguageSpecific to="java><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass></LanguageSpecific>.
 
 Full entity with data, references, attributes and associated data is represented by interface

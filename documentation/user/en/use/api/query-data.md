@@ -65,8 +65,6 @@ an abstract syntax tree consisting of constraints
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
 </LanguageSpecific>
 
-</LanguageSpecific>
-
 We have designed the *evitaQL* string representation to look similar to a query defined directly in the *Java* language.
 We also try to preserve the "look & feel" of the original evitaQL in different languages / APIs like REST, GraphQL or C#
 while respecting the conventions and capabilities of the respective language.
@@ -422,6 +420,7 @@ that are not in the cache with a separate request. So instead of one network req
 of the local cache is therefore somewhat questionable.
 
 </LanguageSpecific>
+
 <LanguageSpecific to="csharp">
 
 ## Defining queries in C# code
@@ -499,7 +498,7 @@ Although there are simpler variants for querying entities, the typical method is
   the form of <SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass> or
   <SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass>
 - [Dictionary](https://learn.microsoft.com/cs-cz/dotnet/api/system.collections.idictionary) of extra results indexed by their
-  type (`IDictionary<Type, IEvitaResponseExtraResult>`)
+  type (`IDictionary<Type,IEvitaResponseExtraResult>`)
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
@@ -549,8 +548,7 @@ the evitaDB engine automatically caches intermediate calculation results and fre
 defined memory limit. Details about caching are [described here](../../deep-dive/cache.md). For embedded environments
 the implementation of an own cache on top of the evitaDB cache is not recommended.
 
-If you are using
-<SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>, implementing the local cache may save you network costs and 
+If you are using <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>, implementing the local cache may save you network costs and
 give you better latency. The problem is related to cache invalidation. You'd have to query only the entity references 
 that contain version information and fetch the entities that are not in the cache with a separate request. 
 So instead of one network request, you have to make two. The benefit of the local cache is therefore somewhat questionable.

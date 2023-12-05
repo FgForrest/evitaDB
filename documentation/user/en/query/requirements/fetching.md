@@ -1751,5 +1751,3 @@ The returned `Product` entity will contain all the references and the attributes
 </LanguageSpecific>
 
 </Note>
-
-</LanguageSpecific>

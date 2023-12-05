@@ -123,7 +123,7 @@ Top level mutations:
 
 Within `ModifyCatalogSchemaMutation` you can use mutations:
 
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass></LanguageSpecific<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaNameMutation.cs</SourceClass></LanguageSpecific>>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaNameMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaNameMutation.cs</SourceClass></LanguageSpecific>>**
 - **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaDescriptionMutation.cs</SourceClass></LanguageSpecific>**
 
 And [entity top level mutations](#entity).

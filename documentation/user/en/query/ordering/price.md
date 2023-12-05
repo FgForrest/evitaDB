@@ -30,7 +30,6 @@ allows output entities to be sorted by their [selling price](../filtering/price.
 in their natural numeric order. It requires only the order direction and the price constraints in the `filterBy` section
 of the query. The price variant (with or without tax) is determined by the [`priceType`](../requirements/price.md#price-type) 
 requirement of the query (price with tax is used by default).
-</LanguageSpecific>
 
 To sort products by their selling price (currently considering only `basic` price list and `CZK`), we can use 
 the following query:
