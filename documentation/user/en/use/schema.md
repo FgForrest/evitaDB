@@ -127,9 +127,7 @@ Within `ModifyCatalogSchemaMutation` you can use mutations:
 - **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/catalog/ModifyCatalogSchemaDescriptionMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Catalogs/ModifyCatalogSchemaDescriptionMutation.cs</SourceClass></LanguageSpecific>**
 
 And [entity top level mutations](#entity).
-
 <LanguageSpecific to="java,csharp">
-
 The catalog schema is described by:
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/CatalogSchemaContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/ICatalogSchema.cs</SourceClass></LanguageSpecific>
 
@@ -176,7 +174,6 @@ And of course all [standard attribute mutations](#attributes).
 
 <LanguageSpecific to="java,csharp">
 The global attribute schema is described by:
-
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/GlobalAttributeSchemaContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IGlobalAttributeSchema.cs</SourceClass></LanguageSpecific>
 
@@ -225,7 +222,6 @@ Within `ModifyEntitySchemaMutation` you can use mutations:
 <LanguageSpecific to="java,csharp">
 
 The entity schema is described by:
-
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass></LanguageSpecific>
 
@@ -341,7 +337,7 @@ level is limited.
 Enabling hierarchy placement implies the creation of a new
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> for the involved
 entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex</SourceClass> is created for each hierarchical entity. This index will
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each hierarchical entity. This index will
 hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
 [`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions.
 
@@ -439,7 +435,6 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 - **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaUniqueMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Attributes/SetAttributeSchemaUniqueMutation.cs</SourceClass></LanguageSpecific>**
 
 <LanguageSpecific to="java,csharp">
-
 The attribute schema is described by:
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AttributeSchemaContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IAttributeSchema.cs</SourceClass></LanguageSpecific>
@@ -538,7 +533,6 @@ Within `ModifyEntitySchemaMutation` you can use mutation:
 
 <LanguageSpecific to="java,csharp">
 The associated data schema is described by:
-
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IAssociatedDataSchema.cs</SourceClass></LanguageSpecific>
 
@@ -558,7 +552,7 @@ References can have zero or more attributes that apply only to a particular "lin
 for reference attributes as for regular entity attributes.
 
 When another entity references an entity and the reference is marked as *indexed*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex</SourceClass> is created for each referenced entity. This index will
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each referenced entity. This index will
 hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
 [`referencedEntityHaving`](../query/filtering/references.md) filter conditions and
 [`referenceProperty`](../query/ordering/reference.md) sorting.
@@ -583,7 +577,6 @@ conforms to the creator's mental model.
 ##### List of mutations related to reference
 </NoteTitle>
 
-
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
 - **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference/CreateReferenceSchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/References/CreateReferenceSchemaMutation.cs</SourceClass></LanguageSpecific>**
@@ -603,9 +596,8 @@ The `ModifyReferenceAttributeSchemaMutation` expect nested [attribute mutation](
 <LanguageSpecific to="java,csharp">
 
 The reference schema is described by:
-
-<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LanguageSpecific>LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LanguageSpecific>LanguageSpecific>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IReferenceSchema.cs</SourceClass></LanguageSpecific>>
 
 </LanguageSpecific>
 
