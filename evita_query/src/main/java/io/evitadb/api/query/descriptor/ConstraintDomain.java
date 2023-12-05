@@ -56,6 +56,11 @@ public enum ConstraintDomain {
 	 */
 	ENTITY,
 	/**
+	 * Same as the {@link #ENTITY} but this one targets the group entity of a reference (if present).
+	 * It's sort of a virtual domain that is resolved into {@link #ENTITY}.
+	 */
+	GROUP_ENTITY,
+	/**
 	 * Reference domain should contain all constraints that can filter or order by reference properties (reference attributes, ...).
 	 * Usually linked to {@link ConstraintPropertyType#REFERENCE}.
 	 */

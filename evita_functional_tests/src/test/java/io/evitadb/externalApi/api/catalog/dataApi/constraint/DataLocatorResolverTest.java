@@ -121,7 +121,7 @@ public class DataLocatorResolverTest {
 	                                            @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
+			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
 		);
 	}
 
