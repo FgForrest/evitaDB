@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeBetween('battery-capacity', 125, 160)
+        attributeBetween("battery-capacity", 125, 160)
     ),
     require(
        entityFetch(
-           attributeContent('code', 'battery-capacity')
+           attributeContent("code", "battery-capacity")
        )
     )
 )

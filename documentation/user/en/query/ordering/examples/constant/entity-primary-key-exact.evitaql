@@ -1,14 +1,14 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeStartsWith('code', 'lenovo')
+        attributeStartsWith("code", "lenovo")
     ),
     orderBy(
         entityPrimaryKeyExact(104732, 104718, 105929)
     ),
     require(
         entityFetch(
-            attributeContent('code')
+            attributeContent("code")
         )
     )
 )

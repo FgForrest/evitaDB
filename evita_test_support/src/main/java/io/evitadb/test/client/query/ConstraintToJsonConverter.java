@@ -36,14 +36,15 @@ import io.evitadb.api.query.descriptor.ConstraintCreator.ChildParameterDescripto
 import io.evitadb.api.query.descriptor.ConstraintCreator.ValueParameterDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDescriptor;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
+import io.evitadb.api.query.descriptor.ConstraintType;
+import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.test.client.query.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintKeyBuilder;
-import io.evitadb.externalApi.api.catalog.dataApi.constraint.ConstraintProcessingUtils;
-import io.evitadb.api.query.descriptor.ConstraintValueStructure;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocatorResolver;
+import io.evitadb.test.client.query.ConstraintDescriptorResolver.ParsedConstraintDescriptor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 
@@ -51,7 +52,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -75,12 +78,20 @@ public abstract class ConstraintToJsonConverter {
 	@Nonnull private final DataLocatorResolver dataLocatorResolver;
 	@Nonnull private final ConstraintDescriptorResolver constraintDescriptorResolver;
 
-	protected ConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema) {
-		this(catalogSchema, c -> true);
+		/**
+	 * Map of additional resolvers for cross-resolving constraints of different constraint types.
+	 */
+	@Nonnull private final Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> additionalConverters;
+
+
+	protected ConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> additionalConverters) {
+		this(catalogSchema, c -> true, additionalConverters);
 	}
 
 	protected ConstraintToJsonConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                                    @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate) {
+	                                    @Nonnull Predicate<Class<? extends Constraint<?>>> constraintPredicate,
+	                                    @Nonnull Map<ConstraintType, AtomicReference<? extends ConstraintToJsonConverter>> additionalConverters) {
 		this.constraintPredicate = constraintPredicate;
 
 		this.jsonNodeFactory = new JsonNodeFactory(true);
@@ -90,6 +101,8 @@ public abstract class ConstraintToJsonConverter {
 		this.parameterValueResolver = new ConstraintParameterValueResolver();
 		this.dataLocatorResolver = new DataLocatorResolver(catalogSchema);
 		this.constraintDescriptorResolver = new ConstraintDescriptorResolver(parameterValueResolver, dataLocatorResolver);
+
+		this.additionalConverters = additionalConverters;
 	}
 
 	/**
@@ -321,18 +334,18 @@ public abstract class ConstraintToJsonConverter {
 	                                                                 @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                                 @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
 		final DataLocator childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
-		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator);
 
+		final AtomicReference<? extends ConstraintToJsonConverter> converter = additionalConverters.get(parameterDescriptor.constraintType());
 		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
-		// leave out implicit additional children
 		if (parameterValue.isPresent() &&
 			constraint instanceof ConstraintContainerWithSuffix ccws &&
 			parameterValue.get() instanceof Constraint<?> &&
 			ccws.isAdditionalChildImplicitForSuffix((Constraint<?>) parameterValue.get())) {
+			// leave out implicit additional children
 			return Optional.empty();
 		}
 
-		return parameterValue.flatMap(it -> convert(childConvertContext, (Constraint<?>) it));
+		return parameterValue.flatMap(it -> converter.get().convert(childDataLocator, (Constraint<?>) it));
 	}
 
 	@Nonnull
@@ -409,6 +422,7 @@ public abstract class ConstraintToJsonConverter {
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
 			return convertContext.dataLocator();
 		}
-		return dataLocatorResolver.resolveChildParameterDataLocator(convertContext.dataLocator(), desiredChildDomain);
+		return dataLocatorResolver.resolveChildParameterDataLocator(convertContext.dataLocator(), desiredChildDomain)
+			.orElseThrow(() -> new EvitaInternalError("There are no data for `" + constraintDescriptor.constraintClass().getSimpleName() + "`, seems like invalid input query."));
 	}
 }

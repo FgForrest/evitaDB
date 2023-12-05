@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -108,7 +109,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 		Assert.isTrue(
 			attributeSchema != null || entitySchema.allows(EvolutionMode.ADDING_ATTRIBUTES),
 			() -> new InvalidMutationException(
-				"Attribute " + attributeName + " is not configured in entity `" + locationResolver.get() +
+				"Attribute `" + attributeName + "` is not configured in entity " + locationResolver.get() +
 					" schema and automatic evolution is not enabled for attributes!"
 			)
 		);
@@ -118,9 +119,9 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 					attributeSchema.getType().isAssignableFrom(aClass) ||
 						(attributeSchema.getType().isPrimitive() && EvitaDataTypes.getWrappingPrimitiveClass(attributeSchema.getType()).isAssignableFrom(aClass)),
 					() -> new InvalidDataTypeMutationException(
-						"Attribute " + attributeName + " in entity " + locationResolver.get() +
-							" schema accepts only type " + attributeSchema.getType().getName() +
-							" - value type is different: " + aClass.getName() + "!",
+						"Attribute `" + attributeName + "` in entity " + locationResolver.get() +
+							" schema accepts only type `" + attributeSchema.getType().getName() +
+							"` - value type is different: " + aClass.getName() + "!",
 						attributeSchema.getType(), aClass
 					)
 				);
@@ -128,8 +129,8 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 					Assert.isTrue(
 						!aClass.isArray(),
 						() -> new InvalidDataTypeMutationException(
-							"Attribute " + attributeName + " in entity " + locationResolver.get() +
-								" schema is sortable and can't hold arrays of " + aClass.getName() + "!",
+							"Attribute `" + attributeName + "` in entity " + locationResolver.get() +
+								" schema is sortable and can't hold arrays of `" + aClass.getName() + "`!",
 							attributeSchema.getType(), aClass
 						)
 					);
@@ -167,9 +168,9 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 				entitySchema.supportsLocale(locale) || entitySchema.allows(EvolutionMode.ADDING_LOCALES),
 				() -> new InvalidMutationException(
 					"Attribute `" + attributeName + "` in entity " + locationResolver.get() +
-						" schema is localized, but schema doesn't support locale " + locale + "! " +
+						" schema is localized, but schema doesn't support locale `" + locale + "`! " +
 						"Supported locales are: " +
-						entitySchema.getLocales().stream().map(Locale::toString).collect(Collectors.joining(", "))
+						entitySchema.getLocales().stream().map(Locale::toString).map(it -> "`" + it + "`").collect(Collectors.joining(", "))
 				)
 			);
 		}
@@ -210,7 +211,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nullable U attributeValue) {
-		if (attributeValue == null) {
+		if (attributeValue == null || attributeValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
@@ -229,7 +230,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nullable U[] attributeValue) {
-		if (attributeValue == null) {
+		if (ArrayUtils.isEmpty(attributeValue)) {
 			return removeAttribute(attributeName);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName);
@@ -254,7 +255,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable U attributeValue) {
-		if (attributeValue == null) {
+		if (attributeValue == null || attributeValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);
@@ -270,7 +271,7 @@ abstract class InitialAttributesBuilder<S extends AttributeSchemaContract, T ext
 	@Override
 	@Nonnull
 	public <U extends Serializable> T setAttribute(@Nonnull String attributeName, @Nonnull Locale locale, @Nullable U[] attributeValue) {
-		if (attributeValue == null) {
+		if (ArrayUtils.isEmpty(attributeValue)) {
 			return removeAttribute(attributeName, locale);
 		} else {
 			final AttributeKey attributeKey = new AttributeKey(attributeName, locale);

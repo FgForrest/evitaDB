@@ -36,9 +36,9 @@
                   "type": "Tag",
                   "version": 1,
                   "allLocales": [
+                    "cs",
                     "de",
-                    "en",
-                    "cs"
+                    "en"
                   ],
                   "attributes": {
                     "global": {

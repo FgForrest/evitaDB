@@ -718,11 +718,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull Map<String, RequirementContext> requirementContext,
 		@Nullable RequirementContext defaultRequirementContext,
 		@Nonnull QueryContext queryContext,
-		@Nonnull SealedEntity sealedEntity
+		@Nonnull EntityContract entity
 	) {
 		this(
 			hierarchyContent, requirementContext, defaultRequirementContext, queryContext,
-			new ExistingEntityDecoratorProvider((EntityDecorator) sealedEntity)
+			new ExistingEntityDecoratorProvider((EntityDecorator) entity)
 		);
 	}
 

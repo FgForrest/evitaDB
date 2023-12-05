@@ -25,7 +25,7 @@ package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;

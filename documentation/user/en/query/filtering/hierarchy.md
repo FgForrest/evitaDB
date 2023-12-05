@@ -8,6 +8,7 @@ perex: |
 date: '5.5.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 Hierarchy filtering can be applied only to entities [marked as hierarchical](../../use/data-model.md#hierarchy-placement) 

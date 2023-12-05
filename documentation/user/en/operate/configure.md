@@ -3,7 +3,7 @@ title: Configuration
 perex: This article is a complete configuration guide for evitaDB instance.
 date: '1.3.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 The evitaDB server is configured in YAML format and its default settings are best described by the following code
@@ -21,6 +21,7 @@ server:                                           # [see Server configuration](#
   killTimedOutShortRunningThreadsEverySeconds: 30
   closeSessionsAfterSecondsOfInactivity: 60
   readOnly: false
+  quiet: false
 
 storage:                                          # [see Storage configuration](#storage-configuration)
   storageDirectory: null
@@ -284,6 +285,16 @@ This section contains general settings for the evitaDB server. It allows configu
         <p>It switches the evitaDB server into read-only mode, where no updates are allowed and the server only provides 
            read access to the data of the catalogs present in the data directory at the start of the server instance.</p>
     </dd>
+    <dt>quiet</dt>
+    <dd>
+        <p>**Default:** `false`</p>
+        <p>It disables logging of helper info messages (e.g.: startup info). Note that it doesn't disable the main logging
+           handled by the [Slf4j](https://www.slf4j.org/) logging facade.</p>
+         <Note type="warning">
+            This setting should not be used when running multiple server instances inside single JVM because it is currently
+            not thread-safe.            
+        </Note>
+    </dd>
 </dl>
 
 ## Storage configuration
@@ -430,53 +441,6 @@ This section of the configuration allows you to selectively enable, disable, and
         <p>It enables / disables access log messages logging for all APIs.</p>
     </dd>
 </dl>
-
-### Access log
-
-If the `accessLog` property is set to `true`, the server will log access log messages for all APIs using the 
-[Slf4j](https://www.slf4j.org/) logging facade. These messages are logged at the `INFO` level and contain the `ACCESS_LOG` 
-marker which you can use to separate standard messages from access log messages. 
-
-Access log messages can be further categorized using `UNDERTOW_ACCESS_LOG` and `GRPC_ACCESS_LOG` markers. This is because
-evitaDB uses [Undertow](https://undertow.io/) web server for REST and GraphQL APIs and separate web server
-for [gRPC](https://grpc.io/). It might be sometimes useful to log these separately because even though they both
-use the same log format, for example, gRPC doesn't support all properties as Undertow.
-
-#### evitaDB server Logback utilities
-
-evitaDB server comes with two [Logback](https://logback.qos.ch/) filters 
-ready-to-use to easily separate access log messages
-from standard messages. 
-
-*Note:* These filters are only available in evitaDB server because the rest of the evitaDB codebase
-doesn't rely on a concrete implementation of the [Slf4j](https://www.slf4j.org/) logging facade. 
-If the evitaDB's API server is used directly, the above-mentioned markers can be used to separate access log messages instead.
-
-There is `io.evitadb.server.log.AccessLogFilter` filter to only log access log messages.
-This filter can be used as follows:
-```xml
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.AccessLogFilter"/>
-    <file>/path/to/access.log</file>
-    <encoder>
-        <pattern>%msg%n</pattern>
-    </encoder>
-</appender>
-```
-
-There is also `io.evitadb.server.log.StandardLogFilter` filter to only log standard log messages. 
-This filter can be used as follows:
-```xml
-<appender name="FILE" class="ch.qos.logback.core.FileAppender">
-    <filter class="io.evitadb.server.log.StandardLogFilter"/>
-    <file>/evita/logs/evita_server.log</file>
-    <encoder>
-        <pattern>%date %level [%thread] %logger{10} [%file:%line] -%kvp- %msg%n</pattern>
-    </encoder>
-</appender>
-```
-This filter exists because when you enable access logs the log messages with the `ACCESS_LOG` marker aren't filtered out
-by default.
 
 ### TLS configuration
 

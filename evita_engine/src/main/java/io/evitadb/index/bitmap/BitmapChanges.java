@@ -125,10 +125,12 @@ public class BitmapChanges {
 			// compute results only when we can't reuse previous computation
 			if (memoizedMergedBitmap == null) {
 				// memoize costly computation and return
-				this.memoizedMergedBitmap = RoaringBitmap.andNot(
+				final RoaringBitmap mergedBitmap = RoaringBitmap.andNot(
 					RoaringBitmap.or(originalBitmap, insertions),
 					removals
 				);
+				mergedBitmap.runOptimize();
+				this.memoizedMergedBitmap = mergedBitmap;
 			}
 
 			return memoizedMergedBitmap;

@@ -23,7 +23,9 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
+import io.evitadb.test.client.query.ObjectJsonSerializer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -40,6 +42,9 @@ import java.util.stream.Collectors;
  * @author Lukáš Hornych, FG Forrst a.s. (c) 2023
  */
 public class GraphQLOutputFieldsBuilder {
+
+	private final static ObjectJsonSerializer OBJECT_JSON_SERIALIZER = new ObjectJsonSerializer();
+	private final static GraphQLInputJsonPrinter INPUT_JSON_PRINTER = new GraphQLInputJsonPrinter();
 
 	private final static String INDENTATION = "  ";
 
@@ -165,10 +170,18 @@ public class GraphQLOutputFieldsBuilder {
 	@FunctionalInterface
 	public interface ArgumentSupplier extends Function<Integer, Argument> {}
 
-	public record Argument(@Nonnull PropertyDescriptor argumentDescriptor, int multilineOffset, @Nonnull Object value) {
+	public record Argument(@Nonnull PropertyDescriptor argumentDescriptor,
+	                       int multilineOffset,
+	                       @Nonnull Object value) {
 		@Override
 		public String toString() {
-			return offsetMultilineArgument(multilineOffset, argumentDescriptor.name() + ": " + value);
+			final String serializedValue;
+			if (value instanceof JsonNode jsonNode) {
+				serializedValue = INPUT_JSON_PRINTER.print(jsonNode);
+			} else {
+				serializedValue = INPUT_JSON_PRINTER.print(OBJECT_JSON_SERIALIZER.serializeObject(value));
+			}
+			return offsetMultilineArgument(multilineOffset, argumentDescriptor.name() + ": " + serializedValue);
 		}
 
 		@Nonnull

@@ -194,7 +194,9 @@ public final class PaginatedList<T extends Serializable> implements DataChunk<T>
 
 	@Override
 	public String toString() {
-		return "Page " + pageNumber + " of " + getLastPageNumber() + " (" + totalRecordCount + "recs. found)\n" +
+		final int lastPageNumber = getLastPageNumber();
+		return "Page " + pageNumber + " of " + (lastPageNumber == 0 ? 1 : lastPageNumber) +
+			" (" + totalRecordCount + " recs. found)\n" +
 			data.stream().map(it -> "\t- " + it.toString()).collect(Collectors.joining("\n"));
 	}
 

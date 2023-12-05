@@ -78,7 +78,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 
 	/**
 	 * Reads entity from persistent storage by its primary key.
-	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `memTable`
+	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `fileOffsetIndex`
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
@@ -86,12 +86,12 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
 	 * Reads entity from persistent storage by its primary key.
-	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `memTable`
+	 * Requirements of type {@link EntityContentRequire} in `evitaRequest` are taken into an account. Passed `fileOffsetIndex`
 	 * is used for reading data from underlying data store.
 	 */
 	@Nullable
@@ -100,12 +100,12 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
-	 * in `evitaRequest`. Passed `memTable` is used for reading data from underlying data store.
+	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
 	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
 	 * additional data.
 	 *
@@ -120,12 +120,12 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
 	 * Loads additional data to existing entity according to requirements of type {@link EntityContentRequire}
-	 * in `evitaRequest`. Passed `memTable` is used for reading data from underlying data store.
+	 * in `evitaRequest`. Passed `fileOffsetIndex` is used for reading data from underlying data store.
 	 * Since entity is immutable object - enriched instance is a new instance based on previous entity that contains
 	 * additional data.
 	 *
@@ -136,14 +136,14 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
 	 * Method reconstructs entity index from underlying containers.
 	 */
 	@Nullable
-	EntityIndex<?> readEntityIndex(
+	EntityIndex readEntityIndex(
 		int entityIndexId,
 		@Nonnull Supplier<EntitySchema> schemaSupplier,
 		@Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor,
@@ -167,7 +167,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	@Nonnull
 	Iterator<Entity> entityIterator(
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -183,7 +183,7 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
 	 */
-	void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex<?>> bufferedChangeSet);
+	void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet);
 
 	/**
 	 * Method deletes entire entity collection persistent storage.

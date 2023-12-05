@@ -27,6 +27,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
 import lombok.Data;
 
+import javax.annotation.Nonnull;
 import java.util.IdentityHashMap;
 
 /**
@@ -39,7 +40,7 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 	/**
 	 * Builder that produces the output string.
 	 */
-	private final StringBuilder result = new StringBuilder();
+	private final StringBuilder result = new StringBuilder(1024);
 	/**
 	 * Indentation used for distinguishing inner formulas in the tree.
 	 */
@@ -72,7 +73,7 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		result.append(" ".repeat(Math.max(0, level * indent)));
 		final FormulaInstance alreadySeenFormula = formulasSeen.get(formula);
 		if (alreadySeenFormula != null) {
@@ -82,7 +83,11 @@ public class PrettyPrintingFormulaVisitor implements FormulaVisitor {
 			formulasSeen.put(formula, new FormulaInstance(id, formula));
 			result.append("[#").append(id).append("] ");
 		}
-		result.append(formula.toString()).append("\n");
+		result.append(formula);
+		if (formula.getInnerFormulas().length > 0) {
+			result.append(" → ").append(formula.compute());
+		}
+		result.append("\n");
 		level++;
 		for (Formula innerFormula : formula.getInnerFormulas()) {
 			innerFormula.accept(this);

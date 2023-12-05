@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.structure.Price;
 import io.evitadb.api.requestResponse.data.structure.Prices;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -47,9 +48,9 @@ public class PricesSerializer extends Serializer<Prices> {
 		output.writeVarInt(prices.version(), true);
 		kryo.writeObjectOrNull(output, prices.getPriceInnerRecordHandling(), PriceInnerRecordHandling.class);
 		output.writeVarInt(prices.getPrices().size(), true);
-		for (PriceContract price : prices.getPrices()) {
-			kryo.writeObject(output, price);
-		}
+		// the prices are always sorted to ensure the same order of prices in the serialized form
+		prices.getPrices().stream().sorted(Comparator.comparing(PriceContract::priceKey))
+			.forEach(price -> kryo.writeObject(output, price));
 	}
 
 	@Override

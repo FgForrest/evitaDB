@@ -2105,43 +2105,24 @@ This is an example formula calculation tree for the query
 constraint: `and(priceInCurrency(‘CZK'), priceInPriceLists(‘vip', ‘b2b', ‘basic'))`
 
 ```
-
 [#0] NO FILTER PREDICATE
-
    [#1] DO WITH NONE
-
       [#2] OR
-
          [#3] DO WITH PRICE INDEX: vip/CZK/NONE
-
             [#4] [22, 26, 32]
-
          [#5] WITH PRICE IN b2b WHEN NO PRICE EXISTS IN vip
-
             [Ref to #3] DO WITH PRICE INDEX: vip/CZK/NONE
-
                [Ref to #4] [22, 26, 32]
-
             [#6] DO WITH PRICE INDEX: b2b/CZK/NONE
-
                [#7] [6]
-
          [#8] WITH PRICE IN basic WHEN NO PRICE EXISTS IN b2b, vip
-
             [Ref to #5] WITH PRICE IN b2b WHEN NO PRICE EXISTS IN vip
-
                [Ref to #3] DO WITH PRICE INDEX: vip/CZK/NONE
-
                   [Ref to #4] [22, 26, 32]
-
                [Ref to #6] DO WITH PRICE INDEX: b2b/CZK/NONE
-
                   [Ref to #7] [6]
-
             [#9] DO WITH PRICE INDEX: basic/CZK/NONE
-
                [#10] [9, 15, 16, 25, 30, 31, 38, 40, 45, 46, 48, 49, 50]
-
 ```
 
 As you can see, certain nodes are marked with unique numbers (for example `#6`), while others refer to existing

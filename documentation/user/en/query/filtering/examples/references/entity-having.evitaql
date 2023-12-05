@@ -1,20 +1,20 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         referenceHaving(
-            'brand',
+            "brand",
             entityHaving(
-                attributeEquals('code', 'apple')
+                attributeEquals("code", "apple")
             )
         )
     ),
     require(
         entityFetch(
-            attributeContent('code'),
+            attributeContent("code"),
             referenceContent(
-                'brand',
+                "brand",
                 entityFetch(
-                    attributeContent('code')
+                    attributeContent("code")
                 )
             )
         )

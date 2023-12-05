@@ -6,6 +6,7 @@ perex: |
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
+preferredLang: 'evitaql'
 ---
 
 The constant ordering constraints are particularly useful when you have a sorted set of unique attributes or directly

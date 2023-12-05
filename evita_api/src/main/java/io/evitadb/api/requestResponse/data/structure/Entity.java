@@ -71,6 +71,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -669,26 +670,42 @@ public class Entity implements SealedEntity {
 				.map(it -> it.attributes)
 				.orElseGet(() -> new EntityAttributes(entitySchema));
 		} else {
-			newAttributeContainer = new EntityAttributes(
-				entitySchema,
-				Stream.concat(
+			final Map<AttributeKey, AttributeValue> attributes = Stream.concat(
 					possibleEntity.map(Entity::getAttributeValues).orElseGet(Collections::emptyList)
 						.stream()
 						.filter(it -> !newAttributes.containsKey(it.key())),
 					newAttributes.values().stream()
-				).toList(),
-				Stream.concat(
-						entitySchema.getAttributes().values().stream(),
-						newAttributes.values().stream()
-							.filter(it -> !entitySchema.getAttributes().containsKey(it.key().attributeName()))
-							.map(AttributesBuilder::createImplicitEntityAttributeSchema)
+				)
+				.collect(
+					Collectors.toMap(
+						AttributeValue::key,
+						Function.identity(),
+						(o, n) -> {
+							throw new EvitaInvalidUsageException("Duplicate attribute key " + o.key());
+						},
+						LinkedHashMap::new
 					)
-					.collect(
-						Collectors.toMap(
-							NamedSchemaContract::getName,
-							Function.identity()
-						)
+				);
+			final Map<String, EntityAttributeSchemaContract> attributeTypes = Stream.concat(
+					entitySchema.getAttributes().values().stream(),
+					newAttributes.values().stream()
+						.filter(it -> !entitySchema.getAttributes().containsKey(it.key().attributeName()))
+						.map(AttributesBuilder::createImplicitEntityAttributeSchema)
+				)
+				.collect(
+					Collectors.toMap(
+						NamedSchemaContract::getName,
+						Function.identity(),
+						(o, n) -> {
+							throw new EvitaInvalidUsageException("Duplicate attribute key " + o.getName());
+						},
+						LinkedHashMap::new
 					)
+				);
+			newAttributeContainer = new EntityAttributes(
+				entitySchema,
+				attributes,
+				attributeTypes
 			);
 		}
 		return newAttributeContainer;
@@ -746,9 +763,9 @@ public class Entity implements SealedEntity {
 		@Nonnull Optional<Entity> possibleEntity,
 		@Nonnull Map<ReferenceKey, ReferenceContract> newReferences,
 		@Nonnull ReferenceMutation<?> referenceMutation) {
-		final ReferenceContract existingReferenceValue = possibleEntity
-			.flatMap(it -> it.getReferenceWithoutSchemaCheck(referenceMutation.getReferenceKey()))
-			.orElseGet(() -> newReferences.get(referenceMutation.getReferenceKey()));
+		final ReferenceContract existingReferenceValue = ofNullable(newReferences.get(referenceMutation.getReferenceKey()))
+			.or(() -> possibleEntity.flatMap(it -> it.getReferenceWithoutSchemaCheck(referenceMutation.getReferenceKey())))
+			.orElse(null);
 		ofNullable(
 			returnIfChanged(
 				existingReferenceValue,
@@ -908,7 +925,7 @@ public class Entity implements SealedEntity {
 						(o, o2) -> {
 							throw new EvitaInvalidUsageException("Sanity check: " + o + ", " + o2);
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);

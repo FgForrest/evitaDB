@@ -113,7 +113,7 @@ public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer i
 
 	@Creator
 	public FacetGroupsDisjunction(@Nonnull @Classifier String referenceName,
-	                              @Nullable @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
+	                              @Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy) {
 		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
 	}
 

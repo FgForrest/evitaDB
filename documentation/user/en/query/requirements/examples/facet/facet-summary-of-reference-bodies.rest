@@ -1,0 +1,29 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "hierarchyCategoriesWithin" : {
+      "ofParent" : {
+        "attributeCodeEquals" : "e-readers"
+      }
+    },
+    "attributeStatusEquals" : "ACTIVE"
+  },
+  "require" : {
+    "facetParameterValuesSummary" : {
+      "statisticsDepth" : "COUNTS",
+      "requirements" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        },
+        "entityGroupFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -218,9 +218,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 				)
 			);
 		// collect all facet statistics
-		final TargetIndexes<EntityIndex<?>> indexSetToUse = extraResultPlanner.getIndexSetToUse();
-		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexes()
-			.stream()
+		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
 			.map(EntityIndex::getFacetingEntities)
 			.collect(Collectors.toList());
 
@@ -241,7 +240,7 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 
 		facetSummaryProducer.requireReferenceFacetSummary(
 			referenceSchema,
-			facetSummaryOfReference.getFacetStatisticsDepth(),
+			facetSummaryOfReference.getStatisticsDepth(),
 			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),

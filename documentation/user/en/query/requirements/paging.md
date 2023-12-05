@@ -7,7 +7,60 @@ perex: |
 date: '23.7.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
+
+<LanguageSpecific to="graphql">
+
+In GraphQL, there are multiple different ways to paginate results. The main distinction is between the
+[`list` queries](../../use/api/query-data.md#list-queries) and [`query` queries](../../use/api/query-data.md#query-queries).
+The `query` queries are then further divided into `page` and `strip` pagination.
+
+## Pagination of `list` queries
+
+As mentioned in [detailed description of `list` queries](../../use/api/query-data.md#list-queries), the `list` queries
+are meant to be used for quick listing of entities, and so they offer only a limited set of pagination features. 
+
+The pagination is controlled by the `limit` and `offset` arguments on a `listCollectionName` field, and it doesn't provide
+any pagination metadata (e.g., total number of records, page number, and so on):
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Third page of results retrieval using list query example](/documentation/user/en/query/requirements/examples/paging/listEntities.graphql)
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of list query pagination example
+</NoteTitle>
+
+The result contains the result from the 11th through the 15th record of the listing result. It returns only a primary key
+of the records because no content request was specified, and it is sorted by the primary key in ascending order because
+no order was specified in the query.
+
+<LanguageSpecific to="graphql">
+
+<MDInclude sourceVariable="data.listProduct">[The data chunk with paginated data](/documentation/user/en/query/requirements/examples/paging/listEntities.graphql.json.md)</MDInclude>
+
+</LanguageSpecific>
+
+</Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="graphql">
+
+## Pagination of `query` queries
+
+The fully-featured [`query` queries](../../use/api/query-data.md#query-queries) support fully-featured pagination.
+The pagination in this case has two versions - `page` (`recordPage` field) and `strip` (`recordStrip` field), and both provide pagination metadata.
+
+### Page (`recordPage`)
+
+</LanguageSpecific>
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 ## Page
 
@@ -29,17 +82,26 @@ page(
     </dd>
 </dl>
 
-The `page` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>) requirement
-controls the number and slice of entities returned in the query response. If no page requirement is used in the query,
+</LanguageSpecific>
+
+The `page` 
+<LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>) requirement</LanguageSpecific>
+<LanguageSpecific to="graphql">approach</LanguageSpecific>
+controls the number and slice of entities returned in the query response<LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
+If no 
+<LanguageSpecific to="evitaql,java,rest,csharp">page requirement is</LanguageSpecific>
+<LanguageSpecific to="graphql">page arguments are</LanguageSpecific> used 
+<LanguageSpecific to="evitaql,java,rest,csharp">in the query</LanguageSpecific>
+<LanguageSpecific to="graphql">on the field</LanguageSpecific>,
 the default page `1` with the default page size `20` is used. If the requested page exceeds the number of available
 pages, a result with the first page is returned. An empty result is only returned if the query returns no result at all
 or the page size is set to zero. By automatically returning the first page result when the requested page is exceeded,
 we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. In case of the `page` constraint, 
+in a so-called data chunk object. <LanguageSpecific to="evitaql,java,rest,csharp">In case of the `page` constraint, 
 the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> is used as data chunk 
-object. The data chunk object contains the following information:
+object.</LanguageSpecific> The data chunk object contains the following information:
 
 <dl>
     <dt>pageNumber</dt>
@@ -96,7 +158,8 @@ object. The data chunk object contains the following information:
     </dd>
 </dl>
 
-The `page` requirement is the most natural and commonly used requirement for the pagination of the query results.
+The <LanguageSpecific to="evitaql,java,rest,csharp">`page` requirement</LanguageSpecific><LanguageSpecific to="graphql">`recordPage` field</LanguageSpecific>
+is the most natural and commonly used requirement for the pagination of the query results.
 To get the second page of the query result, use the following query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -133,6 +196,14 @@ no order was specified in the query.
 
 </Note>
 
+<LanguageSpecific to="graphql">
+
+### Strip (`recordStrip`)
+
+</LanguageSpecific>
+
+<LanguageSpecific to="evitaql,java,rest,csharp">
+
 ## Strip
 
 ```evitaql-syntax
@@ -153,16 +224,22 @@ strip(
     </dd>
 </dl>
 
-The `strip` (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>) requirement
-controls the number and slice of entities returned in the query response. If the requested strip exceeds the number of
+</LanguageSpecific>
+
+The `strip` 
+<LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>) requirement</LanguageSpecific>
+<LanguageSpecific to="graphql">approach</LanguageSpecific>
+controls the number and slice of entities returned in the query response<LanguageSpecific to="graphql"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LanguageSpecific>.
+If the requested strip exceeds the number of
 available records, a result from the zero offset with retained limit is returned. An empty result is only returned if
 the query returns no result at all or the limit is set to zero. By automatically returning the first strip result when
 the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. In case of the `strip` constraint,
+in a so-called data chunk object. 
+<LanguageSpecific to="evitaql,java,rest,csharp">In case of the `strip` constraint,
 the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass> is used as data chunk
-object. The data chunk object contains the following information:
+object.</LanguageSpecific> The data chunk object contains the following information:
 
 <dl>
     <dt>offset</dt>

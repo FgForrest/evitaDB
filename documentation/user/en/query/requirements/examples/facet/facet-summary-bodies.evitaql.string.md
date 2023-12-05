@@ -24,13 +24,13 @@ Facet summary:
 	parameterValues: 'rear-camera-resoluti' [1]:
 		[ ] 'rear-camera-resoluti-16' (1)
 	parameterValues: 'display-type' [41]:
-		[ ] 'display-typee-e-ink' (41)
+		[ ] 'display-type-e-ink' (41)
 	parameterValues: 'number-of-cpu-cores' [41]:
 		[ ] 'number-of-cpu-cores-4' (8)
 		[ ] 'number-of-cpu-cores-8' (11)
 		[ ] 'number-of-cpu-cores-2' (22)
 	parameterValues: 'connector' [31]:
-		[ ] 'connector-typee-c' (31)
+		[ ] 'connector-type-c' (31)
 	parameterValues: 'height' [18]:
 		[ ] 'height-159' (2)
 		[ ] 'height-173' (2)
@@ -167,7 +167,7 @@ Facet summary:
 	parameterValues: 'connector-merge' [41]:
 		[ ] 'connector-micro-usb' (10)
 		[ ] 'usb' (31)
-	stocks: 0 [41]:
+	stocks: non-grouped [41]:
 		[ ] 'evita' (41)
 	tags: 0 [35]:
 		[ ] 'sale' (2)

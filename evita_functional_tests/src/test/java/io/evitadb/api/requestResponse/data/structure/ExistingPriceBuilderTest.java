@@ -118,12 +118,12 @@ class ExistingPriceBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemoveAllUntouchedPrices() {
-		builder.setPrice(1, "basic", CZK, new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true)
+		builder.setPrice(1, "basic", CZK, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true)
 				.setPrice(3, "basic", EUR, new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true)
 				.removeAllNonTouchedPrices();
 
 		final PricesContract updatedPrices = builder.build();
-		assertPrice(updatedPrices.getPrice(1, "basic", CZK), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
+		assertPrice(updatedPrices.getPrice(1, "basic", CZK), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, true);
 		assertPrice(updatedPrices.getPrice(3, "basic", EUR), new BigDecimal("56"), new BigDecimal("21"), new BigDecimal("65.25"), true);
 
 		final Collection<PriceContract> prices = updatedPrices.getPrices();

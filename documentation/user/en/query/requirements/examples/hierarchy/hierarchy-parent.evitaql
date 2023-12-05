@@ -1,17 +1,17 @@
-query(    
-    collection('Product'),    
+query(
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'audio')
+            "categories",
+            attributeEquals("code", "audio")
         )
     ),
     require(
         hierarchyOfReference(
-            'categories',
+            "categories",
             parents(
-                'parent',
-                entityFetch(attributeContent('code')),
+                "parent",
+                entityFetch(attributeContent("code")),
                 stopAt(distance(1)),
                 statistics(
                     CHILDREN_COUNT,

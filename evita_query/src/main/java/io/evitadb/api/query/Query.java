@@ -30,6 +30,7 @@ import io.evitadb.api.query.require.Require;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor;
 import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.api.query.visitor.QueryPurifierVisitor;
+import io.evitadb.utils.PrettyPrintable;
 import lombok.EqualsAndHashCode;
 import lombok.EqualsAndHashCode.CacheStrategy;
 
@@ -62,7 +63,7 @@ import java.util.function.UnaryOperator;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @EqualsAndHashCode(of = {"collection", "filterBy", "orderBy", "require"}, cacheStrategy = CacheStrategy.LAZY)
-public class Query implements Serializable {
+public class Query implements Serializable, PrettyPrintable {
 	@Serial private static final long serialVersionUID = -1797234436133920949L;
 
 	@Nullable private final Collection collection;

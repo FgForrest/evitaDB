@@ -53,11 +53,11 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		output.writeVarInt(object.getLastEntityIndexPrimaryKey(), true);
 		output.writeVarInt(object.getRecordCount(), true);
 
-		final FileLocation memTableLocation = object.getFileLocation();
-		output.writeBoolean(memTableLocation != null);
-		if (memTableLocation != null) {
-			output.writeVarLong(memTableLocation.startingPosition(), true);
-			output.writeVarInt(memTableLocation.recordLength(), true);
+		final FileLocation fileOffsetIndexLocation = object.getFileLocation();
+		output.writeBoolean(fileOffsetIndexLocation != null);
+		if (fileOffsetIndexLocation != null) {
+			output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
+			output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
 		}
 
 		serializeKeys(object.getCompressedKeys(), output, kryo);
@@ -73,7 +73,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
-		final FileLocation memTableLocation = input.readBoolean() ?
+		final FileLocation fileOffsetIndexLocation = input.readBoolean() ?
 			new FileLocation(
 				input.readVarLong(true),
 				input.readVarInt(true)
@@ -85,7 +85,7 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 
 		return new EntityCollectionHeader(
 			entityType, entityTypePrimaryKey, entityCount, lastPrimaryKey, lastEntityIndexPrimaryKey,
-			new PersistentStorageHeader(version, memTableLocation, keys),
+			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
 			globalIndexKey, entityIndexIds
 		);
 	}

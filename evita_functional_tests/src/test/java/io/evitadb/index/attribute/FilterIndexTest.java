@@ -25,6 +25,8 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.range.RangePoint;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -45,10 +47,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.test.TestConstants.LONG_RUNNING_TEST;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies {@link FilterIndex} contract.
@@ -216,29 +215,95 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 		assertArrayEquals(new int[]{1, 3}, rangeAttribute.getRecordsValidIn(8L).getArray());
 	}
 
+	@Test
+	void shouldIndexDeltaRanges() {
+		fillRangeAttribute();
+		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
+		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+
+		assertArrayEquals(new int[] {1, 2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(20, 30)).getArray());
+		final RangePoint<?>[] ranges = rangeAttribute.getRangeIndex().getRanges();
+		assertEquals(
+			"""
+					TransactionalRangePoint{threshold=-9223372036854775808, starts=[], ends=[]}
+					TransactionalRangePoint{threshold=2, starts=[1], ends=[]}
+					TransactionalRangePoint{threshold=5, starts=[3], ends=[]}
+					TransactionalRangePoint{threshold=10, starts=[], ends=[1]}
+					TransactionalRangePoint{threshold=11, starts=[2], ends=[]}
+					TransactionalRangePoint{threshold=15, starts=[], ends=[3]}
+					TransactionalRangePoint{threshold=20, starts=[1], ends=[]}
+					TransactionalRangePoint{threshold=30, starts=[], ends=[1, 2]}
+					TransactionalRangePoint{threshold=50, starts=[1], ends=[]}
+					TransactionalRangePoint{threshold=100, starts=[], ends=[1]}
+					TransactionalRangePoint{threshold=9223372036854775807, starts=[], ends=[]}""",
+			Arrays.stream(ranges).map(Object::toString).collect(Collectors.joining("\n"))
+		);
+	}
+
+	@Test
+	void shouldFailToRemoveNonExistingRange() {
+		fillRangeAttribute();
+		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
+		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+
+		assertThrows(
+			IllegalArgumentException.class,
+			() -> rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(4, 6)})
+		);
+	}
+
+	@Test
+	void shouldRemoveIndexedDeltaRanges() {
+		fillRangeAttribute();
+		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(2, 5), IntegerNumberRange.between(20, 30)});
+		rangeAttribute.addRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+		rangeAttribute.addRecordDelta(2, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+
+		rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(5, 10)});
+		rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(20, 30)});
+		rangeAttribute.removeRecordDelta(1, new IntegerNumberRange[] {IntegerNumberRange.between(90, 100)});
+
+		assertArrayEquals(new int[] {2}, rangeAttribute.getRecordsEqualTo(IntegerNumberRange.between(20, 30)).getArray());
+		final RangePoint<?>[] ranges = rangeAttribute.getRangeIndex().getRanges();
+		assertEquals(
+			"""
+			TransactionalRangePoint{threshold=-9223372036854775808, starts=[], ends=[]}
+			TransactionalRangePoint{threshold=2, starts=[1], ends=[]}
+			TransactionalRangePoint{threshold=5, starts=[3], ends=[1]}
+			TransactionalRangePoint{threshold=11, starts=[2], ends=[]}
+			TransactionalRangePoint{threshold=15, starts=[], ends=[3]}
+			TransactionalRangePoint{threshold=30, starts=[], ends=[2]}
+			TransactionalRangePoint{threshold=50, starts=[1], ends=[]}
+			TransactionalRangePoint{threshold=90, starts=[], ends=[1]}
+			TransactionalRangePoint{threshold=9223372036854775807, starts=[], ends=[]}""",
+			Arrays.stream(ranges).map(Object::toString).collect(Collectors.joining("\n"))
+		);
+	}
+
 	@ParameterizedTest(name = "FilterIndex should survive generational randomized test applying modifications on it")
 	@Tag(LONG_RUNNING_TEST)
 	@ArgumentsSource(TimeArgumentProvider.class)
 	void generationalProofTest(GenerationalTestInput input) {
 		final int initialCount = 100;
-		final Map<IntegerNumberRange, Integer> mapToCompare = new HashMap<>();
-		final Set<Integer> currentRecordSet = new HashSet<>();
-		final Set<IntegerNumberRange> uniqueValues = new HashSet<>();
+		final Map<IntegerNumberRange, Integer> rangeToRecord = new HashMap<>();
+		final Map<Integer, Set<IntegerNumberRange>> recordRanges = new HashMap<>();
 
 		runFor(
 			input,
 			100,
 			new TestState(
 				new StringBuilder(),
-				new FilterIndex(NumberRange.class)
+				new FilterIndex(IntegerNumberRange.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
 				codeBuffer.append("final FilterIndex filterIndex = new FilterIndex(String.class);\n")
 					.append(
-						mapToCompare.entrySet()
+						rangeToRecord.entrySet()
 							.stream()
-							.map(it -> "filterIndex.addRecord(\"" + it.getValue() + "\"," + it.getKey() + ");")
+							.map(it -> "filterIndex.addRecord(" + it.getValue() + ", IntegerNumberRange.between(" + it.getKey().getPreciseFrom() + ", " + it.getKey().getPreciseTo() + "));")
 							.collect(Collectors.joining("\n"))
 					);
 				codeBuffer.append("\nOps:\n");
@@ -257,37 +322,77 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 									// insert new item
 									IntegerNumberRange range;
 									do {
-										final int from = random.nextInt(initialCount * 2);
-										final int to = random.nextInt(initialCount * 2);
+										final int from = random.nextInt(initialCount);
+										final int to = random.nextInt(initialCount);
 										range = IntegerNumberRange.between(Math.min(from, to), Math.max(from, to));
-									} while (uniqueValues.contains(range));
+									} while (rangeToRecord.containsKey(range));
 
-									int newRecId;
-									do {
-										newRecId = random.nextInt(initialCount * 2);
-									} while (currentRecordSet.contains(newRecId));
-									mapToCompare.put(range, newRecId);
-									currentRecordSet.add(newRecId);
-									uniqueValues.add(range);
+									int newRecId = random.nextInt(initialCount);
 
-									codeBuffer.append("filterIndex.addRecord(\"")
-										.append(newRecId).append("\",").append(range).append(");\n");
-									transactionalFilterIndex.addRecord(newRecId, range);
+									final Set<IntegerNumberRange> theRecordValues;
+									final Set<IntegerNumberRange> existingRecordValues = recordRanges.get(newRecId);
+									if (existingRecordValues == null) {
+										theRecordValues = new HashSet<>();
+										theRecordValues.add(range);
+										recordRanges.put(newRecId, theRecordValues);
+
+										codeBuffer.append("filterIndex.addRecord(")
+											.append(newRecId).append(",").append("IntegerNumberRange.between(" + range.getPreciseFrom() + ", " + range.getPreciseTo() + ")").append(");\n");
+										transactionalFilterIndex.addRecord(newRecId, range);
+									} else {
+										theRecordValues = existingRecordValues;
+										theRecordValues.add(range);
+
+										codeBuffer.append("filterIndex.addRecordDelta(")
+											.append(newRecId).append(", new IntegerNumberRange[] { ").append("IntegerNumberRange.between(" + range.getPreciseFrom() + ", " + range.getPreciseTo() + ")").append(" });\n");
+										transactionalFilterIndex.addRecordDelta(newRecId, new IntegerNumberRange[] { range });
+									}
+									rangeToRecord.put(range, newRecId);
 								} else {
 									// remove existing item
-									final Iterator<Entry<IntegerNumberRange, Integer>> it = mapToCompare.entrySet().iterator();
+									final Iterator<Entry<IntegerNumberRange, Integer>> it = rangeToRecord.entrySet().iterator();
 									Entry<IntegerNumberRange, Integer> valueToRemove = null;
 									for (int j = 0; j < random.nextInt(length) + 1; j++) {
 										valueToRemove = it.next();
 									}
-									it.remove();
-									currentRecordSet.remove(valueToRemove.getValue());
-									uniqueValues.remove(valueToRemove.getKey());
 
-									codeBuffer.append("filterIndex.removeRecord(\"")
-										.append(valueToRemove.getValue()).append("\",").append(valueToRemove.getKey())
-										.append(");\n");
-									transactionalFilterIndex.removeRecord(valueToRemove.getValue(), valueToRemove.getKey());
+									final Integer removedRecordId = valueToRemove.getValue();
+									it.remove();
+
+									boolean removeEntirely = random.nextInt(10) == 0;
+									final Set<IntegerNumberRange> theCurrentRecordValues = recordRanges.get(removedRecordId);
+
+									if (!removeEntirely && theCurrentRecordValues.size() > 1) {
+										final IntegerNumberRange range = valueToRemove.getKey();
+										recordRanges.put(
+											removedRecordId,
+											theCurrentRecordValues.stream()
+												.filter(item -> !item.equals(range))
+												.collect(Collectors.toSet())
+										);
+										codeBuffer.append("filterIndex.removeRecordDelta(")
+											.append(removedRecordId).append(", ")
+											.append("new IntegerNumberRange[] { IntegerNumberRange.between(" + range.getPreciseFrom() + ", " + range.getPreciseTo() + ") }")
+											.append(");\n");
+										transactionalFilterIndex.removeRecordDelta(
+											removedRecordId,
+											new IntegerNumberRange[] {range}
+										);
+									} else {
+										recordRanges.remove(removedRecordId);
+										final IntegerNumberRange[] allRemovedValues = theCurrentRecordValues.stream().sorted().toArray(IntegerNumberRange[]::new);
+										for (IntegerNumberRange additionalValueRemoved : allRemovedValues) {
+											rangeToRecord.remove(additionalValueRemoved);
+										}
+										codeBuffer.append("filterIndex.removeRecord(")
+											.append(removedRecordId).append(", new IntegerNumberRange[] { ")
+											.append(Arrays.stream(allRemovedValues).map(range -> "IntegerNumberRange.between(" + range.getPreciseFrom() + ", " + range.getPreciseTo() + ")").collect(Collectors.joining(", ")))
+											.append(" });\n");
+										transactionalFilterIndex.removeRecord(
+											removedRecordId,
+											allRemovedValues
+										);
+									}
 								}
 							}
 						} catch (Exception ex) {
@@ -295,7 +400,29 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 						}
 					},
 					(original, committed) -> {
-						final int[] expected = currentRecordSet.stream().mapToInt(it -> it).sorted().toArray();
+						assertEquals(
+							rangeToRecord.size(),
+							recordRanges.values().stream().mapToInt(Set::size).sum(),
+							"\n" + rangeToRecord.keySet().stream().sorted().map(NumberRange::toString).collect(Collectors.joining(",")) + " vs. \n" +
+							recordRanges.values().stream().flatMap(Set::stream).sorted().map(NumberRange::toString).collect(Collectors.joining(",")) +
+							"\n" + codeBuffer
+						);
+
+						for (Entry<Integer, Set<IntegerNumberRange>> entry : recordRanges.entrySet()) {
+							final Set<IntegerNumberRange> values = entry.getValue();
+							@SuppressWarnings({"unchecked", "rawtypes", "SuspiciousArrayCast"})
+							final IntegerNumberRange[] actual = (IntegerNumberRange[]) ((InvertedIndex)committed.getInvertedIndex())
+								.getValuesForRecord(entry.getKey(), IntegerNumberRange.class);
+							assertArrayEquals(
+								values.stream().sorted().toArray(),
+								Arrays.stream(actual).sorted().toArray(),
+								"\nExpected for `" + entry.getKey() + "`: " + Arrays.toString(values.toArray()) + "\n" +
+									"Actual:   " + Arrays.toString(actual) + "\n\n" +
+									codeBuffer
+							);
+						}
+
+						final int[] expected = recordRanges.keySet().stream().mapToInt(it -> it).sorted().toArray();
 						assertArrayEquals(
 							expected,
 							committed.getAllRecords().getArray(),
@@ -306,7 +433,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new FilterIndex(
-								committed.getHistogram(),
+								committed.getInvertedIndex(),
 								committed.getRangeIndex()
 							)
 						);

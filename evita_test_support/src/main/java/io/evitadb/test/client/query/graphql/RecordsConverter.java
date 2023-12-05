@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
@@ -47,9 +48,10 @@ public class RecordsConverter extends RequireConverter {
 
 	private final EntityFetchConverter entityFetchConverter;
 
-	public RecordsConverter(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+	public RecordsConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                        @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder requireBuilder,

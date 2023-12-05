@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeIs('catalogNumber', NULL)
+        attributeIs("catalogNumber", NULL)
     ),
     require(
        entityFetch(
-           attributeContent('code', 'catalogNumber')
+           attributeContent("code", "catalogNumber")
        )
     )
 )

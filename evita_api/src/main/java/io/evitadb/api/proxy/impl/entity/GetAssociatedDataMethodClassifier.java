@@ -26,17 +26,19 @@ package io.evitadb.api.proxy.impl.entity;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
+import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityProxyState;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
 import io.evitadb.api.requestResponse.data.annotation.AssociatedDataRef;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
-import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.ExceptionRethrowingFunction;
 import io.evitadb.function.TriFunction;
@@ -68,6 +70,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
+import static io.evitadb.dataType.data.ComplexDataObjectConverter.getOriginalForm;
 
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
@@ -170,7 +173,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 * it tries to match the associated data name by the name of the method.
 	 */
 	@Nullable
-	private static AssociatedDataSchemaContract getAssociatedDataSchema(
+	public static AssociatedDataSchemaContract getAssociatedDataSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema
@@ -181,7 +184,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
 		} else if (associatedDataRefInstance != null) {
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
-		} else if (!reflectionLookup.hasAnnotationInSamePackage(method, AssociatedData.class) && ClassUtils.isAbstract(method)) {
+		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, AssociatedData.class) && ClassUtils.isAbstract(method)) {
 			return ReflectionLookup.getPropertyNameFromMethodNameIfPossible(method.getName())
 				.flatMap(
 					associatedDataName -> entitySchema.getAssociatedDataByName(
@@ -236,21 +239,21 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> associatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName)
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(it -> getOriginalForm(it, itemType, theState.getReflectionLookup()))
 					.orElse(null)
 			) :
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				localizedAssociatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName, (Locale) args[0])
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> localizedAssociatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName, (Locale) args[0])
 					.map(AssociatedDataValue::value)
 					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+					.map(it -> getOriginalForm(it, itemType, theState.getReflectionLookup()))
 					.orElse(null)
 			);
 	}
@@ -260,49 +263,60 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfLocalizedResults(
-		@Nonnull String cleanAssociatedDataName,
+		@Nonnull String associatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
 		@Nonnull BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			itemType.isArray(),
 			() -> new EntityClassInvalidException(
 				method.getDeclaringClass(),
-				"Method " + method + " is annotated with @AssociatedData related to `" + cleanAssociatedDataName + "` " +
+				"Method " + method + " is annotated with @AssociatedData related to `" + associatedDataName + "` " +
 					"of non-array associated data, but returns a collection!"
 			)
 		);
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.map(Object[].class::cast)
-					.map(it -> {
-						final Set<Object> result = CollectionUtils.createHashSet(it.length);
-						result.addAll(Arrays.asList(it));
-						return result;
-					})
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> associatedDataExtractor.apply(theState.entity(), associatedDataName)
+					.map(it -> associatedDataSetToSet(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptySet())
 			) :
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				localizedAssociatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName, (Locale) args[0])
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.map(Object[].class::cast)
-					.map(it -> {
-						final Set<Object> result = CollectionUtils.createHashSet(it.length);
-						result.addAll(Arrays.asList(it));
-						return result;
-					})
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> localizedAssociatedDataExtractor.apply(theState.entity(), associatedDataName, (Locale) args[0])
+					.map(it -> associatedDataSetToSet(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptySet())
 			);
+	}
+
+	/**
+	 * Converts an associated data value to a set of items.
+	 *
+	 * @param itemType             type of the associated data element
+	 * @param associatedDataValue  associated data value
+	 * @param defaultValueProvider default value provider
+	 * @param reflectionLookup     reflection lookup
+	 * @return set of items
+	 */
+	@SuppressWarnings({"DataFlowIssue", "rawtypes", "unchecked"})
+	private static Set<Object> associatedDataSetToSet(
+		@Nonnull Class itemType,
+		@Nonnull AssociatedDataValue associatedDataValue,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		final Serializable value = defaultValueProvider.apply(associatedDataValue.value());
+		if (value == null) {
+			return null;
+		} else {
+			final Object[] theValue = (Object[]) getOriginalForm(value, itemType, reflectionLookup);
+			final Set<Object> result = CollectionUtils.createHashSet(theValue.length);
+			result.addAll(Arrays.asList(theValue));
+			return result;
+		}
 	}
 
 	/**
@@ -316,7 +330,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Optional<AssociatedDataValue>> localizedAssociatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			itemType.isArray(),
@@ -327,24 +341,41 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			)
 		);
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.map(Object[].class::cast)
-					.map(List::of)
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> associatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName)
+					.map(it -> associatedDataSetToList(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptyList())
 			) :
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				localizedAssociatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName, (Locale) args[0])
-					.map(AssociatedDataValue::value)
-					.map(defaultValueProvider)
-					.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-					.map(Object[].class::cast)
-					.map(List::of)
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> localizedAssociatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName, (Locale) args[0])
+					.map(it -> associatedDataSetToList(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 					.orElse(Collections.emptyList())
 			);
+	}
+
+	/**
+	 * Converts an associated data value to a list of items.
+	 *
+	 * @param itemType             type of the associated data element
+	 * @param associatedDataValue  associated data value
+	 * @param defaultValueProvider default value provider
+	 * @param reflectionLookup     reflection lookup
+	 * @return list of items
+	 */
+	@SuppressWarnings({"DataFlowIssue", "rawtypes", "unchecked"})
+	private static List<Object> associatedDataSetToList(
+		@Nonnull Class itemType,
+		@Nonnull AssociatedDataValue associatedDataValue,
+		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
+		@Nonnull ReflectionLookup reflectionLookup
+	) {
+		final Serializable value = defaultValueProvider.apply(associatedDataValue.value());
+		if (value == null) {
+			return null;
+		} else {
+			final Object[] theValue = (Object[]) getOriginalForm(value, itemType, reflectionLookup);
+			return List.of(theValue);
+		}
 	}
 
 	/**
@@ -352,17 +383,17 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> singleResult(
-		@Nonnull String cleanAssociatedDataName,
+		@Nonnull String associatedDataName,
 		@Nonnull Class<Serializable> itemType,
 		@Nonnull BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+			() -> associatedDataExtractor.apply(theState.entity(), associatedDataName)
 				.map(AssociatedDataValue::value)
 				.map(defaultValueProvider)
-				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
+				.map(it -> getOriginalForm(it, itemType, theState.getReflectionLookup()))
 				.orElse(null)
 		);
 	}
@@ -372,32 +403,24 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 	 */
 	@Nonnull
 	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> setOfResults(
-		@Nonnull String cleanAssociatedDataName,
+		@Nonnull String associatedDataName,
 		@Nonnull Method method,
 		@Nonnull Class<Serializable> itemType,
 		@Nonnull BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			itemType.isArray(),
 			() -> new EntityClassInvalidException(
 				method.getDeclaringClass(),
-				"Method " + method + " is annotated with @AssociatedData related to `" + cleanAssociatedDataName + "` " +
+				"Method " + method + " is annotated with @AssociatedData related to `" + associatedDataName + "` " +
 					"of non-array associated data, but returns a collection!"
 			)
 		);
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
-				.map(AssociatedDataValue::value)
-				.map(defaultValueProvider)
-				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-				.map(Object[].class::cast)
-				.map(it -> {
-					final Set<Object> result = CollectionUtils.createHashSet(it.length);
-					result.addAll(Arrays.asList(it));
-					return result;
-				})
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+			() -> associatedDataExtractor.apply(theState.entity(), associatedDataName)
+				.map(it -> associatedDataSetToSet(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 				.orElse(Collections.emptySet())
 		);
 	}
@@ -412,7 +435,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		@Nonnull Class<Serializable> itemType,
 		@Nonnull BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			itemType.isArray(),
@@ -422,66 +445,82 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					"of non-array associated data, but returns a collection!"
 			)
 		);
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			associatedDataExtractor.apply(theState.getEntity(), cleanAssociatedDataName)
-				.map(AssociatedDataValue::value)
-				.map(defaultValueProvider)
-				.map(it -> ComplexDataObjectConverter.getOriginalForm(it, itemType, theState.getReflectionLookup()))
-				.map(Object[].class::cast)
-				.map(List::of)
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+			() -> associatedDataExtractor.apply(theState.entity(), cleanAssociatedDataName)
+				.map(it -> associatedDataSetToList(itemType, it, defaultValueProvider, theState.getReflectionLookup()))
 				.orElse(Collections.emptyList())
 		);
 	}
 
+	/**
+	 * Returns associated data as an enum.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param enumType           type of the enum
+	 * @param reflectionLookup   reflection lookup
+	 * @return enum value
+	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Enum<?> getAssociateDataAsEnum(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class enumType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
 			return Enum.valueOf(
-				parameterType,
-				(String) entity.getAssociatedData(
-					associatedDataName,
-					String.class,
-					reflectionLookup
-				)
+				enumType,
+				entity.getAssociatedDataValue(
+						associatedDataName
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> getOriginalForm(value, String.class, reflectionLookup))
+					.orElse(null)
 			);
 		} else {
 			return null;
 		}
 	}
 
+	/**
+	 * Returns localized associated data as an enum.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param enumType           type of the enum
+	 * @param reflectionLookup   reflection lookup
+	 * @return enum value
+	 */
 	@SuppressWarnings({"rawtypes"})
 	@Nullable
 	private static Enum<?> getLocalizedAssociateDataAsEnum(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class enumType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		if (entity.attributeAvailable(associatedDataName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-			if (locale == null && locales != null && locales.isEmpty()) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			final EntityDecorator entityDecorator = (EntityDecorator) entity;
+			final Locale locale = entityDecorator.getRequestedLocale();
+			if (locale == null && entityDecorator.isMultipleLocalesRequested()) {
 				throw new EvitaInvalidUsageException(
 					"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a single enum value since " +
-						"it could localized to multiple locales and no locale was requested when fetching the entity!"
+						"it could be localized to multiple locales and none or multiple locales was requested when fetching the entity!"
 				);
 			} else if (locale != null) {
 				//noinspection unchecked
 				return Enum.valueOf(
-					parameterType,
-					(String) entity.getAssociatedData(
-						associatedDataName,
-						locale,
-						String.class,
-						reflectionLookup
-					)
+					enumType,
+					entity.getAssociatedDataValue(
+							associatedDataName,
+							locale
+						).filter(Droppable::exists)
+						.map(AssociatedDataValue::value)
+						.map(value -> getOriginalForm(value, String.class, reflectionLookup))
+						.orElse(null)
 				);
 			} else {
 				return null;
@@ -491,51 +530,73 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		}
 	}
 
-	@SuppressWarnings({"rawtypes"})
+	/**
+	 * Returns associated data as a single value of desired type.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param requestedType      desired type
+	 * @param reflectionLookup   reflection lookup
+	 * @return associated data value
+	 */
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Serializable getAssociatedDataAsSingleValue(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class requestedType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			return entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
+			return entity.getAssociatedDataValue(
+					associatedDataName
+				)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> getOriginalForm(value, requestedType, reflectionLookup))
+				.orElse(null);
 		} else {
 			return null;
 		}
 	}
 
+	/**
+	 * Returns localized associated data as a single value of desired type.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param requestedType      desired type
+	 * @param reflectionLookup   reflection lookup
+	 * @return associated data value
+	 */
 	@SuppressWarnings({"rawtypes"})
 	@Nullable
 	private static Serializable getLocalizedAssociatedDataAsSingleValue(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class requestedType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
-		if (entity.attributeAvailable(associatedDataName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-			if (locale == null && locales != null && locales.isEmpty()) {
-				if (parameterType.isArray()) {
+		if (entity.associatedDataAvailable(associatedDataName)) {
+			final EntityDecorator entityDecorator = (EntityDecorator) entity;
+			final Locale locale = entityDecorator.getRequestedLocale();
+			if (locale == null && entityDecorator.isMultipleLocalesRequested()) {
+				if (requestedType.isArray()) {
 					return entity.getAttributeLocales()
 						.stream()
+						.filter(entityDecorator::isLocaleRequested)
 						.map(it -> {
 							//noinspection DataFlowIssue,unchecked
-							return entity.getAssociatedData(
-								associatedDataName,
-								locale,
-								parameterType.getComponentType(),
-								reflectionLookup
-							);
+							return entity.getAssociatedDataValue(
+									associatedDataName,
+									locale
+								)
+								.filter(Droppable::exists)
+								.map(AssociatedDataValue::value)
+								.map(value -> getOriginalForm(value, requestedType.getComponentType(), reflectionLookup))
+								.orElse(null);
 						})
-						.toArray(count -> (Serializable[]) Array.newInstance(parameterType.getComponentType(), count));
+						.toArray(count -> (Serializable[]) Array.newInstance(requestedType.getComponentType(), count));
 				} else {
 					throw new EvitaInvalidUsageException(
 						"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a single value since " +
@@ -544,12 +605,14 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 				}
 			} else if (locale != null) {
 				//noinspection unchecked
-				return entity.getAssociatedData(
-					associatedDataName,
-					locale,
-					parameterType,
-					reflectionLookup
-				);
+				return entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(it -> getOriginalForm(it, requestedType, reflectionLookup))
+					.orElse(null);
 			} else {
 				return null;
 			}
@@ -558,121 +621,153 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		}
 	}
 
+	/**
+	 * Returns associated data as a set of desired type.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param requestedType      desired type
+	 * @param reflectionLookup   reflection lookup
+	 * @return set of values from associated data
+	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Set<?> getAssociatedDataAsSet(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class requestedType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
-			return Arrays.stream(associatedData).collect(Collectors.toSet());
+			return entity.getAssociatedDataValue(
+					associatedDataName
+				)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> getOriginalForm(value, requestedType, reflectionLookup))
+				.map(value -> Arrays.stream((Serializable[]) value).collect(Collectors.toSet()))
+				.orElse(Collections.emptySet());
 		} else {
-			return null;
+			return Collections.emptySet();
 		}
 	}
 
+	/**
+	 * Returns localized associated data as a set of desired type.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param requestedType      desired type
+	 * @param reflectionLookup   reflection lookup
+	 * @return set of values from associated data
+	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static Set<?> getLocalizedAssociatedDataAsSet(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class requestedType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-
-			final Serializable[] associatedData;
-			if (locale == null && locales != null && locales.isEmpty()) {
+			final EntityDecorator entityDecorator = (EntityDecorator) entity;
+			final Locale locale = entityDecorator.getRequestedLocale();
+			if (locale == null && entityDecorator.isMultipleLocalesRequested()) {
 				throw new EvitaInvalidUsageException(
 					"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a set since " +
-						"it could localized to multiple locales and it's expected to be an array data type. " +
-						"When no locale was requested when fetching the entity, it would require concatenating " +
+						"it could be localized to multiple locales, and it's expected to be an array data type. " +
+						"When none or multiple locales was requested when fetching the entity, it would require concatenating " +
 						"multiple arrays and losing the information about the associated locale!"
 				);
 			} else if (locale != null) {
-				associatedData = (Serializable[]) entity.getAssociatedData(
-					associatedDataName,
-					locale,
-					parameterType,
-					reflectionLookup
-				);
+				return entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> getOriginalForm(value, requestedType, reflectionLookup))
+					.map(value -> Arrays.stream((Serializable[]) value).collect(Collectors.toSet()))
+					.orElse(Collections.emptySet());
 			} else {
 				return Collections.emptySet();
 			}
-
-			return Arrays.stream(associatedData)
-				.collect(Collectors.toSet());
 		} else {
-			return null;
+			return Collections.emptySet();
 		}
 	}
 
+	/**
+	 * Returns associated data as a list of desired type.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param requestedType      desired type
+	 * @param reflectionLookup   reflection lookup
+	 * @return list of values from associated data
+	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static List<?> getAssociatedDataAsList(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class requestedType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			final Serializable[] associatedData = (Serializable[]) entity.getAssociatedData(
-				associatedDataName,
-				parameterType,
-				reflectionLookup
-			);
-			return Arrays.stream(associatedData).toList();
+			return entity.getAssociatedDataValue(associatedDataName)
+				.filter(Droppable::exists)
+				.map(AssociatedDataValue::value)
+				.map(value -> getOriginalForm(value, requestedType, reflectionLookup))
+				.map(value -> Arrays.stream((Serializable[])value).toList())
+				.orElse(Collections.emptyList());
 		} else {
-			return null;
+			return Collections.emptyList();
 		}
 	}
 
+	/**
+	 * Returns localized associated data as a list of desired type.
+	 *
+	 * @param entity             entity
+	 * @param associatedDataName name of the associated data
+	 * @param requestedType      desired type
+	 * @param reflectionLookup   reflection lookup
+	 * @return list of values from associated data
+	 */
 	@SuppressWarnings({"rawtypes", "unchecked"})
 	@Nullable
 	private static List<?> getLocalizedAssociatedDataAsList(
 		@Nonnull EntityContract entity,
 		@Nonnull String associatedDataName,
-		@Nonnull Class parameterType,
+		@Nonnull Class requestedType,
 		@Nonnull ReflectionLookup reflectionLookup
 	) {
 		if (entity.associatedDataAvailable(associatedDataName)) {
-			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) entity).getLocalePredicate();
-			final Set<Locale> locales = localePredicate.getLocales();
-			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-
-			final Serializable[] associatedData;
-			if (locale == null && locales != null && locales.isEmpty()) {
+			final EntityDecorator entityDecorator = (EntityDecorator) entity;
+			final Locale locale = entityDecorator.getRequestedLocale();
+			if (locale == null && entityDecorator.isMultipleLocalesRequested()) {
 				throw new EvitaInvalidUsageException(
 					"Cannot initialize associated data `" + associatedDataName + "` in a constructor as a set since " +
-						"it could localized to multiple locales and it's expected to be an array data type. " +
-						"When no locale was requested when fetching the entity, it would require concatenating " +
+						"it could be localized to multiple locales, and it's expected to be an array data type. " +
+						"When none or multiple locales was requested when fetching the entity, it would require concatenating " +
 						"multiple arrays and losing the information about the associated locale!"
 				);
 			} else if (locale != null) {
-				associatedData = (Serializable[]) entity.getAssociatedData(
-					associatedDataName,
-					locale,
-					parameterType,
-					reflectionLookup
-				);
+				return entity.getAssociatedDataValue(
+						associatedDataName,
+						locale
+					)
+					.filter(Droppable::exists)
+					.map(AssociatedDataValue::value)
+					.map(value -> getOriginalForm(value, requestedType, reflectionLookup))
+					.map(value -> Arrays.stream((Serializable[])value).toList())
+					.orElse(Collections.emptyList());
 			} else {
 				return Collections.emptyList();
 			}
-
-			return Arrays.stream(associatedData)
-				.toList();
 		} else {
-			return null;
+			return Collections.emptyList();
 		}
 	}
 
@@ -682,7 +777,11 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 			(method, proxyState) -> {
 				// we only want to handle methods that are not abstract and have at most one parameter of type Locale.
 				if (method.getParameterCount() > 1 ||
-					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
+					(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class)) ||
+					method.isAnnotationPresent(CreateWhenMissing.class) ||
+					Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(CreateWhenMissing.class::isInstance) ||
+					method.isAnnotationPresent(RemoveWhenExists.class) ||
+					Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(RemoveWhenExists.class::isInstance)
 				) {
 					return null;
 				}
@@ -701,7 +800,7 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 					final Class<?>[] resolvedTypes = getResolvedTypes(method, proxyState.getProxyClass());
 					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(returnType);
-					final UnaryOperator<Object> resultWrapper;
+					final ResultWrapper resultWrapper;
 					final int index = Optional.class.isAssignableFrom(resolvedTypes[0]) ? 1 : 0;
 
 					@SuppressWarnings("rawtypes") final Class collectionType;
@@ -709,32 +808,37 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 					if (Collection.class.equals(resolvedTypes[index]) || List.class.isAssignableFrom(resolvedTypes[index]) || Set.class.isAssignableFrom(resolvedTypes[index])) {
 						collectionType = resolvedTypes[index];
 						itemType = Array.newInstance(resolvedTypes.length > index + 1 ? resolvedTypes[index + 1] : Object.class, 0).getClass();
-						resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
+						resultWrapper = ProxyUtils.createOptionalWrapper(
+							method, Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null
+						);
 					} else if (resolvedTypes[index].isArray()) {
 						collectionType = null;
 						itemType = resolvedTypes[index];
-						resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
+						resultWrapper = ProxyUtils.createOptionalWrapper(
+							method, Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null
+						);
 					} else {
 						collectionType = null;
 						if (OptionalInt.class.isAssignableFrom(resolvedTypes[0])) {
 							itemType = int.class;
-							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, itemType);
 						} else if (OptionalLong.class.isAssignableFrom(resolvedTypes[0])) {
 							itemType = long.class;
-							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, itemType);
 						} else if (Optional.class.isAssignableFrom(resolvedTypes[0])) {
 							itemType = resolvedTypes[index];
-							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, itemType);
 						} else {
 							itemType = resolvedTypes[index];
-							resultWrapper = ProxyUtils.createOptionalWrapper(null);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, null);
 						}
 					}
 
 					final BiFunction<EntityContract, String, Optional<AssociatedDataValue>> associatedDataExtractor =
 						resultWrapper instanceof OptionalProducingOperator ?
-							(entity, associatedDataName) -> entity.associatedDataAvailable(associatedDataName) ? entity.getAssociatedDataValue(associatedDataName) : Optional.empty() :
-							AssociatedDataContract::getAssociatedDataValue;
+							(entity, associatedDataName) -> entity.associatedDataAvailable(associatedDataName) ?
+								entity.getAssociatedDataValue(associatedDataName).filter(Droppable::exists) : Optional.empty() :
+							(theEntity, theAssociatedDataName) -> theEntity.getAssociatedDataValue(theAssociatedDataName).filter(Droppable::exists);
 
 					if (associatedDataSchema.isLocalized()) {
 

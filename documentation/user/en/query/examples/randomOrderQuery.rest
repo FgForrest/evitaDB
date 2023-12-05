@@ -1,0 +1,10 @@
+POST /rest/evita/Product/query
+
+{
+  "orderBy" : [{
+    "attributeCodeNatural" : "ASC"
+  }],
+  "require" : {
+    "entityFetch" : {}
+  }
+}

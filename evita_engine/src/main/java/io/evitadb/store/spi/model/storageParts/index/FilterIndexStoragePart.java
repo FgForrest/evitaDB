@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Range;
-import io.evitadb.index.histogram.InvertedIndex;
+import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.store.model.RecordWithCompressedId;
 import lombok.AllArgsConstructor;
@@ -75,7 +75,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Nullable @Getter private final RangeIndex rangeIndex;
 	/**
-	 * Id used for lookups in {@link io.evitadb.storage.MemTable} for this particular container.
+	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Getter @Setter private Long uniquePartId;
 

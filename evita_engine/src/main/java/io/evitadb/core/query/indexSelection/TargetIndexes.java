@@ -33,6 +33,7 @@ import lombok.Data;
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * This data transfer object encapsulates set of {@link EntityIndex} that relate to specific {@link FilterConstraint}.
@@ -96,4 +97,19 @@ public class TargetIndexes<T extends Index<?>> {
 		return this.indexes.size() == 1 && this.indexes.get(0) instanceof CatalogIndex;
 	}
 
+	/**
+	 * Returns a stream of elements of the requested type from the indexes.
+	 *
+	 * @param requestedType the Class object representing the requested type of elements
+	 * @param <S> the type parameter for the requested elements
+	 * @return a Stream of elements of the requested type from the indexes
+	 * @throws NullPointerException if requestedType is null
+	 */
+	@Nonnull
+	public <S> Stream<S> getIndexStream(@Nonnull Class<S> requestedType) {
+		return this.indexes
+			.stream()
+			.filter(requestedType::isInstance)
+			.map(requestedType::cast);
+	}
 }

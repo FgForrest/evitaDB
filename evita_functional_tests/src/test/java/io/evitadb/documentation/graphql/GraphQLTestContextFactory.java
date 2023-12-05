@@ -23,6 +23,7 @@
 
 package io.evitadb.documentation.graphql;
 
+import io.evitadb.documentation.DocumentationProfile;
 import io.evitadb.documentation.TestContextFactory;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -44,17 +45,17 @@ public class GraphQLTestContextFactory implements TestContextFactory<GraphQLTest
 	private final AtomicReference<GraphQLTestContext> testContextRef = new AtomicReference<>();
 
 	@Override
-	public DynamicTest getInitTest() {
+	public DynamicTest getInitTest(@Nonnull DocumentationProfile profile) {
 		return dynamicTest(
-			"Init Evita Demo connection",
-			() -> testContextRef.set(new GraphQLTestContext())
+			"Init Evita GraphQL connection (" + profile + ")",
+			() -> testContextRef.set(new GraphQLTestContext(profile))
 		);
 	}
 
 	@Override
-	public DynamicTest getTearDownTest() {
+	public DynamicTest getTearDownTest(@Nonnull DocumentationProfile profile) {
 		return dynamicTest(
-			"Destroy Evita Demo connection",
+			"Destroy Evita GraphQL connection (" + profile + ")",
 			() -> {}
 		);
 	}

@@ -138,9 +138,9 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	 */
 	@Delegate @Getter private final QueryContext queryContext;
 	/**
-	 * This instance contains the {@link EntityIndex} set that is used to resolve passed query filter.
+	 * This instance contains the {@link io.evitadb.index.Index} set that is used to resolve passed query filter.
 	 */
-	@Getter private final TargetIndexes<EntityIndex<?>> indexSetToUse;
+	@Getter private final TargetIndexes<?> indexSetToUse;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -196,7 +196,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 
 	public ExtraResultPlanningVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull TargetIndexes<EntityIndex<?>> indexSetToUse,
+		@Nonnull TargetIndexes<?> indexSetToUse,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nullable Sorter sorter
@@ -360,7 +360,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	public Sorter createSorter(
 		@Nonnull ConstraintContainer<OrderConstraint> orderBy,
 		@Nullable Locale locale,
-		@Nonnull EntityIndex<?> entityIndex,
+		@Nonnull EntityIndex entityIndex,
 		@Nonnull String entityType,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {

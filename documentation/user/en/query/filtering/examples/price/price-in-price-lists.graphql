@@ -14,7 +14,13 @@
         attributes {
           code
         }
-        priceForSale {
+        prices(
+          priceLists: [
+            "vip-group-1-level",
+            "vip-group-2-level",
+            "vip-group-3-level"
+          ]
+        ) {
           priceWithoutTax
           priceWithTax
           taxRate

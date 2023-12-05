@@ -2,7 +2,7 @@
 title: Introduction
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 evitaDB helps developers to create fast product catalog applications, which are the heart of every e-commerce site.
@@ -87,7 +87,7 @@ the first version to the general public.
    10. [Behavioral filter containers](query/filtering/behavioral.md)
 3. **Ordering**
    1. [Constant](query/ordering/constant.md)
-   1. [Natural](query/ordering/natural.md)
+   1. [Comparable](query/ordering/comparable.md)
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)
    4. [Random](query/ordering/random.md)

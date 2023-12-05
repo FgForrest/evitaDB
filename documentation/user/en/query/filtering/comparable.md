@@ -7,6 +7,7 @@ perex: |
   filtering constraints that you will commonly use when building queries.  
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 <Note type="info">
@@ -174,6 +175,7 @@ the value.
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Products with `battery-life` attribute greater than or equal to 40 hours](/documentation/user/en/query/filtering/examples/comparable/attribute-greater-than-equals.evitaql)
+
 </SourceCodeTabs>
 
 Returns exactly several products with *battery-life* greater than or equal to *40* hours.

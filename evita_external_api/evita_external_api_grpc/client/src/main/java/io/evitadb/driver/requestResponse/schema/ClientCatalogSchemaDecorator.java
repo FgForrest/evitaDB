@@ -91,8 +91,9 @@ public class ClientCatalogSchemaDecorator extends CatalogSchemaDecorator {
 		return Optional.ofNullable(entitySchemaAccessor.apply(entityType));
 	}
 
+	@Nonnull
 	@Override
-	public EntitySchemaContract getEntitySchemaOrThrowException(String entityType) {
+	public EntitySchemaContract getEntitySchemaOrThrowException(@Nonnull String entityType) {
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
 	}

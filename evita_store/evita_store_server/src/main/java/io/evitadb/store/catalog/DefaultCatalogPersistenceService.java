@@ -48,16 +48,16 @@ import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndexDescriptor;
+import io.evitadb.store.fileOffsetIndex.exception.UnexpectedCatalogContentsException;
+import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.memTable.MemTable;
-import io.evitadb.store.memTable.MemTableDescriptor;
-import io.evitadb.store.memTable.exception.UnexpectedCatalogContentsException;
-import io.evitadb.store.memTable.model.MemTableRecordTypeRegistry;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KeyCompressor;
@@ -135,11 +135,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Contains configuration of record types that could be stored into the mem-table.
 	 */
-	private final MemTableRecordTypeRegistry recordTypeRegistry;
+	private final FileOffsetIndexRecordTypeRegistry recordTypeRegistry;
 	/**
 	 * Memory key-value store for indexes and schema.
 	 */
-	private final MemTable memTable;
+	private final FileOffsetIndex fileOffsetIndex;
 	/**
 	 * Contains information about storage configuration options.
 	 */
@@ -184,10 +184,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
-		this.recordTypeRegistry = new MemTableRecordTypeRegistry();
-		this.memTable = new MemTable(
+		this.recordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
+		this.fileOffsetIndex = new FileOffsetIndex(
 			this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName)),
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				this.catalogBootstrap.getCatalogHeader(),
 				this.createTypeKryoInstance(),
 				false
@@ -214,10 +214,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			ofNullable(this.catalogBootstrap).map(it -> it.getCollectionHeaders().size()).orElse(16)
 		);
-		this.recordTypeRegistry = new MemTableRecordTypeRegistry();
-		this.memTable = new MemTable(
+		this.recordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
+		this.fileOffsetIndex = new FileOffsetIndex(
 			this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName)),
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				this.catalogBootstrap.getCatalogHeader(),
 				this.createTypeKryoInstance(),
 				this.catalogBootstrap.getCatalogState() == CatalogState.ALIVE
@@ -229,20 +229,20 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	private DefaultCatalogPersistenceService(
-		@Nonnull MemTableRecordTypeRegistry memTableRecordTypeRegistry,
+		@Nonnull FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull MemTable memTable,
+		@Nonnull FileOffsetIndex fileOffsetIndex,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ConcurrentHashMap<String, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices,
 		@Nonnull CatalogBootstrap catalogBootstrap
 	) {
-		this.recordTypeRegistry = memTableRecordTypeRegistry;
+		this.recordTypeRegistry = fileOffsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.memTable = memTable;
+		this.fileOffsetIndex = fileOffsetIndex;
 		this.storageOptions = storageOptions;
 		this.entityCollectionPersistenceServices = entityCollectionPersistenceServices;
 		this.catalogBootstrap = catalogBootstrap;
@@ -288,7 +288,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public CatalogIndex readCatalogIndex(@Nonnull Catalog catalog) {
-		final CatalogIndexStoragePart catalogIndexStoragePart = this.memTable.get(1, CatalogIndexStoragePart.class);
+		final CatalogIndexStoragePart catalogIndexStoragePart = this.fileOffsetIndex.get(1, CatalogIndexStoragePart.class);
 		if (catalogIndexStoragePart == null) {
 			return new CatalogIndex(catalog);
 		} else {
@@ -296,7 +296,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
 			for (AttributeKey attributeKey : sharedAttributeUniqueIndexes) {
 				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, getReadOnlyKeyCompressor());
-				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.memTable.get(partId, GlobalUniqueIndexStoragePart.class);
+				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.fileOffsetIndex.get(partId, GlobalUniqueIndexStoragePart.class);
 				Assert.isPremiseValid(
 					sharedUniqueIndexStoragePart != null,
 					"Shared unique index not found for attribute `" + attributeKey + "`!"
@@ -445,9 +445,9 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.observableOutputKeeper,
 				catalogNameToBeReplaced,
 				newPath,
-				new MemTable(
+				new FileOffsetIndex(
 					newPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogNameToBeReplaced)),
-					new MemTableDescriptor(
+					new FileOffsetIndexDescriptor(
 						this.catalogBootstrap.getCatalogHeader(),
 						this.createTypeKryoInstance(),
 						this.catalogBootstrap.getCatalogState() == CatalogState.ALIVE
@@ -562,8 +562,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Override
 	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<CatalogIndexKey, CatalogIndex> bufferedChangeSet) {
 		// now store all entity trapped updates
-		bufferedChangeSet.getTrappedMemTableUpdates()
-			.forEach(it -> memTable.put(0L, it));
+		bufferedChangeSet.getTrappedUpdates()
+			.forEach(it -> fileOffsetIndex.put(0L, it));
 	}
 
 	/*
@@ -577,41 +577,41 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			entityCollectionPersistenceService.close();
 		}
 		this.entityCollectionPersistenceServices.clear();
-		// close current memTable
-		if (this.memTable.isOperative()) {
-			this.memTable.close();
+		// close current file offset index
+		if (this.fileOffsetIndex.isOperative()) {
+			this.fileOffsetIndex.close();
 		}
 	}
 
 	@Override
 	public boolean isClosed() {
-		return !this.memTable.isOperative();
+		return !this.fileOffsetIndex.isOperative();
 	}
 
 	@Override
 	public <T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.memTable.get(primaryKey, containerType);
+		return this.fileOffsetIndex.get(primaryKey, containerType);
 	}
 
 	@Nullable
 	@Override
 	public <T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.memTable.getBinary(primaryKey, containerType);
+		return this.fileOffsetIndex.getBinary(primaryKey, containerType);
 	}
 
 	@Override
 	public <T extends StoragePart> long putStoragePart(long transactionId, @Nonnull T container) {
-		return this.memTable.put(transactionId, container);
+		return this.fileOffsetIndex.put(transactionId, container);
 	}
 
 	@Override
 	public <T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return memTable.remove(primaryKey, containerType);
+		return fileOffsetIndex.remove(primaryKey, containerType);
 	}
 
 	@Override
 	public <T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return memTable.contains(primaryKey, containerType);
+		return fileOffsetIndex.contains(primaryKey, containerType);
 	}
 
 	/*
@@ -621,7 +621,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		return this.memTable.getReadOnlyKeyCompressor();
+		return this.fileOffsetIndex.getReadOnlyKeyCompressor();
 	}
 
 	/**
@@ -637,8 +637,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	) {
 		final long start = System.nanoTime();
 
-		final long previousVersion = this.memTable.getVersion();
-		final MemTableDescriptor newDescriptor = this.memTable.flush(transactionId);
+		final long previousVersion = this.fileOffsetIndex.getVersion();
+		final FileOffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
 		final CatalogHeader catalogHeader;
 		// when versions are equal - nothing has changed, and we can reuse old header
 		if (newDescriptor.getVersion() > previousVersion || !Objects.equals(catalogName, theCatalogName)) {

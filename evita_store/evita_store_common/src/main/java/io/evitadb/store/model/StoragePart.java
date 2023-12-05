@@ -30,9 +30,8 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 
 /**
- * StoragePart is a data container, that can be stored via {@link io.evitadb.storage.MemTable#put(long, long, StoragePart)}
- * method to the persistent storage. Each storage part is uniquely determined by {@link #getUniquePartId()} and the type
- * (e.g. {@link StoragePart#getClass() implementation class}).
+ * StoragePart is a data container, that can be stored via file offset index to the persistent storage. Each storage
+ * part is uniquely determined by {@link #getUniquePartId()} and the type (e.g. {@link StoragePart#getClass()} implementation class}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

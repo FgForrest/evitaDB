@@ -1,13 +1,13 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        referenceHaving('relatedProducts')
+        referenceHaving("relatedProducts")
     ),
     require(
         entityFetch(
             referenceContentWithAttributes(
-                'relatedProducts',
-                attributeContent('category')
+                "relatedProducts",
+                attributeContent("category")
             )
         )
     )

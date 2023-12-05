@@ -28,6 +28,7 @@ import io.evitadb.api.query.FacetConstraint;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AdditionalChild;
+import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -133,7 +134,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 			"Facet summary requires reference name."
 		);
 		Assert.notNull(
-			getFacetStatisticsDepth(),
+			getStatisticsDepth(),
 			"Facet summary requires a facet statistics depth specification."
 		);
 		for (RequireConstraint child : getChildren()) {
@@ -179,9 +180,9 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 		@Nonnull @Classifier String referenceName,
 		@Nonnull FacetStatisticsDepth statisticsDepth,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy,
-		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterGroupBy filterGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) FilterGroupBy filterGroupBy,
 		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderBy orderBy,
-		@Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) OrderGroupBy orderGroupBy,
+		@Nullable @AdditionalChild(domain = ConstraintDomain.GROUP_ENTITY) OrderGroupBy orderGroupBy,
 		@Nonnull @Child(uniqueChildren = true) EntityRequire... requirements
 	) {
 		super(
@@ -209,7 +210,7 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	 * or whether the selection impact should be computed as well.
 	 */
 	@Nonnull
-	public FacetStatisticsDepth getFacetStatisticsDepth() {
+	public FacetStatisticsDepth getStatisticsDepth() {
 		return (FacetStatisticsDepth) getArguments()[1];
 	}
 
@@ -265,6 +266,13 @@ public class FacetSummaryOfReference extends AbstractRequireConstraintContainer 
 	@Nonnull
 	public Optional<OrderGroupBy> getOrderGroupBy() {
 		return getAdditionalChild(OrderGroupBy.class);
+	}
+
+	@AliasForParameter("requirements")
+	@Nonnull
+	@Override
+	public RequireConstraint[] getChildren() {
+		return super.getChildren();
 	}
 
 	@Override

@@ -5,7 +5,8 @@ perex: |
    experiment with the evitaDB query language.  
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 While it is much better to play with the schema and data that suits your own e-commerce use case, we believe that

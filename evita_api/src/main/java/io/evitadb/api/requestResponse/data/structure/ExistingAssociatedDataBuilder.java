@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.dataType.data.ComplexDataObjectConverter;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.Getter;
@@ -127,8 +128,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 			this.associatedDataMutations.put(associatedDataKey, upsertAssociatedDataMutation);
 		} else if (localMutation instanceof RemoveAssociatedDataMutation removeAssociatedDataMutation) {
 			final AssociatedDataKey associatedDataKey = removeAssociatedDataMutation.getAssociatedDataKey();
-			verifyAssociatedDataExists(associatedDataKey);
-			this.associatedDataMutations.put(associatedDataKey, removeAssociatedDataMutation);
+			if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+				this.associatedDataMutations.remove(associatedDataKey);
+			} else {
+				this.associatedDataMutations.put(associatedDataKey, removeAssociatedDataMutation);
+			}
 		} else {
 			throw new EvitaInternalError("Unknown Evita price mutation: `" + localMutation.getClass() + "`!");
 		}
@@ -138,11 +142,11 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName);
-		verifyAssociatedDataExists(associatedDataKey);
-		associatedDataMutations.put(
-			associatedDataKey,
-			new RemoveAssociatedDataMutation(associatedDataKey)
-		);
+		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+			this.associatedDataMutations.remove(associatedDataKey);
+		} else {
+			this.associatedDataMutations.put(associatedDataKey, new RemoveAssociatedDataMutation(associatedDataKey));
+		}
 		return this;
 	}
 
@@ -152,7 +156,7 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		@Nonnull String associatedDataName,
 		@Nullable T associatedDataValue
 	) {
-		if (associatedDataValue == null) {
+		if (associatedDataValue == null || associatedDataValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAssociatedData(associatedDataName);
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
@@ -187,18 +191,18 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 	@Nonnull
 	public AssociatedDataBuilder removeAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale) {
 		final AssociatedDataKey associatedDataKey = new AssociatedDataKey(associatedDataName, locale);
-		verifyAssociatedDataExists(associatedDataKey);
-		associatedDataMutations.put(
-			associatedDataKey,
-			new RemoveAssociatedDataMutation(associatedDataKey)
-		);
+		if (this.baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isEmpty()) {
+			this.associatedDataMutations.remove(associatedDataKey);
+		} else {
+			this.associatedDataMutations.put(associatedDataKey, new RemoveAssociatedDataMutation(associatedDataKey));
+		}
 		return this;
 	}
 
 	@Override
 	@Nonnull
 	public <T extends Serializable> AssociatedDataBuilder setAssociatedData(@Nonnull String associatedDataName, @Nonnull Locale locale, @Nullable T associatedDataValue) {
-		if (associatedDataValue == null) {
+		if (associatedDataValue == null || associatedDataValue instanceof Object[] arr && ArrayUtils.isEmpty(arr)) {
 			return removeAssociatedData(associatedDataName, locale);
 		} else {
 			final Serializable valueToStore = ComplexDataObjectConverter.getSerializableForm(associatedDataValue);
@@ -443,16 +447,6 @@ public class ExistingAssociatedDataBuilder implements AssociatedDataBuilder {
 		} else {
 			return baseAssociatedData;
 		}
-	}
-
-	/**
-	 * Method verifies whether the removed attribute exists in the builder (or throws exception).
-	 */
-	private void verifyAssociatedDataExists(AssociatedDataKey associatedDataKey) {
-		Assert.isTrue(
-			baseAssociatedData.getAssociatedDataValueWithoutSchemaCheck(associatedDataKey).isPresent() || associatedDataMutations.get(associatedDataKey) instanceof UpsertAssociatedDataMutation,
-			"Associated data `" + associatedDataKey + "` doesn't exist!"
-		);
 	}
 
 	/**

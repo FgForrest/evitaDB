@@ -47,7 +47,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.extraResult.PrettyPrintable;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -67,6 +66,7 @@ import io.evitadb.documentation.markdown.Table;
 import io.evitadb.documentation.markdown.Table.Builder;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.PrettyPrintable;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
@@ -283,10 +283,10 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 		if (outputFormat.equals("md")) {
 			return generateMarkDownTable(session, query, response);
 		} else if (outputFormat.equals("string")) {
-			final String sourceVariable = outputSnippet.sourceVariable();
+			final String sourceVariable = ofNullable(outputSnippet).map(OutputSnippet::sourceVariable).orElse(null);
 			return generateMarkDownStringBlock(response, sourceVariable);
 		} else if (outputFormat.equals("json")) {
-			final String sourceVariable = outputSnippet.sourceVariable();
+			final String sourceVariable = ofNullable(outputSnippet).map(OutputSnippet::sourceVariable).orElse(null);
 			return generateMarkDownJsonBlock(response, sourceVariable);
 		} else {
 			throw new UnsupportedOperationException("Unsupported output format: " + outputFormat);

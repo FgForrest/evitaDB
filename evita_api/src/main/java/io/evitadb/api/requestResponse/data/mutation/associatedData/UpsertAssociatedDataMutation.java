@@ -80,7 +80,7 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 		if (existingValue == null) {
 			// create new associatedData value
 			return new AssociatedDataValue(associatedDataKey, value);
-		} else if (!Objects.equals(existingValue.value(), this.value)) {
+		} else if (!Objects.equals(existingValue.value(), this.value) || existingValue.dropped()) {
 			// update associatedData version (we changed it) and return mutated value
 			return new AssociatedDataValue(existingValue.version() + 1, associatedDataKey, this.value);
 		} else {

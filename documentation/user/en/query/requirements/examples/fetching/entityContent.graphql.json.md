@@ -7,8 +7,8 @@
       "version": 1,
       "locales": [ ],
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ]
     }
   ]

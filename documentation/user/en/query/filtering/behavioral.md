@@ -6,6 +6,7 @@ perex: |
   which has a different treatment in calculations.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## User filter
@@ -32,7 +33,7 @@ or [histogram](../requirements/histogram.md) calculation), while the mandatory p
 Let's look at the example where the [`facetHaving`](references.md#facet-having) constraint is used inside
 the `userFilter` container:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [User filter container example](/documentation/user/en/query/filtering/examples/behavioral/user-filter.evitaql)
 

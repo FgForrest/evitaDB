@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,6 +48,7 @@ public class MandatoryAssociatedDataNotProvidedException extends InvalidMutation
 
 	private static String composeErrorMessage(@Nonnull String entityName, @Nonnull List<AssociatedDataKey> missingMandatedAssociatedData) {
 		final String missingGlobalAttributes = of(missingMandatedAssociatedData.stream()
+			.sorted()
 			.filter(it -> it.locale() == null)
 			.map(it -> "`" + it.associatedDataName() + "`")
 			.collect(Collectors.joining(", ")))
@@ -68,7 +70,9 @@ public class MandatoryAssociatedDataNotProvidedException extends InvalidMutation
 						it.getValue()
 							.stream()
 							.map(AssociatedDataKey::locale)
-							.map(locale -> "`" + locale.toLanguageTag() + "`")
+							.map(Locale::toLanguageTag)
+							.sorted()
+							.map(locale -> "`" + locale + "`")
 							.collect(Collectors.joining(", "))
 				)
 				.collect(Collectors.joining(", "))

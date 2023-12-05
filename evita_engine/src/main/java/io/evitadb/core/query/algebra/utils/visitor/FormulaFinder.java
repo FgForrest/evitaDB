@@ -135,7 +135,7 @@ public class FormulaFinder<T> implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		if (!skipPredicate.test(formula)) {
 			if (predicate.test(formula)) {
 				//noinspection unchecked

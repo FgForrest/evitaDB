@@ -34,6 +34,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.LinkedList;
@@ -86,7 +87,7 @@ public abstract class AbstractFormulaStructureOptimizeVisitor implements Formula
 	@Getter private Formula result;
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		if (matchingPredicate.test(formula)) {
 			// we found the formula - add formula parent stack to set of optimized formulas
 			optimizationSet.addAll(parentStack);

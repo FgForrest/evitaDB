@@ -51,8 +51,7 @@ public class ReferencesStoragePartSerializer extends Serializer<ReferencesStorag
 		// and still have deterministic tests
 		Arrays.sort(
 			references,
-			Comparator.comparing(ReferenceContract::getReferenceName)
-				.thenComparingInt(ReferenceContract::getReferencedPrimaryKey)
+			Comparator.comparing(ReferenceContract::getReferenceKey)
 		);
 		for (ReferenceContract reference : references) {
 			kryo.writeObject(output, reference);

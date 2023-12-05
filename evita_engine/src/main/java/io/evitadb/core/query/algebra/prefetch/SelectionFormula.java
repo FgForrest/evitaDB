@@ -354,7 +354,7 @@ public class SelectionFormula extends AbstractFormula implements FilteredPriceRe
 		}
 
 		@Override
-		public void visit(Formula formula) {
+		public void visit(@Nonnull Formula formula) {
 			if (outputFormula == null) {
 				this.outputFormula = formula;
 			}

@@ -1,0 +1,53 @@
+{
+  queryProduct(
+    require: {
+      facetParameterValuesGroupsNegation: {
+        filterBy: {
+          attributeCodeInSet: [
+            "ram-memory"
+          ]
+        }
+      }
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        parameterValues(
+          filterGroupBy: {
+            attributeCodeInSet: [
+              "ram-memory",
+              "rom-memory"
+            ]
+          }
+        ) {
+          count
+          groupEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+          facetStatistics(
+            filterBy: {
+              attributeCodeContains: "4"
+            }
+          ) {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

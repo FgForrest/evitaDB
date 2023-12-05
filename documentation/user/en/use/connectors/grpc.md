@@ -5,6 +5,7 @@ perex: |
   programming languages, using the existing evitaDB Java API.
 date: '26.7.2023'
 author: 'Ing. Tomáš Pozler'
+preferredLang: 'java'
 ---
 
 The main idea behind the design was to define a universal communication protocol that follows design of [Java API](https://github.com/FgForrest/evitaDB/tree/dev/evita_api/src/main/java/io/evitadb/api).

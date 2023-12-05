@@ -5,7 +5,8 @@ perex: |
     deleting entities in the catalog.  
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'java'
 ---
 
 <LanguageSpecific to="java">
@@ -221,7 +222,7 @@ You can also filter and sort the data:
 [Example of filtering and ordering entities](/documentation/user/en/get-started/example/filter-order-entities.java)
 </SourceCodeTabs>
 
-Or you can filter all products by price in EUR greater than 300€ and order by price with the cheapest products first:
+Or you can filter all products by price in EUR greater than €300 and order by price with the cheapest products first:
 
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 

@@ -192,7 +192,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * as soon as possible. We may take advantage of transitivity in boolean algebra to exchange formula placement
 	 * the way it's most performant.
 	 */
-	private final List<FormulaPostProcessor> postProcessors = new LinkedList<>();
+	private final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = new LinkedHashMap<>(16);
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
@@ -343,8 +343,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFormulaAndClear() {
 		final Formula result = ofNullable(this.computedFormula)
+			.map(this::constructFinalFormula)
 			.orElseGet(this::getSuperSetFormula);
 		this.computedFormula = null;
+		this.postProcessors.clear();
 		return result;
 	}
 
@@ -512,8 +514,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Registers new {@link FormulaPostProcessor} to the list of processors that will be called just before
 	 * IndexFilterByVisitor hands the result of its work to the calling logic.
 	 */
-	public void registerFormulaPostProcessorIfNotPresent(@Nonnull FormulaPostProcessor formulaPostProcessor) {
-		this.postProcessors.add(formulaPostProcessor);
+	public <T extends FormulaPostProcessor> T registerFormulaPostProcessorIfNotPresent(
+		@Nonnull Class<T> postProcessorType,
+		@Nonnull Supplier<T> formulaPostProcessorSupplier
+	) {
+		//noinspection DataFlowIssue,unchecked
+		return (T) this.postProcessors.computeIfAbsent(
+			postProcessorType,
+			aClass -> formulaPostProcessorSupplier.get()
+		);
 	}
 
 	/**
@@ -602,7 +611,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns stream of indexes that should be all considered for record lookup.
 	 */
 	@Nonnull
-	public Stream<EntityIndex<?>> getEntityIndexStream() {
+	public Stream<EntityIndex> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
 		//noinspection unchecked
 		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
@@ -718,7 +727,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T, S extends EntityIndex<S>> T executeInContext(
+	public final <T, S extends EntityIndex> T executeInContext(
 		@Nonnull Class<S> indexType,
 		@Nonnull List<S> targetIndexes,
 		@Nullable EntityContentRequire requirements,
@@ -794,7 +803,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set and returns collection of all formulas.
 	 */
 	@Nonnull
-	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex<?>, Stream<? extends Formula>> formulaFunction) {
+	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex, Stream<? extends Formula>> formulaFunction) {
 		return getEntityIndexStream().flatMap(formulaFunction).toList();
 	}
 
@@ -802,7 +811,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyOnIndexes(@Nonnull Function<EntityIndex<?>, Formula> formulaFunction) {
+	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().map(formulaFunction));
 	}
 
@@ -810,7 +819,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex<?>, Stream<Formula>> formulaFunction) {
+	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex, Stream<Formula>> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().flatMap(formulaFunction));
 	}
 
@@ -967,7 +976,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		Formula finalFormula = constraintFormula;
 		if (!postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
-			for (FormulaPostProcessor postProcessor : postProcessors) {
+			for (FormulaPostProcessor postProcessor : postProcessors.values()) {
 				if (!executedProcessors.contains(postProcessor)) {
 					postProcessor.visit(finalFormula);
 					finalFormula = postProcessor.getPostProcessedFormula();

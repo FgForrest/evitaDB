@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.mock.AbstractCategoryPojo;
 import io.evitadb.api.mock.AbstractProductCategoryPojo;
 import io.evitadb.api.mock.AbstractProductPojo;
@@ -69,6 +68,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.generator.DataGenerator.ASSOCIATED_DATA_REFERENCED_FILES;
+import static io.evitadb.test.generator.DataGenerator.PRICE_LIST_BASIC;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -269,7 +269,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 		assertCategoryReferences(Arrays.stream(product.getProductCategoriesAsArray()), originalCategories, expectedCategoryIds, locale, externalEntities);
 
 		if (!(product instanceof SealedProductPojo)) {
-			assertThrows(ContextMissingException.class, product::getPriceForSale);
+			assertNull(product.getPriceForSale());
 		}
 
 		final PriceContract[] allPricesForSale = product.getAllPricesForSale();
@@ -308,7 +308,7 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 	private static void assertProductAttributes(@Nonnull SealedEntity originalProduct, @Nonnull AbstractProductPojo product, @Nullable Locale locale) {
 		assertEquals(originalProduct.getAttribute(DataGenerator.ATTRIBUTE_CODE), product.getCode());
 		if (locale == null) {
-			if (!((SealedEntityProxy)product).getSealedEntity().getLocales().isEmpty()) {
+			if (!((SealedEntityProxy)product).entity().getLocales().isEmpty()) {
 				assertArrayEquals(originalProduct.getAttributeLocales().stream().map(it -> originalProduct.getAttribute(DataGenerator.ATTRIBUTE_NAME, it, String.class)).toArray(String[]::new), product.getNames());
 			}
 		} else {
@@ -486,7 +486,8 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 						.stream()
 						.map(ReferenceContract::getReferenceName)
 						.distinct()
-						.count() == expectedReferenceCount
+						.count() == expectedReferenceCount &&
+					!it.getPrices(PRICE_LIST_BASIC).isEmpty()
 			)
 			.findFirst()
 			.orElseThrow();
@@ -586,8 +587,8 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 
 		assertProductBasicData(originalProduct, limitedProduct);
 		assertProductAttributes(originalProduct, limitedProduct, null);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSet);
-		assertThrows(ContextMissingException.class, limitedProduct::getReferencedFileSetAsDifferentProperty);
+		assertNull(limitedProduct.getReferencedFileSet());
+		assertNull(limitedProduct.getReferencedFileSetAsDifferentProperty());
 	}
 
 	@DisplayName("Should return entity reference")

@@ -54,7 +54,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AttributesContract<S extends AttributeSchemaContract> extends Serializable {
+public interface AttributesContract<S extends AttributeSchemaContract> extends Serializable, AttributesAvailabilityChecker {
 
 	/**
 	 * Returns true if single attribute differs between first and second instance.
@@ -82,33 +82,6 @@ public interface AttributesContract<S extends AttributeSchemaContract> extends S
 				});
 		}
 	}
-
-	/**
-	 * Returns true if entity attributes were fetched along with the entity. Calling this method before calling any
-	 * other method that requires attributes to be fetched will allow you to avoid {@link ContextMissingException}.
-	 */
-	boolean attributesAvailable();
-
-	/**
-	 * Returns true if entity attributes were fetched in specified locale along with the entity. Calling this method
-	 * before calling any other method that requires attributes to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 */
-	boolean attributesAvailable(@Nonnull Locale locale);
-
-	/**
-	 * Returns true if entity attribute of particular name was fetched along with the entity. Calling this method
-	 * before calling any other method that requires attributes to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 */
-	boolean attributeAvailable(@Nonnull String attributeName);
-
-	/**
-	 * Returns true if entity attribute of particular name in particular locale was fetched along with the entity.
-	 * Calling this method before calling any other method that requires attributes to be fetched will allow you to
-	 * avoid {@link ContextMissingException}.
-	 */
-	boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale);
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.

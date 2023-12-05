@@ -1,8 +1,8 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        priceInPriceLists('basic'),
-        priceInCurrency('EUR')
+        priceInPriceLists("basic"),
+        priceInCurrency("EUR")
     ),
     orderBy(
         priceNatural(DESC)

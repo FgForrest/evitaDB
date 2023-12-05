@@ -26,12 +26,15 @@ package io.evitadb.api.proxy.impl.reference;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.proxy.impl.ProxyUtils;
 import io.evitadb.api.proxy.impl.ProxyUtils.OptionalProducingOperator;
+import io.evitadb.api.proxy.impl.ProxyUtils.ResultWrapper;
 import io.evitadb.api.proxy.impl.SealedEntityReferenceProxyState;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.AttributeRef;
+import io.evitadb.api.requestResponse.data.annotation.CreateWhenMissing;
+import io.evitadb.api.requestResponse.data.annotation.RemoveWhenExists;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.predicate.LocaleSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -116,7 +119,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 			// now we need to identify the return type
 			@SuppressWarnings("rawtypes") final Class parameterType = parameter.getType();
 			final Class<?>[] resolvedTypes = getResolvedTypes(parameter, expectedType);
-			@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, parameterType);
+			final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, parameterType);
 
 			@SuppressWarnings("rawtypes") final Class collectionType;
 			@SuppressWarnings("rawtypes") final Class itemType;
@@ -174,7 +177,7 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 	 * it tries to match the attribute name by the name of the method.
 	 */
 	@Nullable
-	private static AttributeSchemaContract getAttributeSchema(
+	public static AttributeSchemaContract getAttributeSchema(
 		@Nonnull Method method,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull EntitySchemaContract entitySchema,
@@ -238,14 +241,14 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		int indexedDecimalPlaces,
 		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			method.getParameterCount() == 0,
 			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			toTargetType(
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+			() -> toTargetType(
 				defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 				itemType, indexedDecimalPlaces
 			)
@@ -279,14 +282,14 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		int indexedDecimalPlaces,
 		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			method.getParameterCount() == 0,
 			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			ofNullable(
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+			() -> ofNullable(
 				toTargetType(
 					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 					itemType, indexedDecimalPlaces
@@ -339,14 +342,14 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		int indexedDecimalPlaces,
 		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		Assert.isTrue(
 			method.getParameterCount() == 0,
 			"Non-localized attribute `" + attributeName + "` must not have a locale parameter!"
 		);
-		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-			ofNullable(
+		return (entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+			() -> ofNullable(
 				toTargetType(
 					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 					itemType, indexedDecimalPlaces
@@ -390,17 +393,17 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				toTargetType(
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> toTargetType(
 					defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 					itemType, indexedDecimalPlaces
 				)
 			) :
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				toTargetType(
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> toTargetType(
 					defaultValueProvider.apply(
 						localizedAttributeExtractor.apply(theState.getReference(), attributeName, (Locale) args[0])
 					),
@@ -423,9 +426,8 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 			final LocaleSerializablePredicate localePredicate = ((EntityDecorator) sealedEntity).getLocalePredicate();
 			final Set<Locale> locales = localePredicate.getLocales();
 			final Locale locale = locales != null && locales.size() == 1 ? locales.iterator().next() : localePredicate.getImplicitLocale();
-			@SuppressWarnings({"unchecked", "rawtypes"})
-			final Class requestedType = ofNullable(itemType.getComponentType())
-				.orElse((Class)itemType);
+			@SuppressWarnings({"unchecked", "rawtypes"}) final Class requestedType = ofNullable(itemType.getComponentType())
+				.orElse((Class) itemType);
 
 			if (locale == null && locales != null && locales.isEmpty()) {
 				if (itemType.isArray()) {
@@ -489,11 +491,11 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				ofNullable(
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> ofNullable(
 					toTargetType(
 						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), cleanAttributeName)),
 						itemType, indexedDecimalPlaces
@@ -507,8 +509,8 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					})
 					.orElse(Collections.emptySet())
 			) :
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				ofNullable(
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> ofNullable(
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
@@ -561,11 +563,11 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 		@Nonnull BiFunction<ReferenceContract, String, Serializable> attributeExtractor,
 		@Nonnull TriFunction<ReferenceContract, String, Locale, Serializable> localizedAttributeExtractor,
 		@Nonnull UnaryOperator<Serializable> defaultValueProvider,
-		@Nonnull UnaryOperator<Object> resultWrapper
+		@Nonnull ResultWrapper resultWrapper
 	) {
 		return method.getParameterCount() == 0 ?
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				ofNullable(
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> ofNullable(
 					toTargetType(
 						defaultValueProvider.apply(attributeExtractor.apply(theState.getReference(), attributeName)),
 						itemType, indexedDecimalPlaces
@@ -574,8 +576,8 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					.map(it -> List.of((Object[]) it))
 					.orElse(Collections.emptyList())
 			) :
-			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.apply(
-				ofNullable(
+			(entityClassifier, theMethod, args, theState, invokeSuper) -> resultWrapper.wrap(
+				() -> ofNullable(
 					toTargetType(
 						defaultValueProvider.apply(
 							localizedAttributeExtractor.apply(
@@ -678,12 +680,15 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 
 	public GetReferenceAttributeMethodClassifier() {
 		super(
-			"getAttribute",
+			"getReferencedAttribute",
 			(method, proxyState) -> {
 				// We only want to handle non-abstract methods with no parameters or a single Locale parameter
 				if (
-					!ClassUtils.isAbstractOrDefault(method) ||
-						method.getParameterCount() > 1 ||
+					method.getParameterCount() > 1 ||
+						method.isAnnotationPresent(CreateWhenMissing.class) ||
+						Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(CreateWhenMissing.class::isInstance) ||
+						method.isAnnotationPresent(RemoveWhenExists.class) ||
+						Arrays.stream(method.getParameterAnnotations()).flatMap(Arrays::stream).anyMatch(RemoveWhenExists.class::isInstance) ||
 						(method.getParameterCount() == 1 && !method.getParameterTypes()[0].equals(Locale.class))
 				) {
 					return null;
@@ -705,8 +710,8 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					// now we need to identify the return type
 					@SuppressWarnings("rawtypes") final Class returnType = method.getReturnType();
 					final Class<?>[] resolvedTypes = getResolvedTypes(method, proxyState.getProxyClass());
-					@SuppressWarnings("unchecked") final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, returnType);
-					final UnaryOperator<Object> resultWrapper;
+					final UnaryOperator<Serializable> defaultValueProvider = createDefaultValueProvider(attributeSchema, returnType);
+					final ResultWrapper resultWrapper;
 					final int index = Optional.class.isAssignableFrom(resolvedTypes[0]) ? 1 : 0;
 
 					@SuppressWarnings("rawtypes") final Class collectionType;
@@ -714,25 +719,25 @@ public class GetReferenceAttributeMethodClassifier extends DirectMethodClassific
 					if (Collection.class.equals(resolvedTypes[index]) || List.class.isAssignableFrom(resolvedTypes[index]) || Set.class.isAssignableFrom(resolvedTypes[index])) {
 						collectionType = resolvedTypes[index];
 						itemType = Array.newInstance(resolvedTypes.length > index + 1 ? resolvedTypes[index + 1] : Object.class, 0).getClass();
-						resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
+						resultWrapper = ProxyUtils.createOptionalWrapper(method, Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
 					} else if (resolvedTypes[index].isArray()) {
 						collectionType = null;
 						itemType = resolvedTypes[index];
-						resultWrapper = ProxyUtils.createOptionalWrapper(Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
+						resultWrapper = ProxyUtils.createOptionalWrapper(method, Optional.class.isAssignableFrom(resolvedTypes[0]) ? Optional.class : null);
 					} else {
 						collectionType = null;
 						if (OptionalInt.class.isAssignableFrom(resolvedTypes[0])) {
 							itemType = int.class;
-							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, itemType);
 						} else if (OptionalLong.class.isAssignableFrom(resolvedTypes[0])) {
 							itemType = long.class;
-							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, itemType);
 						} else if (Optional.class.isAssignableFrom(resolvedTypes[0])) {
 							itemType = resolvedTypes[index];
-							resultWrapper = ProxyUtils.createOptionalWrapper(itemType);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, itemType);
 						} else {
 							itemType = resolvedTypes[index];
-							resultWrapper = ProxyUtils.createOptionalWrapper(null);
+							resultWrapper = ProxyUtils.createOptionalWrapper(method, null);
 						}
 					}
 

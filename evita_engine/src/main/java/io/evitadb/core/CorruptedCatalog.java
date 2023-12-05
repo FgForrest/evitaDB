@@ -32,6 +32,7 @@ import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -43,6 +44,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -157,6 +159,12 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public CatalogContract replace(@Nonnull CatalogSchemaContract updatedSchema, @Nonnull CatalogContract catalogToBeReplaced) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, EntitySchemaContract> getEntitySchemaIndex() {
 		throw new CatalogCorruptedException(this);
 	}
 

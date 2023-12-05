@@ -53,7 +53,7 @@ public interface PersistentStorageDescriptor {
 	Map<Integer, Object> getCompressedKeys();
 
 	/**
-	 * Contains location of the last MemTable fragment for this version of the header / collection.
+	 * Contains location of the last file offset index fragment for this version of the header / collection.
 	 */
 	@Nonnull
 	FileLocation getFileLocation();

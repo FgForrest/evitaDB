@@ -1,22 +1,21 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         userFilter(
           facetHaving(
-            'groups',
+            "groups",
             entityHaving(
-              attributeInSet('code', 'sale')
+              attributeInSet("code", "sale")
             )
           )
         )
     ),
     require(
         facetSummaryOfReference(
-            'groups',
+            "groups",
             IMPACT,
-            entityFetch(attributeContent('code')),
-            entityGroupFetch(attributeContent('code'))
+            entityFetch(attributeContent("code"))
         ),
-        facetGroupsConjunction('groups')
+        facetGroupsConjunction("groups")
     )
 )

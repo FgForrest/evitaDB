@@ -3267,6 +3267,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 								attributeSetExact(ATTRIBUTE_CODE, randomCodes)
 							),
 							require(
+								page(1, randomCodes.length),
 								entityFetch(
 									attributeContent(ATTRIBUTE_CODE)
 								)

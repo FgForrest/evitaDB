@@ -80,7 +80,14 @@ class ClassifierUtilsTest {
 			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "foo:::bar-09_1.2/foo\\bar`20"));
 			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "b".repeat(256)));
 		}
-
 	}
 
+	@Test
+	void shouldNotAcceptKeywords() {
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primaryKey"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PRIMARY_KEY"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary-key"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary_key"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PrimaryKey"));
+	}
 }

@@ -6,8 +6,8 @@
       "type": "Brand",
       "version": 1,
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ],
       "associatedData": {
         "global": {
