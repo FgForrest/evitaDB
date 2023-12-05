@@ -145,7 +145,6 @@ attributeContent(
 </dl>
 
 The `attributeContent` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LanguageSpecific>)
-
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
 are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
 filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
@@ -1751,5 +1750,3 @@ The returned `Product` entity will contain all the references and the attributes
 </LanguageSpecific>
 
 </Note>
-
-</LanguageSpecific>

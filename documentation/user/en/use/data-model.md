@@ -62,7 +62,7 @@ in the relational world would be "a set of logically related linked tables".
 Collections in evitaDB are not isolated and entities in them can be related to entities in different collections.
 Currently, the relationships are only unidirectional.
 
-<LanguageSpecific type="info">
+<Note type="info">
 
 <NoteTitle toggles="true">
 
@@ -87,17 +87,14 @@ Minimal entity definition consists of:
 
 Other entity data is purely optional and may not be used at all. The primary key can be set to `NULL` and let
 the database generate it automatically.
-
 <LanguageSpecific to="java,csharp">
-
 This minimal entity structure is covered by interface 
-<LanguageSpecific to="java><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass></LanguageSpecific>.
 
 Full entity with data, references, attributes and associated data is represented by interface
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass></LanguageSpecific>.
-
 </LanguageSpecific>
 
 ### Entity type
@@ -297,9 +294,7 @@ Associated data are stored and fetched separately by their name and *locale* (if
 [localized](#localized-associated-data)).
 
 <LanguageSpecific to="java,csharp">
-
 <Note type="info">
-
 AssociatedData provider ([entity](#entity-type)) is represented by the interface:
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass></LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IAssociatedData.cs</SourceClass></LanguageSpecific>
@@ -354,7 +349,7 @@ the relationship to a stock). The data on references is subject to the same rule
 
 Reference is represented by the interface: 
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass><SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass></SourceClass></LanguageSpecific>.
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass></LanguageSpecific>.
 
 Reference schema is described by:
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/ReferenceSchemaContract.java</SourceClass></LanguageSpecific>
@@ -470,7 +465,7 @@ Single price is represented by the interface:
 
 Price schema is part of main entity schema:
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/EntitySchemaContract.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="java"><SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchema.cs</SourceClass></LanguageSpecific>
 
 </Note>
 

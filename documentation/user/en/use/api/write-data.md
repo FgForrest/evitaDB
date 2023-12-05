@@ -39,7 +39,6 @@ corrupted, and the entire catalog should be dumped and rebuilt from scratch. Sin
 one writing the data, we can afford to do this.
 
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
 <LanguageSpecific to="java,graphql,rest,csharp">
 
 ## Indexing modes
@@ -69,7 +68,6 @@ If the database crashes during this initial bulk indexing, the state and consist
 corrupted, and the entire catalog should be dumped and rebuilt from scratch. Since there is no client other than the
 one writing the data, we can afford to do this.
 
-</LanguageSpecific>
 </LanguageSpecific>
 
 <LanguageSpecific to="java">
@@ -154,7 +152,7 @@ concurrent access (in other words, entities can be cached without fear of race c
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 All model classes are described by interfaces, and there should be no reason to use or instantiate direct classes. 
 Interfaces follow this structure:
@@ -171,55 +169,39 @@ Interfaces follow this structure:
 When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data 
 to the entity and then store the entity to the database:
 
+<LanguageSpecific to="java">
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.java)
 </SourceCodeTabs>
-
-When you read existing entity from the catalog, you obtain read-only 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>, which is 
-basically a contract interface with a few methods allowing you to convert it to the builder instance that can be used
-for updating the data:
-
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
-
-[Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.java)
-</SourceCodeTabs>
-
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-
-All model classes are described by interfaces, and there should be no reason to use or instantiate direct classes.
-Interfaces follow this structure:
-
-<dl>
-    <dt>ModelNameContract</dt>
-    <dd>contains all read methods, represents the base contract for the model</dd>
-    <dt>ModelNameEditor</dt>
-    <dd>contains all modification methods</dd>
-    <dt>ModelNameBuilder</dt>
-    <dd>combines **Contract** and **Editor** interfaces, and it is actually used to create the instance</dd>
-</dl>
-
-When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data
-to the entity and then store the entity to the database:
-
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.cs)
 </SourceCodeTabs>
+</LanguageSpecific>
 
-When you read existing entity from the catalog, you obtain read-only
-<SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>, which is
+When you read existing entity from the catalog, you obtain read-only 
+<LanguageSpecific to="java>"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp>"><SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass></LanguageSpecific>, which is
 basically a contract interface with a few methods allowing you to convert it to the builder instance that can be used
 for updating the data:
 
+<LanguageSpecific to="java">
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+
+[Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.java)
+</SourceCodeTabs>
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.cs)
 </SourceCodeTabs>
+</LanguageSpecific>
 
 </LanguageSpecific>
+
 <LanguageSpecific to="graphql">
 
 In the GraphQL API, the immutability is implicit by design. You may be able to modify the returned entity objects in your client
@@ -250,32 +232,17 @@ instance created from that modified state is incremented by one.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
-Version information is available not only at 
-the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass> level, 
+Version information is available not only at the <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass></LanguageSpecific> level,
 but also at more granular levels (such as 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass>,
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>, or
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass>).
-
-All model classes that support versioning implement the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Versioned.java</SourceClass> interface.
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AttributesContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IAttributes.cs</SourceClass></LanguageSpecific>,
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass></LanguageSpecific>, or
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/AssociatedDataContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IAssociatedData.cs</SourceClass></LanguageSpecific>).
+All model classes that support versioning implement the <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Versioned.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IVersioned.cs</SourceClass></LanguageSpecific> interface.
 
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
 
-Version information is available not only at
-the <SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass> level,
-but also at more granular levels (such as
-<SourceClass>EvitaDB.Client/Models/Data/IAttributes.cs</SourceClass>,
-<SourceClass>EvitaDB.Client/Models/Data/IReference.cs</SourceClass>, or
-<SourceClass>EvitaDB.Client/Models/Data/IAssociatedData.cs</SourceClass>.
-
-All model classes that support versioning implement the
-<SourceClass>EvitaDB.Client/Models/Data/IVersioned.cs</SourceClass> interface.
-
-</LanguageSpecific>
 <LanguageSpecific to="graphql,rest">
 
 Version information is available at the entity level. 
@@ -294,7 +261,7 @@ The version information serves two purposes:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 <Note type="info">
 Since the entity is *immutable* and *versioned* the default implementation of the `hashCode` and `equals` takes these 
@@ -304,28 +271,10 @@ three components into account:
 2. primary key
 3. version
 
-If you need a thorough comparison that compares all model data, you must use the `differsFrom` method defined in the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ContentComparator.java</SourceClass>
-interface and implemented by the 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass>.
-
-</Note>
-
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-
-<Note type="info">
-Since the entity is *immutable* and *versioned* the default implementation of the `HashCode` and `Equals` takes these 
-three components into account:
-
-1. entity type
-2. primary key
-3. version
-
-If you need a thorough comparison that compares all model data, you must use the `DiffersFrom` method defined in the
-<SourceClass>EvitaDB.Client/Models/Data/IContentComparator.cs</SourceClass>
+If you need a thorough comparison that compares all model data, you must use the <LanguageSpecific to="java">`differsFrom`</LanguageSpecific><LanguageSpecific to="csharp">`DiffersFrom`</LanguageSpecific> method defined in the
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ContentComparator.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IContentComparator.cs</SourceClass></LanguageSpecific>
 interface and implemented by the
-<SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass>.
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass><SourceClass>EvitaDB.Client/Models/Data/IEntity.cs</SourceClass></SourceClass></LanguageSpecific>.
 
 </Note>
 
@@ -337,10 +286,10 @@ interface and implemented by the
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 The communication with the evitaDB instance always takes place via the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface.
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LanguageSpecific> interface.
 Session is a single-threaded communication channel identified by a unique 
 [random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier).
 
@@ -352,7 +301,7 @@ To conserve resources, the server automatically closes sessions after a period o
 The interval is set by default to `60 seconds` but 
 [it can be changed](https://evitadb.io/documentation/operate/configure#server-configuration) to different value.
 The inactivity means that there is no activity recorded on the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface. If you need
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LanguageSpecific> interface. If you need
 to artificially keep session alive you need to periodically call some method without side-effects on the session 
 interface, such as:
 
@@ -362,14 +311,14 @@ interface, such as:
     <dt>`getEntityCollectionSize`</dt>
     <dd>
     In case of remote use of evitaDB. In this case we really need to call some method that triggers the network 
-    communication. Many methods in 
-    <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClientSession.java</SourceClass> 
+    communication. Many methods in
+	<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass></LanguageSpecific>
     return only locally cached results to avoid expensive and unnecessary network calls.
     </dd>
 </dl>
 </Note>
 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass> is an envelope for a "unit 
+<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/TransactionContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass></LanguageSpecific> is an envelope for a "unit
 of work" with evitaDB. A transaction exists within a session and is guaranteed to have 
 [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in 
 a transaction are always isolated from other transactions and become visible only after the transaction has been 
@@ -378,46 +327,7 @@ will never reach the shared database state. There can be at most one active tran
 be multiple successor transactions during the session's lifetime.
 
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
 
-The communication with the evitaDB instance always takes place via the
-<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> class.
-Session is a single-threaded communication channel identified by a unique
-[random UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier).
-
-In the web environment it's a good idea to have one session per request, in batch processing it's recommended to keep
-a single session for an entire batch.
-
-<Note type="warning">
-To conserve resources, the server automatically closes sessions after a period of inactivity. 
-The interval is set by default to `60 seconds` but 
-[it can be changed](https://evitadb.io/documentation/operate/configure#server-configuration) to different value.
-The inactivity means that there is no activity recorded on the
-<SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> instance. If you need
-to artificially keep session alive you need to periodically call some method or use available properties without side-effects on the session, such as:
-
-<dl>
-    <dt>`Active`</dt>
-    <dd>In case of embedded evitaDB usage.</dd>
-    <dt>`GetEntityCollectionSize`</dt>
-    <dd>
-    In case of remote use of evitaDB. In this case we really need to call some method that triggers the network 
-    communication. Many methods in 
-    <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> 
-    return only locally cached results to avoid expensive and unnecessary network calls.
-    </dd>
-</dl>
-</Note>
-
-<SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass> is an envelope for a "unit
-of work" with evitaDB. A transaction exists within a session and is guaranteed to have
-[the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation) for reads. The changes in
-a transaction are always isolated from other transactions and become visible only after the transaction has been
-committed. If the transaction is marked as *rollback only*, all changes will be discarded on transaction closing and
-will never reach the shared database state. There can be at most one active transaction in a session, but there can
-be multiple successor transactions during the session's lifetime.
-
-</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 The communication with the evitaDB instance using the GraphQL API always uses some kind of session. In the case of the GraphQL API,
@@ -460,25 +370,14 @@ evitaDB recognizes two types of sessions:
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 <dl>
     <dt>read-only (default)</dt>
-    <dd>Read-only sessions are opened by calling the `queryCatalog` method. No write operations are allowed in a 
+	<dd>Read-only sessions are opened by calling the <LanguageSpecific to="java">`queryCatalog`</LanguageSpecific><LanguageSpecific to="csharp">`QueryCatalog`</LanguageSpecific> method. No write operations are allowed in a
     read-only session. This also allows evitaDB to optimize its behavior when working with the database.</dd>
     <dt>read-write</dt>
-    <dd>Read-write sessions are opened by calling the `updateCatalog` method</dd>
-</dl>
-
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-
-<dl>
-    <dt>read-only (default)</dt>
-    <dd>Read-only sessions are opened by calling the `QueryCatalog` method. No write operations are allowed in a 
-    read-only session. This also allows evitaDB to optimize its behavior when working with the database.</dd>
-    <dt>read-write</dt>
-    <dd>Read-write sessions are opened by calling the `UpdateCatalog` method</dd>
+    <dd>Read-write sessions are opened by calling the <LanguageSpecific to="java">`updateCatalog`</LanguageSpecific><LanguageSpecific to="csharp">`UpdateCatalog`</LanguageSpecific> method</dd>
 </dl>
 
 </LanguageSpecific>
@@ -873,18 +772,13 @@ To remove one or multiple entities, you need to define a query that will match a
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
-The `deleteEntities` method returns the count of removed entities. If you want to return bodies of deleted entities,
-you can use alternative method `deleteEntitiesAndReturnBodies`.
-
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-
-The `DeleteEntities` method returns the count of removed entities. If you want to return bodies of deleted entities,
-you can use alternative method `DeleteEntitiesAndReturnBodies`.
+The <LanguageSpecific to="java">`deleteEntities`</LanguageSpecific><LanguageSpecific to="csharp">`DeleteEntities`</LanguageSpecific> method returns the count of removed entities.
+If you want to return bodies of deleted entities, you can use alternative method <LanguageSpecific to="java">`deleteEntitiesAndReturnBodies`</LanguageSpecific><LanguageSpecific to="csharp">`DeleteEntitiesAndReturnBodies`</LanguageSpecific>.
 
 </LanguageSpecific>
+
 <LanguageSpecific to="graphql">
 
 The delete mutation can return entity bodies, so you can define the return structure of data as you need as if you were fetching
@@ -928,26 +822,19 @@ rollbacks of other transactions.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
+<LanguageSpecific to="java,csharp">
 
 If you are removing a hierarchical entity, and you need to remove not only the entity itself, but its entire subtree,
-you can take advantage of `deleteEntityAndItsHierarchy` method. By default, the method returns the number of entities
-removed, but alternatively it can return the body of the removed root entity with the size and form you specify in
-its `require` argument. If you remove only the root node without removing its children, the children will become
-[orphans](../schema.md#orphan-hierarchy-nodes), and you will need to reattach them to another existing parent.
-
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-
-If you are removing a hierarchical entity, and you need to remove not only the entity itself, but its entire subtree,
-you can take advantage of `DeleteEntityAndItsHierarchy` method. By default, the method returns the number of entities
-removed, but alternatively it can return the body of the removed root entity with the size and form you specify in
-its `Require` argument. If you remove only the root node without removing its children, the children will become
+you can take advantage of <LanguageSpecific to="java">`deleteEntityAndItsHierarchy`</LanguageSpecific><LanguageSpecific to="csharp">`DeleteEntityAndItsHierarchy`</LanguageSpecific> method.
+By default, the method returns the number of entities removed, but alternatively it can return the body of the removed root
+entity with the size and form you specify in
+its <LanguageSpecific to="java">`require`</LanguageSpecific><LanguageSpecific to="csharp">`Require`</LanguageSpecific> argument.
+If you remove only the root node without removing its children, the children will become
 [orphans](../schema.md#orphan-hierarchy-nodes), and you will need to reattach them to another existing parent.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java,graphql,rest">
+<LanguageSpecific to="java,graphql,rest,csharp">
 
 <Note type="question">
 
@@ -957,8 +844,8 @@ its `Require` argument. If you remove only the root node without removing its ch
 </NoteTitle>
 
 No data is actually removed once it is created and stored. If you remove the reference/attribute/whatever, it remains 
-in the entity and is just marked as `dropped`. See the 
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Droppable.java</SourceClass> interface 
+in the entity and is just marked as `dropped`. See the
+<LanguageSpecific to="java,graphql,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/Droppable.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/IDroppable.cs</SourceClass></LanguageSpecific> interface
 implementations.
 
 There are a few reasons for this decision:
@@ -971,30 +858,6 @@ There are a few reasons for this decision:
 </Note>
 
 </LanguageSpecific>
-<LanguageSpecific to="csharp">
-
-<Note type="question">
-
-<NoteTitle toggles="true">
-
-##### How does evitaDB handle the removals internally?
-</NoteTitle>
-
-No data is actually removed once it is created and stored. If you remove the reference/attribute/whatever, it remains
-in the entity and is just marked as `Dropped`. See the
-<SourceClass>EvitaDB.Client/Models/Data/IDroppable.cs</SourceClass> interface implementations.
-
-There are a few reasons for this decision:
-
-1. it's good to have the last known version of the data around when things go wrong, so we can still recover to the
-   previous state.
-2. it allows us to track the changes in the entity through its lifecycle for debugging purposes
-3. it is consistent with our *append-only* storage approach where we need to write [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
-
-</Note>
-
-</LanguageSpecific>
-
 
 <LanguageSpecific to="evitaql">
 
