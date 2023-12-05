@@ -24,8 +24,8 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.requestResponse.data.ContentComparator;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import java.util.Optional;
@@ -75,6 +75,6 @@ public interface CatalogSchemaContract
 	@Nonnull
 	default EntitySchemaContract getEntitySchemaOrThrowException(@Nonnull String entityType) {
 		return getEntitySchema(entityType)
-			.orElseThrow(() -> new CollectionNotFoundException("Schema for entity with name `" + entityType + "` was not found!"));
+			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
 	}
 }
