@@ -62,7 +62,7 @@ in the relational world would be "a set of logically related linked tables".
 Collections in evitaDB are not isolated and entities in them can be related to entities in different collections.
 Currently, the relationships are only unidirectional.
 
-<LanguageSpecific type="info">
+<Note type="info">
 
 <NoteTitle toggles="true">
 
