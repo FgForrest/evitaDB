@@ -1771,16 +1771,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitClassifierWithBetweenValuesArgs(EvitaQLParser.ClassifierWithBetweenValuesArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#optionalValueArgs}.
-	 * @param ctx the parse tree
-	 */
-	void enterOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#optionalValueArgs}.
-	 * @param ctx the parse tree
-	 */
-	void exitOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#valueArgs}.
 	 * @param ctx the parse tree
 	 */
