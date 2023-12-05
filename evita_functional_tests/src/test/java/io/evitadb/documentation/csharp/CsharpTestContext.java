@@ -44,6 +44,6 @@ public class CsharpTestContext implements TestContext {
 	 */
 	private final CShell cshell;
 	public CsharpTestContext(@Nonnull DocumentationProfile profile) {
-		this.cshell = new CShell();
+		this.cshell = new CShell(profile);
 	}
 }
