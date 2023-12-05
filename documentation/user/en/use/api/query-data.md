@@ -27,7 +27,7 @@ The [query in evitaDB](../query/basics.md) is represented by a tree of nested "c
 <LanguageSpecific to="evitaql,java,csharp">
 
 The *evitaQL* (evitaDB Query Language) entry point is represented by
-<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> class, and looks like this
+<LanguageSpecific to="evitaql,java"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass></LanguageSpecific> class, and looks like this
 a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with
 the name of the constraint, followed by a set of arguments in parentheses. You can even use other functions
 in those arguments. An example of such a query might look like this:

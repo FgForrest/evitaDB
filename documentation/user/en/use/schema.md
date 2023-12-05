@@ -61,13 +61,7 @@ the mutations directly or to write your own client driver. But you can open sour
 know about it!
 </Note>
 
-All schema mutations implement interface
-<LanguageSpecific to="java">
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/SchemaMutation.java</SourceClass>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-<SourceClass>EvitaDB.Client/Models/Schemas/Mutations/ISchemaMutation.cs</SourceClass>
-</LanguageSpecific>
+All schema mutations implement interface <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/SchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/ISchemaMutation.cs</SourceClass></LanguageSpecific>
 
 ## Structure
 
@@ -96,14 +90,11 @@ Each named data object - [catalog](#catalog), [entity](#entity), [attribute](#at
 [associated data](#associated-data) and [reference](#reference) must be uniquely identifiable by its name within its
 parent scope.
 
-The name validation logic and reserved words are present in the class
-<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Utils/ClassifierUtils.cs</SourceClass></LanguageSpecific>.
+The name validation logic and reserved words are present in the class <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/utils/ClassifierUtils.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Utils/ClassifierUtils.cs</SourceClass></LanguageSpecific>.
 
 There is also a special property called `nameVariants` in the schema of each named object. It contains variants
 of the object name in different "developer" notations such as *camelCase*, *PascalCase*, *snake_case* and so on. See
-<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/catalog/schemaApi/model/NameVariantsDescriptor.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Utils/NamingConvention.cs</SourceClass></LanguageSpecific>.
+<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_external_api/evita_external_api_core/src/main/java/io/evitadb/externalApi/api/catalog/schemaApi/model/NameVariantsDescriptor.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Utils/NamingConvention.cs</SourceClass></LanguageSpecific>.
 for a complete listing.
 
 </Note>
@@ -321,10 +312,10 @@ enumeration values for them and change the Web API schemas every time a price li
 
 Within `ModifyEntitySchemaMutation` you can use mutations:
 
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowCurrencyInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowCurrencyInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowCurrencyInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowCurrencyInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowLocaleInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowLocaleInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowLocaleInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowLocaleInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowCurrencyInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowCurrencyInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowCurrencyInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowCurrencyInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/AllowLocaleInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/AllowLocaleInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/entity/DisallowLocaleInEntitySchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/Entities/DisallowLocaleInEntitySchemaMutation.cs</SourceClass></LanguageSpecific>**
 
 </Note>
 
@@ -519,23 +510,19 @@ Associated data schema can be made *deprecated*, which will be propagated to gen
 ##### List of mutations related to associated data
 </NoteTitle>
 
-
 Within `ModifyEntitySchemaMutation` you can use mutation:
 
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/CreateAssociatedDataSchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/CreateAssociatedDataSchemaMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/RemoveAssociatedDataSchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/RemoveAssociatedDataSchemaMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaNameMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaNameMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaDescriptionMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaDescriptionMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaDeprecationNoticeMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaDeprecationNoticeMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaTypeMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaTypeMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaLocalizedMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaLocalizedMutation.cs</SourceClass></LanguageSpecific>**
-- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaNullableMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaNullableMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/CreateAssociatedDataSchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/CreateAssociatedDataSchemaMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/RemoveAssociatedDataSchemaMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/RemoveAssociatedDataSchemaMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaNameMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaNameMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaDescriptionMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaDescriptionMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaDeprecationNoticeMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaDeprecationNoticeMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/ModifyAssociatedDataSchemaTypeMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/ModifyAssociatedDataSchemaTypeMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaLocalizedMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaLocalizedMutation.cs</SourceClass></LanguageSpecific>**
+- **<LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/associatedData/SetAssociatedDataSchemaNullableMutation.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/Mutations/AssociatedData/SetAssociatedDataSchemaNullableMutation.cs</SourceClass></LanguageSpecific>**
 
 <LanguageSpecific to="java,csharp">
-The associated data schema is described by:
-<LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IAssociatedDataSchema.cs</SourceClass></LanguageSpecific>
-
+The associated data schema is described by: <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/schema/AssociatedDataSchemaContract.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Schemas/IAssociatedDataSchema.cs</SourceClass></LanguageSpecific>
 </LanguageSpecific>
 
 </Note>
