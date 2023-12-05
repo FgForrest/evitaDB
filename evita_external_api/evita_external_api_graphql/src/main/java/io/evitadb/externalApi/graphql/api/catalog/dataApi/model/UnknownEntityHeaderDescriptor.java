@@ -34,6 +34,13 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  */
 public interface UnknownEntityHeaderDescriptor {
 
+	PropertyDescriptor LOCALE = PropertyDescriptor.builder()
+		.name("locale")
+		.description("""
+			Parameter specifying desired locale of queried entity and its inner datasets
+			""")
+		// type is expected to be a locale enum
+		.build();
 	PropertyDescriptor JOIN = PropertyDescriptor.builder()
 		.name("join")
 		.description("""
