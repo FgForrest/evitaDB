@@ -115,7 +115,7 @@
 		<jboss.version>3.5.0.Final</jboss.version>
 		<lombok.version>1.18.24</lombok.version>
 		<grpc.version>1.59.0</grpc.version>
-		<bouncyCastle.version>1.70</bouncyCastle.version>
+		<bouncyCastle.version>1.77</bouncyCastle.version>
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
 		<swagger.version>2.2.15</swagger.version>
