@@ -95,7 +95,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 			CompletionInfo info = sca.analyzeCompletion(str);
 			snippets.add(info.source());
 			str = info.remaining();
-		} while (str.length() > 0);
+		} while (!str.isEmpty());
 		return snippets;
 	}
 
@@ -270,7 +270,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Record contains result of the Java code execution.
 	 */
-	private record InvocationResult(
+	record InvocationResult(
 		@Nonnull List<Snippet> snippets,
 		@Nullable Exception exception
 	) {

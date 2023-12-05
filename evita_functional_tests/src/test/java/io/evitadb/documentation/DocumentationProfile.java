@@ -21,31 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation.rest;
-
-import io.evitadb.documentation.DocumentationProfile;
-import io.evitadb.documentation.TestContext;
-import io.evitadb.test.client.RestClient;
-import lombok.Getter;
-
-import javax.annotation.Nonnull;
+package io.evitadb.documentation;
 
 /**
- * Context creates new {@link RestClient} instance that is connected to the demo server.
- * The {@link RestClient} instance is reused between tests to speed them up.
+ * Documentation profile defines the environment where evitaQL runs.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class RestTestContext implements TestContext {
-	/**
-	 * Initialized client instance.
-	 */
-	@Getter
-	private final RestClient restClient;
+public enum DocumentationProfile {
 
-	public RestTestContext(@Nonnull DocumentationProfile profile) {
-		this.restClient = profile == DocumentationProfile.LOCALHOST ?
-			new RestClient("https://localhost:5555", false) :
-			new RestClient("https://demo.evitadb.io:5555");
-	}
+	/**
+	 * Localhost profile when evitaQL runs on the developer environment.
+	 */
+	LOCALHOST,
+
+	/**
+	 * Default profile when evitaQL runs on the demo server.
+	 */
+	DEFAULT
+
 }

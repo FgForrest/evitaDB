@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -337,6 +338,21 @@ class EvitaQLOrderConstraintVisitorTest {
     void shouldNotParseEntityPrimaryKeyInFilterConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyInFilter(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyInFilter(DESC)"));
+    }
+
+    @Test
+    void shouldParseEntityPrimaryKeyNaturalConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("entityPrimaryKeyNatural()");
+        assertEquals(entityPrimaryKeyNatural(ASC), constraint1);
+        final OrderConstraint constraint2 = parseOrderConstraintUnsafe("entityPrimaryKeyNatural(DESC)");
+        assertEquals(entityPrimaryKeyNatural(DESC), constraint2);
+    }
+
+    @Test
+    void shouldNotParseEntityPrimaryKeyNaturalConstraint() {
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural(1)"));
     }
 
     @Test

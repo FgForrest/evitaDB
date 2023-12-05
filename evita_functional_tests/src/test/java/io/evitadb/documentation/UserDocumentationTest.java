@@ -212,6 +212,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static Executable convertToRunnable(
+		@Nonnull DocumentationProfile profile,
 		@Nonnull String sourceFormat,
 		@Nonnull String sourceContent,
 		@Nonnull Path rootPath,
@@ -225,7 +226,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		switch (sourceFormat) {
 			case "java" -> {
 				return new JavaExecutable(
-					contextAccessor.get(JavaTestContextFactory.class),
+					contextAccessor.get(profile, JavaTestContextFactory.class),
 					sourceContent,
 					requiredResources,
 					codeSnippetIndex
@@ -233,7 +234,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 			case "evitaql" -> {
 				return new EvitaQLExecutable(
-					contextAccessor.get(EvitaTestContextFactory.class),
+					contextAccessor.get(profile, EvitaTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
@@ -243,7 +244,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 			case "graphql" -> {
 				return new GraphQLExecutable(
-					contextAccessor.get(GraphQLTestContextFactory.class),
+					contextAccessor.get(profile, GraphQLTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
@@ -253,7 +254,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 			case "rest" -> {
 				return new RestExecutable(
-					contextAccessor.get(RestTestContextFactory.class),
+					contextAccessor.get(profile, RestTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
@@ -263,7 +264,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 			case "cs" -> {
 				return new CsharpExecutable(
-					contextAccessor.get(CsharpTestContextFactory.class),
+					contextAccessor.get(profile, CsharpTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
@@ -321,7 +322,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(it, new ExampleFilter[] {ExampleFilter.CSHARP});
+					final List<DynamicTest> tests = this.createTests(DocumentationProfile.DEFAULT, it, new ExampleFilter[] {ExampleFilter.CSHARP});
 					if (tests.isEmpty()) {
 						return null;
 					} else {
@@ -347,6 +348,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
+			DocumentationProfile.DEFAULT,
 			getRootDirectory().resolve("documentation/user/en/operate/monitor.md"),
 			ExampleFilter.values()
 		).stream();
@@ -363,7 +365,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/query/requirements/paging.md"),
+			DocumentationProfile.LOCALHOST,
+			getRootDirectory().resolve("documentation/user/en/query/ordering/natural.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();
@@ -374,7 +377,12 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Method returns empty collection if no code block is found.
 	 */
 	@Nonnull
-	private List<DynamicTest> createTests(@Nonnull Path path, @Nonnull ExampleFilter[] exampleFilters, @Nonnull CreateSnippets... createSnippets) {
+	private List<DynamicTest> createTests(
+		@Nonnull DocumentationProfile profile,
+		@Nonnull Path path,
+		@Nonnull ExampleFilter[] exampleFilters,
+		@Nonnull CreateSnippets... createSnippets
+	) {
 		final Path rootDirectory = getRootDirectory();
 		// and create an index for them for resolving the dependencies
 		final Map<Path, CodeSnippet> codeSnippetIndex = new HashMap<>();
@@ -400,6 +408,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						null,
 						null,
 						convertToRunnable(
+							profile,
 							format,
 							content,
 							rootDirectory,
@@ -468,6 +477,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									relatedFile.normalize(),
 									null,
 									convertToRunnable(
+										profile,
 										relatedFileExtension,
 										readFileOrThrowException(relatedFile),
 										rootDirectory,
@@ -486,6 +496,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						})
 						.toArray(CodeSnippet[]::new),
 					convertToRunnable(
+						profile,
 						referencedFileExtension,
 						readFileOrThrowException(referencedFile),
 						rootDirectory,
@@ -539,7 +550,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Creates path relative to the root directory.
 	 */
 	@Nonnull
-	private Path createPathRelativeToRootDirectory(@Nonnull Path rootDirectory, @Nonnull String path) {
+	private static Path createPathRelativeToRootDirectory(@Nonnull Path rootDirectory, @Nonnull String path) {
 		return rootDirectory.resolve(!path.isEmpty() && path.charAt(0) == '/' ? path.substring(1) : path);
 	}
 
@@ -615,15 +626,15 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 * executed.
 		 */
 		@Nonnull
-		public <S extends TestContext, T extends TestContextFactory<S>> Supplier<S> get(@Nonnull Class<T> factoryClass) {
+		public <S extends TestContext, T extends TestContextFactory<S>> Supplier<S> get(@Nonnull DocumentationProfile profile, @Nonnull Class<T> factoryClass) {
 			//noinspection unchecked
 			return (Supplier<S>) contexts.computeIfAbsent(
 				factoryClass,
 				theFactoryClass -> {
 					try {
 						@SuppressWarnings("unchecked") final TestContextFactory<S> factory = (TestContextFactory<S>) theFactoryClass.getConstructor().newInstance();
-						ofNullable(factory.getInitTest()).ifPresent(initTests::add);
-						ofNullable(factory.getTearDownTest()).ifPresent(tearDownTests::add);
+						ofNullable(factory.getInitTest(profile)).ifPresent(initTests::add);
+						ofNullable(factory.getTearDownTest(profile)).ifPresent(tearDownTests::add);
 						return factory::getContext;
 					} catch (Exception e) {
 						Assertions.fail(e);
