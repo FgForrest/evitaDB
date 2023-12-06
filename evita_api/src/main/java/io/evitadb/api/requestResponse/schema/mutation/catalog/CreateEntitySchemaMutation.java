@@ -64,11 +64,11 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(name));
 		}
-		return catalogSchema;
+		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 
 	@Override

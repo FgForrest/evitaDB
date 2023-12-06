@@ -24,7 +24,9 @@
 package io.evitadb.api.requestResponse.schema.mutation;
 
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -46,6 +48,23 @@ public interface CatalogSchemaMutation extends SchemaMutation {
 	 * @param catalogSchema current version of the schema as an input to mutate
 	 */
 	@Nullable
-	CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema);
+	CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema);
+
+	/**
+	 * Result object of the {@link #mutate(CatalogSchemaContract)} method allowing to return both the modified catalog
+	 * schema and the list of entity schema mutations that were caused by the catalog schema mutation and needs to be
+	 * propagated to the entity schemas.
+	 *
+	 * @param updatedCatalogSchema modified catalog schema
+	 * @param entitySchemaMutations list of entity schema mutations that were caused by the catalog schema mutation
+	 */
+	record CatalogSchemaWithImpactOnEntitySchemas(
+		@Nonnull CatalogSchemaContract updatedCatalogSchema,
+		@Nullable ModifyEntitySchemaMutation[] entitySchemaMutations
+	) {
+		public CatalogSchemaWithImpactOnEntitySchemas(@Nonnull CatalogSchemaContract updatedCatalogSchema) {
+			this(updatedCatalogSchema, null);
+		}
+	}
 
 }

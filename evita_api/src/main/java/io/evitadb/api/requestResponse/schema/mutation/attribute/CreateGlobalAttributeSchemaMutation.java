@@ -87,6 +87,18 @@ public class CreateGlobalAttributeSchemaMutation
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
 
+	@Nullable
+	private static <T> LocalCatalogSchemaMutation makeMutationIfDifferent(
+		@Nonnull GlobalAttributeSchemaContract createdVersion,
+		@Nonnull GlobalAttributeSchemaContract existingVersion,
+		@Nonnull Function<GlobalAttributeSchemaContract, T> propertyRetriever,
+		@Nonnull Function<T, LocalCatalogSchemaMutation> mutationCreator
+	) {
+		final T newValue = propertyRetriever.apply(createdVersion);
+		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
+			null : mutationCreator.apply(newValue);
+	}
+
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -140,7 +152,7 @@ public class CreateGlobalAttributeSchemaMutation
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation( name, newValue)
+							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
@@ -196,18 +208,6 @@ public class CreateGlobalAttributeSchemaMutation
 		}
 	}
 
-	@Nullable
-	private static <T> LocalCatalogSchemaMutation makeMutationIfDifferent(
-		@Nonnull GlobalAttributeSchemaContract createdVersion,
-		@Nonnull GlobalAttributeSchemaContract existingVersion,
-		@Nonnull Function<GlobalAttributeSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalCatalogSchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
-
 	@Nonnull
 	@Override
 	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
@@ -215,39 +215,41 @@ public class CreateGlobalAttributeSchemaMutation
 		return (S) GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
 			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
-			(Class)type, defaultValue,
+			(Class) type, defaultValue,
 			indexedDecimalPlaces
 		);
 	}
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
-			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				catalogSchema.getDescription(),
-				catalogSchema.getCatalogEvolutionMode(),
-				Stream.concat(
-						catalogSchema.getAttributes().values().stream(),
-						Stream.of(newAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							GlobalAttributeSchemaContract::getName,
-							Function.identity()
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.getVersion() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					catalogSchema.getDescription(),
+					catalogSchema.getCatalogEvolutionMode(),
+					Stream.concat(
+							catalogSchema.getAttributes().values().stream(),
+							Stream.of(newAttributeSchema)
 						)
-					),
-				entitySchemaAccessor
+						.collect(
+							Collectors.toMap(
+								GlobalAttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					entitySchemaAccessor
+				)
 			);
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(

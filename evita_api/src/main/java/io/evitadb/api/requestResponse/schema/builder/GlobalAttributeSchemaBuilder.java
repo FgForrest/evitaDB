@@ -99,7 +99,7 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGlobally() {
-		this.mutations.add(
+		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
 				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
@@ -111,7 +111,7 @@ public final class GlobalAttributeSchemaBuilder
 	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale() {
-		this.mutations.add(
+		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
 				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
