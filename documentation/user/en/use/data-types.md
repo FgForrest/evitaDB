@@ -263,9 +263,17 @@ on the client side and be explicit about the offset from the first day.
 
 <Note type="question">
 
+<LanguageSpecific to="java,evitaql,graphql,rest">
 <NoteTitle toggles="true">
 ##### Why do we internally use OffsetDateTime for time information?
 </NoteTitle>
+</LanguageSpecific>
+
+<LanguageSpecific to="csharp">
+<NoteTitle toggles="true">
+##### Why do we internally use DateTimeOffset for time information?
+</NoteTitle>
+</LanguageSpecific>
 
 Offset/time zone handling varies from database to database. We wanted to avoid setting the timezone in session or
 database configuration properties, as this mechanism is error-prone and impractical. Saving/loading date times with
