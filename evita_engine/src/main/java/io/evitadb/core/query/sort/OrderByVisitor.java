@@ -28,15 +28,7 @@ import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.OrderConstraint;
-import io.evitadb.api.query.order.AttributeNatural;
-import io.evitadb.api.query.order.AttributeSetExact;
-import io.evitadb.api.query.order.AttributeSetInFilter;
-import io.evitadb.api.query.order.EntityPrimaryKeyExact;
-import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
-import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.PriceNatural;
-import io.evitadb.api.query.order.Random;
-import io.evitadb.api.query.order.ReferenceProperty;
+import io.evitadb.api.query.order.*;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -59,6 +51,7 @@ import io.evitadb.core.query.sort.attribute.translator.ReferencePropertyTranslat
 import io.evitadb.core.query.sort.price.translator.PriceNaturalTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyExactTranslator;
 import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyInFilterTranslator;
+import io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator;
 import io.evitadb.core.query.sort.random.translator.RandomTranslator;
 import io.evitadb.core.query.sort.translator.OrderByTranslator;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
@@ -103,6 +96,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		TRANSLATORS.put(Random.class, new RandomTranslator());
 		TRANSLATORS.put(PriceNatural.class, new PriceNaturalTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyInFilter.class, new EntityPrimaryKeyInFilterTranslator());
+		TRANSLATORS.put(EntityPrimaryKeyNatural.class, new EntityPrimaryKeyNaturalTranslator());
 		TRANSLATORS.put(EntityPrimaryKeyExact.class, new EntityPrimaryKeyExactTranslator());
 		TRANSLATORS.put(AttributeSetInFilter.class, new AttributeSetInFilterTranslator());
 		TRANSLATORS.put(AttributeSetExact.class, new AttributeSetExactTranslator());
@@ -119,7 +113,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * is not used to resolve entire query filter.
 	 */
 	@Getter @Nonnull
-	private final List<TargetIndexes<?>> targetIndexes;
+	private final List<? extends TargetIndexes<?>> targetIndexes;
 	/**
 	 * Reference to the collector of requirements for entity prefetch phase.
 	 */
@@ -141,7 +135,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes<?>> targetIndexes,
+		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula
 	) {
@@ -153,7 +147,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 
 	public OrderByVisitor(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes<?>> targetIndexes,
+		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull PrefetchRequirementCollector prefetchRequirementCollector,
 		@Nonnull Formula filteringFormula,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor) {

@@ -76,6 +76,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.DataChunk;
@@ -112,6 +113,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -209,6 +211,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
+	 * Accessor for the client entity schema.
+	 */
+	private final ClientEntitySchemaAccessor clientEntitySchemaAccessor = new ClientEntitySchemaAccessor();
+	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
@@ -265,7 +271,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		return schemaCache.getLatestCatalogSchema(
 			this::fetchCatalogSchema,
-			entityType -> this.getEntitySchema(entityType).orElse(null)
+			clientEntitySchemaAccessor
 		);
 	}
 
@@ -378,7 +384,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 	@Nonnull
 	@Override
-	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType) {
+	public SealedEntitySchema getEntitySchemaOrThrow(@Nonnull String entityType) throws CollectionNotFoundException {
 		assertActive();
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new CollectionNotFoundException(entityType));
@@ -704,7 +710,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 
 			final CatalogSchema updatedCatalogSchema = CatalogSchemaConverter.convert(response.getCatalogSchema());
-			final SealedCatalogSchema updatedSchema = new ClientCatalogSchemaDecorator(updatedCatalogSchema, this::getEntitySchemaOrThrow);
+			final SealedCatalogSchema updatedSchema = new ClientCatalogSchemaDecorator(updatedCatalogSchema, clientEntitySchemaAccessor);
 			schemaCache.analyzeMutations(schemaMutation);
 			schemaCache.setLatestCatalogSchema(updatedCatalogSchema);
 			return updatedSchema;
@@ -1280,14 +1286,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						return ((EvitaClientSession) session).fetchCatalogSchema();
 					}
 				),
-			entityType -> isActive() ?
-				this.getEntitySchema(entityType).orElse(null) :
-				evita.queryCatalog(
-					catalogName,
-					session -> {
-						return session.getEntitySchema(entityType).orElse(null);
-					}
-				)
+			clientEntitySchemaAccessor
 		);
 	}
 
@@ -1304,12 +1303,25 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
+	 * Returns the EntitySchemaContract for the given entityType.
+	 *
+	 * @param entityType the type of entity
+	 * @return an Optional containing the EntitySchemaContract if it exists,
+	 * otherwise an empty Optional
+	 */
+	@Nonnull
+	private Optional<EntitySchemaContract> getEntitySchemaContract(String entityType) {
+		return this.getEntitySchema(entityType)
+			.map(EntitySchemaContract.class::cast);
+	}
+
+	/**
 	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
 	 *
-	 * @param contract contract of the entity to be created
+	 * @param contract     contract of the entity to be created
 	 * @param sealedEntity sealed entity to be used as a source of data
+	 * @param <S>          type of the entity
 	 * @return new instance of the entity proxy
-	 * @param <S> type of the entity
 	 */
 	@Nonnull
 	private <S> S createEntityProxy(@Nonnull Class<S> contract, @Nonnull SealedEntity sealedEntity) {
@@ -1319,6 +1331,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	/**
 	 * Returns map with current catalog {@link EntitySchemaContract entity schema} instances indexed by their
 	 * {@link EntitySchemaContract#getName() name}.
+	 *
 	 * @return map with current catalog {@link EntitySchemaContract entity schema} instances
 	 * @see EvitaEntitySchemaCache#getLatestEntitySchemaIndex(Supplier, Function, Supplier)
 	 */
@@ -1776,4 +1789,37 @@ public class EvitaClientSession implements EvitaSessionContract {
 		}
 	}
 
+	private class ClientEntitySchemaAccessor implements EntitySchemaProvider {
+		@Nonnull
+		@Override
+		public Collection<EntitySchemaContract> getEntitySchemas() {
+			return (
+				isActive() ?
+					EvitaClientSession.this.getAllEntityTypes() :
+					evita.queryCatalog(
+						catalogName,
+						EvitaSessionContract::getAllEntityTypes
+					)
+			).stream()
+				.map(this::getEntitySchema)
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.collect(Collectors.toList());
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+			return (
+				isActive() ?
+					EvitaClientSession.this.getEntitySchema(entityType) :
+					evita.queryCatalog(
+						catalogName,
+						session -> {
+							return session.getEntitySchema(entityType);
+						}
+					)
+			).map(EntitySchemaContract.class::cast);
+		}
+	}
 }

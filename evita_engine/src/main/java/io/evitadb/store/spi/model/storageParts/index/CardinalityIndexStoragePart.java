@@ -64,7 +64,7 @@ public class CardinalityIndexStoragePart implements AttributeIndexStoragePart, R
 	 */
 	@Getter private final CardinalityIndex cardinalityIndex;
 	/**
-	 * Id used for lookups in {@link io.evitadb.storage.MemTable} for this particular container.
+	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Getter @Setter private Long uniquePartId;
 

@@ -26,6 +26,7 @@ package io.evitadb.core.query.algebra;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.PrettyPrintable;
 
 import javax.annotation.Nonnull;
 
@@ -44,7 +45,7 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface Formula extends TransactionalDataRelatedStructure {
+public interface Formula extends TransactionalDataRelatedStructure, PrettyPrintable {
 
 	/**
 	 * Traverses formula tree with passed visitor.

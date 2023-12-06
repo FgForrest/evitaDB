@@ -1,4 +1,11 @@
 var evita = new EvitaClient(
+	"LOCALHOST".equals(documentationProfile) ?
+		EvitaClientConfiguration.builder()
+		.host("localhost")
+		.port(5556)
+		.useGeneratedCertificate(true)
+		.mtlsEnabled(true)
+		.build() :
 	EvitaClientConfiguration.builder()
 		.host("demo.evitadb.io")
 		.port(5556)

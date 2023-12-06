@@ -23,9 +23,12 @@
 
 package io.evitadb.documentation.rest;
 
+import io.evitadb.documentation.DocumentationProfile;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.test.client.RestClient;
 import lombok.Getter;
+
+import javax.annotation.Nonnull;
 
 /**
  * Context creates new {@link RestClient} instance that is connected to the demo server.
@@ -40,9 +43,9 @@ public class RestTestContext implements TestContext {
 	@Getter
 	private final RestClient restClient;
 
-	public RestTestContext() {
-		this.restClient = new RestClient("https://demo.evitadb.io:5555");
-		// for local documentation testing
-//		this.restClient = new RestClient("https://localhost:5555", false);
+	public RestTestContext(@Nonnull DocumentationProfile profile) {
+		this.restClient = profile == DocumentationProfile.LOCALHOST ?
+			new RestClient("https://localhost:5555", false) :
+			new RestClient("https://demo.evitadb.io:5555");
 	}
 }

@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcSetAttributeSchemaUniqueMutation() {
     name_ = "";
+    unique_ = 0;
   }
 
   @java.lang.Override
@@ -84,8 +85,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 16: {
+            int rawValue = input.readEnum();
 
-            unique_ = input.readBool();
+            unique_ = rawValue;
             break;
           }
           default: {
@@ -167,19 +169,32 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int UNIQUE_FIELD_NUMBER = 2;
-  private boolean unique_;
+  private int unique_;
   /**
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>bool unique = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  @java.lang.Override public int getUniqueValue() {
+    return unique_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
    * @return The unique.
    */
-  @java.lang.Override
-  public boolean getUnique() {
-    return unique_;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -199,8 +214,8 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       com.google.protobuf.GeneratedMessageV3.writeString(output, 1, name_);
     }
-    if (unique_ != false) {
-      output.writeBool(2, unique_);
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
+      output.writeEnum(2, unique_);
     }
     unknownFields.writeTo(output);
   }
@@ -214,9 +229,9 @@ private static final long serialVersionUID = 0L;
     if (!com.google.protobuf.GeneratedMessageV3.isStringEmpty(name_)) {
       size += com.google.protobuf.GeneratedMessageV3.computeStringSize(1, name_);
     }
-    if (unique_ != false) {
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(2, unique_);
+        .computeEnumSize(2, unique_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -235,8 +250,7 @@ private static final long serialVersionUID = 0L;
 
     if (!getName()
         .equals(other.getName())) return false;
-    if (getUnique()
-        != other.getUnique()) return false;
+    if (unique_ != other.unique_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -251,8 +265,7 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + NAME_FIELD_NUMBER;
     hash = (53 * hash) + getName().hashCode();
     hash = (37 * hash) + UNIQUE_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getUnique());
+    hash = (53 * hash) + unique_;
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -393,7 +406,7 @@ private static final long serialVersionUID = 0L;
       super.clear();
       name_ = "";
 
-      unique_ = false;
+      unique_ = 0;
 
       return this;
     }
@@ -475,8 +488,8 @@ private static final long serialVersionUID = 0L;
         name_ = other.name_;
         onChanged();
       }
-      if (other.getUnique() != false) {
-        setUnique(other.getUnique());
+      if (other.unique_ != 0) {
+        setUniqueValue(other.getUniqueValue());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -603,18 +616,17 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private boolean unique_ ;
+    private int unique_ = 0;
     /**
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 2;</code>
-     * @return The unique.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * @return The enum numeric value on the wire for unique.
      */
-    @java.lang.Override
-    public boolean getUnique() {
+    @java.lang.Override public int getUniqueValue() {
       return unique_;
     }
     /**
@@ -623,11 +635,11 @@ private static final long serialVersionUID = 0L;
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 2;</code>
-     * @param value The unique to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
-    public Builder setUnique(boolean value) {
+    public Builder setUniqueValue(int value) {
       
       unique_ = value;
       onChanged();
@@ -639,12 +651,46 @@ private static final long serialVersionUID = 0L;
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 2;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * @return The unique.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+     * @param value The unique to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUnique(io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      
+      unique_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
      * @return This builder for chaining.
      */
     public Builder clearUnique() {
       
-      unique_ = false;
+      unique_ = 0;
       onChanged();
       return this;
     }

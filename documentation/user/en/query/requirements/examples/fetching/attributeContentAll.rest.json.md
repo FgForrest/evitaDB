@@ -6,15 +6,15 @@
       "type": "Brand",
       "version": 1,
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ],
       "attributes": {
         "global": {
-          "changed": "2023-09-08T14:08:26+02:00",
+          "changed": "2023-12-01T15:38:00+01:00",
           "code": "samsung",
           "order": -1,
-          "published": "2023-10-21T11:44:03.681+02:00",
+          "published": "2023-12-01T16:05:42.873+01:00",
           "status": "ACTIVE",
           "visibility": "VISIBLE"
         }

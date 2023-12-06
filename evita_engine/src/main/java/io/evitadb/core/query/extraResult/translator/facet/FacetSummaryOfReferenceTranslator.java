@@ -32,6 +32,9 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -47,6 +50,7 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
@@ -76,6 +80,15 @@ import static java.util.Optional.ofNullable;
  */
 public class FacetSummaryOfReferenceTranslator implements RequireConstraintTranslator<FacetSummaryOfReference>, SelfTraversingTranslator {
 
+	/**
+	 * Creates a predicate for filtering facet groups.
+	 *
+	 * @param filterGroupBy the filter group to apply
+	 * @param extraResultPlanner the extra result planning visitor
+	 * @param referenceSchema the reference schema contract
+	 * @param required indicates if the facet groups are required
+	 * @return the predicate for filtering facet groups, or null if not required
+	 */
 	@Nullable
 	static IntPredicate createFacetGroupPredicate(
 		@Nullable FilterGroupBy filterGroupBy,
@@ -100,6 +113,15 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		);
 	}
 
+	/**
+	 * Creates a predicate for filtering facets.
+	 *
+	 * @param filterBy The filter criteria.
+	 * @param extraResultPlanner The visitor for planning extra result queries.
+	 * @param referenceSchema The schema of the referenced entity.
+	 * @param required Indicates if the facet is required.
+	 * @return The created facet predicate.
+	 */
 	@Nullable
 	static IntPredicate createFacetPredicate(
 		@Nonnull FilterBy filterBy,
@@ -125,6 +147,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		);
 	}
 
+	/**
+	 * Creates a facet sorter based on the provided parameters.
+	 *
+	 * @param orderBy the ordering criteria for the facet
+	 * @param locale the locale used for sorting
+	 * @param extraResultPlanner the extra result planning visitor
+	 * @param referenceSchema the reference schema contract
+	 * @param required indicates whether sorting is required or optional
+	 * @return the created facet sorter, or null if the reference schema is not managed and sorting is not required
+	 */
 	@Nullable
 	static Sorter createFacetSorter(
 		@Nonnull OrderBy orderBy,
@@ -150,6 +182,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		);
 	}
 
+	/**
+	 * Creates a sorter for facet group ordering.
+	 *
+	 * @param orderBy              The order by criteria for the facet groups.
+	 * @param locale               The locale used for sorting.
+	 * @param extraResultPlanner   The extra result planner used for sorting.
+	 * @param referenceSchema      The reference schema for the facet groups.
+	 * @param required             Indicates if sorting is required.
+	 * @return The created sorter for facet group ordering, or null if not required.
+	 */
 	@Nullable
 	static Sorter createFacetGroupSorter(
 		@Nullable OrderGroupBy orderBy,
@@ -177,6 +219,12 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		);
 	}
 
+	/**
+	 * Finds the Locale based on the given filter constraint.
+	 *
+	 * @param filterBy the filter constraint to search for Locale
+	 * @return the Locale found or null if not found
+	 */
 	@Nullable
 	static Locale findLocale(@Nullable GenericConstraint<FilterConstraint> filterBy) {
 		return filterBy == null ?
@@ -190,6 +238,26 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			)
 				.map(it -> ((EntityLocaleEquals) it).getLocale())
 				.orElse(null);
+	}
+
+	/**
+	 * Verify the fetch requirement for a given referenced type.
+	 *
+	 * @param referencedType     the type to be referenced
+	 * @param requirement        the fetch requirement to be verified
+	 * @param extraResultPlanner the visitor used for extra result planning
+	 * @param <T>                the type of the fetch requirement
+	 * @return the verified fetch requirement
+	 */
+	@Nonnull
+	private static <T extends EntityFetchRequire> T verifyFetch(
+		@Nonnull String referencedType,
+		@Nonnull T requirement,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
+	) {
+		final EntitySchemaContract referencedSchema = extraResultPlanner.getSchema(referencedType);
+		EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(referencedSchema, requirement, extraResultPlanner);
+		return requirement;
 	}
 
 	@Override
@@ -218,9 +286,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 				)
 			);
 		// collect all facet statistics
-		final TargetIndexes<EntityIndex> indexSetToUse = extraResultPlanner.getIndexSetToUse();
-		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexes()
-			.stream()
+		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
 			.map(EntityIndex::getFacetingEntities)
 			.collect(Collectors.toList());
 
@@ -239,6 +306,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			);
 		}
 
+		final EntityFetch facetEntityRequirement = facetSummaryOfReference.getFacetEntityRequirement()
+			.map(it -> verifyFetch(referenceSchema.getReferencedEntityType(), it, extraResultPlanner))
+			.orElse(null);
+		final EntityGroupFetch groupEntityRequirement = facetSummaryOfReference.getGroupEntityRequirement()
+			.map(
+				it -> ofNullable(referenceSchema.getReferencedGroupType())
+					.map(group -> verifyFetch(group, it, extraResultPlanner))
+					.orElse(it)
+			)
+			.orElse(null);
 		facetSummaryProducer.requireReferenceFacetSummary(
 			referenceSchema,
 			facetSummaryOfReference.getStatisticsDepth(),
@@ -246,8 +323,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
 			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
-			facetSummaryOfReference.getFacetEntityRequirement().orElse(null),
-			facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
+			facetEntityRequirement,
+			groupEntityRequirement
 		);
 		return facetSummaryProducer;
 	}

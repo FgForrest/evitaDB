@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.catalog.dataApi.builder.constraint;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -58,7 +59,7 @@ class FilterByQueryConstraintsBuilderTest {
 	@BeforeAll
 	static void init() {
 		entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAttribute("code", String.class, AttributeSchemaEditor::unique)

@@ -31,7 +31,7 @@ referenceHaving(
     </dd>
 </dl>
 
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass> constraint
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/ReferenceHaving.cs</SourceClass></LanguageSpecific> constraint
 eliminates entities which has no reference of particular name satisfying set of filtering constraints. You can examine
 either the attributes specified on the relation itself or wrap the filtering constraint
 in [`entityHaving`](#entity-having)
@@ -238,7 +238,7 @@ facetHaving(
     </dd>
 </dl>
 
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetHaving.java</SourceClass> filtering
+The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetHaving.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/FacetHaving.cs</SourceClass></LanguageSpecific> filtering
 constraint is typically placed inside the [`userFilter`](behavioral.md#user-filter) constraint container and represents
 the user's request to drill down the result set by a particular facet. The `facetHaving` constraint works exactly like
 the [`referenceHaving`](#reference-having) constraint, but works in conjunction with

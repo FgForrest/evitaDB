@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeContains('code', 'epix')
+        attributeContains("code", "epix")
     ),
     require(
        entityFetch(
-           attributeContent('code')
+           attributeContent("code")
        )
     )
 )

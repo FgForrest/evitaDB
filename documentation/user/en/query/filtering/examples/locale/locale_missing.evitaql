@@ -1,15 +1,15 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'vouchers-for-shareholders')
+            "categories",
+            attributeEquals("code", "vouchers-for-shareholders")
         ),
-        entityLocaleEquals('cs')
+        entityLocaleEquals("cs")
     ),
     require(
        entityFetch(
-           attributeContent('code', 'name')
+           attributeContent("code", "name")
        )
     )
 )

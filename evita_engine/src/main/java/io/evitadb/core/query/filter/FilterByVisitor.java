@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -192,7 +193,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * as soon as possible. We may take advantage of transitivity in boolean algebra to exchange formula placement
 	 * the way it's most performant.
 	 */
-	private final List<FormulaPostProcessor> postProcessors = new LinkedList<>();
+	private final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = new LinkedHashMap<>(16);
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
@@ -343,8 +344,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFormulaAndClear() {
 		final Formula result = ofNullable(this.computedFormula)
+			.map(this::constructFinalFormula)
 			.orElseGet(this::getSuperSetFormula);
 		this.computedFormula = null;
+		this.postProcessors.clear();
 		return result;
 	}
 
@@ -512,8 +515,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Registers new {@link FormulaPostProcessor} to the list of processors that will be called just before
 	 * IndexFilterByVisitor hands the result of its work to the calling logic.
 	 */
-	public void registerFormulaPostProcessorIfNotPresent(@Nonnull FormulaPostProcessor formulaPostProcessor) {
-		this.postProcessors.add(formulaPostProcessor);
+	public <T extends FormulaPostProcessor> T registerFormulaPostProcessorIfNotPresent(
+		@Nonnull Class<T> postProcessorType,
+		@Nonnull Supplier<T> formulaPostProcessorSupplier
+	) {
+		//noinspection DataFlowIssue,unchecked
+		return (T) this.postProcessors.computeIfAbsent(
+			postProcessorType,
+			aClass -> formulaPostProcessorSupplier.get()
+		);
 	}
 
 	/**
@@ -819,7 +829,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula applyOnGlobalUniqueIndex(
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
 		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
@@ -827,7 +837,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeName);
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeDefinition, getLocale());
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -841,10 +851,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Formula> formulaFunction) {
 		return applyOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
-			);
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
 			if (uniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -858,10 +865,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyStreamOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Stream<Formula>> formulaFunction) {
 		return applyStreamOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
-			);
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
 			if (uniqueIndex == null) {
 				return Stream.empty();
 			}
@@ -967,7 +971,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		Formula finalFormula = constraintFormula;
 		if (!postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
-			for (FormulaPostProcessor postProcessor : postProcessors) {
+			for (FormulaPostProcessor postProcessor : postProcessors.values()) {
 				if (!executedProcessors.contains(postProcessor)) {
 					postProcessor.visit(finalFormula);
 					finalFormula = postProcessor.getPostProcessedFormula();

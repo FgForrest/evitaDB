@@ -1,5 +1,5 @@
 query(
-    collection('Product'),
+    collection("Product"),
     require(
         strip(76, 19)
     )

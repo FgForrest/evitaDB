@@ -20,8 +20,9 @@ facetSummaryOfReference(
     <dt>argument:enum(COUNTS|IMPACT)</dt>
     <dd>
         <p>**Default:** `COUNTS`</p>
-        <p>optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
-        that allows you to specify the computation depth of the facet summary:</p>
+
+        <p>optional argument of type <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass></LanguageSpecific>
+            that allows you to specify the computation depth of the facet summary:</p>
 
         <p>
         - **COUNTS**: each facet contains the number of results that match the facet option only 
@@ -49,7 +50,6 @@ facetSummaryOfReference(
     <dd>
         optional order constraint that specifies the order of the facet groups
     </dd>
-    <dt>requireConstraint:entityFetch</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch` 
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch` 

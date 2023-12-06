@@ -26,8 +26,10 @@ package io.evitadb.api;
 import com.github.javafaker.Faker;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -114,6 +116,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 	private static final String ATTRIBUTE_MARKET_SHARE = "marketShare";
 	private static final String ATTRIBUTE_FOUNDED = "founded";
 	private static final String ATTRIBUTE_CAPACITY = "capacity";
+	private static final String ATTRIBUTE_RELATIVE_URL = "relativeUrl";
+	private static final String ATTRIBUTE_NATIONAL_CODE = "nationalCode";
 
 	private static final int SEED = 40;
 
@@ -218,6 +222,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.openForWrite()
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGlobally().nullable())
 					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally().nullable())
+					.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 			);
 
 			final DataGenerator dataGenerator = new DataGenerator();
@@ -263,6 +268,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						session,
 						schemaBuilder -> {
 							schemaBuilder
+								.withGlobalAttribute(ATTRIBUTE_RELATIVE_URL)
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().indexDecimalPlaces(2))
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable().filterable())
 								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable().nullable())
@@ -270,6 +276,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_UUID, UUID.class, whichIs -> whichIs.unique())
+								.withAttribute(ATTRIBUTE_NATIONAL_CODE, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
 								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable())
 								.withSortableAttributeCompound(
 									ATTRIBUTE_COMBINED_PRIORITY,
@@ -667,6 +674,164 @@ public class EntityByAttributeFilteringFunctionalTest {
 					result.getRecordData()
 				);
 				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity by equals to unique attribute (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityByUniqueAttributeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, codeAttribute)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> codeAttribute.equals(sealedEntity.getAttribute(ATTRIBUTE_CODE)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity by equals to unique locale specific attribute (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityByUniqueLocaleSpecificAttributeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities) {
+		final AttributeValue codeAttribute = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_NATIONAL_CODE);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeEquals(ATTRIBUTE_NATIONAL_CODE, codeAttribute.value()),
+							entityLocaleEquals(codeAttribute.key().locale())
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getAttributeValue(ATTRIBUTE_NATIONAL_CODE, codeAttribute.key().locale())
+						.map(it -> !codeAttribute.differsFrom(it))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when filtering entity by equals to unique locale specific attribute without Locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenFilteringByUniqueLocalSpecificAttributeWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+		assertThrows(
+			EntityLocaleMissingException.class,
+			() -> {
+				final AttributeValue nationalCode = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_NATIONAL_CODE);
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final EvitaResponse<EntityReference> result = session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									attributeEquals(ATTRIBUTE_NATIONAL_CODE, nationalCode.value())
+								),
+								require(
+									page(1, Integer.MAX_VALUE),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						);
+						return null;
+					}
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should return entity by equals to globally unique locale specific attribute (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityByGloballyUniqueLocaleSpecificCodeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities) {
+		final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_RELATIVE_URL, relativeUrl.value()),
+							entityLocaleEquals(relativeUrl.key().locale())
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getAttributeValue(ATTRIBUTE_RELATIVE_URL, relativeUrl.key().locale())
+						.map(it -> !relativeUrl.differsFrom(it))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when filtering entity by equals to globally unique locale specific attribute without Locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenFilteringByGloballyUniqueLocalSpecificAttributeWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+		assertThrows(
+			EntityLocaleMissingException.class,
+			() -> {
+				final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final EvitaResponse<EntityReference> result = session.query(
+							query(
+								filterBy(
+									attributeEquals(ATTRIBUTE_RELATIVE_URL, relativeUrl.value())
+								),
+								require(
+									page(1, Integer.MAX_VALUE),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						);
+						return null;
+					}
+				);
 			}
 		);
 	}
@@ -4002,6 +4167,26 @@ public class EntityByAttributeFilteringFunctionalTest {
 		return originalProductEntities
 			.stream()
 			.map(it -> (T) it.getAttribute(attributeName))
+			.filter(Objects::nonNull)
+			.skip(order)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+		return getRandomAttributeValueObject(originalProductEntities, attributeName, 10);
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+		return originalProductEntities
+			.stream()
+			.flatMap(it -> it.getAttributeValues(attributeName).stream())
 			.filter(Objects::nonNull)
 			.skip(order)
 			.findFirst()

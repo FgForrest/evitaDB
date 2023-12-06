@@ -147,8 +147,8 @@
 			"path": "/query/ordering/constant.md"
 		  },
 		  {
-			"title": "Natural",
-			"path": "/query/ordering/natural.md"
+			"title": "Comparable",
+			"path": "/query/ordering/comparable.md"
 		  },
 		  {
 			"title": "Price",

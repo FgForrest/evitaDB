@@ -23,10 +23,11 @@
 
 package io.evitadb.index;
 
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.Transaction;
 import io.evitadb.index.CatalogIndex.CatalogIndexChanges;
@@ -41,6 +42,7 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -143,7 +145,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 */
 	public void insertUniqueAttribute(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull GlobalAttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Object value,
@@ -169,7 +171,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 */
 	public void removeUniqueAttribute(
 		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull GlobalAttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Object value,
@@ -192,8 +194,17 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 * Returns {@link GlobalUniqueIndex} for passed `attributeName`, if it's present.
 	 */
 	@Nullable
-	public GlobalUniqueIndex getGlobalUniqueIndex(@Nonnull String attributeName) {
-		return this.uniqueIndex.get(new AttributeKey(attributeName));
+	public GlobalUniqueIndex getGlobalUniqueIndex(@Nonnull GlobalAttributeSchemaContract attributeSchema, @Nullable Locale locale) {
+		final boolean uniqueGloballyWithinLocale = attributeSchema.isUniqueGloballyWithinLocale();
+		Assert.isTrue(
+			locale != null || !uniqueGloballyWithinLocale,
+			() -> new EntityLocaleMissingException(attributeSchema.getName())
+		);
+		return this.uniqueIndex.get(
+			uniqueGloballyWithinLocale ?
+				new AttributeKey(attributeSchema.getName(), locale) :
+				new AttributeKey(attributeSchema.getName())
+		);
 	}
 
 	/*
@@ -267,7 +278,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	 */
 	@Nonnull
 	private static AttributeKey createAttributeKey(
-		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull GlobalAttributeSchemaContract attributeSchema,
 		@Nonnull Set<Locale> allowedLocales,
 		@Nullable Locale locale,
 		@Nonnull Object value
@@ -275,7 +286,11 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
 		}
-		return new AttributeKey(attributeSchema.getName());
+		if (attributeSchema.isUniqueGloballyWithinLocale()) {
+			return new AttributeKey(attributeSchema.getName(), locale);
+		} else {
+			return new AttributeKey(attributeSchema.getName());
+		}
 	}
 
 	/**

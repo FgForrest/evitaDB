@@ -49,10 +49,9 @@ public class RecordsConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchConverter;
 
 	public RecordsConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                        @Nonnull Query query,
-	                        @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, query, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
+	                        @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder requireBuilder,

@@ -72,7 +72,7 @@ public final class AttributeSchemaBuilder
 				baseSchema.getName(),
 				baseSchema.getDescription(),
 				baseSchema.getDeprecationNotice(),
-				baseSchema.isUnique(),
+				baseSchema.getUniquenessType(),
 				baseSchema.isFilterable(),
 				baseSchema.isSortable(),
 				baseSchema.isLocalized(),

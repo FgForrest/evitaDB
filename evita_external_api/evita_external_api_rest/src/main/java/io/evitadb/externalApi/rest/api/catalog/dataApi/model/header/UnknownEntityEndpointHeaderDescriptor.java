@@ -32,7 +32,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface UnknownEntityEndpointHeaderDescriptor {
+public interface UnknownEntityEndpointHeaderDescriptor extends FetchEntityEndpointHeaderDescriptor {
 
 	PropertyDescriptor FILTER_JOIN = PropertyDescriptor.builder()
 		.name("filterJoin")

@@ -26,7 +26,7 @@ package io.evitadb.store.model;
 import javax.annotation.Nonnull;
 
 /**
- * Implementations of this interface can create {@link StoragePart} for storing into the {@link io.evitadb.storage.MemTable}
+ * Implementations of this interface can create {@link StoragePart} for storing into the file offset index
  * on demand. This mechanism is good for object we don't want to store / convert to storage parts immediately but rather
  * buffer their updates in original objects and store them once a while. Examples of such objects are {@link io.evitadb.index.EntityIndex}
  * objects that got updated with each entity upsert/removal and we would need to convert and store them multiple times

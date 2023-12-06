@@ -7,8 +7,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -22,8 +22,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -37,8 +37,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -52,8 +52,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -67,8 +67,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -82,8 +82,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -97,8 +97,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -112,8 +112,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -127,8 +127,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -142,8 +142,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -157,8 +157,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -172,8 +172,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -187,8 +187,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -202,8 +202,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -217,8 +217,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -232,8 +232,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -247,8 +247,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -262,8 +262,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {
@@ -277,8 +277,8 @@
         "type": "Product",
         "version": 1,
         "allLocales": [
-          "en",
-          "cs"
+          "cs",
+          "en"
         ],
         "attributes": {
           "global": {

@@ -1,19 +1,19 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'e-readers')
+            "categories",
+            attributeEquals("code", "e-readers")
         ),
-        entityLocaleEquals('en'),
-        attributeEquals('status', 'ACTIVE')
+        entityLocaleEquals("en"),
+        attributeEquals("status", "ACTIVE")
     ),
     require(
         facetSummaryOfReference(
-            'parameterValues',
+            "parameterValues",
             COUNTS,
-            entityFetch(attributeContent('name')),
-            entityGroupFetch(attributeContent('name'))
+            entityFetch(attributeContent("name")),
+            entityGroupFetch(attributeContent("name"))
         )
     )
 )

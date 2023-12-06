@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
@@ -56,13 +57,13 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 	void shouldResolveInputToLocalMutation() {
 		final SetAttributeSchemaGloballyUniqueMutation expectedMutation = new SetAttributeSchemaGloballyUniqueMutation(
 			"code",
-			true
+			GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 		);
 
 		final SetAttributeSchemaGloballyUniqueMutation convertedMutation1 = converter.convert(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY.name(), true)
+				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG)
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation1);
@@ -70,7 +71,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 		final SetAttributeSchemaGloballyUniqueMutation convertedMutation2 = converter.convert(
 			map()
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
-				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY.name(), "true")
+				.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())
 				.build()
 		);
 		assertEquals(expectedMutation, convertedMutation2);
@@ -82,7 +83,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 			EvitaInvalidUsageException.class,
 			() -> converter.convert(
 				map()
-					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY.name(), true)
+					.e(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), true)
 					.build()
 			)
 		);

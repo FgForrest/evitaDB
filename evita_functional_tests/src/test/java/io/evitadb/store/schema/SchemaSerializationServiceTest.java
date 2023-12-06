@@ -23,6 +23,7 @@
 
 package io.evitadb.store.schema;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -65,7 +66,7 @@ class SchemaSerializationServiceTest {
 		final SchemaSerializationService schemaSerializationService = new SchemaSerializationService();
 		final EntitySchemaContract createdSchema = constructSomeSchema(
 				new InternalEntitySchemaBuilder(
-						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class),  entityType -> null),
+						CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 						productSchema
 				)
 		);

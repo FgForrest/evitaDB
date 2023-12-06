@@ -1,0 +1,40 @@
+{
+  queryProduct(
+    filterBy: {
+      entityPrimaryKeyInSet: [1, 2, 3],
+      attributeVisibilityEquals: "VISIBLE"
+    },
+    orderBy: [
+      { attributeCodeNatural: ASC },
+      { attributePriorityNatural: DESC }
+    ]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+          availability
+        }
+        prices {
+          priceList
+          priceWithTax
+          currency
+        }
+      }
+    }
+    extraResults {
+      facetSummary {
+        brand {
+          count
+          facetStatistics {
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+      }
+    }
+  }
+}

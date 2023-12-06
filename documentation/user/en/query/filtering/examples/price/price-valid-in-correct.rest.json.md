@@ -6,8 +6,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -46,8 +44,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -103,8 +99,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -160,8 +154,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -200,8 +192,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -257,8 +247,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -297,8 +285,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -354,8 +340,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -411,8 +395,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",
@@ -451,8 +433,6 @@
       "type": "Product",
       "version": 1,
       "allLocales": [
-        "cs",
-        "de",
         "en"
       ],
       "priceInnerRecordHandling": "NONE",

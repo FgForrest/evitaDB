@@ -77,7 +77,7 @@ public interface EntityAttributeSchemaDescriptor extends AttributeSchemaDescript
 			NAME_VARIANTS,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,
-			UNIQUE,
+			UNIQUENESS_TYPE,
 			FILTERABLE,
 			SORTABLE,
 			LOCALIZED,

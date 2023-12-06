@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -64,7 +66,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
@@ -193,8 +194,11 @@ public class ClassSchemaAnalyzer {
 				.map(it -> EvitaDataTypes.toTargetType(it, whichIs.getType()))
 				.ifPresent(whichIs::withDefaultValue);
 
-			if (attributeAnnotation.unique()) {
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
 				whichIs.unique();
+			}
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
+				whichIs.uniqueWithinLocale();
 			}
 			if (!attributeAnnotation.description().isBlank()) {
 				whichIs.withDescription(attributeAnnotation.description());
@@ -227,13 +231,16 @@ public class ClassSchemaAnalyzer {
 				whichIs.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
 		};
-		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally()) {
+		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) {
 			catalogBuilder.withAttribute(
 				attributeName, attributeType,
 				whichIs -> {
 					attributeBuilder.accept(whichIs);
-					if (attributeAnnotation.uniqueGlobally()) {
+					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
 						whichIs.uniqueGlobally();
+					}
+					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
+						whichIs.uniqueGloballyWithinLocale();
 					}
 				}
 			);
@@ -487,9 +494,22 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session) throws SchemaClassInvalidException {
+		final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
+		return analyze(session, catalogBuilder);
+	}
+
+	/**
+	 * Method analyzes the entity model class and alters the catalog and entity schema within passed write session
+	 * accordingly.
+	 *
+	 * @param session write Evita session
+	 * @param catalogBuilder catalog schema builder
+	 * @throws InvalidSchemaMutationException when entity model contains errors
+	 */
+	@Nonnull
+	public AnalysisResult analyze(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
 		AtomicReference<String> entityName = new AtomicReference<>();
 		try {
-			final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 			final List<Entity> entityAnnotations = reflectionLookup.getClassAnnotations(modelClass, Entity.class);
 			// use only the most specific annotation only
 			if (!entityAnnotations.isEmpty()) {
@@ -546,10 +566,8 @@ public class ClassSchemaAnalyzer {
 				// now return the mutations that needs to be done
 				return new AnalysisResult(
 					entityName.get(),
-					Stream.concat(
-						catalogBuilder.toMutation().stream().flatMap(it -> Arrays.stream(it.getSchemaMutations())),
-						entityBuilder.toMutation().stream()
-					).toArray(LocalCatalogSchemaMutation[]::new)
+					catalogBuilder.toMutation().stream().flatMap(it -> Arrays.stream(it.getSchemaMutations())).toArray(LocalCatalogSchemaMutation[]::new),
+					entityBuilder.toMutation().stream().toArray(LocalCatalogSchemaMutation[]::new)
 				);
 			}
 		} catch (RuntimeException ex) {
@@ -1134,14 +1152,20 @@ public class ClassSchemaAnalyzer {
 	 */
 	public record AnalysisResult(
 		@Nonnull String entityType,
-		@Nonnull LocalCatalogSchemaMutation[] mutations
+		@Nonnull LocalCatalogSchemaMutation[] catalogMutations,
+		@Nonnull LocalCatalogSchemaMutation[] entityMutations
 	) {
 		private final static LocalCatalogSchemaMutation[] EMPTY_MUTATIONS = new LocalCatalogSchemaMutation[0];
 
 		public AnalysisResult(@Nonnull String entityType) {
-			this(entityType, EMPTY_MUTATIONS);
+			this(entityType, EMPTY_MUTATIONS, EMPTY_MUTATIONS);
 		}
 
+
+		@Nonnull
+		public LocalCatalogSchemaMutation[] mutations() {
+			return ArrayUtils.mergeArrays(catalogMutations, entityMutations);
+		}
 	}
 
 }

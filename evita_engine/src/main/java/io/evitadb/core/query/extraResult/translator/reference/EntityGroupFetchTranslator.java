@@ -76,7 +76,7 @@ public class EntityGroupFetchTranslator implements RequireConstraintTranslator<E
 	}
 
 	@Nullable
-	private EntitySchemaContract getReferencedSchema(@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
+	private static EntitySchemaContract getReferencedSchema(@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor) {
 		final ProcessingScope processingScope = extraResultPlanningVisitor.getProcessingScope();
 		final Optional<ReferenceSchemaContract> referenceSchema = processingScope.getReferenceSchema();
 

@@ -47,7 +47,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.api.requestResponse.extraResult.PrettyPrintable;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
@@ -67,6 +66,7 @@ import io.evitadb.documentation.markdown.Table;
 import io.evitadb.documentation.markdown.Table.Builder;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.PrettyPrintable;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.RequiredArgsConstructor;
 import net.steppschuh.markdowngenerator.MarkdownSerializationException;
@@ -164,13 +164,13 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	  Initializes the Java code template to be used when {@link CreateSnippets#JAVA} is requested.
 	 */
 	static {
-		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java");) {
+		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.java")) {
 			JAVA_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new IllegalStateException(e);
 		}
 
-		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.cs");) {
+		try (final InputStream is = EvitaQLExecutable.class.getClassLoader().getResourceAsStream("META-INF/documentation/evitaql.cs")) {
 			CSHARP_CODE_TEMPLATE = IOUtils.readLines(is, StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			throw new IllegalStateException(e);

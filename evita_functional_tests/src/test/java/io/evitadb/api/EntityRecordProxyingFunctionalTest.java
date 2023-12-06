@@ -879,7 +879,10 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
-									entityFetchAll()
+									entityFetch(
+										attributeContentAll(),
+										associatedDataContentAll()
+									)
 								),
 								attributeContentAll(),
 								associatedDataContentAll()
@@ -929,12 +932,18 @@ public class EntityRecordProxyingFunctionalTest extends AbstractEntityProxyingFu
 			referenceContentAllWithAttributes(
 				entityFetch(
 					hierarchyContent(
-						entityFetchAll()
+						entityFetch(
+							attributeContentAll(),
+							associatedDataContentAll()
+						)
 					),
 					attributeContentAll(),
 					associatedDataContentAll()
 				),
-				entityGroupFetchAll()
+				entityGroupFetch(
+					attributeContentAll(),
+					associatedDataContentAll()
+				)
 			)
 		);
 

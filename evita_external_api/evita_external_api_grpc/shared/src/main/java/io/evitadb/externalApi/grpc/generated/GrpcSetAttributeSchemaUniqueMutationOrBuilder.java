@@ -56,8 +56,18 @@ public interface GrpcSetAttributeSchemaUniqueMutationOrBuilder extends
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>bool unique = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  int getUniqueValue();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 2;</code>
    * @return The unique.
    */
-  boolean getUnique();
+  io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
 }

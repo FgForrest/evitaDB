@@ -167,7 +167,7 @@ Facet summary:
 		[ ] '155' (1)
 		[ ] '168' (1)
 		[ ] '173' (1)
-	stocks: 0 [41]:
+	stocks: non-grouped [41]:
 		[ ] 'Evita' (41)
 	tags: 0 [35]:
 		[ ] 'For men' (1)

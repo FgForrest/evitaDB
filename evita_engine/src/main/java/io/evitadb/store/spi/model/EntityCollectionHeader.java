@@ -67,11 +67,11 @@ public class EntityCollectionHeader extends PersistentStorageHeader {
 	@Getter private final int recordCount;
 	/**
 	 * Contains {@link io.evitadb.index.EntityIndex} id that belongs to the {@link EntityIndexType#GLOBAL} and is
-	 * stored in MemTable.
+	 * stored in file offset index.
 	 */
 	@Getter private final Integer globalEntityIndexId;
 	/**
-	 * Contains list of unique {@link io.evitadb.index.EntityIndex} ids that are stored in MemTable.
+	 * Contains list of unique {@link io.evitadb.index.EntityIndex} ids that are stored in file offset index.
 	 */
 	@Getter private final List<Integer> usedEntityIndexIds;
 	/**

@@ -1,13 +1,13 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         entityPrimaryKeyInSet(103885)
     ),
     require(
         entityFetch(
-            attributeContent('code'),
-            referenceContent('brand'),
-            referenceContent('categories')
+            attributeContent("code"),
+            referenceContent("brand"),
+            referenceContent("categories")
         )
     )
 )

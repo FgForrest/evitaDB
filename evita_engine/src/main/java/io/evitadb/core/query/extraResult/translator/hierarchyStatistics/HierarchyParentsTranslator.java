@@ -70,7 +70,14 @@ public class HierarchyParentsTranslator
 			.map(it -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, it, context.queryContext(), context.entityIndex(), context.referenceSchema()))
 			.orElse(HierarchyTraversalPredicate.NEVER_STOP_PREDICATE);
 		final SiblingsStatisticsTravelingComputer siblingsStatisticsComputer = parents.getSiblings()
-			.map(it -> createComputer(context, it, parents.getEntityFetch().orElse(null), statistics.orElse(null)))
+			.map(
+				it -> createComputer(
+					context, it,
+					parents.getEntityFetch().orElse(null),
+					statistics.orElse(null),
+					extraResultPlanningVisitor
+				)
+			)
 			.orElse(null);
 
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
@@ -81,7 +88,8 @@ public class HierarchyParentsTranslator
 					context,
 					createEntityFetcher(
 						parents.getEntityFetch().orElse(null),
-						producer.getContext(parents.getName())
+						producer.getContext(parents.getName()),
+						extraResultPlanningVisitor
 					),
 					context.hierarchyFilterPredicateProducer(),
 					extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
@@ -104,11 +112,12 @@ public class HierarchyParentsTranslator
 	 * traversed parent node.
 	 */
 	@Nonnull
-	private SiblingsStatisticsTravelingComputer createComputer(
+	private static SiblingsStatisticsTravelingComputer createComputer(
 		@Nonnull HierarchyProducerContext context,
 		@Nonnull HierarchySiblings siblings,
 		@Nullable EntityFetch parentEntityFetch,
-		@Nullable HierarchyStatistics parentStatistics
+		@Nullable HierarchyStatistics parentStatistics,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		final Optional<HierarchyStatistics> statistics = siblings.getStatistics().or(() -> ofNullable(parentStatistics));
 		final HierarchyTraversalPredicate scopePredicate = siblings.getStopAt()
@@ -118,7 +127,8 @@ public class HierarchyParentsTranslator
 			context,
 			createEntityFetcher(
 				siblings.getEntityFetch().orElse(parentEntityFetch),
-				context
+				context,
+				extraResultPlanner
 			),
 			context.hierarchyFilterPredicateProducer(),
 			context.queryContext().getHierarchyHavingPredicate(),

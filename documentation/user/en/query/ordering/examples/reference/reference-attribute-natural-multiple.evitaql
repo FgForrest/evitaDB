@@ -1,25 +1,25 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         referenceHaving(
-            'brand',
+            "brand",
             entityHaving(
-                attributeInSet('code', 'sale', 'new')
+                attributeInSet("code", "sale", "new")
             )
         )
     ),
     orderBy(
         referenceProperty(
-            'groups',
-            attributeNatural('orderInGroup', ASC)
+            "groups",
+            attributeNatural("orderInGroup", ASC)
         )
     ),
     require(
         entityFetch(
-            attributeContent('code'),
+            attributeContent("code"),
             referenceContentWithAttributes(
-                'groups',
-                attributeContent('orderInGroup')
+                "groups",
+                attributeContent("orderInGroup")
             )
         )
     )

@@ -77,9 +77,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 				catalogSchema.getDescription(),
 				catalogSchema.getCatalogEvolutionMode(),
 				catalogSchema.getAttributes(),
-				entityType -> {
-					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-				}
+				MutationEntitySchemaAccessor.INSTANCE
 			);
 		}
 	}
@@ -89,4 +87,5 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 		return (overwriteTarget ? "Replace catalog " : "Modify catalog name") + "`" + catalogName + "`: " +
 			"newCatalogName='" + newCatalogName + '\'';
 	}
+
 }
