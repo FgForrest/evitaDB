@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -828,7 +829,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula applyOnGlobalUniqueIndex(
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
 		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
@@ -836,7 +837,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeName);
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeDefinition, getLocale());
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -850,10 +851,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Formula> formulaFunction) {
 		return applyOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
-			);
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
 			if (uniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -867,10 +865,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyStreamOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Stream<Formula>> formulaFunction) {
 		return applyStreamOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
-			);
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
 			if (uniqueIndex == null) {
 				return Stream.empty();
 			}

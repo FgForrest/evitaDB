@@ -103,6 +103,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 			dataGenerator.getSampleCategorySchema(session);
 			dataGenerator.getSampleBrandSchema(session);
+			dataGenerator.getSampleStoreSchema(session);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(session),

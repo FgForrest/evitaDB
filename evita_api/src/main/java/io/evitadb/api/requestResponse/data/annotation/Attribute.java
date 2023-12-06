@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -85,13 +87,13 @@ public @interface Attribute {
 	 * this attribute.
 	 * Propagates to {@link AttributeSchemaContract#isUnique()}.
 	 */
-	boolean unique() default false;
+	AttributeUniquenessType unique() default AttributeUniquenessType.NOT_UNIQUE;
 
 	/**
 	 * Enforces attribute of this name to be unique among all entities in the same catalog.
 	 * Propagates to {@link GlobalAttributeSchemaContract#isUniqueGlobally()}.
 	 */
-	boolean uniqueGlobally() default false;
+	GlobalAttributeUniquenessType uniqueGlobally() default GlobalAttributeUniquenessType.NOT_UNIQUE;
 
 	/**
 	 * Enables filtering by attribute of this name.
@@ -101,7 +103,7 @@ public @interface Attribute {
 
 	/**
 	 * Enables ordering/sorting by attribute of this name.
-	 * Propagates to {@link AttributeSchemaContract#isSortable()} ()}.
+	 * Propagates to {@link AttributeSchemaContract#isSortable()}.
 	 */
 	boolean sortable() default false;
 

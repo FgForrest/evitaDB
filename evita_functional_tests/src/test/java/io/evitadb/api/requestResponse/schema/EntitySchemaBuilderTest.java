@@ -36,19 +36,25 @@ import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilde
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,17 +66,38 @@ import static org.junit.jupiter.api.Assertions.*;
 class EntitySchemaBuilderTest {
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
+	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
+	private final EntitySchema storeSchema = EntitySchema._internalBuild(Entities.STORE);
 	private final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
 		EnumSet.allOf(CatalogEvolutionMode.class),
-		entityType -> {
-			if (entityType.equals(productSchema.getName())) {
-				return productSchema;
-			} else if (entityType.equals(categorySchema.getName())) {
-				return categorySchema;
-			} else {
-				return null;
+		new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(
+					productSchema,
+					categorySchema,
+					brandSchema,
+					storeSchema
+				);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				if (entityType.equals(productSchema.getName())) {
+					return of(productSchema);
+				} else if (entityType.equals(categorySchema.getName())) {
+					return of(categorySchema);
+				} else if (entityType.equals(brandSchema.getName())) {
+					return of(brandSchema);
+				} else if (entityType.equals(storeSchema.getName())) {
+					return of(storeSchema);
+				} else {
+					return empty();
+				}
 			}
 		}
 	);
@@ -175,8 +202,8 @@ class EntitySchemaBuilderTest {
 			)
 			/* references may be also represented be entities unknown to Evita */
 			.withReferenceTo(
-				"stock",
-				"stock",
+				Entities.STORE,
+				Entities.STORE,
 				Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.faceted()
 			)
@@ -1026,8 +1053,8 @@ class EntitySchemaBuilderTest {
 			)
 			/* references may be also represented be entities unknown to Evita */
 			.withReferenceTo(
-				"stock",
-				"stock",
+				Entities.STORE,
+				Entities.STORE,
 				Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.faceted()
 			)
@@ -1212,7 +1239,7 @@ class EntitySchemaBuilderTest {
 		assertAttribute(categoryReference.getAttribute("categoryPriority").orElseThrow(), false, false, true, false, false, 0, Long.class);
 
 		assertReference(updatedSchema.getReference(Entities.BRAND), true);
-		assertReference(updatedSchema.getReference("stock"), true);
+		assertReference(updatedSchema.getReference(Entities.STORE), true);
 	}
 
 	private void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, AttributeElement... elements) {
@@ -1249,12 +1276,6 @@ class EntitySchemaBuilderTest {
 			assertEquals(localized, it.isLocalized());
 			assertEquals(ofType, it.getType());
 		});
-	}
-
-	public interface Entities {
-		String PRODUCT = "PRODUCT";
-		String CATEGORY = "CATEGORY";
-		String BRAND = "BRAND";
 	}
 
 	public static class ReferencedFileSet implements Serializable {

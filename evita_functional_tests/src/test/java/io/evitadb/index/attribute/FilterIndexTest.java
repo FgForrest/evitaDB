@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -55,8 +56,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class FilterIndexTest implements TimeBoundedTestSupport {
-	private final FilterIndex stringAttribute = new FilterIndex(String.class);
-	private final FilterIndex rangeAttribute = new FilterIndex(NumberRange.class);
+	private final FilterIndex stringAttribute = new FilterIndex(new AttributeKey("a"), String.class);
+	private final FilterIndex rangeAttribute = new FilterIndex(new AttributeKey("b"), NumberRange.class);
 
 	@Test
 	void shouldInsertNewStringRecordId() {
@@ -295,7 +296,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 			100,
 			new TestState(
 				new StringBuilder(),
-				new FilterIndex(IntegerNumberRange.class)
+				new FilterIndex(new AttributeKey("c"), IntegerNumberRange.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -433,6 +434,7 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 
 						committedResult.set(
 							new FilterIndex(
+								new AttributeKey("a"),
 								committed.getInvertedIndex(),
 								committed.getRangeIndex()
 							)

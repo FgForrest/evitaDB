@@ -23,6 +23,7 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -42,6 +43,7 @@ import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -135,7 +137,16 @@ public class AttributeIndex implements AttributeIndexContract,
 	}
 
 	/**
-	 * Method creates and verifies validity of attribute key from passed arguments.
+	 * Method creates an attribute key based on the given attribute schema, allowed locales, locale, and value.
+	 * If the attribute schema is localized, it verifies whether the provided locale is allowed and returns
+	 * a new AttributeKey object with the attribute name and locale. If the attribute schema is not localized,
+	 * it returns a new AttributeKey object with only the attribute name.
+	 *
+	 * @param attributeSchema The attribute schema contract.
+	 * @param allowedLocales The set of allowed locales for the entity.
+	 * @param locale The locale to be checked against the allowed locales.
+	 * @param value The value of the attribute.
+	 * @return An AttributeKey object with the attribute name and optional locale.
 	 */
 	@Nonnull
 	public static AttributeKey createAttributeKey(
@@ -146,6 +157,34 @@ public class AttributeIndex implements AttributeIndexContract,
 	) {
 		if (attributeSchema.isLocalized()) {
 			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
+			return new AttributeKey(attributeSchema.getName(), locale);
+		} else {
+			return new AttributeKey(attributeSchema.getName());
+		}
+	}
+
+	/**
+	 * Method creates and verifies validity of attribute key from passed arguments.
+	 * This method can be used only for unique indexes and differs from {@link #createAttributeKey(AttributeSchemaContract, Set, Locale, Object)}
+	 * in the sense that it creates locale specific key only if {@link AttributeSchemaContract#isUniqueWithinLocale()} is true.
+	 *
+	 * @param attributeSchema The attribute schema contract.
+	 * @param allowedLocales The set of allowed locales.
+	 * @param locale The locale (can be null).
+	 * @param value The attribute value.
+	 * @return An AttributeKey object with the attribute name and optional locale.
+	 */
+	@Nonnull
+	public static AttributeKey createUniqueAttributeKey(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value
+	) {
+		if (attributeSchema.isLocalized()) {
+			verifyLocalizedAttribute(attributeSchema.getName(), allowedLocales, locale, value);
+		}
+		if (attributeSchema.isUniqueWithinLocale()) {
 			return new AttributeKey(attributeSchema.getName(), locale);
 		} else {
 			return new AttributeKey(attributeSchema.getName());
@@ -177,9 +216,13 @@ public class AttributeIndex implements AttributeIndexContract,
 	@Override
 	public void insertUniqueAttribute(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale, @Nonnull Object value, int recordId) {
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.computeIfAbsent(
-			createAttributeKey(attributeSchema, allowedLocales, locale, value),
+			createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final UniqueIndex newUniqueIndex = new UniqueIndex(entityType, attributeSchema.getName(), attributeSchema.getType());
+				final UniqueIndex newUniqueIndex = new UniqueIndex(
+					entityType,
+					lookupKey,
+					attributeSchema.getType()
+				);
 				ofNullable(getTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				return newUniqueIndex;
@@ -196,7 +239,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Object value,
 		int recordId
 	) {
-		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
+		final AttributeKey lookupKey = createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value);
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
 		notNull(theUniqueIndex, "Unique index for attribute " + attributeSchema.getName() + " not found!");
 		theUniqueIndex.unregisterUniqueKey(value, recordId);
@@ -219,7 +262,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final FilterIndex newFilterIndex = new FilterIndex(attributeSchema.getPlainType());
+				final FilterIndex newFilterIndex = new FilterIndex(lookupKey, attributeSchema.getPlainType());
 				ofNullable(getTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
 				return newFilterIndex;
@@ -259,7 +302,7 @@ public class AttributeIndex implements AttributeIndexContract,
 		final FilterIndex theFilterIndex = this.filterIndex.computeIfAbsent(
 			createAttributeKey(attributeSchema, allowedLocales, locale, value),
 			lookupKey -> {
-				final FilterIndex newFilterIndex = new FilterIndex(attributeSchema.getPlainType());
+				final FilterIndex newFilterIndex = new FilterIndex(lookupKey, attributeSchema.getPlainType());
 				ofNullable(getTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newFilterIndex));
 				return newFilterIndex;
@@ -296,11 +339,12 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Object value,
 		int recordId
 	) {
+		final AttributeKey attributeKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 		if (value instanceof Predecessor predecessor) {
 			final ChainIndex theSortIndex = this.chainIndex.computeIfAbsent(
-				createAttributeKey(attributeSchema, allowedLocales, locale, value),
+				attributeKey,
 				lookupKey -> {
-					final ChainIndex newSortIndex = new ChainIndex();
+					final ChainIndex newSortIndex = new ChainIndex(lookupKey);
 					ofNullable(getTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
@@ -309,9 +353,9 @@ public class AttributeIndex implements AttributeIndexContract,
 			theSortIndex.upsertPredecessor(predecessor, recordId);
 		} else {
 			final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
-				createAttributeKey(attributeSchema, allowedLocales, locale, value),
+				attributeKey,
 				lookupKey -> {
-					final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), locale);
+					final SortIndex newSortIndex = new SortIndex(attributeSchema.getPlainType(), lookupKey);
 					ofNullable(getTransactionalMemoryLayer(this))
 						.ifPresent(it -> it.addCreatedItem(newSortIndex));
 					return newSortIndex;
@@ -356,10 +400,11 @@ public class AttributeIndex implements AttributeIndexContract,
 		@Nonnull Object[] value,
 		int recordId
 	) {
+		final AttributeKey attributeKey = locale == null ?
+			new AttributeKey(compoundSchemaContract.getName()) :
+			new AttributeKey(compoundSchemaContract.getName(), locale);
 		final SortIndex theSortIndex = this.sortIndex.computeIfAbsent(
-			locale == null ?
-				new AttributeKey(compoundSchemaContract.getName()) :
-				new AttributeKey(compoundSchemaContract.getName(), locale),
+			attributeKey,
 			lookupKey -> {
 				final SortIndex newSortIndex = new SortIndex(
 					compoundSchemaContract.getAttributeElements()
@@ -370,7 +415,7 @@ public class AttributeIndex implements AttributeIndexContract,
 							it.behaviour()
 						))
 						.toArray(ComparatorSource[]::new),
-					locale
+					lookupKey
 				);
 				ofNullable(getTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newSortIndex));
@@ -410,16 +455,16 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Override
 	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull AttributeKey lookupKey) {
-		return this.uniqueIndex.get(lookupKey);
-	}
-
-	@Override
-	@Nullable
-	public UniqueIndex getUniqueIndex(@Nonnull String attributeName, @Nullable Locale locale) {
-		return ofNullable(locale)
-			.map(it -> this.uniqueIndex.get(new AttributeKey(attributeName, locale)))
-			.orElseGet(() -> this.uniqueIndex.get(new AttributeKey(attributeName)));
+	public UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale) {
+		final boolean uniqueWithinLocale = attributeSchema.isUniqueWithinLocale();
+		Assert.isTrue(
+			locale != null || !uniqueWithinLocale,
+			() -> new EntityLocaleMissingException(attributeSchema.getName())
+		);
+		final AttributeKey attributeKey = uniqueWithinLocale ?
+			new AttributeKey(attributeSchema.getName(), locale) :
+			new AttributeKey(attributeSchema.getName());
+		return this.uniqueIndex.get(attributeKey);
 	}
 
 	@Override
@@ -493,19 +538,19 @@ public class AttributeIndex implements AttributeIndexContract,
 	public Collection<StoragePart> getModifiedStorageParts(int entityIndexPrimaryKey) {
 		final List<StoragePart> dirtyParts = new LinkedList<>();
 		for (Entry<AttributeKey, UniqueIndex> entry : uniqueIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		for (Entry<AttributeKey, FilterIndex> entry : filterIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		for (Entry<AttributeKey, SortIndex> entry : sortIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		for (Entry<AttributeKey, ChainIndex> entry : chainIndex.entrySet()) {
-			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey, entry.getKey()))
+			ofNullable(entry.getValue().createStoragePart(entityIndexPrimaryKey))
 				.ifPresent(dirtyParts::add);
 		}
 		return dirtyParts;
@@ -571,22 +616,22 @@ public class AttributeIndex implements AttributeIndexContract,
 			final AttributeKey attribute = storageKey.attribute();
 			final UniqueIndex theUniqueIndex = this.uniqueIndex.get(attribute);
 			notNull(theUniqueIndex, "Unique index for attribute `" + attribute + "` was not found!");
-			return theUniqueIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theUniqueIndex.createStoragePart(entityIndexPrimaryKey);
 		} else if (indexType == AttributeIndexType.FILTER) {
 			final AttributeKey attribute = storageKey.attribute();
 			final FilterIndex theFilterIndex = this.filterIndex.get(attribute);
 			notNull(theFilterIndex, "Filter index for attribute `" + attribute + "` was not found!");
-			return theFilterIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theFilterIndex.createStoragePart(entityIndexPrimaryKey);
 		} else if (indexType == AttributeIndexType.SORT) {
 			final AttributeKey attribute = storageKey.attribute();
 			final SortIndex theSortIndex = this.sortIndex.get(attribute);
 			notNull(theSortIndex, "Sort index for attribute `" + attribute + "` was not found!");
-			return theSortIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theSortIndex.createStoragePart(entityIndexPrimaryKey);
 		} else if (indexType == AttributeIndexType.CHAIN) {
 			final AttributeKey attribute = storageKey.attribute();
 			final ChainIndex theChainIndex = this.chainIndex.get(attribute);
 			notNull(theChainIndex, "Chain index for attribute `" + attribute + "` was not found!");
-			return theChainIndex.createStoragePart(entityIndexPrimaryKey, attribute);
+			return theChainIndex.createStoragePart(entityIndexPrimaryKey);
 		} else {
 			throw new EvitaInternalError("Cannot handle attribute storage part key of type `" + indexType + "`");
 		}

@@ -287,6 +287,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build())
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
+		final boolean localeArgumentNeeded = globalAttributes.stream()
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		if (localeArgumentNeeded) {
+			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
 		getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
@@ -329,6 +337,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.deprecate(as.getDeprecationNotice())
 				.build())
 			.forEach(listUnknownEntityFieldBuilder::argument);
+
+		final boolean localeArgumentNeeded = globalAttributes.stream()
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		if (localeArgumentNeeded) {
+			listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
 
 		listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 

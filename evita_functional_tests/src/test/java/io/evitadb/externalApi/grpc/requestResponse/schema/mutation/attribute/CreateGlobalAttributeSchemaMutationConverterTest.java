@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -44,8 +46,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
-			true,
-			true,
+			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+			GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
 			true,
 			true,
 			true,
@@ -61,8 +63,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
-			false,
-			false,
+			null,
+			null,
 			false,
 			false,
 			false,

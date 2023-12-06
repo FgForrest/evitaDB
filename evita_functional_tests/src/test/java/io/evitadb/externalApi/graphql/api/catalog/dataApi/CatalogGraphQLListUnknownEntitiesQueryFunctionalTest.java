@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInternalError;
@@ -43,6 +45,7 @@ import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ATTRIBUTE_RELATIVE_URL;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -59,7 +62,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  */
 public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends CatalogGraphQLDataEndpointFunctionalTest {
 
-	private static final String ENTITY_LIST_PATH = "data.listEntity";
+	private static final String LIST_ENTITY_PATH = "data.listEntity";
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -94,7 +97,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				ENTITY_LIST_PATH,
+				LIST_ENTITY_PATH,
 				equalTo(
 					List.of(
 						map()
@@ -111,6 +114,79 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				)
 			);
 	}
+
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity by globally unique attribute")
+	void shouldReturnUnknownEntityByGloballyUniqueLocaleSpecificCodeWithoutSpecifyingCollection(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+
+		final EntityClassifier entity = getEntity(
+			evita,
+			query(
+				filterBy(
+					attributeEquals(ATTRIBUTE_RELATIVE_URL, relativeUrl.value()),
+					entityLocaleEquals(relativeUrl.key().locale())
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(relativeUrl: ["%s"], locale: %s) {
+	                        __typename
+	                        primaryKey
+	                        type
+	                    }
+	                }
+					""",
+				relativeUrl.value(),
+				relativeUrl.key().locale().toString()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				LIST_ENTITY_PATH,
+				equalTo(
+					List.of(
+						map()
+							.e(TYPENAME_FIELD, EntityDescriptor.THIS_GLOBAL.name())
+							.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.build()
+					)
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return unknown entity by globally unique attribute")
+	void shouldReturnErrorWhenFilteringByGloballyUniqueLocalSpecificAttributeWithoutLocale(Evita evita, GraphQLTester tester, List<SealedEntity> originalProductEntities) {
+		final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+	                query {
+	                    listEntity(relativeUrl: ["%s"]) {
+	                        __typename
+	                        primaryKey
+	                        type
+	                    }
+	                }
+					""",
+				relativeUrl.value()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -156,7 +232,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				ENTITY_LIST_PATH,
+				LIST_ENTITY_PATH,
 				equalTo(
 					List.of(
 						map()
@@ -210,7 +286,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				ENTITY_LIST_PATH,
+				LIST_ENTITY_PATH,
 				equalTo(
 					List.of(
 						map()
@@ -273,7 +349,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				ENTITY_LIST_PATH,
+				LIST_ENTITY_PATH,
 				equalTo(
 					List.of(
 						map()
@@ -327,7 +403,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				ENTITY_LIST_PATH,
+				LIST_ENTITY_PATH,
 				equalTo(
 					List.of(
 						map()
@@ -371,7 +447,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				ENTITY_LIST_PATH,
+				LIST_ENTITY_PATH,
 				containsInAnyOrder(
 					List.of(
 						equalTo(

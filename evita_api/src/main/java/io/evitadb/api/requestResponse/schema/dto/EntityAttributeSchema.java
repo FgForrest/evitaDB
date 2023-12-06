@@ -52,7 +52,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -84,7 +84,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			false, false, false, localized, false, false,
+			null, false, false, localized, false, false,
 			type, null,
 			0
 		);
@@ -98,7 +98,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	 */
 	public static <T extends Serializable> EntityAttributeSchema _internalBuild(
 		@Nonnull String name,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -126,7 +126,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -156,7 +156,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType unique,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -179,7 +179,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	public String toString() {
 		return "GlobalAttributeSchema{" +
 			"name='" + getName() + '\'' +
-			", unique=" + isUnique() +
+			", unique=" + getUniquenessType() +
 			", filterable=" + isFilterable() +
 			", sortable=" + isSortable() +
 			", localized=" + isLocalized() +

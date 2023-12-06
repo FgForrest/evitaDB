@@ -254,6 +254,11 @@ public interface AssociatedDataContract extends Serializable, AssociatedDataAvai
 				// locale
 				MemoryMeasuringConstants.REFERENCE_SIZE;
 		}
+
+		@Override
+		public String toString() {
+			return associatedDataName + (locale == null ? "" : ":" + locale);
+		}
 	}
 
 	/**

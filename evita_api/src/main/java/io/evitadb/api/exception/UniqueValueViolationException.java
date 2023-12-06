@@ -27,8 +27,10 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Locale;
 
 /**
  * Exception is thrown when there is attempt to index entity with conflicting attribute which violates unique query.
@@ -44,10 +46,18 @@ public class UniqueValueViolationException extends EvitaInvalidUsageException {
 	@Getter private final String newRecordType;
 	@Getter private final int newRecordId;
 
-	public UniqueValueViolationException(@Nonnull String attributeName, @Nonnull Serializable value, @Nonnull String existingRecordType, int existingRecordId, @Nonnull String newRecordType, int newRecordId) {
+	public UniqueValueViolationException(
+		@Nonnull String attributeName,
+		@Nullable Locale locale,
+		@Nonnull Serializable value,
+		@Nonnull String existingRecordType,
+		int existingRecordId,
+		@Nonnull String newRecordType,
+		int newRecordId
+	) {
 		super(
 			"Unique value is already present for entity `" + existingRecordType + "` `" + attributeName +
-				"` key: " + value + " (existing: " + existingRecordId + ", " +
+				"` key: `" + value + "`" + (locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`") + " (existing: " + existingRecordId + ", " +
 				"new: " + newRecordId + (existingRecordType.compareTo(newRecordType) == 0 ? "" : " of entity `" + newRecordType + "`") + ")!"
 		);
 		this.attributeName = attributeName;

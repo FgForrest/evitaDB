@@ -21,7 +21,7 @@ message GrpcCreateAttributeSchemaMutation {
   google.protobuf.StringValue deprecationNotice = 3;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
-  bool unique = 4;
+  GrpcAttributeUniquenessType unique = 4;
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
@@ -67,10 +67,10 @@ message GrpcCreateGlobalAttributeSchemaMutation {
   google.protobuf.StringValue deprecationNotice = 3;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
-  bool unique = 4;
+  GrpcAttributeUniquenessType unique = 4;
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
   // entity having certain value of this attribute in entire catalog.
-  bool uniqueGlobally = 5;
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 5;
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.
@@ -178,7 +178,7 @@ message GrpcSetAttributeSchemaGloballyUniqueMutation {
   string name = 1;
   // When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
   // entity having certain value of this attribute in entire catalog.
-  bool uniqueGlobally = 2;
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 2;
 }
 
 // Mutation is responsible for setting value to a `AttributeSchema.localized` in `EntitySchema`.
@@ -229,7 +229,7 @@ message GrpcSetAttributeSchemaUniqueMutation {
   string name = 1;
   // When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
   // having certain value of this attribute among other entities in the same collection.
-  bool unique = 2;
+  GrpcAttributeUniquenessType unique = 2;
 }
 
 // Mutation is responsible for introducing a `GlobalAttributeSchema` into an `EvitaSession`.

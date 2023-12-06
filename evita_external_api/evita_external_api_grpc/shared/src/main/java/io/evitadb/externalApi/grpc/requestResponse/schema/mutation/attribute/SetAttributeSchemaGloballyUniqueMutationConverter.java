@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaGloballyUniqueMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -40,7 +41,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter implements Schema
 	public SetAttributeSchemaGloballyUniqueMutation convert(@Nonnull GrpcSetAttributeSchemaGloballyUniqueMutation mutation) {
 		return new SetAttributeSchemaGloballyUniqueMutation(
 			mutation.getName(),
-			mutation.getUniqueGlobally()
+			EvitaEnumConverter.toGlobalAttributeUniquenessType(mutation.getUniqueGlobally())
 		);
 	}
 
@@ -48,7 +49,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter implements Schema
 	public GrpcSetAttributeSchemaGloballyUniqueMutation convert(@Nonnull SetAttributeSchemaGloballyUniqueMutation mutation) {
 		return GrpcSetAttributeSchemaGloballyUniqueMutation.newBuilder()
 			.setName(mutation.getName())
-			.setUniqueGlobally(mutation.isUniqueGlobally())
+			.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(mutation.getUniqueGlobally()))
 			.build();
 	}
 }

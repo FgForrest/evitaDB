@@ -25,6 +25,7 @@ package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.APITestConstants;
 import io.evitadb.api.exception.AttributeAlreadyPresentInEntitySchemaException;
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.utils.NamingConvention;
@@ -48,7 +49,7 @@ public class CatalogSchemaBuilderTest {
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
 		EnumSet.allOf(CatalogEvolutionMode.class),
-		entityType -> null
+		EmptyEntitySchemaAccessor.INSTANCE
 	);
 
 	private static void assertAttribute(

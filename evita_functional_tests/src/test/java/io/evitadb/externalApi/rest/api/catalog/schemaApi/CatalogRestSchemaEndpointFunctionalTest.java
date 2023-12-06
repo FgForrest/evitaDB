@@ -153,7 +153,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(EntitySchemaDescriptor.CURRENCIES.name(), entitySchema.getCurrencies().stream().map(Currency::toString).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.EVOLUTION_MODE.name(), entitySchema.getEvolutionMode().stream().map(Enum::toString).collect(Collectors.toList()))
 			.e(EntitySchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(entitySchema.getAttributes().size()))
-			.e(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(entitySchema.getSortableAttributeCompounds().size()))
+			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(entitySchema.getSortableAttributeCompounds().size()))
 			.e(EntitySchemaDescriptor.ASSOCIATED_DATA.name(), createLinkedHashMap(entitySchema.getAssociatedData().size()))
 			.e(EntitySchemaDescriptor.REFERENCES.name(), createLinkedHashMap(entitySchema.getReferences().size()));
 
@@ -171,7 +171,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.values()
 			.forEach(sortableAttributeCompoundSchema -> {
 				//noinspection unchecked
-				final Map<String, Object> sortableAttributeCompounds = (Map<String, Object>) entitySchemaDto.get(EntitySchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name());
+				final Map<String, Object> sortableAttributeCompounds = (Map<String, Object>) entitySchemaDto.get(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name());
 				sortableAttributeCompounds.put(
 					sortableAttributeCompoundSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createSortableAttributeCompoundSchemaDto(sortableAttributeCompoundSchema)
@@ -214,9 +214,9 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				.build())
 			.e(NamedSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription())
 			.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice())
-			.e(AttributeSchemaDescriptor.UNIQUE.name(), attributeSchema.isUnique());
+			.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), attributeSchema.getUniquenessType().name());
 		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			dtoBuilder.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), globalAttributeSchema.isUniqueGlobally());
+			dtoBuilder.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().name());
 		}
 		dtoBuilder
 			.e(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable())
@@ -224,7 +224,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
 		if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
-			dtoBuilder.e(GlobalAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
+			dtoBuilder.e(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), entityAttributeSchema.isRepresentative());
 		}
 		dtoBuilder
 			.e(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()))
@@ -318,7 +318,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.e(ReferenceSchemaDescriptor.INDEXED.name(), referenceSchema.isIndexed())
 			.e(ReferenceSchemaDescriptor.FACETED.name(), referenceSchema.isFaceted())
 			.e(ReferenceSchemaDescriptor.ATTRIBUTES.name(), createLinkedHashMap(referenceSchema.getAttributes().size()))
-			.e(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
+			.e(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name(), createLinkedHashMap(referenceSchema.getSortableAttributeCompounds().size()));
 
 		referenceSchema.getAttributes()
 			.values()
@@ -335,7 +335,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 			.values()
 			.forEach(sortableAttributeCompoundSchema -> {
 				//noinspection unchecked
-				final Map<String, Object> sortableAttributeCompounds = (Map<String, Object>) referenceSchemaBuilder.get(ReferenceSchemaDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name());
+				final Map<String, Object> sortableAttributeCompounds = (Map<String, Object>) referenceSchemaBuilder.get(SortableAttributeCompoundsSchemaProviderDescriptor.SORTABLE_ATTRIBUTE_COMPOUNDS.name());
 				sortableAttributeCompounds.put(
 					sortableAttributeCompoundSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
 					createSortableAttributeCompoundSchemaDto(sortableAttributeCompoundSchema)

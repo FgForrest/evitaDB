@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
@@ -58,8 +60,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
-			true,
-			false,
+			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+			null,
 			true,
 			false,
 			true,
@@ -75,8 +77,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY.name(), false)
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.NOT_UNIQUE)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE.name(), true)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE.name(), false)
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), true)
@@ -94,8 +96,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE.name(), "true")
-				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY.name(), "false")
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
+				.e(CreateGlobalAttributeSchemaMutationDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.NOT_UNIQUE.name())
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE.name(), "true")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE.name(), "false")
 				.e(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED.name(), "true")
@@ -114,8 +116,8 @@ class CreateGlobalAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
-			false,
-			false,
+			null,
+			null,
 			false,
 			false,
 			false,

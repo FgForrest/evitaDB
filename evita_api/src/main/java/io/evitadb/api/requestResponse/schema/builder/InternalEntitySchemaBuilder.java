@@ -54,15 +54,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Currency;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -694,6 +686,30 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 
 	@Nonnull
 	@Override
+	public String getName() {
+		return baseSchema.getName();
+	}
+
+	@Nullable
+	@Override
+	public String getDescription() {
+		return toInstance().getDescription();
+	}
+
+	@Nonnull
+	@Override
+	public Map<NamingConvention, String> getNameVariants() {
+		return baseSchema.getNameVariants();
+	}
+
+	@Nonnull
+	@Override
+	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
+		return baseSchema.getNameVariant(namingConvention);
+	}
+
+	@Nonnull
+	@Override
 	public Optional<ModifyEntitySchemaMutation> toMutation() {
 		return this.mutations.isEmpty() ?
 			empty() :
@@ -701,7 +717,7 @@ public final class InternalEntitySchemaBuilder implements EntitySchemaBuilder, I
 	}
 
 	@Nonnull
-	@Delegate(types = EntitySchemaContract.class)
+	@Delegate(types = EntitySchemaContract.class, excludes = NamedSchemaContract.class)
 	@Override
 	public EntitySchemaContract toInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {

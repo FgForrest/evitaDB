@@ -25,6 +25,7 @@ package io.evitadb.externalApi.rest.api.catalog.resolver.data.mutation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
@@ -104,7 +105,7 @@ class RestEntityMutationConverterTest {
 	@BeforeEach
 	void init() {
 		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)

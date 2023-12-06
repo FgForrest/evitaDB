@@ -56,7 +56,7 @@ public class SetAttributeSchemaGloballyUniqueMutationConverter extends Attribute
 	protected SetAttributeSchemaGloballyUniqueMutation convert(@Nonnull Input input) {
 		return new SetAttributeSchemaGloballyUniqueMutation(
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaGloballyUniqueMutationDescriptor.UNIQUE_GLOBALLY)
+			input.getRequiredField(SetAttributeSchemaGloballyUniqueMutationDescriptor.GLOBAL_UNIQUENESS_TYPE)
 		);
 	}
 }

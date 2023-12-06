@@ -24,6 +24,7 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
@@ -53,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class UniqueIndexTest implements TimeBoundedTestSupport {
-	private final UniqueIndex tested = new UniqueIndex(Entities.PRODUCT, "whatever", String.class, new HashMap<>());
+	private final UniqueIndex tested = new UniqueIndex(Entities.PRODUCT, new AttributeKey("whatever"), String.class, new HashMap<>());
 
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
@@ -106,7 +107,7 @@ class UniqueIndexTest implements TimeBoundedTestSupport {
 			new TestState(
 				new StringBuilder(),
 				1,
-				new UniqueIndex(Entities.PRODUCT, "code", String.class)
+				new UniqueIndex(Entities.PRODUCT, new AttributeKey("code"), String.class)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -166,7 +167,7 @@ class UniqueIndexTest implements TimeBoundedTestSupport {
 						committedResult.set(
 							new UniqueIndex(
 								committed.getEntityType(),
-								committed.getName(),
+								committed.getAttributeKey(),
 								committed.getType(),
 								new HashMap<>(committed.getUniqueValueToRecordId()),
 								committed.getRecordIds()
