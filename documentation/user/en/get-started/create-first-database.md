@@ -1,8 +1,8 @@
 ---
 title: Create first database
 perex: |
-    This article will guide you through the basics of the evitaDB API for creating, updating, querying and 
-    deleting entities in the catalog.  
+    This article will guide you through the basics of the evitaDB API for creating, updating, querying and
+    deleting entities in the catalog.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
@@ -14,7 +14,7 @@ preferredLang: 'java'
 We assume you already have the following snippet of the code from the [previous chapter](run-evitadb.md):
 
 <SourceCodeTabs local>
-    
+
 [Example of starting the evitaDB server](/documentation/user/en/get-started/example/complete-startup.java)
 </SourceCodeTabs>
 
@@ -28,13 +28,13 @@ We assume that you already have the following Docker image up and running from t
 
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
-docker run --name evitadb -i --rm --net=host \ 
+docker run --name evitadb -i --rm --net=host \
 index.docker.io/evitadb/evitadb:latest
 
-# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
+# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
 # and you need to open ports manually
 docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
-       -e "api.exposedOn=localhost" \ 
+       -e "api.exposedOn=localhost" \
        index.docker.io/evitadb/evitadb:latest
 ```
 
@@ -46,10 +46,10 @@ So the web API server is now up and running and ready to communicate.
 
 ## Define a new catalog with a schema
 
-Now you can use <LangSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass></LanguageSpecific>
-<LangSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass></LanguageSpecific>
-to define a new catalog and create predefined schemas for multiple collections: `Brand`, `Category` and `Product`. 
-Each collection contains some attributes (either localized or non-localized), category is marked as a hierarchical entity 
+Now you can use <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass></LanguageSpecific>
+to define a new catalog and create predefined schemas for multiple collections: `Brand`, `Category` and `Product`.
+Each collection contains some attributes (either localized or non-localized), category is marked as a hierarchical entity
 that forms a tree, product is enabled to have prices:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" local>
@@ -122,8 +122,8 @@ Once the catalog is created and the schema is known, you can insert a first enti
 
 The session is implicitly opened for the scope of the <LanguageSpecific to="java">`updateCatalog` method. The analogous method `queryCatalog` on
 the evitaDB contract</LanguageSpecific><LanguageSpecific to="csharp">`UpdateCatalog` method. The analogous method `UueryCatalog` on
-the evitaDB class level</LanguageSpecific> also opens a session, but only in read-only mode, which doesn't allow updating the catalog. 
-Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute 
+the evitaDB class level</LanguageSpecific> also opens a session, but only in read-only mode, which doesn't allow updating the catalog.
+Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute
 the load in the cluster.
 
 Let's see how you can retrieve the entity you just created in another read-only session.
@@ -250,7 +250,7 @@ apply changes to it. The fetched entity is immutable, so you need to open it for
 builder that wraps the original immutable object and allows the changes to be captured. These changes are eventually
 collected and passed to the server in the <LanguageSpecific to="java">"`upsertVia`</LanguageSpecific><LanguageSpecific to="csharp">`UpsertVia`</LanguageSpecific> method.
 
-For more information, see the [write API description](../use/api/write-data.md#upsert). 
+For more information, see the [write API description](../use/api/write-data.md#upsert).
 
 </LanguageSpecific>
 
