@@ -67,6 +67,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer;
 import io.evitadb.api.requestResponse.schema.ClassSchemaAnalyzer.AnalysisResult;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -342,7 +343,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return executeInTransactionIfPossible(
 			session -> {
 				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup);
-				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
+				final CatalogSchemaEditor.CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
+				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this, catalogBuilder);
 				updateCatalogSchema(analysisResult.mutations());
 				return getEntitySchemaOrThrow(analysisResult.entityType());
 			}
@@ -356,7 +358,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 		return executeInTransactionIfPossible(
 			session -> {
 				final ClassSchemaAnalyzer classSchemaAnalyzer = new ClassSchemaAnalyzer(modelClass, reflectionLookup, postProcessor);
-				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this);
+				final CatalogSchemaEditor.CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
+				final AnalysisResult analysisResult = classSchemaAnalyzer.analyze(this, catalogBuilder);
 				if (postProcessor instanceof SchemaPostProcessorCapturingResult capturingResult) {
 					capturingResult.captureResult(analysisResult.mutations());
 				}
@@ -709,7 +712,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 				evitaSessionService.updateAndFetchCatalogSchema(request)
 			);
 
-			final CatalogSchema updatedCatalogSchema = CatalogSchemaConverter.convert(response.getCatalogSchema());
+			final CatalogSchema updatedCatalogSchema = CatalogSchemaConverter.convert(
+				response.getCatalogSchema(), clientEntitySchemaAccessor
+			);
 			final SealedCatalogSchema updatedSchema = new ClientCatalogSchemaDecorator(updatedCatalogSchema, clientEntitySchemaAccessor);
 			schemaCache.analyzeMutations(schemaMutation);
 			schemaCache.setLatestCatalogSchema(updatedCatalogSchema);
@@ -1673,7 +1678,9 @@ public class EvitaClientSession implements EvitaSessionContract {
 		final GrpcCatalogSchemaResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.getCatalogSchema(Empty.getDefaultInstance())
 		);
-		return CatalogSchemaConverter.convert(grpcResponse.getCatalogSchema());
+		return CatalogSchemaConverter.convert(
+			grpcResponse.getCatalogSchema(), clientEntitySchemaAccessor
+		);
 	}
 
 	/**

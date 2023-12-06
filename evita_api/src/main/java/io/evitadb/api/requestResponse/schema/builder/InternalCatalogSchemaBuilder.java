@@ -107,7 +107,10 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 */
 	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
 
-	public InternalCatalogSchemaBuilder(@Nonnull CatalogSchemaContract baseSchema, @Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations) {
+	public InternalCatalogSchemaBuilder(
+		@Nonnull CatalogSchemaContract baseSchema,
+		@Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations
+	) {
 		this.baseSchema = baseSchema;
 		this.updatedEntitySchemaAccessor = new MutationEntitySchemaAccessor(baseSchema);
 		this.updatedSchemaDirty = addMutations(
