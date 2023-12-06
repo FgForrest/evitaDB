@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -52,7 +54,7 @@ import java.util.stream.Stream;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSchemaMutation {
+public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
 	@Serial private static final long serialVersionUID = -4571605515674791255L;
 	@Getter private final CatalogEvolutionMode[] evolutionModes;
 
@@ -62,7 +64,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		if (catalogSchema.getCatalogEvolutionMode().containsAll(List.of(evolutionModes))) {
 			// no need to change the schema
@@ -79,9 +81,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 					)
 					.collect(Collectors.toSet()),
 				catalogSchema.getAttributes(),
-				entityType -> {
-					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-				}
+				entitySchemaAccessor
 			);
 		}
 	}

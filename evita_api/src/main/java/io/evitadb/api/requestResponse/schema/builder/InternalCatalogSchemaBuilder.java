@@ -27,12 +27,16 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
@@ -40,10 +44,11 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NamingConvention;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -55,6 +60,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -73,14 +79,38 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	@Serial private static final long serialVersionUID = -6465608379445518033L;
 	private static final LocalCatalogSchemaMutation[] EMPTY_ARRAY = new LocalCatalogSchemaMutation[0];
 
+	/**
+	 * The baseSchema variable represents the origin contract of the schema.
+	 */
 	private final CatalogSchemaContract baseSchema;
+	/**
+	 * List of LocalCatalogSchemaMutation objects representing a collection of variable mutations.
+	 *
+	 * The mutations list is used to store LocalCatalogSchemaMutation objects, which represent individual mutations.
+	 * Each mutation represents a change or modification to a specific property in a catalog schema.
+	 */
 	private final List<LocalCatalogSchemaMutation> mutations = new LinkedList<>();
-	private MutationImpact updatedSchemaDirty = MutationImpact.NO_IMPACT;
-	private int lastMutationReflectedInSchema = 0;
+	/**
+	 * Represents the status of the updated schema.
+	 */
+	private MutationImpact updatedSchemaDirty;
+	/**
+	 * Contains index of the last mutation reflected in the schema from {@link #mutations} field.
+	 */
+	private int lastMutationReflectedInSchema = -1;
+	/**
+	 * Represents an updated schema for a catalog.
+	 */
 	private CatalogSchemaContract updatedSchema;
+	/**
+	 * This variable represents the accessor object for the updated entity schema.
+	 * It provides access to the current state of all the entity schemas altered by the mutations of this builder.
+	 */
+	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
 
 	public InternalCatalogSchemaBuilder(@Nonnull CatalogSchemaContract baseSchema, @Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations) {
 		this.baseSchema = baseSchema;
+		this.updatedEntitySchemaAccessor = new MutationEntitySchemaAccessor(baseSchema);
 		this.updatedSchemaDirty = addMutations(
 			this.baseSchema, this.mutations,
 			schemaMutations.toArray(EMPTY_ARRAY)
@@ -152,11 +182,14 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 						}
 					),
 				() -> {
-					final Stream<ModifyEntitySchemaMutation> entityMutation = ofNullable(whichIs)
+					final Stream<LocalCatalogSchemaMutation> entityMutation = ofNullable(whichIs)
 						.map(schemaBuilder -> {
 							final EntitySchemaBuilder builder = new InternalEntitySchemaBuilder(toInstance(), EntitySchema._internalBuild(entityType)).cooperatingWith(() -> this);
 							whichIs.accept(builder);
-							return builder.toMutation().stream();
+							return Stream.concat(
+								Stream.<LocalCatalogSchemaMutation>of(new CreateEntitySchemaMutation(entityType)),
+								builder.toMutation().stream().map(LocalCatalogSchemaMutation.class::cast)
+							);
 						})
 						.orElse(Stream.empty());
 
@@ -164,10 +197,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 						this.updatedSchemaDirty,
 						addMutations(
 							this.baseSchema, this.mutations,
-							Stream.concat(
-								Stream.of(new CreateEntitySchemaMutation(entityType)),
-								entityMutation.map(it -> (LocalCatalogSchemaMutation) it)
-							).toArray(LocalCatalogSchemaMutation[]::new)
+							entityMutation.toArray(LocalCatalogSchemaMutation[]::new)
 						)
 					);
 				}
@@ -242,13 +272,49 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 
 	@Nonnull
 	@Override
+	public String getName() {
+		return baseSchema.getName();
+	}
+
+	@Nullable
+	@Override
+	public String getDescription() {
+		return toInstance().getDescription();
+	}
+
+	@Nonnull
+	@Override
+	public Map<NamingConvention, String> getNameVariants() {
+		return baseSchema.getNameVariants();
+	}
+
+	@Nonnull
+	@Override
+	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
+		return baseSchema.getNameVariant(namingConvention);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<EntitySchemaContract> getEntitySchemas() {
+		return updatedEntitySchemaAccessor.getEntitySchemas();
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+		return updatedEntitySchemaAccessor.getEntitySchema(entityType);
+	}
+
+	@Nonnull
+	@Override
 	public Optional<ModifyCatalogSchemaMutation> toMutation() {
 		return this.mutations.isEmpty() ?
 			Optional.empty() :
 			Optional.of(new ModifyCatalogSchemaMutation(getName(), this.mutations.toArray(EMPTY_ARRAY)));
 	}
 
-	@Delegate(types = CatalogSchemaContract.class)
+	@Delegate(types = CatalogSchemaContract.class, excludes = {NamedSchemaContract.class, EntitySchemaProvider.class})
 	@Nonnull
 	@Override
 	public CatalogSchemaContract toInstance() {
@@ -256,24 +322,28 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			// if the dirty flat is set to modified previous we need to start from the base schema again
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
-				this.lastMutationReflectedInSchema = 0;
+				this.lastMutationReflectedInSchema = -1;
 			}
 			// if the last mutation reflected in the schema is zero we need to start from the base schema
 			// else we can continue modification last known updated schema by adding additional mutations
-			CatalogSchemaContract currentSchema = this.lastMutationReflectedInSchema == 0 ?
+			CatalogSchemaContract currentSchema = this.updatedSchema == null ?
 				this.baseSchema : this.updatedSchema;
 
 			// apply the mutations not reflected in the schema
-			for (int i = lastMutationReflectedInSchema; i < this.mutations.size(); i++) {
+			for (int i = lastMutationReflectedInSchema + 1; i < this.mutations.size(); i++) {
 				final CatalogSchemaMutation mutation = this.mutations.get(i);
-				currentSchema = mutation.mutate(currentSchema);
+				Assert.isPremiseValid(
+					mutation instanceof CatalogSchemaMutationWithProvidedEntitySchemaAccessor,
+					() -> new EvitaInternalError("We expect that all CatalogSchemaMutations will implement CatalogSchemaMutationWithProvidedEntitySchemaAccessor (internally)!")
+				);
+				currentSchema = ((CatalogSchemaMutationWithProvidedEntitySchemaAccessor)mutation).mutate(currentSchema, updatedEntitySchemaAccessor);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
 			}
 			this.updatedSchema = currentSchema;
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;
-			this.lastMutationReflectedInSchema = this.mutations.size();
+			this.lastMutationReflectedInSchema = this.mutations.size() - 1;
 		}
 		return this.updatedSchema;
 	}

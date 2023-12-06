@@ -23,9 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
@@ -49,6 +52,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -634,6 +638,33 @@ public final class EntitySchema implements EntitySchemaContract {
 		return getReference(referenceName)
 			.map(it -> (ReferenceSchema) it)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
+	}
+
+	@Override
+	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		final List<String> errors = getReferences()
+			.values()
+			.stream()
+			.flatMap(ref -> {
+				Stream<String> referenceErrors = Stream.empty();
+				if (ref.isReferencedEntityTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedEntityType()).isEmpty()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of("Referenced entity type `" + ref.getReferencedEntityType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				}
+				if (ref.isReferencedGroupTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedGroupType()).isEmpty()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of("Referenced group entity type `" + ref.getReferencedGroupType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				}
+				return referenceErrors;
+			})
+			.toList();
+		if (!errors.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				"Schema `" + getName() + "` contains validation errors: " + String.join(", ", errors)
+			);
+		}
 	}
 
 	/**

@@ -30,12 +30,16 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Common ancestor for all constraint resolver tests.
@@ -49,20 +53,24 @@ abstract class AbstractConstraintResolverTest {
 
 	void init() {
 		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
+		this.catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			Map.of(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return entitySchemaIndex.values();
+				}
 
-		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
-			catalogSchema,
-			EntitySchema._internalBuild(Entities.PRODUCT)
-		)
-			.withPrice()
-			.withAttribute("CODE", String.class)
-			.withAttribute("AGE", Integer.class, thatIs -> thatIs.filterable())
-			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("CODE", String.class))
-			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
-			.toInstance();
-
-		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return Optional.ofNullable(entitySchemaIndex.get(entityType));
+				}
+			}
+		);
 
 		final EntitySchemaContract categorySchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -80,5 +88,18 @@ abstract class AbstractConstraintResolverTest {
 		)
 			.toInstance();
 		entitySchemaIndex.put(Entities.BRAND, brandSchema);
+
+		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
+			catalogSchema,
+			EntitySchema._internalBuild(Entities.PRODUCT)
+		)
+			.withPrice()
+			.withAttribute("CODE", String.class)
+			.withAttribute("AGE", Integer.class, thatIs -> thatIs.filterable())
+			.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE, thatIs -> thatIs.withAttribute("CODE", String.class))
+			.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.EXACTLY_ONE)
+			.toInstance();
+
+		entitySchemaIndex.put(Entities.PRODUCT, productSchema);
 	}
 }

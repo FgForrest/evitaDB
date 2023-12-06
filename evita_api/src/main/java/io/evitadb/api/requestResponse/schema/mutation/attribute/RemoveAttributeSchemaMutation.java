@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
@@ -114,7 +115,7 @@ public class RemoveAttributeSchemaMutation implements
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final Optional<GlobalAttributeSchemaContract> existingAttributeSchema = catalogSchema.getAttribute(name);
 		if (existingAttributeSchema.isEmpty()) {
@@ -137,13 +138,7 @@ public class RemoveAttributeSchemaMutation implements
 							Function.identity()
 						)
 					),
-				catalogSchema instanceof CatalogSchema cs ?
-					cs.getEntitySchemaAccessor() :
-					entityType -> {
-						throw new UnsupportedOperationException(
-							"Mutated schema is not able to provide access to entity schemas!"
-						);
-					}
+				entitySchemaAccessor
 			);
 		}
 	}

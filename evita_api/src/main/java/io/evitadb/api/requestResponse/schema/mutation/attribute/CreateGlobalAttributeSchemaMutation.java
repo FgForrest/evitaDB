@@ -31,7 +31,9 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -67,7 +69,7 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateGlobalAttributeSchemaMutation
-	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
+	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
 	@Serial private static final long serialVersionUID = -7082514745878566818L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
@@ -218,7 +220,7 @@ public class CreateGlobalAttributeSchemaMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name).orElse(null);
@@ -239,13 +241,7 @@ public class CreateGlobalAttributeSchemaMutation
 							Function.identity()
 						)
 					),
-				catalogSchema instanceof CatalogSchema cs ?
-					cs.getEntitySchemaAccessor() :
-					entityType -> {
-						throw new UnsupportedOperationException(
-							"Mutated schema is not able to provide access to entity schemas!"
-						);
-					}
+				entitySchemaAccessor
 			);
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter

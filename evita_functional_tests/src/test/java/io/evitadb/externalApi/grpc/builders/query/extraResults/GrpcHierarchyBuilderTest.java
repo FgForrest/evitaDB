@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -184,7 +185,7 @@ public class GrpcHierarchyBuilderTest {
 	public static SealedEntity createHierarchyEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(type)
 			)
 				.withAttribute("code", String.class)

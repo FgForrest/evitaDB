@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -51,7 +52,7 @@ class CatalogSchemaConverterTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			EnumSet.noneOf(CatalogEvolutionMode.class),
-			s -> null
+			EmptyEntitySchemaAccessor.INSTANCE
 		);
 		assertCatalogSchema(
 			catalogSchema,
@@ -89,7 +90,7 @@ class CatalogSchemaConverterTest {
 					false
 				)
 			),
-			s -> null
+			EmptyEntitySchemaAccessor.INSTANCE
 		);
 		assertCatalogSchema(
 			catalogSchema,

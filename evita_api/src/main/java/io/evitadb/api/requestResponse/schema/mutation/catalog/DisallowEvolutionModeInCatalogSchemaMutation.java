@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -52,7 +54,7 @@ import java.util.stream.Collectors;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSchemaMutation {
+public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
 	@Serial private static final long serialVersionUID = 4074000557741311141L;
 	@Getter private final Set<CatalogEvolutionMode> evolutionModes;
 
@@ -68,7 +70,7 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		if (catalogSchema.getCatalogEvolutionMode().stream().noneMatch(evolutionModes::contains)) {
 			// no need to change the schema
@@ -84,9 +86,7 @@ public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalo
 					.filter(it -> !this.evolutionModes.contains(it))
 					.collect(Collectors.toSet()),
 				catalogSchema.getAttributes(),
-				entityType -> {
-					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-				}
+				entitySchemaAccessor
 			);
 		}
 	}

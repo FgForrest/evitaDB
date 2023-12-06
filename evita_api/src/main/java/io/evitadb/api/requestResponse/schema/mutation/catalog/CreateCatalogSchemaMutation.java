@@ -72,9 +72,7 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 			catalogName,
 			NamingConvention.generate(catalogName),
 			EnumSet.allOf(CatalogEvolutionMode.class),
-			entityType -> {
-				throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-			}
+			MutationEntitySchemaAccessor.INSTANCE
 		);
 	}
 

@@ -26,6 +26,7 @@ package io.evitadb.index.mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -33,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.core.EvitaSession;
@@ -45,7 +47,10 @@ import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.utils.NamingConvention;
 import org.mockito.Mockito;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.Optional;
 
 /**
  * This class contains shared variables and logic for mutation specific tests in this package.
@@ -71,7 +76,19 @@ abstract class AbstractMutatorTestBase {
 				TestConstants.TEST_CATALOG,
 				NamingConvention.generate(TestConstants.TEST_CATALOG),
 				EnumSet.allOf(CatalogEvolutionMode.class),
-				entityType -> catalog.getEntitySchema(entityType).orElse(null)
+				new EntitySchemaProvider() {
+					@Nonnull
+					@Override
+					public Collection<EntitySchemaContract> getEntitySchemas() {
+						return catalog.getEntitySchemaIndex().values();
+					}
+
+					@Nonnull
+					@Override
+					public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+						return catalog.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
+					}
+				}
 			)
 		);
 		alterCatalogSchema(catalogSchemaBuilder);

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.reference;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
@@ -71,7 +72,7 @@ class ReferenceAttributeMutationConverterTest {
 	@BeforeEach
 	void init() {
 		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withReferenceTo(

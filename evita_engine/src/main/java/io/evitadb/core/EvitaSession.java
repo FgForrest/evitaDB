@@ -588,6 +588,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (ArrayUtils.isEmpty(schemaMutation)) {
 			return 0;
 		}
+
+		// validate the new schema version before any changes are applied
+		getCatalog().getSchema()
+			.openForWriteWithMutations(schemaMutation)
+			.toInstance()
+			.validate();
+
 		return executeInTransactionIfPossible(session -> {
 			getCatalog().updateSchema(session, schemaMutation);
 			return getCatalogSchema().getVersion();
@@ -619,11 +626,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> {
 			final String entityType = schemaMutation.getEntityType();
 			final EntityCollectionContract entityCollection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
 			if (ArrayUtils.isEmpty(schemaMutation.getSchemaMutations())) {
-				return entityCollection.getSchema();
+				return currentEntitySchema;
 			}
-			entityCollection.updateSchema(getCatalogSchema(), schemaMutation);
-			return entityCollection.getSchema();
+			final SealedCatalogSchema catalogSchema = getCatalogSchema();
+			// validate the new schema version before any changes are applied
+			currentEntitySchema.withMutations(schemaMutation)
+				.toInstance()
+				.validate(catalogSchema);
+			return entityCollection.updateSchema(catalogSchema, schemaMutation);
 		});
 	}
 

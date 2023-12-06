@@ -27,8 +27,9 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -40,7 +41,7 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, CatalogSchemaMutation {
+public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
 
 	/**
 	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
@@ -50,7 +51,8 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 	default CatalogSchemaContract replaceAttributeIfDifferent(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull GlobalAttributeSchemaContract existingAttributeSchema,
-		@Nonnull GlobalAttributeSchemaContract updatedAttributeSchema
+		@Nonnull GlobalAttributeSchemaContract updatedAttributeSchema,
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
 			// we don't need to update entity schema - the associated data already contains the requested change
@@ -72,13 +74,7 @@ public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, 
 							Function.identity()
 						)
 					),
-				catalogSchema instanceof CatalogSchema cs ?
-					cs.getEntitySchemaAccessor() :
-					entityType -> {
-						throw new UnsupportedOperationException(
-							"Mutated schema is not able to provide access to entity schemas!"
-						);
-					}
+				entitySchemaAccessor
 			);
 		}
 	}

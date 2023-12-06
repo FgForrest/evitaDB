@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.associatedData;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.associatedData.UpsertAssociatedDataMutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
@@ -75,7 +76,7 @@ class UpsertAssociatedDataMutationConverterTest {
 	@BeforeEach
 	void init() {
 		final EntitySchemaContract entitySchema = new InternalEntitySchemaBuilder(
-			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+			CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 			EntitySchema._internalBuild(Entities.PRODUCT)
 		)
 			.withAssociatedData(ASSOCIATED_DATA_LABELS, Dummy.class)

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
@@ -117,7 +118,7 @@ public class GrpcFacetSummaryBuilderTest {
 	public static SealedEntity createGroupEntity(String groupEntityType) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(groupEntityType)
 			)
 				.withAttribute("code", String.class)
@@ -134,7 +135,7 @@ public class GrpcFacetSummaryBuilderTest {
 	public static SealedEntity createFacetEntity(@Nonnull String type, int pk, @Nonnull String code) {
 		return new InitialEntityBuilder(
 			new InternalEntitySchemaBuilder(
-				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null),
+				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
 				EntitySchema._internalBuild(type)
 			)
 				.withAttribute("code", String.class)
@@ -144,4 +145,5 @@ public class GrpcFacetSummaryBuilderTest {
 			.setAttribute("code", code)
 			.toInstance();
 	}
+
 }

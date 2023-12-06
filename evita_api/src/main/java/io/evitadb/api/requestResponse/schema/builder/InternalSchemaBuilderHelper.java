@@ -222,7 +222,7 @@ public interface InternalSchemaBuilderHelper {
 	 * @return the new impact level if more significant than the existing one, otherwise the existing one
 	 */
 	@Nonnull
-	default MutationImpact updateMutationImpact(@Nonnull MutationImpact existingImpactLevel, MutationImpact newImpactLevel) {
+	default MutationImpact updateMutationImpact(@Nonnull MutationImpact existingImpactLevel, @Nullable MutationImpact newImpactLevel) {
 		return updateMutationImpactInternal(existingImpactLevel, newImpactLevel);
 	}
 

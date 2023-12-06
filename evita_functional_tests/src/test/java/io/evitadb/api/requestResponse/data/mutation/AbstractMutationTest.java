@@ -27,15 +27,22 @@ import io.evitadb.api.APITestConstants;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Optional;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * Base mutation class that contains initalized schemas for testing.
@@ -64,7 +71,7 @@ public abstract class AbstractMutationTest {
 		EnumSet.allOf(EvolutionMode.class),
 		Collections.emptyMap()
 	);
-	protected final Map<String, EntitySchema> entitySchemas = Collections.singletonMap(
+	protected final Map<String, EntitySchemaContract> entitySchemas = Collections.singletonMap(
 		productSchema.getName(), productSchema
 	);
 	protected final SealedCatalogSchema catalogSchema = new CatalogSchemaDecorator(
@@ -72,7 +79,19 @@ public abstract class AbstractMutationTest {
 			APITestConstants.TEST_CATALOG,
 			Collections.emptyMap(),
 			EnumSet.allOf(CatalogEvolutionMode.class),
-			entitySchemas::get
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return entitySchemas.values();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return ofNullable(entitySchemas.get(entityType));
+				}
+			}
 		)
 	);
 

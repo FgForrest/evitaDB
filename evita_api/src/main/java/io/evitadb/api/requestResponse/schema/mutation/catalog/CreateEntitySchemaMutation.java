@@ -27,6 +27,9 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.ClassifierUtils;
@@ -50,7 +53,7 @@ import java.io.Serial;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation {
+public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
 	@Serial private static final long serialVersionUID = 5167037327442001715L;
 	@Nonnull @Getter private final String name;
 
@@ -61,8 +64,10 @@ public class CreateEntitySchemaMutation implements LocalCatalogSchemaMutation {
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
-		// do nothing - the mutation is handled differently
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
+			mutationEntitySchemaAccessor.addUpsertedEntitySchema(EntitySchema._internalBuild(name));
+		}
 		return catalogSchema;
 	}
 

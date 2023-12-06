@@ -28,9 +28,12 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
 import lombok.AllArgsConstructor;
@@ -57,7 +60,7 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutation, EntitySchemaMutation {
+public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor, EntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -5176104766478870248L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final String newName;
@@ -65,8 +68,18 @@ public class ModifyEntitySchemaNameMutation implements LocalCatalogSchemaMutatio
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
-		// do nothing - the mutation is handled differently
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
+			mutationEntitySchemaAccessor
+				.getEntitySchema(name).map(it -> mutate(catalogSchema, it))
+				.ifPresentOrElse(
+					it -> mutationEntitySchemaAccessor.replaceEntitySchema(name, it),
+					() -> {
+						throw new EvitaInternalError("Entity schema not found: " + name);
+					}
+				);
+		}
+		// do nothing - we alter only the entity schema
 		return catalogSchema;
 	}
 

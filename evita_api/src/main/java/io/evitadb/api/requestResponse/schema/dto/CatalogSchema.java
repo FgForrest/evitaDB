@@ -23,10 +23,12 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.utils.NamingConvention;
 import lombok.EqualsAndHashCode;
@@ -37,12 +39,12 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.schema.dto.EntitySchema._internalGenerateNameVariantIndex;
@@ -78,7 +80,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	 */
 	@Getter
 	@Nonnull
-	private final Function<String, EntitySchemaContract> entitySchemaAccessor;
+	private final EntitySchemaProvider entitySchemaAccessor;
 
 	/**
 	 * This method is for internal purposes only. It could be used for reconstruction of AttributeSchema from
@@ -90,7 +92,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nonnull String name,
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
-		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
 			1, name, nameVariants, null, evolutionMode,
@@ -112,7 +114,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nullable String description,
 		@Nonnull Set<CatalogEvolutionMode> evolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
-		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
 			version, name, nameVariants, description, evolutionMode,
@@ -140,7 +142,20 @@ public final class CatalogSchema implements CatalogSchemaContract {
 				baseSchema.getDescription(),
 				baseSchema.getCatalogEvolutionMode(),
 				baseSchema.getAttributes(),
-				entityType -> baseSchema.getEntitySchema(entityType).orElse(null)
+				new EntitySchemaProvider() {
+					@Nonnull
+					@Override
+					public Collection<EntitySchemaContract> getEntitySchemas() {
+						return baseSchema.getEntitySchemas();
+					}
+
+					@Nonnull
+					@Override
+					public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+						return baseSchema.getEntitySchema(entityType)
+							.map(schema -> ((EntitySchemaDecorator) schema).getDelegate());
+					}
+				}
 			);
 	}
 
@@ -153,7 +168,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 	@Nonnull
 	public static CatalogSchema _internalBuildWithUpdatedVersion(
 		@Nonnull CatalogSchemaContract baseSchema,
-		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		return new CatalogSchema(
 				baseSchema.getVersion() + 1,
@@ -200,7 +215,7 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		@Nullable String description,
 		@Nonnull Set<CatalogEvolutionMode> catalogEvolutionMode,
 		@Nonnull Map<String, GlobalAttributeSchemaContract> attributes,
-		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		this.version = version;
 		this.name = name;
@@ -222,8 +237,14 @@ public final class CatalogSchema implements CatalogSchemaContract {
 
 	@Nonnull
 	@Override
+	public Collection<EntitySchemaContract> getEntitySchemas() {
+		return entitySchemaAccessor.getEntitySchemas();
+	}
+
+	@Nonnull
+	@Override
 	public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-		return ofNullable(entitySchemaAccessor.apply(entityType));
+		return entitySchemaAccessor.getEntitySchema(entityType);
 	}
 
 	@Override
@@ -266,4 +287,11 @@ public final class CatalogSchema implements CatalogSchemaContract {
 		);
 	}
 
+	@Override
+	public void validate() throws SchemaAlteringException {
+		final Collection<EntitySchemaContract> entitySchemas = entitySchemaAccessor.getEntitySchemas();
+		for (EntitySchemaContract entitySchema : entitySchemas) {
+			entitySchema.validate(this);
+		}
+	}
 }
