@@ -321,6 +321,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = -1;
+				this.updatedSchema = null;
 			}
 			// if the last mutation reflected in the schema is zero we need to start from the base schema
 			// else we can continue modification last known updated schema by adding additional mutations
