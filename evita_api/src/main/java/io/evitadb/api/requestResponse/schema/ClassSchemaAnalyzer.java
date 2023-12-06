@@ -487,9 +487,22 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session) throws SchemaClassInvalidException {
+		final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
+		return analyzeClassSchema(session, catalogBuilder);
+	}
+
+	/**
+	 * Method analyzes the entity model class and alters the catalog and entity schema within passed write session
+	 * accordingly.
+	 *
+	 * @param session write Evita session
+	 * @param catalogBuilder catalog schema builder
+	 * @throws InvalidSchemaMutationException when entity model contains errors
+	 */
+	@Nonnull
+	public AnalysisResult analyzeClassSchema(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
 		AtomicReference<String> entityName = new AtomicReference<>();
 		try {
-			final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 			final List<Entity> entityAnnotations = reflectionLookup.getClassAnnotations(modelClass, Entity.class);
 			// use only the most specific annotation only
 			if (!entityAnnotations.isEmpty()) {
