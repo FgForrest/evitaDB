@@ -249,6 +249,15 @@ public class TestDataGenerator {
 									Entities.STORE,
 									Cardinality.ZERO_OR_MORE,
 									whichIs -> whichIs.faceted().withGroupType(ENTITY_STORE_GROUP)
+								)
+								.withReferenceToEntity(
+									Entities.PARAMETER,
+									Entities.PARAMETER,
+									Cardinality.EXACTLY_ONE,
+									whichIs -> whichIs
+										.faceted()
+										.withAttribute(ATTRIBUTE_MARKET_SHARE, BigDecimal.class)
+										.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP)
 								);
 						}
 					),
