@@ -58,7 +58,10 @@ class CatalogSchemaConverterTest {
 		);
 		assertCatalogSchema(
 			catalogSchema,
-			CatalogSchemaConverter.convert(CatalogSchemaConverter.convert(catalogSchema))
+			CatalogSchemaConverter.convert(
+				CatalogSchemaConverter.convert(catalogSchema),
+				EmptyEntitySchemaAccessor.INSTANCE
+			)
 		);
 	}
 
@@ -96,7 +99,10 @@ class CatalogSchemaConverterTest {
 		);
 		assertCatalogSchema(
 			catalogSchema,
-			CatalogSchemaConverter.convert(CatalogSchemaConverter.convert(catalogSchema))
+			CatalogSchemaConverter.convert(
+				CatalogSchemaConverter.convert(catalogSchema),
+				EmptyEntitySchemaAccessor.INSTANCE
+			)
 		);
 	}
 

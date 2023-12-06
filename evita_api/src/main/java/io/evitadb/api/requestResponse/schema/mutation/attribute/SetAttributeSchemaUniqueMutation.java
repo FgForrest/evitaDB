@@ -157,7 +157,7 @@ public class SetAttributeSchemaUniqueMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
@@ -166,7 +166,7 @@ public class SetAttributeSchemaUniqueMutation
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor
+			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 		);
 	}
 

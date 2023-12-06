@@ -42,7 +42,7 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 
 	@Nullable
 	@Override
-	default CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	default CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		return mutate(catalogSchema, MutationEntitySchemaAccessor.INSTANCE);
 	}
 
@@ -52,9 +52,9 @@ public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
 	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
 	 *
 	 * @param catalogSchema current version of the schema as an input to mutate
-	 * @param entitySchemaAccessor
+	 * @param entitySchemaAccessor entity schema provider allowing to access list of entity schemas in the catalog
 	 */
 	@Nullable
-	CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor);
+	CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor);
 
 }

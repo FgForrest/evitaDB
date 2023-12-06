@@ -69,9 +69,9 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 		this.baseAccessor = null;
 	}
 
-	public MutationEntitySchemaAccessor(@Nonnull EntitySchemaProvider baseAccessor) {
+	public MutationEntitySchemaAccessor(@Nonnull EntitySchemaProvider entitySchemaProvider) {
 		// mutable version of the schema accessor
-		this.baseAccessor = baseAccessor;
+		this.baseAccessor = entitySchemaProvider;
 	}
 
 	/**
@@ -101,6 +101,9 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 		} else {
 			if (this.removedEntitySchemas == null) {
 				this.removedEntitySchemas = new HashSet<>(8);
+			}
+			if (this.entitySchemas != null) {
+				this.entitySchemas.remove(name);
 			}
 			if (baseAccessor.getEntitySchema(name).isPresent()) {
 				this.removedEntitySchemas.add(name);
@@ -142,7 +145,9 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 				this.baseAccessor.getEntitySchemas()
 					.stream()
 					.filter(it -> this.entitySchemas == null || !this.entitySchemas.containsKey(it.getName()))
-		).toList();
+		)
+			.filter(it -> this.removedEntitySchemas == null || !this.removedEntitySchemas.contains(it.getName()))
+			.toList();
 	}
 
 	@Nonnull
@@ -152,14 +157,16 @@ public class MutationEntitySchemaAccessor implements EntitySchemaProvider {
 			if (baseAccessor == null) {
 				return empty();
 			} else {
-				return baseAccessor.getEntitySchema(entityType);
+				return this.removedEntitySchemas == null || !this.removedEntitySchemas.contains(entityType) ?
+					baseAccessor.getEntitySchema(entityType) : empty();
 			}
 		} else {
 			final EntitySchemaContract updatedSchema = entitySchemas.get(entityType);
 			if (updatedSchema != null) {
 				return of(updatedSchema);
 			} else if (baseAccessor != null) {
-				return baseAccessor.getEntitySchema(entityType);
+				return this.removedEntitySchemas == null || !this.removedEntitySchemas.contains(entityType) ?
+					baseAccessor.getEntitySchema(entityType) : empty();
 			} else {
 				return empty();
 			}
