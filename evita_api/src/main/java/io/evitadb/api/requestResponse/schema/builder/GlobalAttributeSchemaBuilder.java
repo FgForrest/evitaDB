@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
@@ -76,8 +77,8 @@ public final class GlobalAttributeSchemaBuilder
 				baseSchema.getName(),
 				baseSchema.getDescription(),
 				baseSchema.getDeprecationNotice(),
-				baseSchema.isUnique(),
-				baseSchema.isUniqueGlobally(),
+				baseSchema.getUniquenessType(),
+				baseSchema.getGlobalUniquenessType(),
 				baseSchema.isFilterable(),
 				baseSchema.isSortable(),
 				baseSchema.isLocalized(),
@@ -101,7 +102,19 @@ public final class GlobalAttributeSchemaBuilder
 		this.mutations.add(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
-				true
+				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale() {
+		this.mutations.add(
+			new SetAttributeSchemaGloballyUniqueMutation(
+				toInstance().getName(),
+				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 			)
 		);
 		return this;
@@ -115,7 +128,24 @@ public final class GlobalAttributeSchemaBuilder
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
 					toInstance().getName(),
-					decider.getAsBoolean()
+					decider.getAsBoolean() ?
+						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG : GlobalAttributeUniquenessType.NOT_UNIQUE
+				)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					toInstance().getName(),
+					decider.getAsBoolean() ?
+						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE : GlobalAttributeUniquenessType.NOT_UNIQUE
 				)
 			)
 		);

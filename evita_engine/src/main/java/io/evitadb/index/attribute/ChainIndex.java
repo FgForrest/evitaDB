@@ -86,6 +86,10 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
+	 * Contains key identifying the attribute.
+	 */
+	@Getter private final AttributeKey attributeKey;
+	/**
 	 * Index contains tuples of entity primary key and its predecessor primary key. The conflicting primary key is
 	 * a value and the predecessor primary key is a key.
 	 *
@@ -108,16 +112,19 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 */
 	private ChainIndexChanges chainIndexChanges;
 
-	public ChainIndex() {
+	public ChainIndex(@Nonnull AttributeKey attributeKey) {
+		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(new HashMap<>(), TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(new HashMap<>());
 	}
 
 	public ChainIndex(
+		@Nonnull AttributeKey attributeKey,
 		@Nonnull int[][] chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
+		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(
 			Arrays.stream(chains)
@@ -135,9 +142,11 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	}
 
 	private ChainIndex(
+		@Nonnull AttributeKey attributeKey,
 		@Nonnull Map<Integer, TransactionalUnorderedIntArray> chains,
 		@Nonnull Map<Integer, ChainElementState> elementStates
 	) {
+		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.chains = new TransactionalMap<>(chains, TransactionalUnorderedIntArray.class, TransactionalUnorderedIntArray::new);
 		this.elementStates = new TransactionalMap<>(elementStates);
@@ -245,12 +254,13 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	 * Method creates container for storing chain index from memory to the persistent storage.
 	 */
 	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, AttributeKey attribute) {
+	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.chainIndexChanges = null;
 			return new ChainIndexStoragePart(
-				entityIndexPrimaryKey, attribute,
+				entityIndexPrimaryKey,
+				attributeKey,
 				this.elementStates,
 				this.chains.values()
 					.stream()
@@ -294,6 +304,7 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	) {
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
 		return new ChainIndex(
+			attributeKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
 		);

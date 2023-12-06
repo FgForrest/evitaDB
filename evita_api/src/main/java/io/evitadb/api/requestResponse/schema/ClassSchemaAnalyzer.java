@@ -33,6 +33,8 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -192,8 +194,11 @@ public class ClassSchemaAnalyzer {
 				.map(it -> EvitaDataTypes.toTargetType(it, whichIs.getType()))
 				.ifPresent(whichIs::withDefaultValue);
 
-			if (attributeAnnotation.unique()) {
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
 				whichIs.unique();
+			}
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
+				whichIs.uniqueWithinLocale();
 			}
 			if (!attributeAnnotation.description().isBlank()) {
 				whichIs.withDescription(attributeAnnotation.description());
@@ -226,13 +231,16 @@ public class ClassSchemaAnalyzer {
 				whichIs.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
 		};
-		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally()) {
+		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) {
 			catalogBuilder.withAttribute(
 				attributeName, attributeType,
 				whichIs -> {
 					attributeBuilder.accept(whichIs);
-					if (attributeAnnotation.uniqueGlobally()) {
+					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
 						whichIs.uniqueGlobally();
+					}
+					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
+						whichIs.uniqueGloballyWithinLocale();
 					}
 				}
 			);

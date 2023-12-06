@@ -139,13 +139,11 @@ public interface AttributeIndexMutator {
 				final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX);
 
 				final Optional<AttributeValue> existingValue = existingValueSupplier.getAttributeValue(attributeKey);
-				existingValue.ifPresent(theValue -> {
-					catalogIndex.removeUniqueAttribute(
-						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, Objects.requireNonNull(theValue.value()), entityPrimaryKey
-					);
-				});
+				existingValue.ifPresent(theValue -> catalogIndex.removeUniqueAttribute(
+					executor.getEntitySchema(), globalAttributeSchema, allowedLocales, locale, Objects.requireNonNull(theValue.value()), entityPrimaryKey
+				));
 				catalogIndex.insertUniqueAttribute(
-					executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, valueToInsert, entityPrimaryKey
+					executor.getEntitySchema(), globalAttributeSchema, allowedLocales, locale, valueToInsert, entityPrimaryKey
 				);
 			}
 		}
@@ -212,7 +210,7 @@ public interface AttributeIndexMutator {
 				) {
 					final CatalogIndex catalogIndex = executor.getCatalogIndex();
 					catalogIndex.removeUniqueAttribute(
-						executor.getEntitySchema(), attributeDefinition, allowedLocales, locale, valueToRemoveSupplier.get(),
+						executor.getEntitySchema(), globalAttributeSchema, allowedLocales, locale, valueToRemoveSupplier.get(),
 						executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX)
 					);
 				}

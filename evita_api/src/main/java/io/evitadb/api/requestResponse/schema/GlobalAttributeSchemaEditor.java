@@ -66,6 +66,43 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	T uniqueGlobally(@Nonnull BooleanSupplier decider);
 
 	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link io.evitadb.api.CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable}
+	 * interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #uniqueGlobally()} in that it is possible to have multiple entities with same
+	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
+	 * locales.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueGloballyWithinLocale();
+
+	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link io.evitadb.api.CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable}
+	 * interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #uniqueGlobally(BooleanSupplier)} in that it is possible to have multiple
+	 * entities with same value of this attribute as long as the attribute is {@link #isLocalized()} and the values
+	 * relate to different locales.
+	 *
+	 * @param decider returns true when attribute should be unique globally
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider);
+
+	/**
 	 * Interface that simply combines {@link GlobalAttributeSchemaEditor} and {@link GlobalAttributeSchemaContract}
 	 * entity contracts together. Builder produces either {@link EntitySchemaMutation} that describes all changes
 	 * to be made on {@link EntitySchemaContract} instance to get it to "up-to-date" state or can provide already built

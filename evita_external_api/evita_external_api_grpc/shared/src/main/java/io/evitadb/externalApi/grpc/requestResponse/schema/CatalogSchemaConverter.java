@@ -135,14 +135,14 @@ public class CatalogSchemaConverter {
 	private static GrpcGlobalAttributeSchema toGrpcGlobalAttributeSchema(@Nonnull GlobalAttributeSchemaContract attributeSchema) {
 		final Builder builder = GrpcGlobalAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
-			.setUnique(attributeSchema.isUnique())
+			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
 			.setFilterable(attributeSchema.isFilterable())
 			.setSortable(attributeSchema.isSortable())
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
-			.setUniqueGlobally(attributeSchema.isUniqueGlobally());
+			.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(attributeSchema.getGlobalUniquenessType()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it, null)));
@@ -163,8 +163,8 @@ public class CatalogSchemaConverter {
 			attributeSchema.getName(),
 			attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 			attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-			attributeSchema.getUnique(),
-			attributeSchema.getUniqueGlobally(),
+			EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
+			EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
 			attributeSchema.getFilterable(),
 			attributeSchema.getSortable(),
 			attributeSchema.getLocalized(),

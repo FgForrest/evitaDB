@@ -965,7 +965,13 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
-									entityFetchAll()
+									entityFetch(
+										hierarchyContent(
+											entityFetchAll()
+										),
+										attributeContentAll(),
+										associatedDataContentAll()
+									)
 								),
 								attributeContentAll(),
 								associatedDataContentAll()
@@ -1017,12 +1023,21 @@ public class EntityPojoProxyingFunctionalTest extends AbstractEntityProxyingFunc
 			referenceContentAllWithAttributes(
 				entityFetch(
 					hierarchyContent(
-						entityFetchAll()
+						entityFetch(
+							hierarchyContent(
+								entityFetchAll()
+							),
+							attributeContentAll(),
+							associatedDataContentAll()
+						)
 					),
 					attributeContentAll(),
 					associatedDataContentAll()
 				),
-				entityGroupFetchAll()
+				entityGroupFetch(
+					attributeContentAll(),
+					associatedDataContentAll()
+				)
 			)
 		);
 

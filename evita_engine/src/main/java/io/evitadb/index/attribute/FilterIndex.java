@@ -75,6 +75,10 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	@Serial private static final long serialVersionUID = -6813305126746774103L;
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
 	/**
+	 * Contains key identifying the attribute.
+	 */
+	@Getter private final AttributeKey attributeKey;
+	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
@@ -154,13 +158,15 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		return remainingRanges;
 	}
 
-	public FilterIndex(@Nonnull Class<?> attributeType) {
+	public FilterIndex(@Nonnull AttributeKey attributeKey, @Nonnull Class<?> attributeType) {
+		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.invertedIndex = new InvertedIndex<>();
 		this.rangeIndex = Range.class.isAssignableFrom(attributeType) ? new RangeIndex() : null;
 	}
 
-	public <T extends Comparable<T>> FilterIndex(@Nonnull InvertedIndex<T> invertedIndex, @Nullable RangeIndex rangeIndex) {
+	public <T extends Comparable<T>> FilterIndex(@Nonnull AttributeKey attributeKey, @Nonnull InvertedIndex<T> invertedIndex, @Nullable RangeIndex rangeIndex) {
+		this.attributeKey = attributeKey;
 		this.dirty = new TransactionalBoolean();
 		this.invertedIndex = invertedIndex;
 		this.rangeIndex = rangeIndex;
@@ -558,9 +564,9 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	 * Method creates container for storing filter index from memory to the persistent storage.
 	 */
 	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, @Nonnull AttributeKey attribute) {
+	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
-			return new FilterIndexStoragePart(entityIndexPrimaryKey, attribute, invertedIndex, rangeIndex);
+			return new FilterIndexStoragePart(entityIndexPrimaryKey, attributeKey, invertedIndex, rangeIndex);
 		} else {
 			return null;
 		}
@@ -577,6 +583,7 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 		// we can safely throw away dirty flag now
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
 		return new FilterIndex(
+			this.attributeKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.invertedIndex, transaction),
 			this.rangeIndex == null ? null : transactionalLayer.getStateCopyWithCommittedChanges(this.rangeIndex, transaction)
 		);

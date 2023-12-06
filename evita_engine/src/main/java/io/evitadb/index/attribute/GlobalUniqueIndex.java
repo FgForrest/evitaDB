@@ -354,11 +354,13 @@ public class GlobalUniqueIndex implements TransactionalLayerProducer<Transaction
 
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, EntityWithTypeTuple record, @Nullable EntityWithTypeTuple existingRecord) {
 		if (!(existingRecord == null || existingRecord.equals(record))) {
-			throw new UniqueValueViolationException(
-				attributeKey.attributeName(), key,
-				toClassifier(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
-				toClassifier(record.entityType()), record.entityPrimaryKey()
-			);
+			if (!attributeKey.localized() || existingRecord.locale() == record.locale()) {
+				throw new UniqueValueViolationException(
+					attributeKey.attributeName(), attributeKey.locale(), key,
+					toClassifier(existingRecord.entityType()), existingRecord.entityPrimaryKey(),
+					toClassifier(record.entityType()), record.entityPrimaryKey()
+				);
+			}
 		}
 	}
 

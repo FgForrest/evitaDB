@@ -24,6 +24,8 @@
 package io.evitadb.externalApi.rest.api.catalog.schemaApi;
 
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
@@ -169,8 +171,8 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
                         {
                             "createGlobalAttributeSchemaMutation": {
 								"name": "mySpecialCode",
-								"unique": true,
-								"uniqueGlobally": true,
+								"uniquenessType": "UNIQUE_WITHIN_COLLECTION",
+								"globalUniquenessType": "UNIQUE_WITHIN_CATALOG",
 								"filterable": true,
 								"sortable": true,
 								"localized": false,
@@ -212,8 +214,8 @@ class CatalogRestCatalogSchemaEndpointFunctionalTest extends CatalogRestSchemaEn
 							.build())
 						.e(NamedSchemaDescriptor.DESCRIPTION.name(), null)
 						.e(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), null)
-						.e(AttributeSchemaDescriptor.UNIQUE.name(), true)
-						.e(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), true)
+						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
+						.e(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG.name())
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), true)
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), true)
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
