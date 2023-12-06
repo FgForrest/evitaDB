@@ -58,7 +58,7 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
 				.getEntitySchema(name)
@@ -70,7 +70,7 @@ public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, C
 				);
 		}
 		// do nothing - we alter only the entity schema
-		return catalogSchema;
+		return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 	}
 
 	@Override

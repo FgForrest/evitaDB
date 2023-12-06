@@ -26,6 +26,7 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.utils.ArrayUtils;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -58,12 +59,18 @@ public class ModifyCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
-		CatalogSchemaContract alteredSchema = catalogSchema;
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
+		CatalogSchemaWithImpactOnEntitySchemas alteredSchema = new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
+		ModifyEntitySchemaMutation[] aggregatedMutations = null;
 		for (LocalCatalogSchemaMutation schemaMutation : schemaMutations) {
-			alteredSchema = schemaMutation.mutate(alteredSchema);
+			alteredSchema = schemaMutation.mutate(alteredSchema.updatedCatalogSchema(), catalogSchema);
+			if (alteredSchema.entitySchemaMutations() != null) {
+				aggregatedMutations = aggregatedMutations == null ?
+					alteredSchema.entitySchemaMutations() :
+					ArrayUtils.mergeArrays(aggregatedMutations, alteredSchema.entitySchemaMutations());
+			}
 		}
-		return alteredSchema;
+		return new CatalogSchemaWithImpactOnEntitySchemas(alteredSchema.updatedCatalogSchema(), aggregatedMutations);
 	}
 
 	@Override
