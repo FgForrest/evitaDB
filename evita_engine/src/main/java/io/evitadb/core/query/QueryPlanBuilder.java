@@ -60,7 +60,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Indexes that were used for creating {@link #filterFormula}.
 	 */
 	@Nonnull
-	@Getter private final TargetIndexes targetIndexes;
+	@Getter private final TargetIndexes<?> targetIndexes;
 	/**
 	 * Optional visitor that collected information about target entities so that they can
 	 * be fetched upfront and filtered/ordered by their properties.

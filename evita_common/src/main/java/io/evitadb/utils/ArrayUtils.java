@@ -727,6 +727,23 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Reverses contents of the array - i.e. first element becomes the last element of the array.
+	 * Modifies contents of the passed array.
+	 */
+	public static void reverseInPlace(@Nonnull int[] array) {
+		int i = 0;
+		int j = array.length - 1;
+		int tmp;
+		while (j > i) {
+			tmp = array[j];
+			array[j] = array[i];
+			array[i] = tmp;
+			j--;
+			i++;
+		}
+	}
+
+	/**
 	 * Sorts second array by the natural ordering of first array. Contents of the first are not changed, but the contents
 	 * of the second array are changed.
 	 */

@@ -85,10 +85,9 @@ page(
 </LanguageSpecific>
 
 The `page` 
-<LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>) requirement</LanguageSpecific>
+<LanguageSpecific to="evitaql,java,rest">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Page.java</SourceClass>)</LanguageSpecific><LanguageSpecific to="csharp">(<SourceClass>EvitaDB.Client/Queries/Requires/Page.cs</SourceClass>) requirement</LanguageSpecific>
 <LanguageSpecific to="graphql">approach</LanguageSpecific>
-controls the number and slice of entities returned in the query response
-<LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
+controls the number and slice of entities returned in the query response<LanguageSpecific to="graphql"> and is specified by usage of the `recordPage` field (in combination with `number` and `size` arguments)</LanguageSpecific>. 
 If no 
 <LanguageSpecific to="evitaql,java,rest,csharp">page requirement is</LanguageSpecific>
 <LanguageSpecific to="graphql">page arguments are</LanguageSpecific> used 
@@ -100,8 +99,9 @@ or the page size is set to zero. By automatically returning the first page resul
 we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. <LanguageSpecific to="evitaql,java,rest,csharp">In case of the `page` constraint, 
-the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass> is used as data chunk 
+in a so-called data chunk object. <LanguageSpecific to="evitaql,java,rest,csharp">In case of the `page` constraint,
+the <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/PaginatedList.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/PaginatedList.cs</SourceClass></LanguageSpecific> is used as data chunk
 object.</LanguageSpecific> The data chunk object contains the following information:
 
 <dl>
@@ -227,21 +227,20 @@ strip(
 
 </LanguageSpecific>
 
-The `strip` 
-<LanguageSpecific to="evitaql,java,rest,csharp">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>) requirement</LanguageSpecific>
+The `strip`
+<LanguageSpecific to="evitaql,java,rest">(<SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/Strip.java</SourceClass>)</LanguageSpecific><LanguageSpecific to="csharp">(<SourceClass>EvitaDB.Client/Queries/Requires/Strip.cs</SourceClass>) requirement</LanguageSpecific>
 <LanguageSpecific to="graphql">approach</LanguageSpecific>
-controls the number and slice of entities returned in the query response
-<LanguageSpecific to="graphql"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LanguageSpecific>.
+controls the number and slice of entities returned in the query response<LanguageSpecific to="graphql"> and is specified by usage of the `recordStrip` field (in combination with `limit` and `offset` arguments)</LanguageSpecific>.
 If the requested strip exceeds the number of
 available records, a result from the zero offset with retained limit is returned. An empty result is only returned if
 the query returns no result at all or the limit is set to zero. By automatically returning the first strip result when
 the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
 
 The information about the actual returned page and data statistics can be found in the query response, which is wrapped
-in a so-called data chunk object. 
-<LanguageSpecific to="evitaql,java,rest,csharp">In case of the `strip` constraint,
-the <SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass> is used as data chunk
-object.</LanguageSpecific> The data chunk object contains the following information:
+in a so-called data chunk object. <LanguageSpecific to="evitaql,java,rest,csharp">In case of the `strip` constraint,
+the <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/StripList.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/StripList.cs</SourceClass></LanguageSpecific> is used as data chunk
+object.</LanguageSpecific>The data chunk object contains the following information:
 
 <dl>
     <dt>offset</dt>

@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 public class GraphQLQueryConverter {
 
 	private static final String DEFAULT_CATALOG_NAME = "evita";
+	@Nonnull private static final GraphQLInputJsonPrinter INPUT_JSON_PRINTER = new GraphQLInputJsonPrinter();
 
 	@Nonnull private final Set<Class<? extends Constraint<?>>> allowedRequireConstraints = Set.of(
 		Require.class,
@@ -71,7 +72,6 @@ public class GraphQLQueryConverter {
 		FacetGroupsNegation.class,
 		PriceType.class
 	);
-	@Nonnull private final GraphQLInputJsonPrinter inputJsonPrinter = new GraphQLInputJsonPrinter();
 
 	@Nullable private final EvitaContract evita;
 
@@ -134,7 +134,7 @@ public class GraphQLQueryConverter {
 
 		return rootConstraints.stream()
 			.filter(Objects::nonNull)
-			.map(it -> it.key() + ": " + inputJsonPrinter.print(it.value()))
+			.map(it -> it.key() + ": " + INPUT_JSON_PRINTER.print(it.value()))
 			.collect(Collectors.joining(",\n"))
 			.lines()
 			.map(it -> "    " + it)
@@ -144,13 +144,13 @@ public class GraphQLQueryConverter {
 	@Nonnull
 	private String convertOutputFields(@Nonnull CatalogSchemaContract catalogSchema,
 	                                   @Nonnull Query query) {
-		final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, query, inputJsonPrinter);
-		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, query, inputJsonPrinter);
-		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, query, inputJsonPrinter);
-		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, query, inputJsonPrinter);
-		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, query, inputJsonPrinter);
-		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, query, inputJsonPrinter);
-		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, query, inputJsonPrinter);
+		final EntityFetchConverter entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
+		final RecordsConverter recordsConverter = new RecordsConverter(catalogSchema, query);
+		final FacetSummaryConverter facetSummaryConverter = new FacetSummaryConverter(catalogSchema, query);
+		final HierarchyOfConverter hierarchyOfConverter = new HierarchyOfConverter(catalogSchema, query);
+		final AttributeHistogramConverter attributeHistogramConverter = new AttributeHistogramConverter(catalogSchema, query);
+		final PriceHistogramConverter priceHistogramConverter = new PriceHistogramConverter(catalogSchema, query);
+		final QueryTelemetryConverter queryTelemetryConverter = new QueryTelemetryConverter(catalogSchema, query);
 
 		final String entityType = query.getCollection().getEntityType();
 		final Locale locale = Optional.ofNullable(query.getFilterBy())

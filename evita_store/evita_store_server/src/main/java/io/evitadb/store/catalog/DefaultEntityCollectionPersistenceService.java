@@ -83,14 +83,14 @@ import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.serializer.EntitySchemaContext;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
+import io.evitadb.store.fileOffsetIndex.FileOffsetIndexDescriptor;
+import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.memTable.MemTable;
-import io.evitadb.store.memTable.MemTableDescriptor;
-import io.evitadb.store.memTable.model.MemTableRecordTypeRegistry;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
@@ -138,7 +138,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Memory key-value store for entities.
 	 */
-	private final MemTable memTable;
+	private final FileOffsetIndex fileOffsetIndex;
 	/**
 	 * Contains reference to the catalog entity header collecting all crucial information about single entity collection.
 	 * The catalog entity header is loaded in constructor and because it's immutable it needs to be replaced with each
@@ -152,19 +152,19 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityCollectionHeader entityHeader,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull MemTableRecordTypeRegistry memTableRecordTypeRegistry,
+		@Nonnull FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		boolean supportsTransactions
 	) {
 		this.catalogEntityHeader = entityHeader;
-		this.memTable = new MemTable(
+		this.fileOffsetIndex = new FileOffsetIndex(
 			entityCollectionFile,
-			new MemTableDescriptor(
+			new FileOffsetIndexDescriptor(
 				entityHeader,
 				this.createTypeKryoInstance(),
 				supportsTransactions
 			),
 			storageOptions,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 	}
@@ -173,32 +173,32 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull DefaultEntityCollectionPersistenceService previous,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull MemTableRecordTypeRegistry memTableRecordTypeRegistry,
+		@Nonnull FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		boolean supportsTransactions
 	) {
 		this.catalogEntityHeader = previous.catalogEntityHeader;
-		this.memTable = new MemTable(
-			previous.memTable.getTargetFile(),
-			new MemTableDescriptor(
+		this.fileOffsetIndex = new FileOffsetIndex(
+			previous.fileOffsetIndex.getTargetFile(),
+			new FileOffsetIndexDescriptor(
 				previous.catalogEntityHeader,
 				this.createTypeKryoInstance(),
 				supportsTransactions
 			),
 			storageOptions,
-			memTableRecordTypeRegistry,
+			fileOffsetIndexRecordTypeRegistry,
 			observableOutputKeeper
 		);
 	}
 
 	@Override
 	public boolean isNew() {
-		return this.memTable.getMemTableFileLocation() == null;
+		return this.fileOffsetIndex.getFileOffsetIndexLocation() == null;
 	}
 
 	@Nullable
 	@Override
 	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
-		if (memTable.isOperative()) {
+		if (fileOffsetIndex.isOperative()) {
 			// provide passed schema during deserialization from binary form
 			return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
 				// fetch the main entity container
@@ -226,7 +226,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
 		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
-		if (memTable.isOperative()) {
+		if (fileOffsetIndex.isOperative()) {
 			// provide passed schema during deserialization from binary form
 			final EntitySchema entitySchema = entityCollectionFetcher.apply(evitaRequest.getEntityType()).getInternalSchema();
 			return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
@@ -261,7 +261,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
 		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
-		if (memTable.isOperative()) {
+		if (fileOffsetIndex.isOperative()) {
 			// provide passed schema during deserialization from binary form
 			return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
 				final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
@@ -348,8 +348,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public EntityIndex readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
-		if (memTable.isOperative()) {
-			final EntityIndexStoragePart entityIndexCnt = memTable.get(entityIndexId, EntityIndexStoragePart.class);
+		if (fileOffsetIndex.isOperative()) {
+			final EntityIndexStoragePart entityIndexCnt = fileOffsetIndex.get(entityIndexId, EntityIndexStoragePart.class);
 			isPremiseValid(
 				entityIndexCnt != null,
 				"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
@@ -362,23 +362,23 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
 			for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
 				switch (attributeIndexKey.indexType()) {
-					case UNIQUE -> fetchUniqueIndex(schemaSupplier.get().getName(), entityIndexId, memTable, uniqueIndexes, attributeIndexKey);
-					case FILTER -> fetchFilterIndex(entityIndexId, memTable, filterIndexes, attributeIndexKey);
-					case SORT -> fetchSortIndex(entityIndexId, memTable, sortIndexes, attributeIndexKey);
-					case CHAIN -> fetchChainIndex(entityIndexId, memTable, chainIndexes, attributeIndexKey);
-					case CARDINALITY -> fetchCardinalityIndex(entityIndexId, memTable, cardinalityIndexes, attributeIndexKey);
+					case UNIQUE -> fetchUniqueIndex(schemaSupplier.get().getName(), entityIndexId, fileOffsetIndex, uniqueIndexes, attributeIndexKey);
+					case FILTER -> fetchFilterIndex(entityIndexId, fileOffsetIndex, filterIndexes, attributeIndexKey);
+					case SORT -> fetchSortIndex(entityIndexId, fileOffsetIndex, sortIndexes, attributeIndexKey);
+					case CHAIN -> fetchChainIndex(entityIndexId, fileOffsetIndex, chainIndexes, attributeIndexKey);
+					case CARDINALITY -> fetchCardinalityIndex(entityIndexId, fileOffsetIndex, cardinalityIndexes, attributeIndexKey);
 					default -> throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
 				}
 			}
 
-			final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(entityIndexId, memTable, entityIndexCnt);
-			final FacetIndex facetIndex = fetchFacetIndex(entityIndexId, memTable, entityIndexCnt);
+			final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(entityIndexId, fileOffsetIndex, entityIndexCnt);
+			final FacetIndex facetIndex = fetchFacetIndex(entityIndexId, fileOffsetIndex, entityIndexCnt);
 
 			final EntityIndexType entityIndexType = entityIndexCnt.getEntityIndexKey().getType();
 			// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
 			if (entityIndexType == EntityIndexType.GLOBAL) {
 				final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
-					entityIndexId, entityIndexCnt.getPriceIndexes(), memTable
+					entityIndexId, entityIndexCnt.getPriceIndexes(), fileOffsetIndex
 				);
 				return new GlobalEntityIndex(
 					entityIndexCnt.getPrimaryKey(),
@@ -417,7 +417,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				);
 			} else {
 				final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-					entityIndexId, entityIndexCnt.getPriceIndexes(), memTable, temporalIndexAccessor
+					entityIndexId, entityIndexCnt.getPriceIndexes(), fileOffsetIndex, temporalIndexAccessor
 				);
 				return new ReducedEntityIndex(
 					entityIndexCnt.getPrimaryKey(),
@@ -443,12 +443,12 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Returns count of entities of certain type in the target storage.
 	 *
 	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * {@link MemTable} and doesn't take transactional memory into an account.
+	 * {@link FileOffsetIndex} and doesn't take transactional memory into an account.
 	 */
 	@Override
 	public <T extends StoragePart> int count(@Nonnull Class<T> containerClass) {
-		if (memTable.isOperative()) {
-			return memTable.count(containerClass);
+		if (fileOffsetIndex.isOperative()) {
+			return fileOffsetIndex.count(containerClass);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -458,11 +458,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Returns iterator that goes through all containers of certain type in the target storage.
 	 *
 	 * <strong>Note:</strong> the list may not be accurate - it only goes through already persisted containers to the
-	 * {@link MemTable} and doesn't take transactional memory into an account.
+	 * {@link FileOffsetIndex} and doesn't take transactional memory into an account.
 	 */
 	@Override
 	public @Nonnull Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
-		if (memTable.isOperative()) {
+		if (fileOffsetIndex.isOperative()) {
 			final EvitaRequest evitaRequest = new EvitaRequest(
 				Query.query(
 					collection(entitySchema.getName()),
@@ -473,12 +473,12 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				null,
 				EvitaRequest.CONVERSION_NOT_SUPPORTED
 			);
-			final byte recType = memTable.getIdForRecordType(EntityBodyStoragePart.class);
-			return memTable
+			final byte recType = fileOffsetIndex.getIdForRecordType(EntityBodyStoragePart.class);
+			return fileOffsetIndex
 				.getEntries()
 				.stream()
 				.filter(it -> it.getKey().recordType() == recType)
-				.map(it -> memTable.get(it.getValue(), EntityBodyStoragePart.class))
+				.map(it -> fileOffsetIndex.get(it.getValue(), EntityBodyStoragePart.class))
 				.filter(Objects::nonNull)
 				.map(it -> toEntity(it, evitaRequest, entitySchema, storageContainerBuffer))
 				.iterator();
@@ -490,9 +490,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull
 	@Override
 	public EntityCollectionHeader flush(long transactionId, @Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory) {
-		if (memTable.isOperative()) {
-			final long previousVersion = this.memTable.getVersion();
-			final MemTableDescriptor newDescriptor = this.memTable.flush(transactionId);
+		if (fileOffsetIndex.isOperative()) {
+			final long previousVersion = this.fileOffsetIndex.getVersion();
+			final FileOffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
 			// when versions are equal - nothing has changed, and we can reuse old header
 			if (newDescriptor.getVersion() > previousVersion) {
 				this.catalogEntityHeader = catalogEntityHeaderFactory.apply(newDescriptor);
@@ -506,10 +506,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet) {
-		if (memTable.isOperative()) {
+		if (fileOffsetIndex.isOperative()) {
 			// now store all entity trapped updates
-			bufferedChangeSet.getTrappedMemTableUpdates()
-				.forEach(it -> memTable.put(0L, it));
+			bufferedChangeSet.getTrappedUpdates()
+				.forEach(it -> fileOffsetIndex.put(0L, it));
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -517,11 +517,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public void delete() {
-		if (memTable.isOperative()) {
-			this.memTable.close();
-			if (!this.memTable.getTargetFile().toFile().delete()) {
+		if (fileOffsetIndex.isOperative()) {
+			this.fileOffsetIndex.close();
+			if (!this.fileOffsetIndex.getTargetFile().toFile().delete()) {
 				throw new UnexpectedIOException(
-					"Failed to delete file: " + this.memTable.getTargetFile(),
+					"Failed to delete file: " + this.fileOffsetIndex.getTargetFile(),
 					"Failed to delete file!"
 				);
 			}
@@ -532,14 +532,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public void close() {
-		if (this.memTable.isOperative()) {
-			this.memTable.close();
+		if (this.fileOffsetIndex.isOperative()) {
+			this.fileOffsetIndex.close();
 		}
 	}
 
 	@Override
 	public boolean isClosed() {
-		return !this.memTable.isOperative();
+		return !this.fileOffsetIndex.isOperative();
 	}
 
 	/**
@@ -558,8 +558,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public <T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		if (memTable.isOperative()) {
-			return this.memTable.get(primaryKey, containerType);
+		if (fileOffsetIndex.isOperative()) {
+			return this.fileOffsetIndex.get(primaryKey, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -568,8 +568,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nullable
 	@Override
 	public <T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType) {
-		if (memTable.isOperative()) {
-			return this.memTable.getBinary(primaryKey, containerType);
+		if (fileOffsetIndex.isOperative()) {
+			return this.fileOffsetIndex.getBinary(primaryKey, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -577,8 +577,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public <T extends StoragePart> long putStoragePart(long transactionId, @Nonnull T container) {
-		if (memTable.isOperative()) {
-			return this.memTable.put(transactionId, container);
+		if (fileOffsetIndex.isOperative()) {
+			return this.fileOffsetIndex.put(transactionId, container);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -586,8 +586,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public <T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		if (memTable.isOperative()) {
-			return memTable.remove(primaryKey, containerType);
+		if (fileOffsetIndex.isOperative()) {
+			return fileOffsetIndex.remove(primaryKey, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -595,8 +595,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Override
 	public <T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		if (memTable.isOperative()) {
-			return memTable.contains(primaryKey, containerType);
+		if (fileOffsetIndex.isOperative()) {
+			return fileOffsetIndex.contains(primaryKey, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -605,8 +605,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull
 	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		if (memTable.isOperative()) {
-			return this.memTable.getReadOnlyKeyCompressor();
+		if (fileOffsetIndex.isOperative()) {
+			return this.fileOffsetIndex.getReadOnlyKeyCompressor();
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -781,7 +781,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 	@Nonnull
 	private <T extends StoragePart> byte[] serializeStoragePart(@Nonnull T storagePart) {
-		return memTable.executeWithKryo(
+		return fileOffsetIndex.executeWithKryo(
 			kryo -> {
 				final ByteBufferOutput output = new ByteBufferOutput(8192, -1);
 				kryo.writeObject(output, storagePart);
@@ -795,7 +795,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 	@Nonnull
 	private EntityBodyStoragePart deserialize(@Nonnull byte[] storagePart) {
-		return memTable.executeWithKryo(
+		return fileOffsetIndex.executeWithKryo(
 			kryo -> kryo.readObject(
 				new Input(storagePart), EntityBodyStoragePart.class
 			)
@@ -803,10 +803,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link io.evitadb.index.facet.FacetIndex} from the {@link MemTable} and returns it.
+	 * Fetches {@link io.evitadb.index.facet.FacetIndex} from the {@link FileOffsetIndex} and returns it.
 	 */
 	@Nonnull
-	private static FacetIndex fetchFacetIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull EntityIndexStoragePart entityIndexCnt) {
+	private static FacetIndex fetchFacetIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final FacetIndex facetIndex;
 		final Set<String> facetIndexes = entityIndexCnt.getFacetIndexes();
 		if (facetIndexes.isEmpty()) {
@@ -814,8 +814,8 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		} else {
 			final List<FacetIndexStoragePart> facetIndexParts = new ArrayList<>(facetIndexes.size());
 			for (String referencedEntityType : facetIndexes) {
-				final long primaryKey = FacetIndexStoragePart.computeUniquePartId(entityIndexId, referencedEntityType, memTable.getReadOnlyKeyCompressor());
-				final FacetIndexStoragePart facetIndexStoragePart = memTable.get(primaryKey, FacetIndexStoragePart.class);
+				final long primaryKey = FacetIndexStoragePart.computeUniquePartId(entityIndexId, referencedEntityType, fileOffsetIndex.getReadOnlyKeyCompressor());
+				final FacetIndexStoragePart facetIndexStoragePart = fileOffsetIndex.get(primaryKey, FacetIndexStoragePart.class);
 				isPremiseValid(
 					facetIndexStoragePart != null,
 					"Facet index with id " + entityIndexId + " (upid=" + primaryKey + ") and key " + referencedEntityType + " was not found in mem table!"
@@ -828,13 +828,13 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link HierarchyIndex} from the {@link MemTable} and returns it.
+	 * Fetches {@link HierarchyIndex} from the {@link FileOffsetIndex} and returns it.
 	 */
 	@Nonnull
-	private static HierarchyIndex fetchHierarchyIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull EntityIndexStoragePart entityIndexCnt) {
+	private static HierarchyIndex fetchHierarchyIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final HierarchyIndex hierarchyIndex;
 		if (entityIndexCnt.isHierarchyIndex()) {
-			final HierarchyIndexStoragePart hierarchyIndexStoragePart = memTable.get(entityIndexId, HierarchyIndexStoragePart.class);
+			final HierarchyIndexStoragePart hierarchyIndexStoragePart = fileOffsetIndex.get(entityIndexId, HierarchyIndexStoragePart.class);
 			isPremiseValid(
 				hierarchyIndexStoragePart != null,
 				"Hierarchy index with id " + entityIndexId + " was not found in mem table!"
@@ -852,11 +852,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link SortIndex} from the {@link MemTable} and puts it into the `sortIndexes` key-value index.
+	 * Fetches {@link SortIndex} from the {@link FileOffsetIndex} and puts it into the `sortIndexes` key-value index.
 	 */
-	private static void fetchSortIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, SortIndex> sortIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
-		final SortIndexStoragePart sortIndexCnt = memTable.get(primaryKey, SortIndexStoragePart.class);
+	private static void fetchSortIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, SortIndex> sortIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
+		final SortIndexStoragePart sortIndexCnt = fileOffsetIndex.get(primaryKey, SortIndexStoragePart.class);
 		isPremiseValid(
 			sortIndexCnt != null,
 			"Sort index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
@@ -875,11 +875,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link ChainIndex} from the {@link MemTable} and puts it into the `chainIndexes` key-value index.
+	 * Fetches {@link ChainIndex} from the {@link FileOffsetIndex} and puts it into the `chainIndexes` key-value index.
 	 */
-	private static void fetchChainIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, ChainIndex> chainIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
-		final ChainIndexStoragePart chainIndexCnt = memTable.get(primaryKey, ChainIndexStoragePart.class);
+	private static void fetchChainIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, ChainIndex> chainIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
+		final ChainIndexStoragePart chainIndexCnt = fileOffsetIndex.get(primaryKey, ChainIndexStoragePart.class);
 		isPremiseValid(
 			chainIndexCnt != null,
 			"Chain index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
@@ -896,11 +896,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link CardinalityIndex} from the {@link MemTable} and puts it into the `cardinalityIndexes` key-value index.
+	 * Fetches {@link CardinalityIndex} from the {@link FileOffsetIndex} and puts it into the `cardinalityIndexes` key-value index.
 	 */
-	private static void fetchCardinalityIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
-		final CardinalityIndexStoragePart cardinalityIndexCnt = memTable.get(primaryKey, CardinalityIndexStoragePart.class);
+	private static void fetchCardinalityIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
+		final CardinalityIndexStoragePart cardinalityIndexCnt = fileOffsetIndex.get(primaryKey, CardinalityIndexStoragePart.class);
 		isPremiseValid(
 			cardinalityIndexCnt != null,
 			"Cardinality index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
@@ -913,11 +913,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link FilterIndex} from the {@link MemTable} and puts it into the `filterIndexes` key-value index.
+	 * Fetches {@link FilterIndex} from the {@link FileOffsetIndex} and puts it into the `filterIndexes` key-value index.
 	 */
-	private static void fetchFilterIndex(int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, FilterIndex> filterIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
-		final FilterIndexStoragePart filterIndexCnt = memTable.get(primaryKey, FilterIndexStoragePart.class);
+	private static void fetchFilterIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, FilterIndex> filterIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
+		final FilterIndexStoragePart filterIndexCnt = fileOffsetIndex.get(primaryKey, FilterIndexStoragePart.class);
 		isPremiseValid(
 			filterIndexCnt != null,
 			"Filter index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
@@ -934,11 +934,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link UniqueIndex} from the {@link MemTable} and puts it into the `uniqueIndexes` key-value index.
+	 * Fetches {@link UniqueIndex} from the {@link FileOffsetIndex} and puts it into the `uniqueIndexes` key-value index.
 	 */
-	private static void fetchUniqueIndex(@Nonnull String entityType, int entityIndexId, @Nonnull MemTable memTable, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
-		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.UNIQUE, attributeIndexKey.attribute(), memTable.getReadOnlyKeyCompressor());
-		final UniqueIndexStoragePart uniqueIndexCnt = memTable.get(primaryKey, UniqueIndexStoragePart.class);
+	private static void fetchUniqueIndex(@Nonnull String entityType, int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.UNIQUE, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
+		final UniqueIndexStoragePart uniqueIndexCnt = fileOffsetIndex.get(primaryKey, UniqueIndexStoragePart.class);
 		isPremiseValid(
 			uniqueIndexCnt != null,
 			"Unique index with id " + entityIndexId + " with key " + attributeIndexKey.attribute() + " was not found in mem table!"
@@ -956,14 +956,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link PriceListAndCurrencyPriceSuperIndex price indexes} from the {@link MemTable} and returns key-value
+	 * Fetches {@link PriceListAndCurrencyPriceSuperIndex price indexes} from the {@link FileOffsetIndex} and returns key-value
 	 * index of them.
 	 */
-	private static Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull MemTable memTable) {
+	private static Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull FileOffsetIndex fileOffsetIndex) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceSuperIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
-			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, memTable.getReadOnlyKeyCompressor());
-			final PriceListAndCurrencySuperIndexStoragePart priceIndexCnt = memTable.get(primaryKey, PriceListAndCurrencySuperIndexStoragePart.class);
+			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, fileOffsetIndex.getReadOnlyKeyCompressor());
+			final PriceListAndCurrencySuperIndexStoragePart priceIndexCnt = fileOffsetIndex.get(primaryKey, PriceListAndCurrencySuperIndexStoragePart.class);
 			isPremiseValid(
 				priceIndexCnt != null,
 				"Price index with id " + entityIndexId + " with key " + priceIndexKey + " was not found in mem table!"
@@ -981,14 +981,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link PriceListAndCurrencyPriceRefIndex price indexes} from the {@link MemTable} and returns key-value
+	 * Fetches {@link PriceListAndCurrencyPriceRefIndex price indexes} from the {@link FileOffsetIndex} and returns key-value
 	 * index of them.
 	 */
-	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull MemTable memTable, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceRefIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
-			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, memTable.getReadOnlyKeyCompressor());
-			final PriceListAndCurrencyRefIndexStoragePart priceIndexCnt = memTable.get(primaryKey, PriceListAndCurrencyRefIndexStoragePart.class);
+			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, fileOffsetIndex.getReadOnlyKeyCompressor());
+			final PriceListAndCurrencyRefIndexStoragePart priceIndexCnt = fileOffsetIndex.get(primaryKey, PriceListAndCurrencyRefIndexStoragePart.class);
 			isPremiseValid(
 				priceIndexCnt != null,
 				"Price index with id " + entityIndexId + " with key " + priceIndexKey + " was not found in mem table!"
@@ -1007,7 +1007,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches reference container from MemTable if it hasn't been already loaded before.
+	 * Fetches reference container from FileOffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nullable
 	private static <T> T fetchReferences(
@@ -1025,7 +1025,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches prices container from MemTable if it hasn't been already loaded before.
+	 * Fetches prices container from FileOffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nullable
 	private static <T> T fetchPrices(
@@ -1042,7 +1042,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches attributes container from MemTable if it hasn't been already loaded before.
+	 * Fetches attributes container from FileOffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nonnull
 	private static <T> List<T> fetchAttributes(
@@ -1087,7 +1087,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches associated data container(s) from MemTable if it hasn't (they haven't) been already loaded before.
+	 * Fetches associated data container(s) from FileOffsetIndex if it hasn't (they haven't) been already loaded before.
 	 */
 	@Nonnull
 	private static <T> List<T> fetchAssociatedData(

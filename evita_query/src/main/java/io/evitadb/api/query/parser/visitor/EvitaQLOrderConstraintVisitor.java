@@ -30,11 +30,15 @@ import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetExactConstr
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.AttributeSetInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityGroupPropertyConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyExactNaturalContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPrimaryKeyInFilterConstraintContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLParser.EntityPropertyConstraintContext;
+import io.evitadb.api.query.parser.grammar.EvitaQLParser.ValueArgsContext;
 import io.evitadb.api.query.parser.grammar.EvitaQLVisitor;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.Optional;
 
 /**
  * Implementation of {@link EvitaQLVisitor} for parsing all order type constraints
@@ -184,6 +188,20 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	@Override
 	public OrderConstraint visitEntityPrimaryKeyInFilterConstraint(EntityPrimaryKeyInFilterConstraintContext ctx) {
 		return parse(ctx, EntityPrimaryKeyInFilter::new);
+	}
+
+	@Nullable
+	@Override
+	public OrderConstraint visitEntityPrimaryKeyExactNatural(EntityPrimaryKeyExactNaturalContext ctx) {
+		return parse(
+			ctx,
+			() -> new EntityPrimaryKeyNatural(
+				Optional.ofNullable(ctx.args)
+					.map(ValueArgsContext::valueToken)
+					.map(it -> it.accept(orderDirectionValueTokenVisitor).asEnum(OrderDirection.class))
+					.orElse(OrderDirection.ASC)
+			)
+		);
 	}
 
 	@Override

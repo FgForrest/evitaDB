@@ -93,6 +93,7 @@ orderConstraint
     | 'priceNatural'                        (emptyArgs | args = valueArgs)                                  # priceNaturalConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
+    | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint

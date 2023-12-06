@@ -1,13 +1,13 @@
 query(
-    collection('Category'),
+    collection("Category"),
     filterBy(
         hierarchyWithinSelf(
-            attributeStartsWith('code', 'wire')
+            attributeStartsWith("code", "wire")
         )
     ),
     require(
         entityFetch(
-            attributeContent('code')
+            attributeContent("code")
         )
     )
 )

@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ReferenceDataLocator;
@@ -45,6 +46,8 @@ import io.evitadb.test.TestConstants;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -65,7 +68,24 @@ public class ConstraintDescriptorResolverTest {
 	@BeforeAll
 	static void setup() {
 		final Map<String, EntitySchemaContract> entitySchemaIndex = new HashMap<>();
-		final CatalogSchemaContract catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
+		final CatalogSchemaContract catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			Map.of(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return entitySchemaIndex.values();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return Optional.ofNullable(entitySchemaIndex.get(entityType));
+				}
+			}
+		);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,

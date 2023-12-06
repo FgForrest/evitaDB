@@ -1,17 +1,17 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'christmas-electronics')
+            "categories",
+            attributeEquals("code", "christmas-electronics")
         ),
-        priceInPriceLists('christmas-prices', 'basic'),
-        priceInCurrency('EUR'),
+        priceInPriceLists("christmas-prices", "basic"),
+        priceInCurrency("EUR"),
         priceValidIn(2023-12-03T10:15:30+01:00)
     ),
     require(
       entityFetch(
-        attributeContent('code'),
+        attributeContent("code"),
         priceContentRespectingFilter()
       )
     )

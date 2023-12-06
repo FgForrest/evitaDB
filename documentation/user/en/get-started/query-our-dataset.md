@@ -163,9 +163,19 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 ## Connect the C# client
 
-**Work in progress**
+Open your .NET IDE and create an instance of <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>:
 
-This article will be extended when the C# driver implementation is done.
+<SourceCodeTabs local>
+[Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.cs)
+</SourceCodeTabs>
+
+After that you can create a new session and try any of the evitaQL queries described in
+[the reference documentation](../query/basics.md):
+
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+
+[Query the demo server](/documentation/user/en/get-started/example/query-demo-server.cs)
+</SourceCodeTabs>
 
 <Note type="info">
 

@@ -33,7 +33,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -68,7 +70,7 @@ import java.io.Serializable;
 @EqualsAndHashCode
 public class ModifyAttributeSchemaDefaultValueMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation {
+	CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -7126530716174758452L;
 	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final Serializable defaultValue;
@@ -158,7 +160,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
@@ -168,7 +170,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 		try {
 			final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 			return replaceAttributeIfDifferent(
-				catalogSchema, existingAttributeSchema, updatedAttributeSchema
+				catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor
 			);
 		} catch (UnsupportedDataTypeException ex) {
 			throw new InvalidSchemaMutationException(

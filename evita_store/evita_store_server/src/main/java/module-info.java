@@ -53,6 +53,6 @@ module evita.store.server {
 	requires evita.query;
 	requires evita.store.core;
 	requires evita.store.entity;
-	requires evita.store.memtable;
+	requires evita.store.key.value;
 
 }

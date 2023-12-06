@@ -66,7 +66,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Optional.empty;
 import static java.util.Optional.ofNullable;
@@ -495,9 +494,22 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session) throws SchemaClassInvalidException {
+		final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
+		return analyze(session, catalogBuilder);
+	}
+
+	/**
+	 * Method analyzes the entity model class and alters the catalog and entity schema within passed write session
+	 * accordingly.
+	 *
+	 * @param session write Evita session
+	 * @param catalogBuilder catalog schema builder
+	 * @throws InvalidSchemaMutationException when entity model contains errors
+	 */
+	@Nonnull
+	public AnalysisResult analyze(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
 		AtomicReference<String> entityName = new AtomicReference<>();
 		try {
-			final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 			final List<Entity> entityAnnotations = reflectionLookup.getClassAnnotations(modelClass, Entity.class);
 			// use only the most specific annotation only
 			if (!entityAnnotations.isEmpty()) {
@@ -554,10 +566,8 @@ public class ClassSchemaAnalyzer {
 				// now return the mutations that needs to be done
 				return new AnalysisResult(
 					entityName.get(),
-					Stream.concat(
-						catalogBuilder.toMutation().stream().flatMap(it -> Arrays.stream(it.getSchemaMutations())),
-						entityBuilder.toMutation().stream()
-					).toArray(LocalCatalogSchemaMutation[]::new)
+					catalogBuilder.toMutation().stream().flatMap(it -> Arrays.stream(it.getSchemaMutations())).toArray(LocalCatalogSchemaMutation[]::new),
+					entityBuilder.toMutation().stream().toArray(LocalCatalogSchemaMutation[]::new)
 				);
 			}
 		} catch (RuntimeException ex) {
@@ -1142,14 +1152,20 @@ public class ClassSchemaAnalyzer {
 	 */
 	public record AnalysisResult(
 		@Nonnull String entityType,
-		@Nonnull LocalCatalogSchemaMutation[] mutations
+		@Nonnull LocalCatalogSchemaMutation[] catalogMutations,
+		@Nonnull LocalCatalogSchemaMutation[] entityMutations
 	) {
 		private final static LocalCatalogSchemaMutation[] EMPTY_MUTATIONS = new LocalCatalogSchemaMutation[0];
 
 		public AnalysisResult(@Nonnull String entityType) {
-			this(entityType, EMPTY_MUTATIONS);
+			this(entityType, EMPTY_MUTATIONS, EMPTY_MUTATIONS);
 		}
 
+
+		@Nonnull
+		public LocalCatalogSchemaMutation[] mutations() {
+			return ArrayUtils.mergeArrays(catalogMutations, entityMutations);
+		}
 	}
 
 }

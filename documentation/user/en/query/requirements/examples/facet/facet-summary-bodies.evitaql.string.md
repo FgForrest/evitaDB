@@ -167,7 +167,7 @@ Facet summary:
 	parameterValues: 'connector-merge' [41]:
 		[ ] 'connector-micro-usb' (10)
 		[ ] 'usb' (31)
-	stocks: 0 [41]:
+	stocks: non-grouped [41]:
 		[ ] 'evita' (41)
 	tags: 0 [35]:
 		[ ] 'sale' (2)

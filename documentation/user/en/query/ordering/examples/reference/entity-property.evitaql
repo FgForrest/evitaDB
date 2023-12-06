@@ -1,21 +1,21 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeEquals('code', 'garmin-vivoactive-4'),
-        entityLocaleEquals('en')
+        attributeEquals("code", "garmin-vivoactive-4"),
+        entityLocaleEquals("en")
     ),
     require(
         entityFetch(
-            attributeContent('code'),
+            attributeContent("code"),
             referenceContent(
-                'parameterValues',
+                "parameterValues",
                 orderBy(
                     entityProperty(
-                        attributeNatural('name', DESC)
+                        attributeNatural("name", DESC)
                     )
                 ),
                 entityFetch(
-                    attributeContent('name')
+                    attributeContent("name")
                 )
             )
         )

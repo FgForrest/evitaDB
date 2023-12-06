@@ -1,0 +1,11 @@
+query(
+    collection("Product"),
+    orderBy(
+        attributeNatural("orderedQuantity", DESC)
+    ),
+    require(
+        entityFetch(
+            attributeContent("code", "orderedQuantity")
+        )
+    )
+)

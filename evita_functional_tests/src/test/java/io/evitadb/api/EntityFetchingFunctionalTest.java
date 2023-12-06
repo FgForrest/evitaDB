@@ -3900,6 +3900,40 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should return products sorted by primary key in descending order")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductsSortedByPrimaryKeyInDescendingOrder(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = {12, 1, 18, 23, 5};
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(exactOrder)
+						),
+						orderBy(
+							entityPrimaryKeyNatural(OrderDirection.DESC)
+						)
+					)
+				);
+				assertEquals(5, products.getRecordData().size());
+				assertEquals(5, products.getTotalRecordCount());
+
+				Arrays.sort(exactOrder, (o1, o2) -> Integer.compare(o2, o1));
+				assertArrayEquals(
+					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products sorted by exact order in the filter constraint")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test

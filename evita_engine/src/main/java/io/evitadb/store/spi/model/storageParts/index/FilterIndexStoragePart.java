@@ -75,7 +75,7 @@ public class FilterIndexStoragePart implements AttributeIndexStoragePart, Record
 	 */
 	@Nullable @Getter private final RangeIndex rangeIndex;
 	/**
-	 * Id used for lookups in {@link io.evitadb.storage.MemTable} for this particular container.
+	 * Id used for lookups in file offset index for this particular container.
 	 */
 	@Getter @Setter private Long uniquePartId;
 

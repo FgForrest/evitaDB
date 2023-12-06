@@ -26,6 +26,7 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
+import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -47,8 +48,8 @@ import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
+import io.evitadb.store.fileOffsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
-import io.evitadb.store.memTable.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.model.CatalogBootstrap;
@@ -92,7 +93,7 @@ import static org.mockito.Mockito.when;
  */
 class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private static final String RENAMED_CATALOG = "somethingElse";
-	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), entityType -> null);
+	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
 	private static final SealedCatalogSchema SEALED_CATALOG_SCHEMA = new CatalogSchemaDecorator(CATALOG_SCHEMA);
 	public static final String DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "defaultCatalogPersistenceServiceTest";
 

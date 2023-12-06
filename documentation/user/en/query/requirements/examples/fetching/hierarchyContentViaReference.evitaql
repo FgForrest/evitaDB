@@ -1,18 +1,18 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeEquals('code', 'amazfit-gtr-3'),
-        entityLocaleEquals('en')
+        attributeEquals("code", "amazfit-gtr-3"),
+        entityLocaleEquals("en")
     ),
     require(
         entityFetch(
             referenceContent(
-                'categories',
+                "categories",
                 entityFetch(
-                    attributeContent('code', 'name'),
+                    attributeContent("code", "name"),
                     hierarchyContent(
                         entityFetch(
-                            attributeContent('code', 'name')
+                            attributeContent("code", "name")
                         )
                     )
                 )

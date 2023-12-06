@@ -124,7 +124,7 @@ public class FormulaCloner implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		final Formula mutatedFormula = mutator.apply(this, formula);
 		final Formula alreadyProcessedFormula = formulasProcessed.get(formula);
 		if (alreadyProcessedFormula != null) {

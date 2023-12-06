@@ -69,6 +69,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -326,10 +327,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
 		assertActive();
-		return executeInTransactionIfPossible(session -> {
-			final EntityCollectionContract collection = getCatalog().createCollectionForEntity(entityType, session);
-			return collection.getSchema().openForWrite();
-		});
+		return executeInTransactionIfPossible(
+			session -> getCatalog().getCollectionForEntity(entityType)
+				.orElseGet(() -> {
+					updateCatalogSchema(new CreateEntitySchemaMutation(entityType));
+					return getCatalog().getCollectionForEntityOrThrowException(entityType);
+				})
+				.getSchema()
+				.openForWrite()
+		);
 	}
 
 	@Nonnull
@@ -588,6 +594,13 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (ArrayUtils.isEmpty(schemaMutation)) {
 			return 0;
 		}
+
+		// validate the new schema version before any changes are applied
+		getCatalog().getSchema()
+			.openForWriteWithMutations(schemaMutation)
+			.toInstance()
+			.validate();
+
 		return executeInTransactionIfPossible(session -> {
 			getCatalog().updateSchema(session, schemaMutation);
 			return getCatalogSchema().getVersion();
@@ -619,11 +632,16 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return executeInTransactionIfPossible(session -> {
 			final String entityType = schemaMutation.getEntityType();
 			final EntityCollectionContract entityCollection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
+			final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
 			if (ArrayUtils.isEmpty(schemaMutation.getSchemaMutations())) {
-				return entityCollection.getSchema();
+				return currentEntitySchema;
 			}
-			entityCollection.updateSchema(getCatalogSchema(), schemaMutation);
-			return entityCollection.getSchema();
+			final SealedCatalogSchema catalogSchema = getCatalogSchema();
+			// validate the new schema version before any changes are applied
+			currentEntitySchema.withMutations(schemaMutation)
+				.toInstance()
+				.validate(catalogSchema);
+			return entityCollection.updateSchema(catalogSchema, schemaMutation);
 		});
 	}
 

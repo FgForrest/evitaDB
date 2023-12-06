@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra;
 
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.query.algebra.utils.visitor.PrettyPrintingFormulaVisitor;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
@@ -245,4 +246,11 @@ public abstract class AbstractFormula implements Formula {
 	 */
 	@Nonnull
 	protected abstract Bitmap computeInternal();
+
+	@Nonnull
+	@Override
+	public String prettyPrint() {
+		return PrettyPrintingFormulaVisitor.toString(this);
+	}
+
 }

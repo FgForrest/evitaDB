@@ -28,8 +28,10 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
 import io.evitadb.dataType.DateTimeRange;
@@ -40,17 +42,22 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static java.util.Optional.of;
 
 /**
  * This test verifies behaviour of {@link SellingPriceAvailableBitmapFilter}.
@@ -60,7 +67,20 @@ import static io.evitadb.api.query.QueryConstraints.*;
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
-		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchema -> PRODUCT_SCHEMA
+		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class),
+		new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(PRODUCT_SCHEMA);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				return of(PRODUCT_SCHEMA);
+			}
+		}
 	);
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";

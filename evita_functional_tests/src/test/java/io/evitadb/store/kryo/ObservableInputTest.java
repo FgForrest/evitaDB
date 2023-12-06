@@ -24,7 +24,7 @@
 package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.memTable.stream.RandomAccessFileInputStream;
+import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -50,7 +50,6 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.priceContentRespectingFilter;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
@@ -80,6 +79,7 @@ public class SumPriceEntityByPriceFilteringFunctionalTest extends EntityByPriceF
 
 			dataGenerator.getSampleCategorySchema(session);
 			dataGenerator.getSampleBrandSchema(session);
+			dataGenerator.getSampleStoreSchema(session);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(session),

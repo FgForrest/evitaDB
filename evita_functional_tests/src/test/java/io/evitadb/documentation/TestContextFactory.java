@@ -40,13 +40,13 @@ public interface TestContextFactory<T extends TestContext> {
 	 * The test required to instantiate and init the {@link TestContext}.
 	 */
 	@Nullable
-	DynamicTest getInitTest();
+	DynamicTest getInitTest(@Nonnull DocumentationProfile profile);
 
 	/**
 	 * The test required to tear down the {@link TestContext}.
 	 */
 	@Nullable
-	DynamicTest getTearDownTest();
+	DynamicTest getTearDownTest(@Nonnull DocumentationProfile profile);
 
 	/**
 	 * Returns the {@link TestContext} instance.

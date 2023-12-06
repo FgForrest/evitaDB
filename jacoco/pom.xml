@@ -65,7 +65,7 @@
 		</dependency>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>
-			<artifactId>evita_store_memtable</artifactId>
+			<artifactId>evita_store_key_value</artifactId>
 			<version>${project.parent.version}</version>
 			<scope>runtime</scope>
 		</dependency>

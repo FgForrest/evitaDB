@@ -840,10 +840,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 * <b>Note: </b> currently, we assume that the type of child parameter is generic container with only one child
 	 * parameter. Otherwise, there would have to be logic for another nested implicit container which currently doesn't make
 	 * sense.
+	 * @return additional child constraint value or empty if data for child constraint is missing, but it is still logically correct
 	 */
 	@Nonnull
-	protected SIMPLE_TYPE buildAdditionalChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
-	                                                          @Nonnull AdditionalChildParameterDescriptor additionalChildParameter) {
+	protected Optional<SIMPLE_TYPE> buildAdditionalChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
+	                                                                    @Nonnull AdditionalChildParameterDescriptor additionalChildParameter) {
 		final AtomicReference<? extends ConstraintSchemaBuilder<CTX, SIMPLE_TYPE, OBJECT_TYPE, OBJECT_FIELD>> additionalBuilder = additionalBuilders.get(additionalChildParameter.constraintType());
 		Assert.isPremiseValid(
 			additionalBuilder != null,
@@ -857,10 +858,12 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 			(Class<? extends Constraint<?>>) additionalChildParameter.type()
 		);
 
-		return additionalBuilder.get().build(
-			resolveChildDataLocator(buildContext, additionalChildParameter.domain()),
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(buildContext, additionalChildParameter.domain());
+		// if child data locator is empty, we are missing data for child constraint and we want to skip that parameter
+		return childDataLocator.map(dataLocator -> additionalBuilder.get().build(
+			dataLocator,
 			additionalChildConstraintDescriptor
-		);
+		));
 	}
 
 	/**
@@ -868,10 +871,11 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	 *
 	 * @param buildContext current context with current domain (data locator)
 	 * @param desiredChildDomain desired domain for child constraints
+	 * @return resolved child data locator or empty if data for the child locator is missing, but it is still logically correct
 	 */
 	@Nonnull
-	protected DataLocator resolveChildDataLocator(@Nonnull ConstraintBuildContext buildContext,
-	                                              @Nonnull ConstraintDomain desiredChildDomain) {
+	protected Optional<DataLocator> resolveChildDataLocator(@Nonnull ConstraintBuildContext buildContext,
+	                                                        @Nonnull ConstraintDomain desiredChildDomain) {
 		return dataLocatorResolver.resolveChildParameterDataLocator(buildContext.dataLocator(), desiredChildDomain);
 	}
 
@@ -1052,9 +1056,8 @@ public abstract class ConstraintSchemaBuilder<CTX extends ConstraintSchemaBuildi
 	@Nonnull
 	protected String constructConstraintDescription(@Nonnull ConstraintDescriptor constraintDescriptor) {
 		// TOBEDONE LHO: proper link to docs, decide on link structure (check https://www.markdownguide.org/extended-syntax/#heading-ids)
-		return constraintDescriptor.shortDescription() +
-			" [More](https://docs.evitadb.io/query_language#" + constraintDescriptor.constraintClass().getSimpleName() +
-			")";
+		//  seems like GQL editor cannot render the MD links
+		return constraintDescriptor.shortDescription();
 	}
 
 	/**

@@ -1,17 +1,17 @@
-query(   
-    collection('Product'),   
+query(
+    collection("Product"),
     filterBy(
         hierarchyWithin(
-            'categories',
-            attributeEquals('code', 'true-wireless')
+            "categories",
+            attributeEquals("code", "true-wireless")
         )
     ),
     require(
         hierarchyOfReference(
-            'categories',
+            "categories",
             parents(
-                'parents',
-                entityFetch(attributeContent('code')),
+                "parents",
+                entityFetch(attributeContent("code")),
                 stopAt(level(2))
             )
         )

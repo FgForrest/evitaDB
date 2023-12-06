@@ -115,7 +115,7 @@ class PriceListCompositionTerminationVisitor implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		final boolean notProcessedYet = !alreadyProcessedFormulas.contains(formula);
 		final Formula processedFormula;
 

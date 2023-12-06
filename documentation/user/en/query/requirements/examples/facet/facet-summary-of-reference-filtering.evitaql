@@ -1,16 +1,16 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeEquals('status', 'ACTIVE')
+        attributeEquals("status", "ACTIVE")
     ),
     require(
         facetSummaryOfReference(
-            'parameterValues',
+            "parameterValues",
             COUNTS,
-            filterBy(attributeContains('code', 'ar')),
-            filterGroupBy(attributeStartsWith('code', 'o')),
-            entityFetch(attributeContent('code')),
-            entityGroupFetch(attributeContent('code'))
+            filterBy(attributeContains("code", "ar")),
+            filterGroupBy(attributeStartsWith("code", "o")),
+            entityFetch(attributeContent("code")),
+            entityGroupFetch(attributeContent("code"))
         )
     )
 )

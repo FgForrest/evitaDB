@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
@@ -917,6 +918,96 @@ class EvitaTest implements EvitaTestSupport {
 					session.defineEntitySchema("ABc");
 				}
 			)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineReferencesToManagedEntitiesThatDontExist() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema("someEntity")
+						.withReferenceToEntity(
+							"someReference",
+							"nonExistingEntity",
+							Cardinality.ONE_OR_MORE
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineReferencesToManagedEntityGroupThatDoesntExist() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(
+							"someEntity"
+						)
+						.withReferenceTo(
+							"someReference",
+							"nonExistingEntityNonManagedEntity",
+							Cardinality.ONE_OR_MORE,
+							whichIs -> whichIs.withGroupTypeRelatedToEntity("nonExistingGroup")
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldCreateReferencesToNonManagedEntityAndGroup() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(
+						"someEntity"
+					)
+					.withReferenceTo(
+						"someReference",
+						"nonExistingEntityNonManagedEntity",
+						Cardinality.ONE_OR_MORE,
+						whichIs -> whichIs.withGroupType("nonExistingNonManagedGroup")
+					).updateVia(session);
+
+				assertNotNull(session.getEntitySchema("someEntity"));
+			}
+		);
+	}
+
+	@Test
+	void shouldCreateCircularReferencesToManagedEntitiesAndGroups() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ModifyEntitySchemaMutation categoryMutation = session.defineEntitySchema(
+						Entities.CATEGORY
+					)
+					.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
+					.toMutation()
+					.orElseThrow();
+
+				final ModifyEntitySchemaMutation productMutation = session.defineEntitySchema(
+						Entities.PRODUCT
+					)
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE)
+					.toMutation()
+					.orElseThrow();
+
+				session.updateCatalogSchema(
+					categoryMutation, productMutation
+				);
+
+				assertNotNull(session.getEntitySchema(Entities.CATEGORY));
+				assertNotNull(session.getEntitySchema(Entities.PRODUCT));
+			}
 		);
 	}
 

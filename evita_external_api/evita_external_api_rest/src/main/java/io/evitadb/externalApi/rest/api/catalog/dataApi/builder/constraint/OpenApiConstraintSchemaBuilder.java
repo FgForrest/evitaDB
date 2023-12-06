@@ -60,6 +60,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -209,8 +210,12 @@ public abstract class OpenApiConstraintSchemaBuilder
 	@Override
 	protected Map<String, OpenApiSimpleType> buildChildConstraintValue(@Nonnull ConstraintBuildContext buildContext,
 	                                                                   @Nonnull ChildParameterDescriptor childParameter) {
-		final DataLocator childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
-		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator);
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(buildContext, childParameter.domain());
+		if (childDataLocator.isEmpty()) {
+			// we don't have data for the switch, thus we don't want to build this child parameter
+			return Map.of();
+		}
+		final ConstraintBuildContext childBuildContext = buildContext.switchToChildContext(childDataLocator.get());
 		final Map<String, OpenApiSimpleType> childTypes = createLinkedHashMap(1);
 
 		final Class<?> childParameterType = childParameter.type();
@@ -220,16 +225,20 @@ public abstract class OpenApiConstraintSchemaBuilder
 				.forEach(childConstraintDescriptor -> {
 					final String key = keyBuilder.build(buildContext, childConstraintDescriptor, null);
 
-					// we need switch child domain again manually based on property type of the child constraint because there
+					// we need to switch child domain again manually based on the property type of the child constraint because there
 					// is no intermediate wrapper container that would do it for us (while generating all possible constraint for that container)
-					final DataLocator childConstraintDataLocator = resolveChildDataLocator(
+					final Optional<DataLocator> childConstraintDataLocator = resolveChildDataLocator(
 						buildContext,
 						ConstraintProcessingUtils.getDomainForPropertyType(childConstraintDescriptor.propertyType())
 					);
+					if (childConstraintDataLocator.isEmpty()) {
+						// we don't have data for the switch, thus we don't want to build this child parameter
+						return;
+					}
 					childTypes.put(
 						key,
 						build(
-							childBuildContext.switchToChildContext(childConstraintDataLocator),
+							childBuildContext.switchToChildContext(childConstraintDataLocator.get()),
 							childConstraintDescriptor
 						)
 					);
@@ -282,7 +291,10 @@ public abstract class OpenApiConstraintSchemaBuilder
 		// build children values
 		childParameters.forEach(childParameter -> {
 			final Map<String, OpenApiSimpleType> nestedChildConstraints = buildChildConstraintValue(buildContext, childParameter);
-			if (nestedChildConstraints.size() == 1) {
+			if (nestedChildConstraints.isEmpty()) {
+				// no usable data found, so we don't want to generate anything
+				return;
+			} else if (nestedChildConstraints.size() == 1) {
 				OpenApiSimpleType nestedChildConstraintValue = nestedChildConstraints.values().iterator().next();
 				if (childParameter.required() &&
 					!childParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
@@ -317,16 +329,17 @@ public abstract class OpenApiConstraintSchemaBuilder
 
 		// build additional children values
 		additionalChildParameters.forEach(additionalChildParameter -> {
-			OpenApiSimpleType nestedAdditionalChildConstraintValue = buildAdditionalChildConstraintValue(buildContext, additionalChildParameter);
-			if (additionalChildParameter.required() &&
-				!additionalChildParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
-			) {
-				nestedAdditionalChildConstraintValue = nonNull(nestedAdditionalChildConstraintValue);
-			}
+			buildAdditionalChildConstraintValue(buildContext, additionalChildParameter).ifPresent(nestedAdditionalChildConstraintValue -> {
+				if (additionalChildParameter.required() &&
+					!additionalChildParameter.type().isArray() // we want treat missing arrays as empty arrays for more client convenience
+				) {
+					nestedAdditionalChildConstraintValue = nonNull(nestedAdditionalChildConstraintValue);
+				}
 
-			wrapperObjectBuilder.property(newProperty()
-				.name(additionalChildParameter.name())
-				.type(nestedAdditionalChildConstraintValue));
+				wrapperObjectBuilder.property(newProperty()
+					.name(additionalChildParameter.name())
+					.type(nestedAdditionalChildConstraintValue));
+			});
 		});
 
 		sharedContext.addNewType(wrapperObjectBuilder.build());
