@@ -28,7 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.exception.EvitaInternalError;
 import lombok.AllArgsConstructor;
@@ -52,7 +52,7 @@ import java.io.Serial;
 @Immutable
 @EqualsAndHashCode
 @AllArgsConstructor
-public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
+public class RemoveEntitySchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -1294172811385202717L;
 	@Getter @Nonnull private final String name;
 

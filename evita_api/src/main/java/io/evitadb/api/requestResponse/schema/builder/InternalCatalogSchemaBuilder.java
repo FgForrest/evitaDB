@@ -35,8 +35,6 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
@@ -331,12 +329,8 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 
 			// apply the mutations not reflected in the schema
 			for (int i = lastMutationReflectedInSchema + 1; i < this.mutations.size(); i++) {
-				final CatalogSchemaMutation mutation = this.mutations.get(i);
-				Assert.isPremiseValid(
-					mutation instanceof CatalogSchemaMutationWithProvidedEntitySchemaAccessor,
-					() -> new EvitaInternalError("We expect that all CatalogSchemaMutations will implement CatalogSchemaMutationWithProvidedEntitySchemaAccessor (internally)!")
-				);
-				currentSchema = ((CatalogSchemaMutationWithProvidedEntitySchemaAccessor)mutation).mutate(currentSchema, updatedEntitySchemaAccessor);
+				final LocalCatalogSchemaMutation mutation = this.mutations.get(i);
+				currentSchema = mutation.mutate(currentSchema, updatedEntitySchemaAccessor);
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}

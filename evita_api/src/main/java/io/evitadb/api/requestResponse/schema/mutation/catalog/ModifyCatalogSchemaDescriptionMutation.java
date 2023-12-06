@@ -28,7 +28,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -56,7 +56,7 @@ import java.util.Objects;
 @Immutable
 @EqualsAndHashCode
 @RequiredArgsConstructor
-public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
+public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -367741086084429615L;
 	@Nullable @Getter private final String description;
 

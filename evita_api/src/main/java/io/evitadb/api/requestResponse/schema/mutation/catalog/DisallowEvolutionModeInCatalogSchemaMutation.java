@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
+public class DisallowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 4074000557741311141L;
 	@Getter private final Set<CatalogEvolutionMode> evolutionModes;
 

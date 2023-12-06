@@ -449,6 +449,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					updatedSchema,
 					getEntitySchemaAccessor()
 				);
+			} else if (theMutation instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
+				updatedSchema = Objects.requireNonNull(
+					localCatalogSchemaMutation.mutate(updatedSchema, getEntitySchemaAccessor())
+				);
 			} else {
 				updatedSchema = Objects.requireNonNull(theMutation.mutate(updatedSchema));
 			}

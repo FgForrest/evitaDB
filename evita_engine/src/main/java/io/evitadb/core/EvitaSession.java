@@ -69,6 +69,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
@@ -326,10 +327,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public EntitySchemaBuilder defineEntitySchema(@Nonnull String entityType) {
 		assertActive();
-		return executeInTransactionIfPossible(session -> {
-			final EntityCollectionContract collection = getCatalog().createCollectionForEntity(entityType, session);
-			return collection.getSchema().openForWrite();
-		});
+		return executeInTransactionIfPossible(
+			session -> getCatalog().getCollectionForEntity(entityType)
+				.orElseGet(() -> {
+					updateCatalogSchema(new CreateEntitySchemaMutation(entityType));
+					return getCatalog().getCollectionForEntityOrThrowException(entityType);
+				})
+				.getSchema()
+				.openForWrite()
+		);
 	}
 
 	@Nonnull
