@@ -203,7 +203,7 @@ class.
 <LanguageSpecific to="csharp">
 
 <Note type="info">
-Application logic connected with evitaDB data types is located in 
+Application logic connected with evitaDB data types is located in
 <SourceClass>EvitaDB.Client/DataTypes/EvitaDataTypes.cs</SourceClass>
 class.
 </Note>
@@ -244,32 +244,27 @@ parsing the number will use the correct data type that preserves the precision.
 ### Dates and times
 
 <LanguageSpecific to="java,evitaql,graphql,rest">
-Although evitaDB supports *local* variants of the date time like 
-[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), it's always 
-converted to [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) 
-using the evitaDB server system default timezone. You can control the default Java timezone in 
-[several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work 
-directly with the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) 
+Although evitaDB supports *local* variants of the date time like
+[LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), it's always
+converted to [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
+using the evitaDB server system default timezone. You can control the default Java timezone in
+[several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
+directly with the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
 on the client side and be explicit about the offset from the first day.
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-Although evitaDB supports *local* variants of the date time like 
-[DateTime](https://learn.microsoft.com/en-us/dotnet/api/system.datetime), it's always 
-using the evitaDB server system default timezone. You can control the default Java timezone in 
-[several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work 
-directly with the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset) 
+Although evitaDB supports *local* variants of the date time like
+[DateTime](https://learn.microsoft.com/en-us/dotnet/api/system.datetime), it's always
+using the evitaDB server system default timezone. You can control the default Java timezone in
+[several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
+directly with the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)
 on the client side and be explicit about the offset from the first day.
 </LanguageSpecific>
 
 <Note type="question">
 
 <NoteTitle toggles="true">
-<LanguageSpecific to="java,evitaql,graphql,rest">
 ##### Why do we internally use OffsetDateTime for time information?
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
-##### Why do we internally use DateTimeOffset for time information?
-</LanguageSpecific>
 </NoteTitle>
 
 Offset/time zone handling varies from database to database. We wanted to avoid setting the timezone in session or
@@ -283,13 +278,13 @@ enough for our case - it identifies a globally valid time that is known at the t
 ### DateTimeRange
 
 <LanguageSpecific to="java,evitaql,graphql,rest">
-The DateTimeRange represents a specific implementation of the 
+The DateTimeRange represents a specific implementation of the
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass> defining from and to boundaries
 by the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) data
 types. The offset date times are written in the ISO format.
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-The DateTimeRange represents a specific implementation of the 
+The DateTimeRange represents a specific implementation of the
 <SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass> defining from and to boundaries
 by the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset) data
 types. The offset date times are written in the ISO format.
@@ -351,7 +346,7 @@ types. The offset date times are written in the ISO format.
 ### NumberRange
 
 <LanguageSpecific to="java,evitaql,graphql,rest">
-The NumberRange represents a specific implementation of the 
+The NumberRange represents a specific implementation of the
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass>
 defining from and to boundaries by the [Number](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Number.html)
 data types. The supported number types are: Byte, Short, Integer, Long and BigDecimal.
@@ -495,11 +490,11 @@ consistent for all other transactions.
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-The complex types are types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple 
+The complex types are types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple
 evitaDB types). Complex types are stored in a
 <LanguageSpecific to="evitaql,java"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/ComplexDataObject.cs</SourceClass></LanguageSpecific> data structure that is 
-intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept 
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/ComplexDataObject.cs</SourceClass></LanguageSpecific> data structure that is
+intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept
 and store any valid JSON document.
 
 </LanguageSpecific>
@@ -528,8 +523,8 @@ classes to carry larger data or to associate simple logic with the data.
 
 The complex type in C# is a record that does not belong among `built-in` C# types,
 and it is not directly supported by the [simple data types](#simple-data-types)(i.e. `System.Uri` is forbidden to be
-stored in evitaDB, even if it is serializable by design (implements ISerializable interface) and belongs to a `C#` 
-`built-in` types, because it is not directly supported by the [simple data types](#simple-data-types)). 
+stored in evitaDB, even if it is serializable by design (implements ISerializable interface) and belongs to a `C#`
+`built-in` types, because it is not directly supported by the [simple data types](#simple-data-types)).
 The complex types are intended for the client POCO classes to carry larger data or to associate simple logic with the data.
 
 </LanguageSpecific>
@@ -582,7 +577,7 @@ Associated data may even contain array of complex objects. Such data will be aut
 ### Serialization
 
 All public properties with public getters and setters are serialized into a complex type if they are not decorated with
-and are not annotated with <SourceClass>EvitaDB.Client/DataTypes/Data/NonSerializableDataAttribute.cs</SourceClass>. 
+and are not annotated with <SourceClass>EvitaDB.Client/DataTypes/Data/NonSerializableDataAttribute.cs</SourceClass>.
 See the following example:
 
 <SourceCodeTabs local>
@@ -596,7 +591,7 @@ Storing a complex type to entity is executed as follows:
 [Storing associated data to an entity](/documentation/user/en/use/examples/storing.cs)
 </SourceCodeTabs>
 
-If the serialization process encounters any property that cannot be serialized, 
+If the serialization process encounters any property that cannot be serialized,
 the <SourceClass>EvitaDB.Client/Exceptions/EvitaInvalidUsageException.cs</SourceClass> exception is thrown.
 
 ### Deserialization
