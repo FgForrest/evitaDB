@@ -115,10 +115,10 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 
 		final EntitySchemaContract entitySchema = extraResultPlanner.getSchema();
 		final EntityFetch facetEntityRequirement = facetSummary.getFacetEntityRequirement()
-			.map(it -> verifyFetch(entitySchema, ReferenceSchemaContract::getReferencedEntityType, it, extraResultPlanner))
+			.map(it -> verifyFetch(entitySchema, referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() ? referenceSchema.getReferencedEntityType() : null, it, extraResultPlanner))
 			.orElse(null);
 		final EntityGroupFetch groupEntityRequirement = facetSummary.getGroupEntityRequirement()
-			.map(it -> verifyFetch(entitySchema, ReferenceSchemaContract::getReferencedGroupType, it, extraResultPlanner))
+			.map(it -> verifyFetch(entitySchema, referenceSchema -> referenceSchema.isReferencedGroupTypeManaged() ? referenceSchema.getReferencedGroupType() : null, it, extraResultPlanner))
 			.orElse(null);
 
 		facetSummaryProducer.requireDefaultFacetSummary(

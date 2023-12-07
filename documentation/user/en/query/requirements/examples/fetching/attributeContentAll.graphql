@@ -15,8 +15,8 @@
           visibility
           published
           validity
-          changed
           status
+          changed
           order
         }
       }
