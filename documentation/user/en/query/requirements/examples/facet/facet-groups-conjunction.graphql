@@ -23,9 +23,6 @@
       facetSummary {
         groups {
           count
-          groupEntity {
-            primaryKey
-          }
           facetStatistics {
             requested
             count

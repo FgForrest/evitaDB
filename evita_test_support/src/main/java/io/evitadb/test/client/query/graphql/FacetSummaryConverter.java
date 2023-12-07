@@ -202,9 +202,10 @@ public class FacetSummaryConverter extends RequireConverter {
 	                                            @Nonnull ReferenceSchemaContract referenceSchema,
 	                                            @Nonnull FacetSummaryOfReference facetSummaryOfReference) {
 
-		facetSummaryOfReferenceBuilder
-			.addPrimitiveField(FacetGroupStatisticsDescriptor.COUNT)
-			.addObjectField(
+		facetSummaryOfReferenceBuilder.addPrimitiveField(FacetGroupStatisticsDescriptor.COUNT);
+
+		if (referenceSchema.getReferencedGroupType() != null) {
+			facetSummaryOfReferenceBuilder.addObjectField(
 				FacetGroupStatisticsDescriptor.GROUP_ENTITY,
 				groupEntityBuilder -> entityFetchBuilder.convert(
 					groupEntityBuilder,
@@ -212,17 +213,19 @@ public class FacetSummaryConverter extends RequireConverter {
 					locale,
 					facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
 				)
-			)
-			.addObjectField(
-				FacetGroupStatisticsDescriptor.FACET_STATISTICS,
-				facetStatisticsBuilder -> convertFacetStatistics(
-					facetStatisticsBuilder,
-					locale,
-					referenceSchema,
-					facetSummaryOfReference
-				),
-				getFacetStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference)
 			);
+		}
+
+		facetSummaryOfReferenceBuilder.addObjectField(
+			FacetGroupStatisticsDescriptor.FACET_STATISTICS,
+			facetStatisticsBuilder -> convertFacetStatistics(
+				facetStatisticsBuilder,
+				locale,
+				referenceSchema,
+				facetSummaryOfReference
+			),
+			getFacetStatisticsArgumentsBuilder(referenceSchema, facetSummaryOfReference)
+		);
 	}
 
 	@Nonnull

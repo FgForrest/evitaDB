@@ -25,9 +25,6 @@
       facetSummary {
         brand {
           count
-          groupEntity {
-            primaryKey
-          }
           facetStatistics {
             requested
             count
