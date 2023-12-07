@@ -441,7 +441,7 @@ public class FullResponseObjectBuilder {
 			facetGroupStatisticsFieldBuilder.type(list(nonNull(facetGroupStatisticsObject)));
 		} else {
 			// if there is no group type, then the result will always be a single virtual group covering all facet statistics
-			facetGroupStatisticsFieldBuilder.type(nonNull(facetGroupStatisticsObject));
+			facetGroupStatisticsFieldBuilder.type(facetGroupStatisticsObject);
 		}
 
 		if (referenceSchema.getReferencedGroupType() != null) {

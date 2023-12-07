@@ -125,6 +125,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	private static final String THOUSAND_PRODUCTS_WITH_FACETS = "ThousandsProductsWithFacets";
 	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
+	private static final String EMPTY_COLLECTION_ENTITY = "someCollectionWithoutEntities";
 	private final DataGenerator dataGenerator = new DataGenerator();
 
 	/**
@@ -501,6 +502,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.map(session::upsertEntity)
 				.toList();
 
+			session.defineEntitySchema(EMPTY_COLLECTION_ENTITY)
+				.withGeneratedPrimaryKey()
+				.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+				.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+				.updateVia(session);
+
 			final SealedEntitySchema productSchema = dataGenerator.getSampleProductSchema(
 				session,
 				schemaBuilder -> {
@@ -508,6 +515,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(Entities.STORE, Entities.STORE, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
+						.withReferenceToEntity(EMPTY_COLLECTION_ENTITY, EMPTY_COLLECTION_ENTITY, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(
 							Entities.PARAMETER, Entities.PARAMETER,
 							Cardinality.ZERO_OR_MORE,
@@ -627,6 +635,78 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						EntityReference.class
 					)
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should not return facet summary for missing references on product")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldNotReturnFacetSummaryForMissingReferencesOnProduct(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							not(referenceHaving(Entities.BRAND))
+						),
+						require(
+							page(1, 1),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(referenceContent(Entities.BRAND)),
+							facetSummaryOfReference(
+								Entities.BRAND,
+								FacetStatisticsDepth.COUNTS
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertNull(result.getExtraResult(FacetSummary.class).getFacetGroupStatistics(Entities.BRAND));
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return empty facet summary for empty collection")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test()
+	void shouldReturnEmptyFacetSummaryForEmptyCollection(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							facetSummaryOfReference(
+								EMPTY_COLLECTION_ENTITY,
+								FacetStatisticsDepth.COUNTS,
+								filterBy(
+									referenceHaving(
+										Entities.PARAMETER,
+										filterBy(
+											entityHaving(entityPrimaryKeyInSet(1))
+										)
+									)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				);
+
+				final FacetSummary facetSummary = result.getExtraResult(FacetSummary.class);
+				assertNotNull(facetSummary);
+				assertTrue(facetSummary.getReferenceStatistics().isEmpty());
 				return null;
 			}
 		);
@@ -1062,6 +1142,14 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					.stream()
 					.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("C") < 0)
 					.mapToInt(EntityContract::getPrimaryKey)
+					.filter(
+						facetId -> originalProductEntities.stream()
+							.anyMatch(
+								it -> it.getReference(Entities.PARAMETER, facetId)
+									.map(ref -> Boolean.FALSE.equals(ref.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class)))
+									.orElse(false)
+							)
+					)
 					.toArray();
 
 				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
@@ -2103,7 +2191,6 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			collection(Entities.PRODUCT),
 			filterBy(
 				and(
-					hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 					userFilter(
 						facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(facetIds))
 					)
@@ -2123,10 +2210,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session,
 			productSchema,
 			originalProductEntities,
-			sealedEntity -> sealedEntity
-				.getReferences(Entities.CATEGORY)
-				.stream()
-				.anyMatch(category -> isWithinHierarchy(categoryHierarchy, category, 2)),
+			null,
 			query,
 			null,
 			__ -> FacetStatisticsDepth.IMPACT,
