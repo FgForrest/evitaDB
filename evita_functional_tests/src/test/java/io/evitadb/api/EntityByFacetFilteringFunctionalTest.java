@@ -106,10 +106,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies whether entities can be filtered by facets.
@@ -577,6 +574,40 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				)
 			);
 		});
+	}
+
+	@DisplayName("Should not return facet summary for missing references on product")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldNotReturnFacetSummaryForMissingReferencesOnProduct(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							not(referenceHaving(Entities.BRAND))
+						),
+						require(
+							page(1, 1),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(referenceContent(Entities.BRAND)),
+							facetSummaryOfReference(
+								Entities.BRAND,
+								FacetStatisticsDepth.COUNTS
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, result.getRecordData().size());
+				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertNull(result.getExtraResult(FacetSummary.class).getFacetGroupStatistics(Entities.BRAND));
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return empty facet summary for empty collection")
