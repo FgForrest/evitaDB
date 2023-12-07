@@ -28,11 +28,10 @@ import graphql.schema.DataFetchingEnvironment;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Optional;
+import javax.annotation.Nullable;
 
 /**
  * Extracts list of all {@link FacetGroupStatistics} of certain reference name from {@link FacetSummary}.
@@ -45,11 +44,10 @@ public class NonGroupedFacetGroupStatisticsDataFetcher implements DataFetcher<Fa
 	@Nonnull
 	private final ReferenceSchemaContract referenceSchema;
 
-	@Nonnull
+	@Nullable
 	@Override
 	public FacetGroupStatistics get(@Nonnull DataFetchingEnvironment environment) throws Exception {
 		final FacetSummary facetSummary = environment.getSource();
-		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceSchema.getName()))
-			.orElseThrow(() -> new GraphQLInternalError("Missing non-grouped group statistics for reference `" + referenceSchema.getName() + "`."));
+		return facetSummary.getFacetGroupStatistics(referenceSchema.getName());
 	}
 }

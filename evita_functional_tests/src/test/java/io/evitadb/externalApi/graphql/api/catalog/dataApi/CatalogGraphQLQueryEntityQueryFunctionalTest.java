@@ -29,6 +29,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -99,6 +100,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -4928,6 +4930,60 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(
 				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return empty facet summary of non-grouped reference if missing reference")
+	void shouldReturnEmptyFacetSummaryOfNonGroupedReferenceIfMissingReference(Evita evita, GraphQLTester tester) {
+		final EntityClassifier entityWithoutBrand = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					not(referenceHaving(Entities.BRAND))
+				),
+				require(
+					strip(0, 1)
+				)
+			)
+		);
+		assertNotNull(entityWithoutBrand);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: %d
+		                    }
+		                ) {
+		                    extraResults {
+		                        facetSummary {
+		                            brand {
+			                            count
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				entityWithoutBrand.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH),
+				equalTo(
+					map()
+						.e(ResponseDescriptor.EXTRA_RESULTS.name(), map()
+							.e(ExtraResultsDescriptor.FACET_SUMMARY.name(), map()
+								.e("brand", null)))
+						.build()
+				)
 			);
 	}
 
