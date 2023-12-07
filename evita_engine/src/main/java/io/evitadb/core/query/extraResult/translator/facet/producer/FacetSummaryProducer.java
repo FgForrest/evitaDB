@@ -544,11 +544,13 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 							.stream();
 						ofNullable(facetSummaryRequest.facetPredicate())
 							.ifPresentOrElse(
-								predicate -> facetIndexStream
-									.filter(facetIx -> predicate.test(facetIx.getFacetId()))
-									.forEach(facetIx -> groupAcc.addStatistics(facetIx, isRequestedResolver)),
-								() -> facetIndexStream
-									.forEach(facetIx -> groupAcc.addStatistics(facetIx, isRequestedResolver))
+								predicate ->
+									facetIndexStream
+										.filter(facetIx -> predicate.test(facetIx.getFacetId()))
+										.forEach(facetIx -> groupAcc.addStatistics(facetIx, isRequestedResolver)),
+								() ->
+									facetIndexStream
+										.forEach(facetIx -> groupAcc.addStatistics(facetIx, isRequestedResolver))
 							);
 					});
 			};
@@ -582,10 +584,23 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 						if (theFacetStatistics.isEmpty()) {
 							return null;
 						} else {
-							// collect all facet statistics
 							final ReferenceSchemaContract referenceSchema = groupAcc.getReferenceSchema();
-							final Map<Integer, EntityClassifier> facetEntitiesIndex = Objects.requireNonNull(facetEntities.get(referenceSchema.getName()));
+							// compute overall count for group
+							final Formula entityMatchingAnyOfGroupFacetFormula = countCalculator.createGroupCountFormula(
+								referenceSchema, groupAcc.getGroupId(),
+								groupAcc.getFacetStatistics()
+									.values()
+									.stream()
+									.flatMap(it -> it.getFacetEntityIds().stream())
+									.toArray(Bitmap[]::new)
+							);
+							final int entityMatchingAnyOfGroupFacet = entityMatchingAnyOfGroupFacetFormula.compute().size();
+							if (entityMatchingAnyOfGroupFacet == 0) {
+								return null;
+							}
 
+							// collect all facet statistics
+							final Map<Integer, EntityClassifier> facetEntitiesIndex = Objects.requireNonNull(facetEntities.get(referenceSchema.getName()));
 							final Stream<FacetAccumulator> facetStream = ofNullable(groupAcc.getFacetSummaryRequest().facetSorter())
 								.map(
 									sorter -> Arrays.stream(getSortedFacets(theFacetStatistics, sorter))
@@ -623,21 +638,11 @@ public class FacetSummaryProducer implements ExtraResultProducer {
 							final Map<Integer, EntityClassifier> groupEntitiesIndex = groupEntities.get(referenceSchema.getName());
 							final EntityClassifier groupEntity = getGroupEntity(groupAcc, referenceSchema, groupEntitiesIndex);
 
-							// compute overall count for group
-							final Formula entityMatchingAnyOfGroupFacetFormula = countCalculator.createGroupCountFormula(
-								referenceSchema, groupAcc.getGroupId(),
-								groupAcc.getFacetStatistics()
-									.values()
-									.stream()
-									.flatMap(it -> it.getFacetEntityIds().stream())
-									.toArray(Bitmap[]::new)
-							);
-
 							return new FacetGroupStatistics(
 								// translate Facet#type to EntitySchema#reference#groupType
 								referenceSchema,
 								groupEntity,
-								entityMatchingAnyOfGroupFacetFormula.compute().size(),
+								entityMatchingAnyOfGroupFacet,
 								facetStatistics
 							);
 						}
