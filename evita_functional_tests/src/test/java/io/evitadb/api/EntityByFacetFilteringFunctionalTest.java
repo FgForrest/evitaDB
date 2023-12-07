@@ -502,6 +502,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.map(session::upsertEntity)
 				.toList();
 
+			session.defineEntitySchema(EMPTY_COLLECTION_ENTITY)
+				.withGeneratedPrimaryKey()
+				.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
+				.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
+				.updateVia(session);
+
 			final SealedEntitySchema productSchema = dataGenerator.getSampleProductSchema(
 				session,
 				schemaBuilder -> {
@@ -509,6 +515,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.withReferenceToEntity(Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_ONE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(Entities.STORE, Entities.STORE, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
+						.withReferenceToEntity(EMPTY_COLLECTION_ENTITY, EMPTY_COLLECTION_ENTITY, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
 						.withReferenceToEntity(
 							Entities.PARAMETER, Entities.PARAMETER,
 							Cardinality.ZERO_OR_MORE,
@@ -526,13 +533,6 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.limit(1000)
 				.map(session::upsertEntity)
 				.toList();
-
-			session.defineEntitySchema(EMPTY_COLLECTION_ENTITY)
-				.withGeneratedPrimaryKey()
-				.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
-				.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::filterable)
-				.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ZERO_OR_MORE, ReferenceSchemaEditor::faceted)
-				.updateVia(session);
 
 			return new DataCarrier(
 				tuple(
@@ -649,12 +649,12 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session -> {
 				final EvitaResponse<EntityReference> result = session.query(
 					query(
-						collection(EMPTY_COLLECTION_ENTITY),
+						collection(Entities.PRODUCT),
 						require(
 							page(1, Integer.MAX_VALUE),
 							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							facetSummaryOfReference(
-								Entities.PRODUCT,
+								EMPTY_COLLECTION_ENTITY,
 								FacetStatisticsDepth.COUNTS,
 								filterBy(
 									referenceHaving(
@@ -663,8 +663,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 											entityHaving(entityPrimaryKeyInSet(1))
 										)
 									)
-								),
-								null
+								)
 							)
 						)
 					),
@@ -1109,6 +1108,14 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 					.stream()
 					.filter(it -> it.getAttribute(ATTRIBUTE_CODE, String.class).compareTo("C") < 0)
 					.mapToInt(EntityContract::getPrimaryKey)
+					.filter(
+						facetId -> originalProductEntities.stream()
+							.anyMatch(
+								it -> it.getReference(Entities.PARAMETER, facetId)
+									.map(ref -> Boolean.FALSE.equals(ref.getAttribute(ATTRIBUTE_TRANSIENT, Boolean.class)))
+									.orElse(false)
+							)
+					)
 					.toArray();
 
 				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
@@ -2150,7 +2157,6 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			collection(Entities.PRODUCT),
 			filterBy(
 				and(
-					hierarchyWithin(Entities.CATEGORY, entityPrimaryKeyInSet(2)),
 					userFilter(
 						facetHaving(Entities.PARAMETER, entityPrimaryKeyInSet(facetIds))
 					)
@@ -2170,10 +2176,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 			session,
 			productSchema,
 			originalProductEntities,
-			sealedEntity -> sealedEntity
-				.getReferences(Entities.CATEGORY)
-				.stream()
-				.anyMatch(category -> isWithinHierarchy(categoryHierarchy, category, 2)),
+			null,
 			query,
 			null,
 			__ -> FacetStatisticsDepth.IMPACT,
