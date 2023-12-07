@@ -128,7 +128,7 @@ public enum GrpcOrderDirection
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(3);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(5);
   }
 
   private static final GrpcOrderDirection[] VALUES = values();

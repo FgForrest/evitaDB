@@ -56,7 +56,7 @@ public class SetAttributeSchemaUniqueMutationConverter extends AttributeSchemaMu
 	protected SetAttributeSchemaUniqueMutation convert(@Nonnull Input input) {
 		return new SetAttributeSchemaUniqueMutation(
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
-			input.getRequiredField(SetAttributeSchemaUniqueMutationDescriptor.UNIQUE)
+			input.getRequiredField(SetAttributeSchemaUniqueMutationDescriptor.UNIQUENESS_TYPE)
 		);
 	}
 }

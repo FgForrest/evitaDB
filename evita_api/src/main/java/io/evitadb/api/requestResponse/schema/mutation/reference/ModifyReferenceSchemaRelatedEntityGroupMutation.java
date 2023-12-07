@@ -107,10 +107,6 @@ public class ModifyReferenceSchemaRelatedEntityGroupMutation
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		if (this.referencedGroupTypeManaged) {
-			// check that the referenced group entity type exists
-			catalogSchema.getEntitySchemaOrThrowException(this.referencedGroupType);
-		}
 		final Optional<ReferenceSchemaContract> existingReferenceSchema = entitySchema.getReference(name);
 		if (existingReferenceSchema.isEmpty()) {
 			// ups, the associated data is missing

@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
@@ -39,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMuta
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -114,36 +116,41 @@ public class RemoveAttributeSchemaMutation implements
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final Optional<GlobalAttributeSchemaContract> existingAttributeSchema = catalogSchema.getAttribute(name);
 		if (existingAttributeSchema.isEmpty()) {
 			// the attribute schema was already removed - or just doesn't exist,
 			// so we can simply return current schema
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
-			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				catalogSchema.getDescription(),
-				catalogSchema.getCatalogEvolutionMode(),
-				catalogSchema.getAttributes().values()
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.getVersion() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					catalogSchema.getDescription(),
+					catalogSchema.getCatalogEvolutionMode(),
+					catalogSchema.getAttributes().values()
+						.stream()
+						.filter(it -> !it.getName().equals(name))
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					entitySchemaAccessor
+				),
+				entitySchemaAccessor
+					.getEntitySchemas()
 					.stream()
-					.filter(it -> !it.getName().equals(name))
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
-						)
-					),
-				catalogSchema instanceof CatalogSchema cs ?
-					cs.getEntitySchemaAccessor() :
-					entityType -> {
-						throw new UnsupportedOperationException(
-							"Mutated schema is not able to provide access to entity schemas!"
-						);
-					}
+					.filter(it -> it.getAttributes().containsKey(name))
+					.map(it -> new ModifyEntitySchemaMutation(
+						it.getName(),
+						this
+					))
+					.toArray(ModifyEntitySchemaMutation[]::new)
 			);
 		}
 	}

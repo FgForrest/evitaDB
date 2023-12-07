@@ -32,7 +32,9 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
@@ -68,9 +70,9 @@ public class SetAttributeSchemaUniqueMutation
 				CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 9015269199183582415L;
 	@Getter @Nonnull private final String name;
-	@Getter private final boolean unique;
+	@Getter @Nonnull private final AttributeUniquenessType unique;
 
-	public SetAttributeSchemaUniqueMutation(@Nonnull String name, boolean unique) {
+	public SetAttributeSchemaUniqueMutation(@Nonnull String name, @Nonnull AttributeUniquenessType unique) {
 		this.name = name;
 		this.unique = unique;
 	}
@@ -107,7 +109,7 @@ public class SetAttributeSchemaUniqueMutation
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
 				unique,
-				globalAttributeSchema.isUniqueGlobally(),
+				globalAttributeSchema.getGlobalUniquenessType(),
 				globalAttributeSchema.isFilterable(),
 				globalAttributeSchema.isSortable(),
 				globalAttributeSchema.isLocalized(),
@@ -155,7 +157,7 @@ public class SetAttributeSchemaUniqueMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
@@ -164,7 +166,7 @@ public class SetAttributeSchemaUniqueMutation
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema
+			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 		);
 	}
 

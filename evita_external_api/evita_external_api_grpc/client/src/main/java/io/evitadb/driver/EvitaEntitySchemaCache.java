@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
@@ -133,7 +134,7 @@ class EvitaEntitySchemaCache {
 	@Nonnull
 	public SealedCatalogSchema getLatestCatalogSchema(
 		@Nonnull Supplier<CatalogSchema> schemaAccessor,
-		@Nonnull Function<String, EntitySchemaContract> entitySchemaAccessor
+		@Nonnull EntitySchemaProvider entitySchemaAccessor
 	) {
 		final long now = System.currentTimeMillis();
 		// frequently apply obsolete check

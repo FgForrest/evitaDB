@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
@@ -106,10 +107,7 @@ import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingInt;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies whether entities can be filtered by facets.
@@ -577,6 +575,69 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				)
 			);
 		});
+	}
+
+	@DisplayName("Should throw exception when accessing localized attributes on fetched entities")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								facetSummary(
+									FacetStatisticsDepth.COUNTS,
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME)
+									)
+								),
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing localized attributes on fetched entities")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReference(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								facetSummaryOfReference(
+									Entities.PARAMETER,
+									FacetStatisticsDepth.COUNTS,
+									entityFetch(
+										attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME)
+									)
+								),
+								page(1, Integer.MAX_VALUE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return empty facet summary for empty collection")

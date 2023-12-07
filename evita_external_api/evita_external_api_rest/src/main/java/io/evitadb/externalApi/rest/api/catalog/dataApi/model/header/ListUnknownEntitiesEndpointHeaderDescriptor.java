@@ -32,7 +32,7 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public interface ListUnknownEntitiesEndpointHeaderDescriptor extends UnknownEntityEndpointHeaderDescriptor, FetchEntityEndpointHeaderDescriptor {
+public interface ListUnknownEntitiesEndpointHeaderDescriptor extends UnknownEntityEndpointHeaderDescriptor {
 
 	PropertyDescriptor LIMIT = PropertyDescriptor.builder()
 		.name("limit")

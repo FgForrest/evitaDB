@@ -93,7 +93,7 @@ orderConstraint
     | 'priceNatural'                        (emptyArgs | args = valueArgs)                                  # priceNaturalConstraint
     | 'random'                              emptyArgs                                                       # randomConstraint
     | 'referenceProperty'                   args = classifierWithOrderConstraintListArgs                    # referencePropertyConstraint
-    | 'entityPrimaryKeyNatural'             args = optionalValueArgs                                        # entityPrimaryKeyExactNatural
+    | 'entityPrimaryKeyNatural'             (emptyArgs | args = valueArgs)                                  # entityPrimaryKeyExactNatural
     | 'entityPrimaryKeyExact'               args = valueListArgs                                            # entityPrimaryKeyExactConstraint
     | 'entityPrimaryKeyInFilter'            emptyArgs                                                       # entityPrimaryKeyInFilterConstraint
     | 'entityProperty'                      args = orderConstraintListArgs                                  # entityPropertyConstraint
@@ -208,8 +208,6 @@ classifierWithOptionalValueArgs :                   ARGS_OPENING classifier = cl
 classifierWithValueListArgs :                       ARGS_OPENING classifier = classifierToken ARGS_DELIMITER values = variadicValueTokens ARGS_CLOSING ;
 
 classifierWithBetweenValuesArgs :                   ARGS_OPENING classifier = classifierToken ARGS_DELIMITER valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken ARGS_CLOSING ;
-
-optionalValueArgs :                                 ARGS_OPENING value = valueToken? ARGS_CLOSING ;
 
 valueArgs :                                         ARGS_OPENING value = valueToken ARGS_CLOSING ;
 

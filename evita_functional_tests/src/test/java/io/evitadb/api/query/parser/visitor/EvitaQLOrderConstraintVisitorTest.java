@@ -345,14 +345,22 @@ class EvitaQLOrderConstraintVisitorTest {
     void shouldParseEntityPrimaryKeyNaturalConstraint() {
         final OrderConstraint constraint1 = parseOrderConstraint("entityPrimaryKeyNatural()");
         assertEquals(entityPrimaryKeyNatural(ASC), constraint1);
+
         final OrderConstraint constraint2 = parseOrderConstraintUnsafe("entityPrimaryKeyNatural(DESC)");
         assertEquals(entityPrimaryKeyNatural(DESC), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraint("entityPrimaryKeyNatural(?)", DESC);
+        assertEquals(entityPrimaryKeyNatural(DESC), constraint3);
+
+        final OrderConstraint constraint4 = parseOrderConstraint("entityPrimaryKeyNatural(@order)", Map.of("order", DESC));
+        assertEquals(entityPrimaryKeyNatural(DESC), constraint4);
     }
 
     @Test
     void shouldNotParseEntityPrimaryKeyNaturalConstraint() {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraintUnsafe("entityPrimaryKeyNatural(1)"));
+        assertThrows(EvitaQLInvalidQueryError.class, () -> parseOrderConstraint("entityPrimaryKeyNatural(DESC)"));
     }
 
     @Test

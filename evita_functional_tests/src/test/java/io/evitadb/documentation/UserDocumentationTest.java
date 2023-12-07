@@ -322,7 +322,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(DocumentationProfile.DEFAULT, it, new ExampleFilter[] {ExampleFilter.CSHARP});
+					final List<DynamicTest> tests = this.createTests(DocumentationProfile.DEFAULT, it, new ExampleFilter[] {ExampleFilter.CSHARP, ExampleFilter.JAVA, ExampleFilter.REST, ExampleFilter.GRAPHQL, ExampleFilter.EVITAQL});
 					if (tests.isEmpty()) {
 						return null;
 					} else {

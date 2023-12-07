@@ -67,7 +67,8 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 			globalAttributeSchema.isUniqueGlobally()) {
 			// when entity type is not known and attribute is unique globally - access catalog index instead
 			return filterByVisitor.applyOnGlobalUniqueIndex(
-				attributeDefinition, index -> {
+				globalAttributeSchema,
+				index -> {
 					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
 						(Serializable) comparableValue, filterByVisitor.getLocale()
 					);

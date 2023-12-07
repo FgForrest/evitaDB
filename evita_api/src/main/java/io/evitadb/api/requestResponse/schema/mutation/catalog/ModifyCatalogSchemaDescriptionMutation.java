@@ -27,6 +27,8 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.utils.Assert;
@@ -54,7 +56,7 @@ import java.util.Objects;
 @Immutable
 @EqualsAndHashCode
 @RequiredArgsConstructor
-public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalogSchemaMutation {
+public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -367741086084429615L;
 	@Nullable @Getter private final String description;
 
@@ -70,25 +72,25 @@ public class ModifyCatalogSchemaDescriptionMutation implements CombinableCatalog
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog doesn't exist!")
 		);
 		if (Objects.equals(description, catalogSchema.getDescription())) {
 			// nothing has changed - we can return existing schema
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
-			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				description,
-				catalogSchema.getCatalogEvolutionMode(),
-				catalogSchema.getAttributes(),
-				entityType -> {
-					throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-				}
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.getVersion() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					description,
+					catalogSchema.getCatalogEvolutionMode(),
+					catalogSchema.getAttributes(),
+					entitySchemaAccessor
+				)
 			);
 		}
 	}

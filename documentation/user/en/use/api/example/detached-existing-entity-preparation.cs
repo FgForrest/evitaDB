@@ -1,0 +1,1 @@
+Entity existingEntity = (Entity) new InitialEntityBuilder("brand", 1).ToInstance();

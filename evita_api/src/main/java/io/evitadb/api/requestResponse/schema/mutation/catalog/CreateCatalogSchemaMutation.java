@@ -63,18 +63,18 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.isTrue(
 			catalogSchema == null,
 			() -> new InvalidSchemaMutationException("Catalog `" + catalogName + "` already exists!")
 		);
-		return CatalogSchema._internalBuild(
-			catalogName,
-			NamingConvention.generate(catalogName),
-			EnumSet.allOf(CatalogEvolutionMode.class),
-			entityType -> {
-				throw new UnsupportedOperationException("Mutated catalog schema can't provide access to entity schemas!");
-			}
+		return new CatalogSchemaWithImpactOnEntitySchemas(
+			CatalogSchema._internalBuild(
+				catalogName,
+				NamingConvention.generate(catalogName),
+				EnumSet.allOf(CatalogEvolutionMode.class),
+				MutationEntitySchemaAccessor.INSTANCE
+			)
 		);
 	}
 
@@ -83,5 +83,5 @@ public class CreateCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 		return "Create catalog: " +
 			"catalogName='" + catalogName + '\'';
 	}
-	
+
 }

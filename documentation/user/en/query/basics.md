@@ -223,12 +223,12 @@ character:
 <dl>
   <dt>`argument:string+`</dt>
   <dd>
-    argument at this position accepts an array of [Strings](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+    argument at this position accepts an array of <LanguageSpecific to="evitaql,java,rest,graphql">[Strings](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[strings](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
     that has to have at least one item
   </dd>
   <dt>`argument:int*`</dt>
   <dd>
-    argument at this position accepts an array of [ints](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
+    argument at this position accepts an array of <LanguageSpecific to="evitaql,java,rest,graphql">[ints](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific><LanguageSpecific to="csharp">[ints](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
     and may have zero or multiple items
   </dd>
   <dt>`filterConstraint:any*`</dt>
@@ -253,12 +253,12 @@ Mandatory argument is denoted by `!` (exclamation) sign or in case of variadic a
 <dl>
   <dt>`argument:string`</dt>
   <dd>
-    argument at this position accepts a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+    argument at this position accepts a <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
     value, that may be null
   </dd>
   <dt>`argument:int!`</dt>
   <dd>
-    argument at this position accepts an [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)
+    argument at this position accepts an <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific><LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
     value that is mandatory and must be provided
   </dd>
 </dl>
@@ -323,7 +323,7 @@ the automatic conversion.
 If the constraint targets an attribute that is of array type, the constraint automatically matches an entity in case
 **any** of the attribute array items satisfies it.
 
-For example let's have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+For example let's have a <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
 array attribute named `oneDayDeliveryCountries` with the following values: `GB`, `FR`, `CZ`. The filtering constraint
 [`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: <LanguageSpecific to="evitaql,java,csharp">`attributeEquals("oneDayDeliveryCountries", "GB")`</LanguageSpecific>
 <LanguageSpecific to="graphql">`attributeOneDayDeliveryCountriesEquals: "GB"`</LanguageSpecific>
@@ -383,7 +383,7 @@ Constant constraints directly specify the entity primary keys that are expected 
 ### Localization constraints
 
 Localization constraints allow you to narrow down the [localized attributes](../use/data-model.md#localized-attributes)
-to a single [locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html), which is used
+to a single <LanguageSpecific to="evitaql,java,rest,graphql">[locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LanguageSpecific><LanguageSpecific to="csharp">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LanguageSpecific>, which is used
 to pick the correct values for comparison in other filter constraints that target those attributes:
 
 - [entity locale equals](filtering/locale.md#entity-locale-equals)
@@ -404,8 +404,8 @@ the resulting output to only include values that satisfy the constraint.
 
 ### String constraints
 
-String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
-[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) attribute datatype and
+String constraints are similar to [Comparable](#comparable-constraints), but operate only on the 
+<LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> attribute datatype and
 allow operations specific to it:
 
 - [attribute contains](filtering/string.md#attribute-contains)
@@ -415,7 +415,7 @@ allow operations specific to it:
 ### Range constraints
 
 String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
-<SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass> attribute datatype and
+<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass></LanguageSpecific><LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass></LanguageSpecific> attribute datatype and
 allow operations specific to it:
 
 - [attribute in range](filtering/range.md#attribute-in-range)
@@ -497,7 +497,7 @@ the output.
 ### Fetching (completeness)
 
 Fetching requirements control the completeness of the returned entities. <LanguageSpecific to="evitaql,java,rest,csharp">By default, only a
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
+<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass></LanguageSpecific>
 is returned in query response.</LanguageSpecific> In order an entity body is returned, some of the following requirements needs to be part
 of it:
 

@@ -918,7 +918,10 @@ public class EntityInterfaceProxyingFunctionalTest extends AbstractEntityProxyin
 						referenceContentAllWithAttributes(
 							entityFetch(
 								hierarchyContent(
-									entityFetchAll()
+									entityFetch(
+										attributeContentAll(),
+										associatedDataContentAll()
+									)
 								),
 								attributeContentAll(),
 								associatedDataContentAll()

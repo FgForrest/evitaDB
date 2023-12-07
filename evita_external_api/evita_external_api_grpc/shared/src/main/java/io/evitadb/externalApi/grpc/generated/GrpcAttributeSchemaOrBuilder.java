@@ -142,16 +142,33 @@ public interface GrpcAttributeSchemaOrBuilder extends
    * better to have this ensured by the database engine.
    * </pre>
    *
-   * <code>bool unique = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 5;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  int getUniqueValue();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 5;</code>
    * @return The unique.
    */
-  boolean getUnique();
+  io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
 
   /**
-   * <code>bool uniqueGlobally = 6;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 6;</code>
+   * @return The enum numeric value on the wire for uniqueGlobally.
+   */
+  int getUniqueGloballyValue();
+  /**
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 6;</code>
    * @return The uniqueGlobally.
    */
-  boolean getUniqueGlobally();
+  io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
 
   /**
    * <pre>

@@ -36,18 +36,20 @@ hierarchy tree, as you actually need it for your particular user interface use c
 
 There are two type of top hierarchy requirements:
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
 <dl>
     <dt>[`hierarchyOfSelf`](#hierarchy-of-self)</dt>
     <dd>
-        realized by <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyOfSelf.java</SourceClass>
+        realized by <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyOfSelf.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/HierarchyOfSelf.cs</SourceClass></LanguageSpecific>
         and is used to compute data structures from the data of the directly queried hierarchical entity
     </dd>
     <dt>[`hierarchyOfReference`](#hierarchy-of-reference)</dt>
     <dd>
-        realized by <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyOfReference.java</SourceClass>
+        realized by <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyOfReference.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/HierarchyOfReference.cs</SourceClass></LanguageSpecific>
         and is used to compute data structures from the data of the entities referencing hierarchical entity
     </dd>
 </dl>
+</LanguageSpecific>
 
 These top hierarchy requirements must have at least one of the following hierarchy sub-constraints:
 </LanguageSpecific>
@@ -68,11 +70,12 @@ Either way, you can then request one or more of the following hierarchy data str
 
 #### Constraint to result association
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LanguageSpecific to="evitaql,java,rest,csharp">
+
 There can be multiple sub-constraints, and each constraint can be duplicated (usually with different settings).
-Each hierarchy sub-constraint defines a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)
+Each hierarchy sub-constraint defines a <LanguageSpecific to="evitaql,java,rest">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> 
 argument with a named value that allows to associate the request constraint with the computed result data structure
-in <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
+in <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/Hierarchy.cs</SourceClass></LanguageSpecific>
 extra result.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
@@ -108,8 +111,9 @@ returns menu items that contain direct children of the *Audio* category and its 
 [Hierarchy request association](/documentation/user/en/query/requirements/examples/hierarchy/hierarchy-data-structure-association.java)
 </SourceCodeTabs>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
-Both menu components are stored in the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
+<LanguageSpecific to="evitaql,java,rest,csharp">
+
+Both menu components are stored in the <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/Hierarchy.cs</SourceClass></LanguageSpecific>
 extra result data structure and are available under the labels that correspond to those used in request constraints.
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
@@ -150,8 +154,9 @@ hierarchyOfSelf(
 <dl>
     <dt>orderConstraint:any</dt>
     <dd>
-        optional ordering constraint that allows you to specify an order of
-        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
+        optional ordering constraint that allows you to specify an order of 
+        <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass></LanguageSpecific>
+        <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/Hierarchy.cs</SourceClass></LanguageSpecific>
         `LevelInfo` elements in the result hierarchy data structure
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
@@ -168,8 +173,9 @@ hierarchyOfSelf(
     </dd>
 </dl>
 
-The requirement triggers the calculation of the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> data
+The requirement triggers the calculation of the 
+<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/Hierarchy.cs</SourceClass></LanguageSpecific> data 
 structure for the hierarchy of which it is a part.
 
 The hierarchy of self can still be combined with [`hierarchyOfReference`](#hierarchy-of-reference) if the queried entity
@@ -228,7 +234,7 @@ hierarchyOfReference(
     </dd>
     <dt>argument:enum(LEAVE_EMPTY|REMOVE_EMPTY)</dt>
     <dd>
-        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EmptyHierarchicalEntityBehaviour.java</SourceClass>
+        optional argument of type <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EmptyHierarchicalEntityBehaviour.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/EmptyHierarchicalEntityBehaviour.cs</SourceClass></LanguageSpecific>
         enum allowing you to specify whether or not to return empty hierarchical entities (e.g., those that do not have
         any queried entities that satisfy the current query filter constraint assigned to them - either directly or
         transitively):
@@ -238,9 +244,11 @@ hierarchyOfReference(
     </dd>
     <dt>orderConstraint:any</dt>
     <dd>
-        optional ordering constraint that allows you to specify an order of
-        <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass>
-        `LevelInfo` elements in the result hierarchy data structure
+        optional ordering constraint that allows you to specify an order of 
+                <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass></LanguageSpecific>
+                <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/Hierarchy.cs</SourceClass></LanguageSpecific>
+                `LevelInfo` elements in the result hierarchy data structure
+        
     </dd>
     <dt>requireConstraint:(fromRoot|fromNode|siblings|children|parents)+</dt>
     <dd>
@@ -257,8 +265,9 @@ hierarchyOfReference(
 </dl>
 
 The requirement triggers the calculation of the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass> data
-structure for the hierarchies of the [referenced entity type](../../use/schema.md#reference).
+<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/Hierarchy.java</SourceClass></LanguageSpecific>
+<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/Hierarchy.cs</SourceClass></LanguageSpecific>
+data structure for the hierarchies of the [referenced entity type](../../use/schema.md#reference).
 
 The hierarchy of reference can still be combined with [`hierarchyOfSelf`](#hierarchy-of-self) if the queried entity
 is a hierarchical entity that is also connected to another hierarchical entity. Such situations are rather sporadic in
@@ -319,8 +328,9 @@ fromRoot(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
-        specifying the output name for the calculated data structure
+        mandatory <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+        <LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> argument
+        specifying the output name for the calculated data structure 
         (see [constraint to result association](#constraint-to-result-association))
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
@@ -418,8 +428,9 @@ fromNode(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
-        specifying the output name for the calculated data structure
+        mandatory <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+        <LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> argument
+        specifying the output name for the calculated data structure 
         (see [constraint to result association](#constraint-to-result-association))
     </dd>
     <dt>requireConstraint:node!</dt>
@@ -518,8 +529,9 @@ children
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
-        specifying the output name for the calculated data structure
+        mandatory <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+        <LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> argument
+        specifying the output name for the calculated data structure 
         (see [constraint to result association](#constraint-to-result-association))
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
@@ -612,8 +624,9 @@ parents
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
-        specifying the output name for the calculated data structure
+        mandatory <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+        <LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> argument
+        specifying the output name for the calculated data structure 
         (see [constraint to result association](#constraint-to-result-association))
     </dd>
     <dt>requireConstraint:(siblings|entityFetch|stopAt|statistics)*</dt>
@@ -779,8 +792,9 @@ you can still define custom [`stopAt`](#stop-at) argument specific to siblings w
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        mandatory [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) argument
-        specifying the output name for the calculated data structure
+        mandatory <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific>
+        <LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> argument
+        specifying the output name for the calculated data structure 
         (see [constraint to result association](#constraint-to-result-association))
     </dd>
     <dt>requireConstraint:(entityFetch|stopAt|statistics)*</dt>
@@ -1171,9 +1185,8 @@ statistics(
 <dl>
     <dt>argument:enum(COMPLETE_FILTER|WITHOUT_USER_FILTER)</dt>
     <dd>
-        optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsBase.java</SourceClass>
+        optional argument of type <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsBase.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/StatisticsBase.cs</SourceClass></LanguageSpecific>
         enum allowing you to specify the base queried entity set that is the source for statistics calculations:
-
         - **COMPLETE_FILTER**: complete filtering query constraint
         - **WITHOUT_USER_FILTER**: filtering query constraint where the contents of optional
             [`userFilter`](../filtering/behavioral.md#user-filter) are ignored
@@ -1185,7 +1198,7 @@ statistics(
     </dd>
     <dt>argument:enum(CHILDREN_COUNT|QUERIED_ENTITY_COUNT)+</dt>
     <dd>
-        mandatory argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsType.java</SourceClass>
+        mandatory argument of type <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/StatisticsType.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/StatisticsType.cs</SourceClass></LanguageSpecific> 
         enum that specifies which statistics to compute for each node in the returned hierarchy:
 
         - **CHILDREN_COUNT**: triggers calculation of the count of child hierarchy nodes that exist in the hierarchy

@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
 import lombok.AllArgsConstructor;
@@ -97,6 +98,34 @@ public class UseGlobalAttributeSchemaMutation implements EntityAttributeSchemaMu
 				entitySchema.getCurrencies(),
 				Stream.concat(
 						entitySchema.getAttributes().values().stream(),
+						Stream.of(newAttributeSchema)
+					)
+					.collect(
+						Collectors.toMap(
+							AttributeSchemaContract::getName,
+							Function.identity()
+						)
+					),
+				entitySchema.getAssociatedData(),
+				entitySchema.getReferences(),
+				entitySchema.getEvolutionMode(),
+				entitySchema.getSortableAttributeCompounds()
+			);
+		} else if (existingAttributeSchema instanceof GlobalAttributeSchema) {
+			return EntitySchema._internalBuild(
+				entitySchema.version() + 1,
+				entitySchema.getName(),
+				entitySchema.getNameVariants(),
+				entitySchema.getDescription(),
+				entitySchema.getDeprecationNotice(),
+				entitySchema.isWithGeneratedPrimaryKey(),
+				entitySchema.isWithHierarchy(),
+				entitySchema.isWithPrice(),
+				entitySchema.getIndexedPricePlaces(),
+				entitySchema.getLocales(),
+				entitySchema.getCurrencies(),
+				Stream.concat(
+						entitySchema.getAttributes().values().stream().filter(it -> !it.getName().equals(name)),
 						Stream.of(newAttributeSchema)
 					)
 					.collect(

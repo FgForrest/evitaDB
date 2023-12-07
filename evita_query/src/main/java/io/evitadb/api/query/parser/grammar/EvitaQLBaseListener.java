@@ -1829,18 +1829,6 @@ public class EvitaQLBaseListener implements EvitaQLListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
-	@Override public void enterOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
-	@Override public void exitOptionalValueArgs(EvitaQLParser.OptionalValueArgsContext ctx) { }
-	/**
-	 * {@inheritDoc}
-	 *
-	 * <p>The default implementation does nothing.</p>
-	 */
 	@Override public void enterValueArgs(EvitaQLParser.ValueArgsContext ctx) { }
 	/**
 	 * {@inheritDoc}

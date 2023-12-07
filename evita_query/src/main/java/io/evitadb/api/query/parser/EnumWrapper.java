@@ -75,7 +75,7 @@ public class EnumWrapper implements Serializable, Comparable<EnumWrapper> {
 		return Arrays.stream(targetEnum.getEnumConstants())
 			.filter(enumValue -> enumValue.name().equals(value))
 			.findFirst()
-			.orElseThrow(() -> new EvitaInvalidUsageException("Unknown enum " + targetEnum + " value: " + value));
+			.orElseThrow(() -> new EvitaInvalidUsageException("Unknown value `" + value + "` for enum `" + targetEnum.getSimpleName() + "`."));
 	}
 
 	/**

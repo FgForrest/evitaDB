@@ -267,7 +267,10 @@ public interface EntityCollectionContract {
 	 * @throws SchemaAlteringException signalizing that the schema alteration has failed and was not applied
 	 */
 	@Nonnull
-	SealedEntitySchema updateSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaMutation... schemaMutation) throws SchemaAlteringException;
+	SealedEntitySchema updateSchema(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaMutation... schemaMutation
+	) throws SchemaAlteringException;
 
 	/**
 	 * Returns catalog entity header version that is incremented with each update. Version is not stored on the disk,

@@ -108,11 +108,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@Nonnull
 	final ComparatorSource[] comparatorBase;
 	/**
-	 * Contains locale of the index that affects the sorting algorithm.
-	 * May be NULL for non-localized attributes.
+	 * Contains key identifying the attribute.
 	 */
-	@Nullable
-	@Getter private final Locale locale;
+	@Getter private final AttributeKey attributeKey;
 	/**
 	 * This is internal flag that tracks whether the index contents became dirty and needs to be persisted.
 	 */
@@ -253,7 +251,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@SuppressWarnings("unchecked")
 	public <T extends Comparable<T>> SortIndex(
 		@Nonnull Class<?> attributeType,
-		@Nullable Locale locale
+		@Nonnull AttributeKey attributeKey
 	) {
 		assertComparable(attributeType);
 		this.dirty = new TransactionalBoolean();
@@ -264,9 +262,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 				OrderBehaviour.NULLS_LAST
 			)
 		};
-		this.locale = locale;
+		this.attributeKey = attributeKey;
 		this.normalizer = createStringNormalizer(this.comparatorBase[0]);
-		this.comparator = createComparatorFor(this.locale, this.comparatorBase[0]);
+		this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
 		this.sortedRecords = new TransactionalUnorderedIntArray();
 		//noinspection rawtypes
 		this.sortedRecordsValues = new TransactionalObjArray<>((T[]) Array.newInstance(attributeType, 0), (Comparator) this.comparator);
@@ -276,7 +274,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@SuppressWarnings("unchecked")
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorSources,
-		@Nullable Locale locale
+		@Nonnull AttributeKey attributeKey
 	) {
 		isTrue(
 			comparatorSources.length > 1,
@@ -284,9 +282,9 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		);
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = comparatorSources;
-		this.locale = locale;
+		this.attributeKey = attributeKey;
 		this.normalizer = createNormalizerFor(this.comparatorBase);
-		this.comparator = createCombinedComparatorFor(this.locale, this.comparatorBase);
+		this.comparator = createCombinedComparatorFor(this.attributeKey.locale(), this.comparatorBase);
 		this.sortedRecords = new TransactionalUnorderedIntArray();
 		//noinspection rawtypes
 		this.sortedRecordsValues = new TransactionalObjArray<>(new ComparableArray[0], (Comparator) this.comparator);
@@ -296,7 +294,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public SortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
-		@Nullable Locale locale,
+		@Nonnull AttributeKey attributeKey,
 		@Nonnull int[] sortedRecords,
 		@Nonnull Comparable<?>[] sortedRecordValues,
 		@Nonnull Map<Comparable<?>, Integer> cardinalities
@@ -306,13 +304,13 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		for (ComparatorSource comparatorSource : comparatorBase) {
 			assertComparable(comparatorSource.type());
 		}
-		this.locale = locale;
+		this.attributeKey = attributeKey;
 		if (this.comparatorBase.length == 1) {
 			this.normalizer = createStringNormalizer(this.comparatorBase[0]);
-			this.comparator = createComparatorFor(this.locale, this.comparatorBase[0]);
+			this.comparator = createComparatorFor(this.attributeKey.locale(), this.comparatorBase[0]);
 		} else {
 			this.normalizer = createNormalizerFor(this.comparatorBase);
-			this.comparator = createCombinedComparatorFor(this.locale, this.comparatorBase);
+			this.comparator = createCombinedComparatorFor(this.attributeKey.locale(), this.comparatorBase);
 		}
 		this.sortedRecords = new TransactionalUnorderedIntArray(sortedRecords);
 		this.sortedRecordsValues = new TransactionalObjArray(sortedRecordValues, this.comparator);
@@ -575,12 +573,12 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 * Method creates container for storing sort index from memory to the persistent storage.
 	 */
 	@Nullable
-	public StoragePart createStoragePart(int entityIndexPrimaryKey, AttributeKey attribute) {
+	public StoragePart createStoragePart(int entityIndexPrimaryKey) {
 		if (this.dirty.isTrue()) {
 			// all data are persisted to disk - we may get rid of temporary, modification only helper container
 			this.sortIndexChanges = null;
 			return new SortIndexStoragePart(
-				entityIndexPrimaryKey, attribute, comparatorBase,
+				entityIndexPrimaryKey, attributeKey, comparatorBase,
 				getSortedRecords(), getSortedRecordValues(), valueCardinalities
 			);
 		} else {
@@ -618,7 +616,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
 		return new SortIndex(
 			this.comparatorBase,
-			this.locale,
+			this.attributeKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues, transaction),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities, transaction)

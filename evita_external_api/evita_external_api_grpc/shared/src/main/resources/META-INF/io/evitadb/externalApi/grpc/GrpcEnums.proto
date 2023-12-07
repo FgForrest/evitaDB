@@ -23,6 +23,33 @@ enum GrpcCatalogState {
   ALIVE = 1;
 }
 
+// This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
+// value must be unique among all the entity attributes of this type or whether it must be unique only among attributes
+// of the same locale.
+enum GrpcAttributeUniquenessType {
+  // The attribute is not unique (default).
+  NOT_UNIQUE = 0;
+  // The attribute value must be unique among all the entities of the same collection.
+  UNIQUE_WITHIN_COLLECTION = 1;
+  // The localized attribute value must be unique among all values of the same {@link Locale} among all the entities
+  // using of the same collection.
+  UNIQUE_WITHIN_COLLECTION_LOCALE = 2;
+}
+
+// This enum represents the uniqueness type of an {@link GlobalAttributeSchema}. It is used to determine whether
+// the attribute value must be unique among all the entities using this {@link GlobalAttributeSchema} or whether it
+// must be unique only among entities of the same locale.
+enum GrpcGlobalAttributeUniquenessType {
+  // The attribute is not unique (default).
+  NOT_GLOBALLY_UNIQUE = 0;
+  // The attribute value (either localized or non-localized) must be unique among all values among all the entities
+  // using this {@link GlobalAttributeSchema} in the entire catalog.
+  UNIQUE_WITHIN_CATALOG = 1;
+  // The localized attribute value must be unique among all values of the same {@link Locale} among all the entities
+  // using this {@link GlobalAttributeSchema} in the entire catalog.
+  UNIQUE_WITHIN_CATALOG_LOCALE = 2;
+}
+
 // Determines which price will be used for filtering.
 enum GrpcQueryPriceMode {
   // Price computation operations will use actual price with tax added for filtering.

@@ -159,8 +159,8 @@ message GrpcAttributeSchema {
   //
   // As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
   // better to have this ensured by the database engine.
-  bool unique = 5;
-  bool uniqueGlobally = 6;
+  GrpcAttributeUniquenessType unique = 5;
+  GrpcGlobalAttributeUniquenessType uniqueGlobally = 6;
   // When attribute is filterable, it is possible to filter entities by this attribute. Do not mark attribute
   // as filterable unless you know that you'll search entities by this attribute. Each filterable attribute occupies
   // (memory/disk) space in the form of index.

@@ -67,7 +67,8 @@ public class HierarchyFromRootTranslator
 				context,
 				createEntityFetcher(
 					fromRoot.getEntityFetch().orElse(null),
-					producer.getContext(fromRoot.getName())
+					producer.getContext(fromRoot.getName()),
+					extraResultPlanningVisitor
 				),
 				context.hierarchyFilterPredicateProducer(),
 				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
