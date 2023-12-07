@@ -72,6 +72,7 @@ import java.io.Serializable;
 	name = "having",
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match the inner filter constraint. This container resembles the SQL inner join clauses.",
+	userDocsLink = "/documentation/query/filtering/references#reference-having",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer {

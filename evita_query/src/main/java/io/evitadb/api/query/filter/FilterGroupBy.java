@@ -63,6 +63,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "filterGroupBy",
 	shortDescription = "The container encapsulating filter constraint limiting the facet groups returned in facet summary.",
+	userDocsLink = "/documentation/query/basics#filter-by",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class FilterGroupBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

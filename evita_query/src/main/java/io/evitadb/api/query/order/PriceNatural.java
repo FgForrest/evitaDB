@@ -55,6 +55,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "natural",
 	shortDescription = "The constraint sorts returned entities by selected price for sale.",
+	userDocsLink = "/documentation/query/ordering/price#price-natural",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceConstraint<OrderConstraint> {

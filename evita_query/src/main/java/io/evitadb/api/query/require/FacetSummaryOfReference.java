@@ -122,7 +122,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "summary",
-	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with custom \"fetching\" settings for specific reference."
+	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with custom \"fetching\" settings for specific reference.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-summary-of-reference"
 )
 public class FacetSummaryOfReference extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 2377379601711709241L;

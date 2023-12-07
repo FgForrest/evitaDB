@@ -58,6 +58,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "greaterThanEquals",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is greater than or equals to the passed value.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-greater-than-equals",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

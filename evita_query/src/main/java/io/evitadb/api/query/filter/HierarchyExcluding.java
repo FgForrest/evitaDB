@@ -126,6 +126,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "excluding",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to exclude specified hierarchy subtrees from search.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#excluding",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyExcluding extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {

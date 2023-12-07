@@ -56,7 +56,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "strip",
-	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned."
+	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned.",
+	userDocsLink = "/documentation/query/requirements/paging#strip"
 )
 public class Strip extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

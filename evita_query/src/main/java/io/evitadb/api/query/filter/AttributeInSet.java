@@ -67,6 +67,7 @@ import java.util.Arrays;
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute " +
 		"equals to at least one of the passed values. " +
 		"The constraint is equivalent to the multiple `equals` constraints combined with logical OR.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-in-set",
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

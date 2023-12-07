@@ -73,6 +73,7 @@ import java.util.stream.Stream;
 @ConstraintDefinition(
 	name = "fetch",
 	shortDescription = "Returns richer entities instead of just entity references (empty container returns only entity body).",
+	userDocsLink = "/documentation/query/requirements/fetching#entity-fetch",
 	supportedIn = {ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.FACET}
 )
 public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {

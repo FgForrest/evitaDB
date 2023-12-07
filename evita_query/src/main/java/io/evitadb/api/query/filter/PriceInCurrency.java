@@ -52,6 +52,7 @@ import java.util.Currency;
 @ConstraintDefinition(
 	name = "inCurrency",
 	shortDescription = "The constraint filters out all entities that lack selling price in specified currency.",
+	userDocsLink = "/documentation/query/filtering/price#price-in-currency",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceInCurrency extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {

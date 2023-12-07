@@ -93,6 +93,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "and",
 	shortDescription = "The container that combines inner constraints with [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
+	userDocsLink = "/documentation/query/filtering/logical#and",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class And extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

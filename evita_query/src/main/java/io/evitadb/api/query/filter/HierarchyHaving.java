@@ -137,6 +137,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "having",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to include specified hierarchy subtrees from search.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#having",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyHaving extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {

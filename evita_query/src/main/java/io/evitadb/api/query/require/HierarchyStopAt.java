@@ -55,6 +55,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "stopAt",
 	shortDescription = "The constraint defines the traversal stop condition that limits the scope of the returned hierarchy tree.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#stop-at",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyStopAt extends AbstractRequireConstraintContainer implements HierarchyOutputRequireConstraint {

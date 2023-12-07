@@ -68,6 +68,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity attributes into the returned entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#attribute-content",
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

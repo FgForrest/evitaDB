@@ -404,7 +404,7 @@ the resulting output to only include values that satisfy the constraint.
 
 ### String constraints
 
-String constraints are similar to [Comparable](#comparable-constraints), but operate only on the 
+String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
 <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> attribute datatype and
 allow operations specific to it:
 
@@ -448,6 +448,7 @@ filtering of entities by the fact that they refer to a particular part of the tr
 - [hierarchy within root](filtering/hierarchy.md#hierarchy-within-root)
 - [excluding root](filtering/hierarchy.md#excluding-root)
 - [excluding](filtering/hierarchy.md#excluding)
+- [having](filtering/hierarchy.md#having)
 - [direct relation](filtering/hierarchy.md#direct-relation)
 
 ### Special constraints
@@ -462,10 +463,11 @@ calculations:
 Order constraints allow you to define a rule that controls the order of entities in the response. It's similar to the
 "order by" clause in SQL. Currently, these ordering constraints are available for use:
 
-- [entityPrimaryKeyInFilter](ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
-- [entityPrimaryKeyExact](ordering/constant.md#exact-entity-primary-key-order)
-- [attributeSetInFilter](ordering/constant.md#exact-entity-attribute-value-order-used-in-filter)
-- [attributeSetExact](ordering/constant.md#exact-entity-attribute-value-order)
+- [entity primary key in filter](ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
+- [entity primary key exact](ordering/constant.md#exact-entity-primary-key-order)
+- [entity primary key natural](ordering/comparable.md#primary-key-natural)
+- [attribute set in filter](ordering/constant.md#exact-entity-attribute-value-order-used-in-filter)
+- [attribute set exact](ordering/constant.md#exact-entity-attribute-value-order)
 - [attribute natural](ordering/comparable.md#attribute-natural)
 - [price natural](ordering/price.md#price-natural)
 - [reference property](ordering/reference.md#reference-property)
@@ -502,13 +504,14 @@ is returned in query response.</LanguageSpecific> In order an entity body is ret
 of it:
 
 - [entity fetch](requirements/fetching.md#entity-fetch)
+- [entity group fetch](requirements/fetching.md#entity-group-fetch)
 - [attribute content](requirements/fetching.md#attribute-content)
 - [associated data content](requirements/fetching.md#associated-data-content)
 - [price content](requirements/fetching.md#price-content)
 - [reference content](requirements/fetching.md#reference-content)
 - [hierarchy content](requirements/fetching.md#hierarchy-content)
 <LanguageSpecific to="evitaql,java,rest,csharp">
-- [data in locale](requirements/fetching.md#data-in-locale)
+- [data in locale](requirements/fetching.md#data-in-locales)
 </LanguageSpecific>
 
 ### Hierarchy
@@ -537,6 +540,9 @@ the summary could include a calculation of how many entities will be left when t
 the filter:
 
 - [facet summary](requirements/facet.md#facet-summary)
+<LanguageSpecific to="evitaql,java,rest,csharp">
+- [facet summary of reference](requirements/facet.md#facet-summary-of-reference)
+</LanguageSpecific>
 - [facet conjunction](requirements/facet.md#facet-groups-conjunction)
 - [facet disjunction](requirements/facet.md#facet-groups-disjunction)
 - [facet negation](requirements/facet.md#facet-groups-negation)

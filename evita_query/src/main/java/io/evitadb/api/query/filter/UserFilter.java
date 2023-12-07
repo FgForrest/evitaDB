@@ -67,6 +67,7 @@ import java.util.stream.Collectors;
 	shortDescription = "The container for constraints that are controlled by the user (client UI widgets). " +
 		"It is used mainly to distinguish between user constraint (refining the search) and program defined " +
 		"constraints (considered mandatory), when the extra results are computed.",
+	userDocsLink = "/documentation/query/filtering/behavioral#user-filter",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class UserFilter extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

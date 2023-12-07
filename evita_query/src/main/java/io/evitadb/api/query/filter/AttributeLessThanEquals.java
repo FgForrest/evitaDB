@@ -58,6 +58,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "lessThanEquals",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is less than or equals to the passed value.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-less-than-equals",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

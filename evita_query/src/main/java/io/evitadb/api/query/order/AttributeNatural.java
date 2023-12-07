@@ -81,6 +81,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
     name = "natural",
     shortDescription = "The constraint sorts returned entities by natural ordering of the values in the specified attribute.",
+    userDocsLink = "/documentation/query/ordering/comparable#attribute-natural",
     supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
     supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )

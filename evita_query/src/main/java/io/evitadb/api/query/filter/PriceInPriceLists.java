@@ -65,6 +65,7 @@ import java.util.Arrays;
 	shortDescription = "The constraint filters out all entities that lack selling price in specified price lists. " +
 		"Order of price lists also defines priority for selecting the entity selling price - the price from first price " +
 		"list in the list will be used as a selling price for the entire entity.",
+	userDocsLink = "/documentation/query/filtering/price#price-in-price-lists",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {

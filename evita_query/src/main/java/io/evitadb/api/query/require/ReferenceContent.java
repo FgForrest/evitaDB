@@ -154,6 +154,7 @@ import static java.util.Optional.ofNullable;
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#reference-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceContent extends AbstractRequireConstraintContainer

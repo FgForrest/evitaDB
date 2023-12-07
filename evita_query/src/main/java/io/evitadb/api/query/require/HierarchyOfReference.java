@@ -84,7 +84,8 @@ import static java.util.Optional.ofNullable;
  */
 @ConstraintDefinition(
 	name = "ofReference",
-	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response."
+	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-reference"
 )
 public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	implements RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {

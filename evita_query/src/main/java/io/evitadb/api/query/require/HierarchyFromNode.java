@@ -130,6 +130,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "fromNode",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at pivot node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#from-node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyFromNode extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

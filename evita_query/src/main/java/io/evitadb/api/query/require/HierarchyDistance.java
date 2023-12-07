@@ -78,6 +78,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "distance",
 	shortDescription = "The constraint limits the traversing in stop at container at specified distance (number of nodes in path).",
+	userDocsLink = "/documentation/query/requirements/hierarchy#distance",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyDistance extends AbstractRequireConstraintLeaf implements HierarchyStopAtRequireConstraint {

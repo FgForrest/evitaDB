@@ -100,6 +100,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "excludingRoot",
 	shortDescription = "The constraint limits hierarchy within parent constraint to exclude the entities directly related to the searched root node.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#excluding-root",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyExcludingRoot extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {

@@ -84,6 +84,7 @@ import java.util.EnumSet;
 @ConstraintDefinition(
 	name = "statistics",
 	shortDescription = "The constraint triggers computing the count of children for each returned hierarchy node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#statistics",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements HierarchyOutputRequireConstraint {

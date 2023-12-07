@@ -81,7 +81,8 @@ import java.util.Optional;
 @ConstraintDefinition(
 	name = "groupsNegation",
 	shortDescription = "[Negates](https://en.wikipedia.org/wiki/Negation) the meaning of selected facets in specified " +
-		"facet groups in the sense that their selection would return entities that don't have any of those facets."
+		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
 )
 public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;

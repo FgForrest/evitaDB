@@ -113,6 +113,7 @@ import static java.util.Optional.ofNullable;
 @ConstraintDefinition(
 	name = "within",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree (or has reference to any hierarchical entity in the tree).",
+	userDocsLink = "/documentation/query/filtering/hierarchy#hierarchy-within",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithin extends AbstractFilterConstraintContainer

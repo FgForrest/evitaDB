@@ -93,6 +93,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "or",
 	shortDescription = "The container that combines inner constraints with [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction).",
+	userDocsLink = "/documentation/query/filtering/logical#or",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class Or extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

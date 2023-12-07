@@ -59,6 +59,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "validIn",
 	shortDescription = "The constraint checks if entity has selling price valid at the passed moment.",
+	userDocsLink = "/documentation/filtering/price#price-valid-in",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceValidIn extends AbstractFilterConstraintLeaf

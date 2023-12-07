@@ -109,6 +109,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "children",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at currently requested hierarchy node in filter by constraint.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#children",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyChildren extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

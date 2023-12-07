@@ -106,6 +106,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "parents",
 	shortDescription = "The constraint triggers computing the hierarchy parent axis starting at currently requested hierarchy node in filter by constraint.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#parents",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyParents extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

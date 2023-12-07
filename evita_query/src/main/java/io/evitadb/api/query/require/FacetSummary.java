@@ -127,7 +127,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "summary",
-	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with default \"fetching\" settings for all referenced entities."
+	shortDescription = "The constraint triggers computation of facet summary of all facet in searched scope into response with default \"fetching\" settings for all referenced entities.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-summary"
 )
 public class FacetSummary extends AbstractRequireConstraintContainer
 	implements FacetConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {

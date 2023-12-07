@@ -50,6 +50,7 @@ import java.util.Arrays;
 	name = "inSet",
 	shortDescription = "The constraint checks if primary key of the entity equals to at least one of the passed values. " +
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
+	userDocsLink = "/documentation/query/filtering/constant#entity-primary-key-in-set",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf

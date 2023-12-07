@@ -65,6 +65,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "setInFilter",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified `attributeInSet` in filter sharing the same attribute name.",
+	userDocsLink = "/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter",
 	supportedIn = { ConstraintDomain.ENTITY },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )

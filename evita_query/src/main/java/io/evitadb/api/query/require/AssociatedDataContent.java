@@ -64,6 +64,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity associated data of specified names into the returned entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#associated-data-content",
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

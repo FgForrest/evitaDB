@@ -116,6 +116,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "siblings",
 	shortDescription = "The constraint triggers computing the sibling axis for currently requested hierarchy node in filter by constraint or processed node by hierarchy parents axis.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#siblings",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchySiblings extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

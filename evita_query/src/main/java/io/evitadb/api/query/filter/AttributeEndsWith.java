@@ -62,6 +62,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "endsWith",
 	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attribute ends with passed text (case-sensitive).",
+	userDocsLink = "/documentation/query/filtering/string#attribute-ends-with",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )

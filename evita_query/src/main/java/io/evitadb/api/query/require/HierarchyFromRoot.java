@@ -112,6 +112,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "fromRoot",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at root level.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#from-root",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyFromRoot extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

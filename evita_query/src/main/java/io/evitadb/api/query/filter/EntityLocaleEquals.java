@@ -71,6 +71,7 @@ import java.util.Locale;
 @ConstraintDefinition(
 	name = "equals",
 	shortDescription = "The constraint if at least one of entity locales (derived from entity attributes or associated data) equals to the passed one.",
+	userDocsLink = "/documentation/query/filtering/locale#entity-locale-equals",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class EntityLocaleEquals extends AbstractFilterConstraintLeaf

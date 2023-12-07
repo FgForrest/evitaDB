@@ -49,6 +49,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "random",
 	shortDescription = "The constraint sorts returned entities randomly.",
+	userDocsLink = "/documentation/query/ordering/random#random",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class Random extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint> {

@@ -83,6 +83,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "node",
 	shortDescription = "The constraint allows to locate the pivot hierarchy node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyNode extends AbstractRequireConstraintContainer implements HierarchyStopAtRequireConstraint {

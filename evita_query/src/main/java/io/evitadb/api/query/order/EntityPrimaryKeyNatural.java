@@ -55,6 +55,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "natural",
 	shortDescription = "The constraint sorts returned entities by primary key in specific order.",
+	userDocsLink = "/documentation/query/ordering/comparable#primary-key-natural",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyNatural extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {

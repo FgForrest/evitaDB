@@ -99,7 +99,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "groupsConjunction",
-	shortDescription = "Sets inter-facets relation within the specified groups to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction)."
+	shortDescription = "Sets inter-facets relation within the specified groups to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-conjunction"
 )
 public class FacetGroupsConjunction extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -584073466325272463L;

@@ -70,6 +70,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity prices into the returned entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#price-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceContent extends AbstractRequireConstraintLeaf

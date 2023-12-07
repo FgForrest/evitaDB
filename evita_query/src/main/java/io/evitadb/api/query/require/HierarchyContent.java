@@ -71,6 +71,7 @@ import static java.util.Optional.of;
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching parent hierarchy entity parent chain and its bodies into returned main entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#hierarchy-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyContent extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {

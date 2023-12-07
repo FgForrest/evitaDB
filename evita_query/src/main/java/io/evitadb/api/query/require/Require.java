@@ -54,7 +54,8 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "require",
-	shortDescription = "The container encapsulates inner require constraints into one main constraint that is required by the query"
+	shortDescription = "The container encapsulates inner require constraints into one main constraint that is required by the query",
+	userDocsLink = "/documentation/query/basics#require"
 )
 public class Require extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 6115101893250263038L;

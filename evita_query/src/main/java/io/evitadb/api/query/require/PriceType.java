@@ -54,7 +54,8 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "type",
-	shortDescription = "The constraint specifies which price type (with/without tax) will be used for handling filtering and sorting constraints."
+	shortDescription = "The constraint specifies which price type (with/without tax) will be used for handling filtering and sorting constraints.",
+	userDocsLink = "/documentation/query/requirements/price#price-type"
 )
 public class PriceType extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -7156758352138266166L;

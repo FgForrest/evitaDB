@@ -116,6 +116,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "property",
 	shortDescription = "The constraint sorts returned entities or references by attribute specified on its reference in natural order.",
+	userDocsLink = "/documentation/query/ordering/reference#reference-property",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class ReferenceProperty extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint> {

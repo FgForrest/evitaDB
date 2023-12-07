@@ -64,6 +64,7 @@ import java.io.Serializable;
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match the inner filter constraint. This container resembles the SQL inner join clauses and works in cooperation " +
 		"with facet summary requirement.",
+	userDocsLink = "/documentation/query/filtering/references#facet-having",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class FacetHaving extends AbstractFilterConstraintContainer implements FacetConstraint<FilterConstraint> {

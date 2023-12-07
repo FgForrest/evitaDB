@@ -71,6 +71,7 @@ import java.util.stream.Stream;
 @ConstraintDefinition(
 	name = "dataInLocales",
 	shortDescription = "The constraint triggers fetching of the localized attributes or associated data in different/additional locales than the locale specified in filtering constraints (if any at all).",
+	userDocsLink = "/documentation/query/requirements/fetching#data-in-locales",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class DataInLocales extends AbstractRequireConstraintLeaf

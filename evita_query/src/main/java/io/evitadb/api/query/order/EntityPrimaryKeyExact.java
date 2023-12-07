@@ -61,6 +61,7 @@ import java.util.Arrays;
 @ConstraintDefinition(
 	name = "exact",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments.",
+	userDocsLink = "/documentation/query/ordering/constant#exact-entity-primary-key-order",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyExact extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {

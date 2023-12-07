@@ -71,6 +71,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "level",
 	shortDescription = "The constraint limits the traversing in stop at container at specified level from root.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#level",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyLevel extends AbstractRequireConstraintLeaf implements HierarchyStopAtRequireConstraint {

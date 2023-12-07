@@ -61,6 +61,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "contains",
 	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attribute contains part of passed text (case-sensitive).",
+	userDocsLink = "/documentation/query/filtering/string#attribute-contains",
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
 	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )

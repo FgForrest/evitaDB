@@ -99,7 +99,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "groupsDisjunction",
-	shortDescription = "Sets relation of facets in the specified groups towards facets in different groups to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) ."
+	shortDescription = "Sets relation of facets in the specified groups towards facets in different groups to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) .",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-disjunction"
 )
 public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 1087282346634617160L;

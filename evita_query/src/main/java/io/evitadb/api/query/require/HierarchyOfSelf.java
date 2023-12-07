@@ -75,7 +75,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "ofSelf",
-	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response."
+	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of same hierarchical collection into response.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-self"
 )
 public class HierarchyOfSelf extends AbstractRequireConstraintContainer
 	implements RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {

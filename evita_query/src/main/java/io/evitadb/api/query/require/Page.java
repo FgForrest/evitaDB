@@ -58,7 +58,8 @@ import java.util.Optional;
  */
 @ConstraintDefinition(
 	name = "page",
-	shortDescription = "The constraint specifies which page of found entities will be returned."
+	shortDescription = "The constraint specifies which page of found entities will be returned.",
+	userDocsLink = "/documentation/query/requirements/paging#page"
 )
 public class Page extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

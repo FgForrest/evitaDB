@@ -56,6 +56,7 @@ import java.util.Arrays;
 @ConstraintDefinition(
 	name = "histogram",
 	shortDescription =  "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
+	userDocsLink = "/documentation/query/requirements/histogram#attribute-histogram",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
 )
 public class AttributeHistogram extends AbstractRequireConstraintLeaf implements AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {

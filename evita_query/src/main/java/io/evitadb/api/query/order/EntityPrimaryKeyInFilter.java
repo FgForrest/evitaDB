@@ -63,6 +63,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "inFilter",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified `entityPrimaryKeysInSet` in filter.",
+	userDocsLink = "/documentation/query/ordering/constant#exact-entity-primary-key-order-used-in-filter",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class EntityPrimaryKeyInFilter extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {

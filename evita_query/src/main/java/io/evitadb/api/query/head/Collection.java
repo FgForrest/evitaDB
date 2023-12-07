@@ -50,6 +50,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "collection",
 	shortDescription = "The constraint specifies which entity collection will be searched for results.",
+	userDocsLink = "/documentation/query/basics#header",
 	supportedIn = ConstraintDomain.GENERIC
 )
 public class Collection extends ConstraintLeaf<HeadConstraint> implements HeadConstraint, GenericConstraint<HeadConstraint> {

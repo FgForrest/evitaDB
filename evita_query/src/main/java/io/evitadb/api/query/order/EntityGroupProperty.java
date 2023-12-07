@@ -110,6 +110,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "groupProperty",
 	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity group.",
+	userDocsLink = "/documentation/query/ordering/reference#entity-group-property",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class EntityGroupProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {

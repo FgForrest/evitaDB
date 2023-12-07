@@ -110,6 +110,7 @@ import static java.util.Optional.ofNullable;
 @ConstraintDefinition(
 	name = "withinRoot",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
+	userDocsLink = "/documentation/query/filtering/hierarchy#hierarchy-within-root",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithinRoot extends AbstractFilterConstraintContainer

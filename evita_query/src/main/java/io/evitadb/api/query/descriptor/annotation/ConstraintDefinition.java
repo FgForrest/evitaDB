@@ -33,10 +33,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Constraint definition that describes concrete query. This definition when processed can be later used when
+ * Constraint definition that describes concrete constraint. This definition when processed can be later used when
  * building some system based on these constraints (e.g. custom query language that can be translated to this original).
  * <p>
- * Such an annotated query must have also specified creator constructor using {@link Creator} and
+ * Such an annotated constraint must have also specified creator constructor using {@link Creator} and
  * its parameters with {@link Classifier}, {@link Value} and {@link Child}.
  * <p>
  * This data is then processed by {@link ConstraintDescriptorProvider}.
@@ -49,10 +49,10 @@ import java.lang.annotation.Target;
 public @interface ConstraintDefinition {
 
 	/**
-	 * Base short name of query in defined type and property type categorization. Should specify name of condition,
-	 * operation or something like that, that this query represent (e.g. "equals", "fetch").
+	 * Base short name of constraint in defined type and property type categorization. Should specify name of condition,
+	 * operation or something like that, that this constraint represent (e.g. "equals", "fetch").
 	 * Its format must be in camelCase and may be suffixed in concrete creators with their suffixes, making full name of
-	 * query.
+	 * constraint.
 	 */
 	String name();
 
@@ -62,7 +62,13 @@ public @interface ConstraintDefinition {
 	String shortDescription();
 
 	/**
-	 * Set of domains in which this query is supported in and can be used in when querying.
+	 * Relative link to user documentation where this constraint is described in more detail.
+	 * E.g., "/documentation/query/filtering/price#price-in-price-lists" for constraint "PriceInPriceLists".
+	 */
+	String userDocsLink();
+
+	/**
+	 * Set of domains in which this constraint is supported in and can be used in when querying.
 	 * Default is {@link ConstraintDomain#ENTITY}.
 	 */
 	ConstraintDomain[] supportedIn() default { ConstraintDomain.GENERIC };

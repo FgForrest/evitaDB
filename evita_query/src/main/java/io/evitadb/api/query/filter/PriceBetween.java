@@ -56,6 +56,7 @@ import java.math.BigDecimal;
 @ConstraintDefinition(
 	name = "between",
 	shortDescription = "The constraint checks if entity has price for sale within the passed range of prices (both ends are inclusive).",
+	userDocsLink = "/documentation/query/filtering/price#price-between",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceBetween extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {

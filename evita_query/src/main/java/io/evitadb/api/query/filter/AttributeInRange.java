@@ -80,6 +80,7 @@ import java.util.Optional;
 	shortDescription = "Compares value of the attribute with passed value and checks if the range value of that " +
 		"attribute contains the passed value within its limits (both ends are inclusive). " +
 		"The constraint can be used only for Range data type values.",
+	userDocsLink = "/documentation/query/filtering/range#attribute-in-range",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
 		supportedTypes = {

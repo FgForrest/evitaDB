@@ -91,6 +91,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "directRelation",
 	shortDescription = "The constraint limits hierarchy within parent constraint to take only directly related entities into an account.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#direct-relation",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyDirectRelation extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {

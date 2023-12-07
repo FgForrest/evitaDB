@@ -53,7 +53,8 @@ import java.io.Serializable;
  */
 @ConstraintDefinition(
 	name = "histogram",
-	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response."
+	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response.",
+	userDocsLink = "/documentation/query/requirements/histogram#price-histogram"
 )
 public class PriceHistogram extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 7734875430759525982L;
