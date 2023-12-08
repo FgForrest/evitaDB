@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public interface MyEntity {
 
 	// returns associated data `warrantySpecification` if fetched and not null

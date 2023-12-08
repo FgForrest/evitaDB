@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public interface MyEntity {
 
 	// returns attribute `name` if fetched and not null

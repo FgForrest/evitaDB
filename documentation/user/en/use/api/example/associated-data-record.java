@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public record MyEntity(
 	// contains associated data `warrantySpecification` if fetched and not null
 	@AssociatedData(warrantySpecification = "warrantySpecification", locale = true)

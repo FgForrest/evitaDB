@@ -310,8 +310,10 @@ or `@PrimaryKeyRef` annotation:
 
 #### Attributes
 
-To access the entity or reference attribute, you must use the appropriate data type and annotate it with the `@Attribute`
-or `@AttributeRef` annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html) 
+To access the entity or reference attribute, you must use the appropriate data type and annotate it with the 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass> 
+annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html) 
 (or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html) 
 or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
 
@@ -343,7 +345,9 @@ call may fail with a `NullPointerException` if the data wasn't fetched even thou
 #### Associated data
 
 To access the entity or reference associated data, you must use the appropriate data type and annotate it with 
-the `@AssociatedData` or `@AssociatedDataRef` annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
+the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass>
+annotation. The data type can be wrapped in [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
 (or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html)
 or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
 
@@ -362,14 +366,35 @@ from ["complex data type"](../data-types.md#complex-data-types) using [documente
 
 #### Prices
 
-TODO JNO - Work in progress
+To access the entity prices, you must always work with 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> data type
+and annotate the methods with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass>,
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSale.java</SourceClass> or
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PriceForSaleRef.java</SourceClass>
+annotation. The datatype can be wrapped in
+[Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
+(or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html)
+or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
+
+If the method can return multiple prices, you need to wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)).
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with prices](/documentation/user/en/use/api/example/price-interface.java)
+
+</SourceAlternativeTabs>
+
+The method may return null if the entity is a root entity. Therefore, it's not recommended to use primitive data types,
+because the method call may fail with a `NullPointerException` in such a case.
 
 #### Hierarchy
 
-To access the placement information of the entity or hierarchy (i.e., its parent), you must use either the numeric data 
+To access the hierarchy placement information of the entity (i.e., its parent), you must use either the numeric data 
 type, your own custom interface type, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass> 
 or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass> 
-data type and annotate it with the `@ParentEntity` annotation. The datatype can be wrapped in 
+data type and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass>
+annotation. The datatype can be wrapped in 
 [Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html) 
 (or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html) 
 or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
@@ -385,7 +410,36 @@ because the method call may fail with a `NullPointerException` in such a case.
 
 #### References
 
-TODO JNO - Work in progress
+To access the references of the entity, you must use either the numeric data type, your own custom interface type, 
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>
+data type and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass>
+annotation. The datatype can be wrapped in
+[Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html)
+(or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html)
+or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
+
+
+If the method can return multiple references, you need to wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)).
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with references](/documentation/user/en/use/api/example/reference-interface.java)
+
+</SourceAlternativeTabs>
+
+When you declare to return a custom interface, you can return either the custom interface of the referenced entity 
+(i.e., an interface annotated with <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Entity.java</SourceClass> 
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/EntityRef.java</SourceClass>) 
+or interface mapping the reference. The latter allows you to access attributes of the reference and may also contain 
+additional methods to access the referenced entity. In the former case, you can access the referenced entity, but not
+the reference attributes.
+
+Methods annotated with this annotation should respect the cardinality of the reference. If the cardinality is 
+`EXACTLY_ONE` or `ZERO_OR_ONE`, the method should directly return the entity or the reference to it. If the cardinality 
+is `ZERO_OR_MORE` or `ONE_OR_MORE`, the method should return a collection or array of entities or references to them.
 
 #### Access to evitaDB data structures
 
