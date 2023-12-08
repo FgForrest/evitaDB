@@ -66,7 +66,7 @@ import java.io.Serializable;
  * The query lists products in Audio category and its subcategories. Along with the products returned, it
  * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

@@ -79,7 +79,7 @@ import java.util.EnumSet;
  * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
  * to crunch these numbers.
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

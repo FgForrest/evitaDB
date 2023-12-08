@@ -56,7 +56,7 @@ import java.util.Arrays;
  * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
  * additional ordering constraint in the chain).
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

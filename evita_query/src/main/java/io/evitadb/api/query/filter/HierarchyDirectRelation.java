@@ -86,7 +86,7 @@ import java.io.Serializable;
  * )
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/hierarchy#direct-relation">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#direct-relation">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -71,7 +71,7 @@ import java.io.Serializable;
  * )
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

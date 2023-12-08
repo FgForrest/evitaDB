@@ -125,7 +125,7 @@ import static java.util.Optional.of;
  * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
  * remains consistent for the end user.
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

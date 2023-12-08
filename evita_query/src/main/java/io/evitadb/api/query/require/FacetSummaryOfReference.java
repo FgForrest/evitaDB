@@ -118,7 +118,7 @@ import java.util.Optional;
  * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
  * the source entity that are specific to a relationship with the target entity.
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

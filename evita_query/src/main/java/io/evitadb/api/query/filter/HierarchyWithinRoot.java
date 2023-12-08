@@ -105,7 +105,7 @@ import static java.util.Optional.ofNullable;
  * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
  * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

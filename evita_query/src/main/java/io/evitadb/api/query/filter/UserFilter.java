@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
  * )
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/behavioral#user-filter">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#user-filter">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

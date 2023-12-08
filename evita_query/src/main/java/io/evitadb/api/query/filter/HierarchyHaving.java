@@ -132,7 +132,7 @@ import java.io.Serializable;
  * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
  * product reference that is part of the visible part of the tree.
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

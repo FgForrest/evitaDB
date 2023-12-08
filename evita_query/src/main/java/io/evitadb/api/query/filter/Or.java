@@ -88,7 +88,7 @@ import java.io.Serializable;
  * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
  * constraints.
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/logical#or">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/logical#or">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

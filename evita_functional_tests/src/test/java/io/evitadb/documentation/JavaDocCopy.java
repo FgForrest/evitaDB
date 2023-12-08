@@ -210,6 +210,9 @@ public class JavaDocCopy implements EvitaTestSupport {
 		);
 	}
 
+	/**
+	 * Run this method to copy user documentation links from {@link ConstraintDefinition} to JavaDoc of {@link Constraint} classes.
+	 */
 	@Test
 	void copyConstraintUserDocsLinksToJavaDocs() throws URISyntaxException, IOException {
 		final JavaProjectBuilder builder = new JavaProjectBuilder();
@@ -251,11 +254,11 @@ public class JavaDocCopy implements EvitaTestSupport {
 			final String originalUserDocsLinkLine = constraintSource.get(originalUserDocsLinkLineNumber);
 			if (originalUserDocsLinkLine.contains("<a href=\"https://evitadb.io")) {
 				// there is a link from previous generation, just update it
-				constraintSource.set(originalUserDocsLinkLineNumber, " * <a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a>");
+				constraintSource.set(originalUserDocsLinkLineNumber, " * <p><a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a></p>");
 			} else {
 				// there is no link, add it
 				constraintSource.add(originalUserDocsLinkLineNumber + 1, " * <a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a>");
-				constraintSource.add(originalUserDocsLinkLineNumber + 1, " * ");
+				constraintSource.add(originalUserDocsLinkLineNumber + 1, " *");
 			}
 
 			// rewrite the file with replaced JavaDoc

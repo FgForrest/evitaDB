@@ -58,7 +58,7 @@ import java.io.Serializable;
  * equals("code","C")
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

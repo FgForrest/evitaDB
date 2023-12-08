@@ -121,7 +121,7 @@ import java.io.Serializable;
  * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
  * nodes (entire subtree).
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

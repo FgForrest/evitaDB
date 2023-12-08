@@ -87,7 +87,7 @@ import java.io.Serializable;
  *
  * ... which returns only three products that were not excluded by the following `not` constraint.
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

@@ -52,7 +52,7 @@ import java.io.Serializable;
  *
  * Function supports attribute arrays in the same way as plain values.
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
  *
  * @see AttributeSpecialValue
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

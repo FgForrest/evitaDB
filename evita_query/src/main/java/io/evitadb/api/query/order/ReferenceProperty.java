@@ -111,7 +111,7 @@ import java.io.Serializable;
  * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
  * maintaining the depth-first order of the category tree.
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

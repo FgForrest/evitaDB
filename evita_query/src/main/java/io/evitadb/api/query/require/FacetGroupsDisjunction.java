@@ -95,7 +95,7 @@ import java.util.Optional;
  * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
  * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -80,7 +80,7 @@ import java.io.Serializable;
  * )
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

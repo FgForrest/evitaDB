@@ -44,7 +44,7 @@ import java.io.Serializable;
  * random()
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

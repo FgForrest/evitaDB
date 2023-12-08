@@ -50,7 +50,7 @@ import java.io.Serializable;
  * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
  * node.
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

@@ -58,7 +58,7 @@ import java.util.Arrays;
  * Currently, there is no way to switch context between different parts of the filter and build queries such as find
  * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

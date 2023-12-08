@@ -68,7 +68,7 @@ import java.util.stream.Stream;
  * - {@link HierarchyContent}
  * - {@link ReferenceContent}
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

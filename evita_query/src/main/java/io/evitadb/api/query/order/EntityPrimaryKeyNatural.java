@@ -50,7 +50,7 @@ import java.io.Serializable;
  * the entities are by default ordered by their primary key in ascending order, it has no sense to use this constraint
  * with {@link OrderDirection#ASC} direction.
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

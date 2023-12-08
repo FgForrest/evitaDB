@@ -76,7 +76,7 @@ import java.io.Serializable;
  * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
  * name instead of the default attribute name and achieve the expected results.
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

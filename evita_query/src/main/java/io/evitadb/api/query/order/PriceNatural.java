@@ -50,7 +50,7 @@ import java.io.Serializable;
  * priceNatural(DESC)
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

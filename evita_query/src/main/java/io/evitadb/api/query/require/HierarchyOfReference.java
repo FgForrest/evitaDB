@@ -80,7 +80,7 @@ import static java.util.Optional.ofNullable;
  *      - {@link HierarchyChildren}
  *      - {@link HierarchyParents}
  * 
- * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -56,7 +56,7 @@ import java.io.Serializable;
  * contains("code","o")
  * </pre>
  * 
- * <a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a>
+ * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

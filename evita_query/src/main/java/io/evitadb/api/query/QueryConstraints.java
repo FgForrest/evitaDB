@@ -68,6 +68,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * collection('category')
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/basics#header">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Collection collection(@Nonnull String entityType) {
@@ -94,6 +96,8 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FilterBy filterBy(@Nullable FilterConstraint... constraint) {
@@ -119,6 +123,8 @@ public interface QueryConstraints {
 	 *    )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FilterGroupBy filterGroupBy(@Nullable FilterConstraint... constraint) {
@@ -178,6 +184,8 @@ public interface QueryConstraints {
 	 * 
 	 * ... returns a single result - product with entity primary key 106742, which is the only one that all three
 	 * `entityPrimaryKeyInSet` constraints have in common.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#and">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static And and(@Nullable FilterConstraint... constraints) {
@@ -240,6 +248,8 @@ public interface QueryConstraints {
 	 * 
 	 * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
 	 * constraints.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#or">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static Or or(@Nullable FilterConstraint... constraints) {
@@ -301,6 +311,8 @@ public interface QueryConstraints {
 	 * </pre>
 	 * 
 	 * ... which returns only three products that were not excluded by the following `not` constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static Not not(@Nullable FilterConstraint constraint) {
@@ -336,6 +348,8 @@ public interface QueryConstraints {
 	 *     entityPrimaryKeyInSet(1)
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#reference-having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceHaving referenceHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
@@ -360,6 +374,8 @@ public interface QueryConstraints {
 	 *   )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#user-filter">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static UserFilter userFilter(@Nullable FilterConstraint... constraints) {
@@ -413,6 +429,8 @@ public interface QueryConstraints {
 	 * between("validity", 0, 1)
 	 * between("validity", 6, 7)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeBetween attributeBetween(@Nullable String attributeName, @Nullable T from, @Nullable T to) {
@@ -444,6 +462,8 @@ public interface QueryConstraints {
 	 * contains("code","mou")
 	 * contains("code","o")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeContains attributeContains(@Nullable String attributeName, @Nullable String textToSearch) {
@@ -472,6 +492,8 @@ public interface QueryConstraints {
 	 * contains("code","mou")
 	 * contains("code","do")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-starts-with">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeStartsWith attributeStartsWith(@Nullable String attributeName, @Nullable String textToSearch) {
@@ -500,6 +522,8 @@ public interface QueryConstraints {
 	 * contains("code","at")
 	 * contains("code","og")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-ends-with">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeEndsWith attributeEndsWith(@Nullable String attributeName, @Nullable String textToSearch) {
@@ -529,6 +553,8 @@ public interface QueryConstraints {
 	 * equals("code","B")
 	 * equals("code","C")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static <T extends Serializable> AttributeEquals attributeEquals(@Nullable String attributeName, @Nullable T attributeValue) {
@@ -551,6 +577,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * lessThan("age", 20)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeLessThan attributeLessThan(@Nullable String attributeName, @Nullable T attributeValue) {
@@ -574,6 +602,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * lessThanEquals("age", 20)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeLessThanEquals attributeLessThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
@@ -596,6 +626,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * greaterThan("age", 20)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeGreaterThan attributeGreaterThan(@Nullable String attributeName, @Nullable T attributeValue) {
@@ -619,6 +651,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * greaterThanEquals("age", 20)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static <T extends Serializable & Comparable<?>> AttributeGreaterThanEquals attributeGreaterThanEquals(@Nullable String attributeName, @Nullable T attributeValue) {
@@ -648,6 +682,8 @@ public interface QueryConstraints {
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static PriceInPriceLists priceInPriceLists(@Nullable String... priceList) {
@@ -669,6 +705,8 @@ public interface QueryConstraints {
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable String currency) {
@@ -687,6 +725,8 @@ public interface QueryConstraints {
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static PriceInCurrency priceInCurrency(@Nullable Currency currency) {
@@ -753,6 +793,8 @@ public interface QueryConstraints {
 	 * 
 	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
 	 * (contrary to what you might expect if you have experience with SQL).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyWithin hierarchyWithinSelf(@Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
@@ -825,6 +867,8 @@ public interface QueryConstraints {
 	 * 
 	 * Products assigned to two or more subcategories of Accessories category will only appear once in the response
 	 * (contrary to what you might expect if you have experience with SQL).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyWithin hierarchyWithin(@Nullable String referenceName, @Nullable FilterConstraint ofParent, @Nullable HierarchySpecificationFilterConstraint... with) {
@@ -895,6 +939,8 @@ public interface QueryConstraints {
 	 * 
 	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRootSelf(@Nullable HierarchySpecificationFilterConstraint... with) {
@@ -959,6 +1005,8 @@ public interface QueryConstraints {
 	 * 
 	 * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
 	 * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyWithinRoot hierarchyWithinRoot(@Nullable String referenceName, @Nullable HierarchySpecificationFilterConstraint... with) {
@@ -1060,6 +1108,8 @@ public interface QueryConstraints {
 	 * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
 	 * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
 	 * product reference that is part of the visible part of the tree.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyHaving having(@Nullable FilterConstraint... includeChildTreeConstraints) {
@@ -1153,6 +1203,8 @@ public interface QueryConstraints {
 	 * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
 	 * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
 	 * nodes (entire subtree).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyExcluding excluding(@Nullable FilterConstraint... excludeChildTreeConstraints) {
@@ -1215,6 +1267,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#direct-relation">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyDirectRelation directRelation() {
@@ -1283,6 +1337,8 @@ public interface QueryConstraints {
 	 * 
 	 * ... we get only 4 items, which means that 16 were assigned directly to Keyboards category and only 4 of them were
 	 * assigned to Exotic keyboards.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding-root">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyExcludingRoot excludingRoot() {
@@ -1320,6 +1376,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityLocaleEquals entityLocaleEquals(@Nullable Locale locale) {
@@ -1342,6 +1400,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#entity-having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityHaving entityHaving(@Nullable FilterConstraint filterConstraint) {
@@ -1373,6 +1433,8 @@ public interface QueryConstraints {
 	 * inRange("age", 24)
 	 * inRange("age", 63)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable OffsetDateTime atTheMoment) {
@@ -1404,6 +1466,8 @@ public interface QueryConstraints {
 	 * inRange("age", 24)
 	 * inRange("age", 63)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeInRange attributeInRange(@Nullable String attributeName, @Nullable Number theValue) {
@@ -1435,6 +1499,8 @@ public interface QueryConstraints {
 	 * inRange("age", 24)
 	 * inRange("age", 63)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeInRange attributeInRangeNow(@Nullable String attributeName) {
@@ -1465,6 +1531,8 @@ public interface QueryConstraints {
 	 * inSet("code","A","D")
 	 * inSet("code","A", "B")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
 	*/
 	@SuppressWarnings("unchecked")
 	@Nullable
@@ -1509,6 +1577,8 @@ public interface QueryConstraints {
 	 * equals("code","B")
 	 * equals("code","C")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeEquals attributeEqualsFalse(@Nullable String attributeName) {
@@ -1538,6 +1608,8 @@ public interface QueryConstraints {
 	 * equals("code","B")
 	 * equals("code","C")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeEquals attributeEqualsTrue(@Nullable String attributeName) {
@@ -1561,6 +1633,8 @@ public interface QueryConstraints {
 	 * </pre>
 	 * 
 	 * Function supports attribute arrays in the same way as plain values.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeIs attributeIs(@Nullable String attributeName, @Nullable AttributeSpecialValue specialValue) {
@@ -1587,6 +1661,8 @@ public interface QueryConstraints {
 	 * </pre>
 	 * 
 	 * Function supports attribute arrays in the same way as plain values.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeIs attributeIsNull(@Nullable String attributeName) {
@@ -1610,6 +1686,8 @@ public interface QueryConstraints {
 	 * </pre>
 	 * 
 	 * Function supports attribute arrays in the same way as plain values.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeIs attributeIsNotNull(@Nullable String attributeName) {
@@ -1631,6 +1709,8 @@ public interface QueryConstraints {
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-between">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static PriceBetween priceBetween(@Nullable BigDecimal from, @Nullable BigDecimal to) {
@@ -1654,6 +1734,8 @@ public interface QueryConstraints {
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static PriceValidIn priceValidIn(@Nullable OffsetDateTime theMoment) {
@@ -1673,6 +1755,8 @@ public interface QueryConstraints {
 	 * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
 	 * Currently, there is no way to switch context between different parts of the filter and build queries such as find
 	 * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceValidIn priceValidInNow() {
@@ -1698,6 +1782,8 @@ public interface QueryConstraints {
 	 *   )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/references#facet-having">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetHaving facetHaving(@Nullable String referenceName, @Nullable FilterConstraint... constraint) {
@@ -1713,6 +1799,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * primaryKey(1, 2, 3)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable Integer... primaryKey) {
@@ -1731,6 +1819,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * primaryKey(1, 2, 3)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityPrimaryKeyInSet entityPrimaryKeyInSet(@Nullable int[] primaryKey) {
@@ -1771,6 +1861,8 @@ public interface QueryConstraints {
 	 *     priceDescending()
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static OrderBy orderBy(@Nullable OrderConstraint... constraints) {
@@ -1822,6 +1914,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static OrderGroupBy orderGroupBy(@Nullable OrderConstraint... constraints) {
@@ -1847,6 +1941,8 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the descending order of their primary keys. Since
 	 * the entities are by default ordered by their primary key in ascending order, it has no sense to use this constraint
 	 * with {@link OrderDirection#ASC} direction.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static EntityPrimaryKeyNatural entityPrimaryKeyNatural(@Nullable OrderDirection direction) {
@@ -1874,6 +1970,8 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
 	 * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
 	 * system which needs to be maintained (for example, it represents a relevancy of those entities).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order-used-in-filter">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static EntityPrimaryKeyInFilter entityPrimaryKeyInFilter() {
@@ -1901,6 +1999,8 @@ public interface QueryConstraints {
 	 * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
 	 * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
 	 * additional ordering constraint in the chain).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityPrimaryKeyExact entityPrimaryKeyExact(@Nullable Integer... primaryKey) {
@@ -1932,6 +2032,8 @@ public interface QueryConstraints {
 	 * The example will return the selected entities (if present) in the exact order of their attribute `code` that was used
 	 * for array filtering them. The ordering constraint is particularly useful when you have sorted set of attribute values
 	 * from an external system which needs to be maintained (for example, it represents a relevancy of those entities).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order-used-in-filter">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeSetInFilter attributeSetInFilter(@Nullable String attributeName) {
@@ -1962,6 +2064,8 @@ public interface QueryConstraints {
 	 * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
 	 * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
 	 * sorted by additional ordering constraint in the chain).
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeSetExact attributeSetExact(@Nullable String attributeName, @Nullable Serializable... attributeValues) {
@@ -2045,6 +2149,8 @@ public interface QueryConstraints {
 	 * order them by a property "priority" set on the reference to the category, the first products will be those directly
 	 * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
 	 * maintaining the depth-first order of the category tree.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceProperty referenceProperty(@Nullable String referenceName, @Nullable OrderConstraint... constraints) {
@@ -2088,6 +2194,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityProperty entityProperty(@Nullable OrderConstraint... constraints) {
@@ -2165,6 +2273,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-group-property">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static EntityGroupProperty entityGroupProperty(@Nullable OrderConstraint... constraints) {
@@ -2212,6 +2322,8 @@ public interface QueryConstraints {
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeNatural attributeNatural(@Nullable String attributeName) {
@@ -2256,6 +2368,8 @@ public interface QueryConstraints {
 	 * compound will cover multiple attributes and prepares a special sort index for this particular combination of
 	 * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
 	 * name instead of the default attribute name and achieve the expected results.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeNatural attributeNatural(@Nullable String attributeName, @Nullable OrderDirection orderDirection) {
@@ -2278,6 +2392,8 @@ public interface QueryConstraints {
 	 * priceNatural()
 	 * priceNatural(DESC)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceNatural priceNatural() {
@@ -2299,6 +2415,8 @@ public interface QueryConstraints {
 	 * priceNatural()
 	 * priceNatural(DESC)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceNatural priceNatural(@Nullable OrderDirection orderDirection) {
@@ -2315,6 +2433,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * random()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Random random() {
@@ -2340,6 +2460,8 @@ public interface QueryConstraints {
 	 *     entityFetch()
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/basics#require">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static Require require(@Nullable RequireConstraint... constraints) {
@@ -2361,6 +2483,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * attributeHistogram(5, "width", "height")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable String... attributeName) {
@@ -2384,6 +2508,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * priceHistogram(20)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount) {
@@ -2441,6 +2567,8 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
@@ -2498,6 +2626,8 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
 	 * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
 	 * be composed as: blue(11) AND red(12)
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetGroupsConjunction facetGroupsConjunction(@Nullable String referenceName) {
@@ -2555,6 +2685,8 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName, @Nullable FilterBy filterBy) {
@@ -2612,6 +2744,8 @@ public interface QueryConstraints {
 	 * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
 	 * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
 	 * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetGroupsDisjunction facetGroupsDisjunction(@Nullable String referenceName) {
@@ -2650,6 +2784,8 @@ public interface QueryConstraints {
 	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
 	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
 	 * default behavior predicts only a dozen of them.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName, @Nullable FilterBy filterBy) {
@@ -2688,6 +2824,8 @@ public interface QueryConstraints {
 	 * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
 	 * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
 	 * default behavior predicts only a dozen of them.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetGroupsNegation facetGroupsNegation(@Nullable String referenceName) {
@@ -2725,6 +2863,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(@Nullable HierarchyRequireConstraint... requirement) {
@@ -2762,6 +2902,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfSelf hierarchyOfSelf(
@@ -2806,6 +2948,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -2850,6 +2994,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -2895,6 +3041,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -2946,6 +3094,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -2999,6 +3149,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -3043,6 +3195,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -3088,6 +3242,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -3143,6 +3299,8 @@ public interface QueryConstraints {
 	 *      - {@link HierarchySiblings}
 	 *      - {@link HierarchyChildren}
 	 *      - {@link HierarchyParents}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyOfReference hierarchyOfReference(
@@ -3225,6 +3383,8 @@ public interface QueryConstraints {
 	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
 	 * number remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyFromRoot fromRoot(
@@ -3298,6 +3458,8 @@ public interface QueryConstraints {
 	 * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
 	 * number remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyFromRoot fromRoot(
@@ -3390,6 +3552,8 @@ public interface QueryConstraints {
 	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyFromNode fromNode(
@@ -3484,6 +3648,8 @@ public interface QueryConstraints {
 	 * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
 	 * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
 	 * remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyFromNode fromNode(
@@ -3556,6 +3722,8 @@ public interface QueryConstraints {
 	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
 	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
 	 * user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyChildren children(
@@ -3625,6 +3793,8 @@ public interface QueryConstraints {
 	 * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
 	 * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
 	 * user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyChildren children(
@@ -3701,6 +3871,8 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchySiblings siblings(
@@ -3778,6 +3950,8 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchySiblings siblings(
@@ -3854,6 +4028,8 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchySiblings siblings(
@@ -3926,6 +4102,8 @@ public interface QueryConstraints {
 	 * the first string argument that defines the name for the output data structure. The reason is that this name is
 	 * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
 	 * in its data structure.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchySiblings siblings(@Nullable HierarchyOutputRequireConstraint... requirements) {
@@ -3986,6 +4164,8 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyParents parents(
@@ -4054,6 +4234,8 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyParents parents(
@@ -4127,6 +4309,8 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyParents parents(
@@ -4194,6 +4378,8 @@ public interface QueryConstraints {
 	 * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
 	 * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
 	 * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyParents parents(
@@ -4222,6 +4408,8 @@ public interface QueryConstraints {
 	 * 
 	 * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
 	 * node.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyStopAt stopAt(@Nullable HierarchyStopAtRequireConstraint stopConstraint) {
@@ -4268,6 +4456,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#node">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyNode node(@Nullable FilterBy filterBy) {
@@ -4305,6 +4495,8 @@ public interface QueryConstraints {
 	 * 
 	 * The query lists products in Audio category and its subcategories. Along with the products returned, it
 	 * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyLevel level(@Nullable Integer level) {
@@ -4349,6 +4541,8 @@ public interface QueryConstraints {
 	 * The following query lists products in category Audio and its subcategories. Along with the products returned, it
 	 * also returns a computed subcategories data structure that lists the flat category list the currently focused category
 	 * Audio.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#distance">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyDistance distance(@Nullable Integer distance) {
@@ -4396,6 +4590,8 @@ public interface QueryConstraints {
 	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
 	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
 	 * to crunch these numbers.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsType... type) {
@@ -4445,6 +4641,8 @@ public interface QueryConstraints {
 	 * This query actually has to filter and aggregate all the records in the database, which is obviously quite expensive,
 	 * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
 	 * to crunch these numbers.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static HierarchyStatistics statistics(@Nullable StatisticsBase base, @Nullable StatisticsType... type) {
@@ -4484,6 +4682,8 @@ public interface QueryConstraints {
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static EntityFetch entityFetch(@Nullable EntityContentRequire... requirements) {
@@ -4526,6 +4726,8 @@ public interface QueryConstraints {
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static EntityGroupFetch entityGroupFetch(@Nullable EntityContentRequire... requirements) {
@@ -4551,6 +4753,8 @@ public interface QueryConstraints {
 	 *    attributeContent("code", "name")
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static AttributeContent attributeContentAll() {
@@ -4573,6 +4777,8 @@ public interface QueryConstraints {
 	 *    attributeContent("code", "name")
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static AttributeContent attributeContent(@Nullable String... attributeName) {
@@ -4596,6 +4802,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * associatedData("description", "gallery-3d")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static AssociatedDataContent associatedDataContentAll() {
@@ -4616,6 +4824,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * associatedData("description", "gallery-3d")
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static AssociatedDataContent associatedDataContent(@Nullable String... associatedDataName) {
@@ -4649,6 +4859,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * dataInLocalesAll()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static DataInLocales dataInLocalesAll() {
@@ -4679,6 +4891,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * dataInLocalesAll()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static DataInLocales dataInLocales(@Nullable Locale... locale) {
@@ -4783,6 +4997,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll() {
@@ -4884,6 +5100,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes() {
@@ -4985,6 +5203,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent) {
@@ -5087,6 +5307,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName) {
@@ -5191,6 +5413,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable String... attributeNames) {
@@ -5299,6 +5523,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName) {
@@ -5401,6 +5627,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent) {
@@ -5505,6 +5733,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String... referenceName) {
@@ -5609,6 +5839,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
@@ -5718,6 +5950,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityFetch entityRequirement) {
@@ -5822,6 +6056,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
@@ -5926,6 +6162,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -6033,6 +6271,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -6137,6 +6377,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -6241,6 +6483,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -6345,6 +6589,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
@@ -6451,6 +6697,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(
@@ -6559,6 +6807,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement) {
@@ -6670,6 +6920,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -6781,6 +7033,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContent(@Nullable String[] referencedEntityTypes, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -6886,6 +7140,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy) {
@@ -6987,6 +7243,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy) {
@@ -7088,6 +7346,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent) {
@@ -7189,6 +7449,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
@@ -7290,6 +7552,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement) {
@@ -7394,6 +7658,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
@@ -7498,6 +7764,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -7599,6 +7867,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -7703,6 +7973,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -7807,6 +8079,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -7908,6 +8182,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -8012,6 +8288,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -8116,6 +8394,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy) {
@@ -8217,6 +8497,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy) {
@@ -8321,6 +8603,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
@@ -8425,6 +8709,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
@@ -8526,6 +8812,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
@@ -8630,6 +8918,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
@@ -8734,6 +9024,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -8835,6 +9127,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -8939,6 +9233,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -9043,6 +9339,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -9144,6 +9442,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -9248,6 +9548,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -9352,6 +9654,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
@@ -9453,6 +9757,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy) {
@@ -9557,6 +9863,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent) {
@@ -9661,6 +9969,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
@@ -9762,6 +10072,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement) {
@@ -9866,6 +10178,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
@@ -9970,6 +10284,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10071,6 +10387,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10175,6 +10493,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10279,6 +10599,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContent(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10380,6 +10702,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10484,6 +10808,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static ReferenceContent referenceContentWithAttributes(@Nullable String referenceName, @Nullable FilterBy filterBy, @Nullable OrderBy orderBy, @Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10588,6 +10914,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement) {
@@ -10689,6 +11017,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement) {
@@ -10790,6 +11120,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement) {
@@ -10891,6 +11223,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -10992,6 +11326,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityGroupFetch groupEntityRequirement) {
@@ -11093,6 +11429,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -11194,6 +11532,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAll(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -11295,6 +11635,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -11396,6 +11738,8 @@ public interface QueryConstraints {
 	 *     )
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static ReferenceContent referenceContentAllWithAttributes(@Nullable AttributeContent attributeContent, @Nullable EntityFetch entityRequirement, @Nullable EntityGroupFetch groupEntityRequirement) {
@@ -11424,6 +11768,8 @@ public interface QueryConstraints {
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent() {
@@ -11452,6 +11798,8 @@ public interface QueryConstraints {
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt) {
@@ -11480,6 +11828,8 @@ public interface QueryConstraints {
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable EntityFetch entityFetch) {
@@ -11508,6 +11858,8 @@ public interface QueryConstraints {
 	 *    hierarchyContent()
 	 * )
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static HierarchyContent hierarchyContent(@Nullable HierarchyStopAt stopAt, @Nullable EntityFetch entityFetch) {
@@ -11541,6 +11893,8 @@ public interface QueryConstraints {
 	 * priceContentRespectingFilter("reference")
 	 * priceContentAll()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static PriceContent priceContent(@Nullable PriceContentMode contentMode, @Nullable String... priceLists) {
@@ -11575,6 +11929,8 @@ public interface QueryConstraints {
 	 * priceContentRespectingFilter("reference")
 	 * priceContentAll()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceContent priceContentAll() {
@@ -11602,6 +11958,8 @@ public interface QueryConstraints {
 	 * priceContentRespectingFilter("reference")
 	 * priceContentAll()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#price-content">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceContent priceContentRespectingFilter(@Nullable String... priceLists) {
@@ -11624,6 +11982,8 @@ public interface QueryConstraints {
 	 * ```
 	 * useOfPrice(WITH_TAX)
 	 * ```
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/price#price-type">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static PriceType priceType(@Nullable QueryPriceMode priceMode) {
@@ -11646,6 +12006,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * page(1, 24)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Page page(@Nullable Integer pageNumber, @Nullable Integer pageSize) {
@@ -11668,6 +12030,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * strip(52, 24)
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/paging#strip">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static Strip strip(@Nullable Integer offset, @Nullable Integer limit) {
@@ -11753,6 +12117,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary() {
@@ -11838,6 +12204,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(@Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
@@ -11925,6 +12293,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12015,6 +12385,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12106,6 +12478,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12197,6 +12571,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12288,6 +12664,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12379,6 +12757,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12469,6 +12849,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12559,6 +12941,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12648,6 +13032,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12737,6 +13123,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12826,6 +13214,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -12915,6 +13305,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -13005,6 +13397,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -13095,6 +13489,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -13185,6 +13581,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static FacetSummary facetSummary(
@@ -13284,6 +13682,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable EntityRequire... requirements) {
@@ -13361,6 +13761,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(@Nullable String referenceName, @Nullable FacetStatisticsDepth statisticsDepth, @Nullable EntityRequire... requirements) {
@@ -13443,6 +13845,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -13527,6 +13931,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -13612,6 +14018,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -13697,6 +14105,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -13782,6 +14192,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -13867,6 +14279,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -13951,6 +14365,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14035,6 +14451,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14118,6 +14536,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14201,6 +14621,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14284,6 +14706,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14367,6 +14791,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14451,6 +14877,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14535,6 +14963,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14619,6 +15049,8 @@ public interface QueryConstraints {
 	 * 
 	 * The ordering constraints can only target properties on the target entity and cannot target reference attributes in
 	 * the source entity that are specific to a relationship with the target entity.
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference">Visit detailed user documentation</a></p>
 	*/
 	@Nullable
 	static FacetSummaryOfReference facetSummaryOfReference(
@@ -14661,6 +15093,8 @@ public interface QueryConstraints {
 	 * <pre>
 	 * queryTelemetry()
 	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/debug#query-telemetry">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static QueryTelemetry queryTelemetry() {
@@ -14704,6 +15138,8 @@ public interface QueryConstraints {
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static EntityFetch entityFetchAll() {
@@ -14747,6 +15183,8 @@ public interface QueryConstraints {
 	 * - {@link PriceContent}
 	 * - {@link HierarchyContent}
 	 * - {@link ReferenceContent}
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
 	*/
 	@Nonnull
 	static EntityGroupFetch entityGroupFetchAll() {
