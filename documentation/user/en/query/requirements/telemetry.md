@@ -12,9 +12,13 @@ preferredLang: 'evitaql'
 
 ## Query telemetry
 
+<LanguageSpecific to="evitaql,java,rest,csharp">
+
 ```evitaql-syntax
 queryTelemetry()
 ```
+
+</LanguageSpecific>
 
 The <LanguageSpecific to="java,evitaql,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/QueryTelemetry.java</SourceClass> requirement</LanguageSpecific>
 <LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/QueryTelemetry.cs</SourceClass> requirement</LanguageSpecific>
@@ -29,8 +33,7 @@ the following data:
 	<dt>operation</dt>
 	<dd>
 		Phase of the query execution.
-		Possible values can be found in the <LanguageSpecific to="java,evitaql,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/QueryTelemetry.java</SourceClass> class</LanguageSpecific>
-		<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/QueryTelemetry.cs</SourceClass> class</LanguageSpecific>.
+		Possible values can be found in the <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/QueryTelemetry.java</SourceClass> class</LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/QueryTelemetry.cs</SourceClass> class</LanguageSpecific>.
 	</dd>
 	<dt>start</dt>
 	<dd>
@@ -54,6 +57,7 @@ the following data:
 By default the number values of the telemetry object are returned in raw form. You can change that in the GraphQL by
 using argument `format` on the `queryTelemetry` field. This way human-readable values are returned.
 </LanguageSpecific>
+
 
 To demonstrate the information the query telemetry is providing, we will use the following query that filters and sorts
 entities:
