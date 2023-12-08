@@ -75,17 +75,17 @@ The result contains query telemetry and some products (which we omitted here for
 
 <LanguageSpecific to="evitaql,java,csharp">
 
-<MDInclude sourceVariable="extraResults.QueryTelemetry">[Result query telemetry for filtered and ordered entities](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetry.evitaql.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.QueryTelemetry">[Result query telemetry for filtered and ordered entities](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetryResult.evitaql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="graphql">
 
-<MDInclude sourceVariable="data.queryProduct.extraResults.queryTelemetry">[Result query telemetry for filtered and ordered entities](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetry.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.queryTelemetry">[Result query telemetry for filtered and ordered entities](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetryResult.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.queryTelemetry">[Result query telemetry for filtered and ordered entities](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetry.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.queryTelemetry">[Result query telemetry for filtered and ordered entities](/documentation/user/en/query/requirements/examples/telemetry/queryTelemetryResult.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
