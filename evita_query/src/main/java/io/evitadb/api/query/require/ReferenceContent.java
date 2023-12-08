@@ -162,7 +162,7 @@ public class ReferenceContent extends AbstractRequireConstraintContainer
 	private static final String SUFFIX_ALL = "all";
 	private static final String SUFFIX_WITH_ATTRIBUTES = "withAttributes";
 	private static final String SUFFIX_ALL_WITH_ATTRIBUTES = "allWithAttributes";
-	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent();
+	public static final ReferenceContent ALL_REFERENCES = new ReferenceContent(AttributeContent.ALL_ATTRIBUTES);
 
 	private ReferenceContent(@Nonnull String[] referenceName,
 	                         @Nonnull RequireConstraint[] requirements,
