@@ -1,5 +1,5 @@
 // open session manually
-EvitaClientSession session = evita.CreateReadWriteSession("testCatalog");
+EvitaClientSession session = evita.CreateReadWriteSession("evita");
 // initiate session manually
 long txId = session.OpenTransaction();
 // in case of error, mark transaction as rollback only

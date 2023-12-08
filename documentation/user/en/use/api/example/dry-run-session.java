@@ -2,7 +2,7 @@
 try (
 	final EvitaSessionContract session = evita.createSession(
 		new SessionTraits(
-			"testCatalog", 
+			"evita",
 			SessionFlags.READ_WRITE, 
 			SessionFlags.DRY_RUN
 		)

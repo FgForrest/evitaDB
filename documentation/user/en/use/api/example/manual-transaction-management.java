@@ -1,5 +1,5 @@
 // open session manually
-final EvitaSessionContract session = evita.createReadWriteSession("testCatalog");
+final EvitaSessionContract session = evita.createReadWriteSession("evita");
 // initiate session manually
 final long txId = session.openTransaction();
 // in case of error, mark transaction as rollback only

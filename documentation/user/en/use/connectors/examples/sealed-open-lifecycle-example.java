@@ -1,5 +1,5 @@
 evita.updateCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		// get existing product in a read-only form - safe for multi-threaded use
 		final Product readOnlyInstance = session.getEntity(

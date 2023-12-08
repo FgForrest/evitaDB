@@ -23,7 +23,7 @@
 
 package io.evitadb.documentation.csharp;
 
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContextFactory;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -46,7 +46,7 @@ public class CsharpTestContextFactory implements TestContextFactory<CsharpTestCo
 	private final AtomicReference<CsharpTestContext> testContextRef = new AtomicReference<>();
 	@Nullable
 	@Override
-	public DynamicTest getInitTest(@Nonnull DocumentationProfile profile) {
+	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Init C# query validator (" + profile + ")",
 			() -> testContextRef.set(new CsharpTestContext(profile))
@@ -55,7 +55,7 @@ public class CsharpTestContextFactory implements TestContextFactory<CsharpTestCo
 
 	@Nullable
 	@Override
-	public DynamicTest getTearDownTest(@Nonnull DocumentationProfile profile) {
+	public DynamicTest getTearDownTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Destroy C# query validator (" + profile + ")",
 			() -> getContext().getCshell().close()

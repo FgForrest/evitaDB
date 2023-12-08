@@ -149,14 +149,14 @@ You can define a new catalog schema or update an existing one using the
 [catalog schema API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)
 at the `https://your-server:5555/gql/test-catalog/schema` URL:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Imperative catalog schema definition via GraphQL API](/documentation/user/en/use/api/example/imperative-catalog-schema-definition.graphql)
 </SourceCodeTabs>
 
 or update the schema of a specific entity collection at the same URL using a GraphQL mutation of the selected collection like this:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Imperative collection schema definition via GraphQL API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.graphql)
 </SourceCodeTabs>
@@ -188,7 +188,7 @@ You can define a new catalog schema or update an existing one using the
 [catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)
 at the `https://your-server:5555/rest/test-catalog/schema` URL:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Imperative catalog schema definition via REST API](/documentation/user/en/use/api/example/imperative-catalog-schema-definition.rest)
 </SourceCodeTabs>
@@ -196,7 +196,7 @@ at the `https://your-server:5555/rest/test-catalog/schema` URL:
 or update the schema of a specific entity collection at e.g. an `https://your-server:5555/rest/test-catalog/product/schema` URL 
 for the collection `Product` using a REST mutation of the selected collection like this:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Imperative collection schema definition via REST API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.rest)
 </SourceCodeTabs>
@@ -213,7 +213,7 @@ Behind the scenes, instance of such builder is converted to the collection of mu
 
 A schema can be programmatically defined this way:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Imperative schema definition via AP evitaDB API](/documentation/user/en/use/api/example/imperative-schema-definition.cs)
 </SourceCodeTabs>

@@ -1,5 +1,5 @@
 evita.queryCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		// get single product by primary key
 		final Optional<Product> product = session.getEntity(

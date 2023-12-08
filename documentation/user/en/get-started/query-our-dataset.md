@@ -139,7 +139,7 @@ instance:
 After that you can create a new session and try any of the evitaQL queries described in 
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.java)
 </SourceCodeTabs>
@@ -172,7 +172,7 @@ Open your .NET IDE and create an instance of <SourceClass>EvitaDB.Client/EvitaCl
 After that you can create a new session and try any of the evitaQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.cs)
 </SourceCodeTabs>
@@ -201,7 +201,7 @@ the URL of the catalog data API of our demo catalog `https://demo.evitadb.io:555
 After that you can send GraphQL requests to that URL and try any of the GraphQL queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.graphql)
 </SourceCodeTabs>
@@ -231,7 +231,7 @@ the basic URL of the catalog data API of our demo catalog `https://demo.evitadb.
 After that you can send REST requests to different variants of that URL and try any of the REST queries described in
 [the reference documentation](../query/basics.md):
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Query the demo server](/documentation/user/en/get-started/example/query-demo-server.rest)
 </SourceCodeTabs>

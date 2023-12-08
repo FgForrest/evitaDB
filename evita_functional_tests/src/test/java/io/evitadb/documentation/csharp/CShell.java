@@ -25,7 +25,7 @@ package io.evitadb.documentation.csharp;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
@@ -80,12 +80,12 @@ public class CShell {
      * Profile of the documentation that is currently being tested - either localhost or the default; the latter represents
      * evita demo instance.
      */
-    private final DocumentationProfile profile;
+    private final Environment profile;
 
     /**
      * Constructor for CShell. It downloads the C# query validator executable if it is not present in the temporary folder.
      */
-    public CShell(@Nonnull DocumentationProfile profile) {
+    public CShell(@Nonnull Environment profile) {
         this.profile = profile;
         if (!Files.exists(Paths.get(VALIDATOR_PATH))) {
             downloadValidator();
@@ -229,10 +229,10 @@ public class CShell {
      * encountered during the execution to the standard output
      */
     @Nonnull
-    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable, @Nonnull DocumentationProfile profile) {
+    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable, @Nonnull Environment profile) {
         final ProcessBuilder processBuilder;
         final String commandToSend = COMPILE.matcher(isWindows() ? command.replace("\"", "\\\"") : command).replaceAll("");
-        final String host = profile.equals(DocumentationProfile.LOCALHOST) ? "localhost" : "demo.evitadb.io";
+        final String host = profile.equals(Environment.LOCALHOST) ? "localhost" : "demo.evitadb.io";
         if (sourceVariable == null) {
             processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat);
         } else {

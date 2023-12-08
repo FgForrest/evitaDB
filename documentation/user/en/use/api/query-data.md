@@ -41,7 +41,7 @@ constraints in those arguments. An example of such a query might look like this:
 
 </LanguageSpecific>
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
 
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
@@ -505,7 +505,7 @@ This is an example of how the query is composed and how evitaDB is called.
 The example imports previously mentioned interface 
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass> statically.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [C# query example](/documentation/user/en/use/api/example/csharp-query-example.cs)
 </SourceCodeTabs>
@@ -514,7 +514,7 @@ The example imports previously mentioned interface
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [C# dirty query example](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
 </SourceCodeTabs>
@@ -537,7 +537,7 @@ represented by the
 <SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass>
 interface.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.cs)
 </SourceCodeTabs>
@@ -555,7 +555,7 @@ When such a `require` constraint is used, data will be fetched *greedily* during
 will then contain entities in the form of
 <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.cs)
 </SourceCodeTabs>
@@ -571,7 +571,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.cs)
 </SourceCodeTabs>
@@ -592,7 +592,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
 </SourceCodeTabs>
@@ -651,7 +651,7 @@ rich entity objects. As a result, you will only get a specific entity object wit
 These simplified queries are primarily intended to be used when developing or exploring the API by unique keys,
 as they provide quick access to entities.
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Java query example](/documentation/user/en/use/api/example/graphql-get-query-example.graphql)
 </SourceCodeTabs>
@@ -664,7 +664,7 @@ with the more complex full response with pagination and extra results as you wou
 These queries are meant to be used as a quick way/shortcut to get a list of entities, when no extra results or more advanced pagination
 requirements are needed.
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Java query example](/documentation/user/en/use/api/example/graphql-list-query-example.graphql)
 </SourceCodeTabs>
@@ -677,7 +677,7 @@ all evitaDB query features. Because of all the features, the responses of these 
 the other two query types. However, in addition to entity bodies, you can retrieve pagination metadata and extra results in
 one query.
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Java query example](/documentation/user/en/use/api/example/graphql-full-query-example.graphql)
 </SourceCodeTabs>
@@ -705,7 +705,7 @@ parameters. As a result, you will only get a specific entity object without unne
 These simplified endpoints are primarily intended to be used when developing or exploring the API by unique keys,
 as they provide quick access to entities.
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Java query example](/documentation/user/en/use/api/example/rest-get-query-example.rest)
 </SourceCodeTabs>
@@ -718,7 +718,7 @@ with the more complex full response with pagination and extra results as you wou
 These queries are meant to be used as a quick way/shortcut to get a list of entities, when no extra results or more advanced pagination
 requirements are needed.
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Java query example](/documentation/user/en/use/api/example/rest-list-query-example.rest)
 </SourceCodeTabs>
@@ -731,7 +731,7 @@ all evitaDB query features. Because of all the features, the responses of these 
 the other two endpoint types. However, in additions to entity bodies, you receive pagination metadata and extra results in
 one query.
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Java query example](/documentation/user/en/use/api/example/rest-full-query-example.rest)
 </SourceCodeTabs>

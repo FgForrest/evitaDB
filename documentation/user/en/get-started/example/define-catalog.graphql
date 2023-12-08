@@ -1,5 +1,5 @@
 mutation {
-  createCatalog(name: "testCatalog") {
+  createCatalog(name: "evita") {
     name
   }
 }

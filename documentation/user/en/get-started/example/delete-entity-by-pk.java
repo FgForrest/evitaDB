@@ -1,5 +1,5 @@
 evita.updateCatalog(
-	"testCatalog", session -> {
+	"evita", session -> {
 		return session.deleteEntity(
 			"Brand",
 			1

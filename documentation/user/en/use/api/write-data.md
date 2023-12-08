@@ -74,7 +74,7 @@ one writing the data, we can afford to do this.
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.java)
 </SourceCodeTabs>
@@ -87,7 +87,7 @@ moment on, multiple clients can open read-only or read-write sessions in paralle
 
 Any newly created catalog starts in `Warmup` state and must be manually switched to *transactional* mode by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.cs)
 </SourceCodeTabs>
@@ -101,7 +101,7 @@ moment on, multiple clients can open read-only or read-write sessions in paralle
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the 
 [system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
 </SourceCodeTabs>
@@ -115,7 +115,7 @@ moment on, multiple clients can send queries or mutations requests in parallel t
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the
 [system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) by executing:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Termination of warm-up mode](/documentation/user/en/use/api/example/finalization-of-warmup-mode.graphql)
 </SourceCodeTabs>
@@ -170,13 +170,13 @@ When you create new entity using evitaDB API, you obtain a builder, and you can 
 to the entity and then store the entity to the database:
 
 <LanguageSpecific to="java">
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.java)
 </SourceCodeTabs>
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.cs)
 </SourceCodeTabs>
@@ -188,13 +188,13 @@ basically a contract interface with a few methods allowing you to convert it to 
 for updating the data:
 
 <LanguageSpecific to="java">
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.java)
 </SourceCodeTabs>
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
 
 [Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.cs)
 </SourceCodeTabs>
@@ -426,7 +426,7 @@ the lambda function.
 
 That's why there is an alternative - not so secure - approach to handling sessions and transactions:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java">
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java">
 
 [Manual session and transaction handling](/documentation/user/en/use/api/example/manual-transaction-management.java)
 </SourceCodeTabs>
@@ -476,7 +476,7 @@ a delegate function.
 
 That's why there is an alternative - not so secure - approach to handling sessions and transactions:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java">
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java">
 
 [Manual session and transaction handling](/documentation/user/en/use/api/example/manual-transaction-management.cs)
 </SourceCodeTabs>
@@ -490,7 +490,7 @@ Both <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> and
 <SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass> implement C# `IDisposable`
 interface, so you can use them this way:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java">
 
 [Get advantage of Autocloseable behaviour](/documentation/user/en/use/api/example/autocloseable-transaction-management.cs)
 </SourceCodeTabs>
@@ -502,7 +502,7 @@ have all the business logic executable within the same block.
 
 For testing purposes, there is a special flag that can be used when opening a new session - a **dry run** flag:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java">
 
 [Opening dry-run session](/documentation/user/en/use/api/example/dry-run-session.cs)
 </SourceCodeTabs>
@@ -529,7 +529,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.java)
 </SourceCodeTabs>
@@ -540,7 +540,7 @@ and it may be split into several parts, which will reveal the "builder" used in 
 When you need to alter existing entity, you first fetch it from the server, open for writing (which converts it to
 the builder wrapper), modify it, and finally collect the changes and send them to the server. 
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 
 [Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.java)
 </SourceCodeTabs>
@@ -600,7 +600,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.cs)
 </SourceCodeTabs>
@@ -611,7 +611,7 @@ and it may be split into several parts, which will reveal the "builder" used in 
 When you need to alter existing entity, you first fetch it from the server, open for writing (which converts it to
 the builder wrapper), modify it, and finally collect the changes and send them to the server.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 
 [Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.cs)
 </SourceCodeTabs>
@@ -651,7 +651,7 @@ a stream of mutations that can be sent to and processed by the evitaDB server on
 
 There is an analogous builder that takes an existing entity and tracks changes made to it.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/detached-existing-entity-preparation.cs">
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/detached-existing-entity-preparation.cs">
 
 [Detached existing entity example](/documentation/user/en/use/api/example/detached-existing-entity-instantiation.java)
 </SourceCodeTabs>
@@ -685,7 +685,7 @@ at the `https://your-server:5555/gql/test-catalog` URL. This API contains `upser
 the changes to be applied to an entity. In one go, you can then retrieve the entity with the changes applied by defining
 return data.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.graphql)
 </SourceCodeTabs>
@@ -695,7 +695,7 @@ either create a new entity with specified mutations (and possibly a primary key)
 of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
 argument.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 
 [Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.graphql)
 </SourceCodeTabs>
@@ -728,7 +728,7 @@ There endpoints are customized to collections' [schemas](/documentation/user/en/
 collection of evitaDB mutations which define the changes to be applied to an entity. In one go, you can then retrieve the 
 entity with the changes applied by defining requirements.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.rest)
 </SourceCodeTabs>
@@ -738,7 +738,7 @@ either create a new entity with specified mutations (and possibly a primary key)
 of an existing entity is specified. You can further customize the behavior of the mutation by specifying the `entityExistence`
 argument.
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 
 [Updating existing entity example](/documentation/user/en/use/api/example/update-existing-entity.rest)
 </SourceCodeTabs>
@@ -765,7 +765,7 @@ To remove one or multiple entities, you need to define a query that will match a
 
 <LanguageSpecific to="java,graphql,rest,csharp">
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
 
 [Removing all entities which name starts with `A`](/documentation/user/en/use/api/example/delete-entities-by-query.java)
 </SourceCodeTabs>

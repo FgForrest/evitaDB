@@ -1,5 +1,5 @@
 evita.updateCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		session.defineEntitySchemaFromModelClass(
 			Product.class

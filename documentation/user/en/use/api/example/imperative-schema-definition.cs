@@ -1,5 +1,5 @@
 evita.UpdateCatalog(
-	"testCatalog",
+	"evita",
 	session => {
 		session.DefineEntitySchema("Product")
 			/* all is strictly verified but associated data

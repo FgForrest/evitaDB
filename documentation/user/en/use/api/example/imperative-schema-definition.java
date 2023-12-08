@@ -1,5 +1,5 @@
 evita.updateCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 
 		/* first create stubs of the entity schemas that the product will reference */

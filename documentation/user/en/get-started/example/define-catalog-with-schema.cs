@@ -1,4 +1,4 @@
-evita.DefineCatalog("testCatalog")
+evita.DefineCatalog("evita")
 	.WithEntitySchema(
 		"Brand",
 		entitySchema => entitySchema

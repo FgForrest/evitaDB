@@ -3,7 +3,7 @@ query(
     filterBy(
        and(
           entityPrimaryKeyInSet(1, 2, 3),
-          attributeEquals("visibility", "VISIBLE")
+          attributeEquals("status", "ACTIVE")
        )
     ),
     orderBy(

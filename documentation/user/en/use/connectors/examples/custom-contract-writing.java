@@ -1,5 +1,5 @@
 evita.updateCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		TODO JNO - UPDATE THIS WITH WRITABLE PRODUCT INTERFACE
 

@@ -23,7 +23,7 @@
 
 package io.evitadb.documentation.graphql;
 
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.test.client.GraphQLClient;
 import lombok.Getter;
@@ -43,8 +43,8 @@ public class GraphQLTestContext implements TestContext {
 	@Getter
 	private final GraphQLClient graphQLClient;
 
-	public GraphQLTestContext(@Nonnull DocumentationProfile profile) {
-		this.graphQLClient = profile == DocumentationProfile.LOCALHOST ?
+	public GraphQLTestContext(@Nonnull Environment profile) {
+		this.graphQLClient = profile == Environment.LOCALHOST ?
 			new GraphQLClient("https://localhost:5555/gql/evita", false) :
 			new GraphQLClient("https://demo.evitadb.io:5555/gql/evita");
 	}
