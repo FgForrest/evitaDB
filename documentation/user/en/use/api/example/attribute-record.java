@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public record MyEntity(
 	// contains attribute `name` if fetched and not null
 	@Attribute(name = "name", locale = true)

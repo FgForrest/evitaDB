@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public interface MyEntity {
 
 	@PrimaryKey int any();

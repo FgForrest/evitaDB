@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public interface MyEntity {
 
 	// return id of parent entity, or null if this entity is a root entity

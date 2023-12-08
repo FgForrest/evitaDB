@@ -1,3 +1,4 @@
+@EntityRef("Product")
 @Data
 public class MyEntity {
 	

@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public interface MyEntity {
 
 	// returns the prices calculated as selling price for particular query

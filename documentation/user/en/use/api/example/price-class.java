@@ -1,3 +1,4 @@
+@EntityRef("Product")
 @Data
 public record MyEntity(
 	// contains the prices calculated as selling price for particular query
