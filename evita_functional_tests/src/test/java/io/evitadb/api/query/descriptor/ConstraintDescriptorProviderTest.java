@@ -222,7 +222,7 @@ class ConstraintDescriptorProviderTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class UnknownConstraint extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
 

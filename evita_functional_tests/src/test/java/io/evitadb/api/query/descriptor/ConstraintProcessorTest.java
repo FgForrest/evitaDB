@@ -153,7 +153,7 @@ class ConstraintProcessorTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			"something",
 			"This is a constraint.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.GENERIC),
 			null,
 			new ConstraintCreator(
@@ -179,7 +179,7 @@ class ConstraintProcessorTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			"somethingDefault",
 			"This is a constraint.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.GENERIC),
 			null,
 			new ConstraintCreator(
@@ -198,7 +198,7 @@ class ConstraintProcessorTest {
 			ConstraintPropertyType.GENERIC,
 			"and",
 			"This is a constraint.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE),
 			null,
 			new ConstraintCreator(
@@ -227,7 +227,7 @@ class ConstraintProcessorTest {
 			ConstraintPropertyType.ATTRIBUTE,
 			"startsWith",
 			"This is a constraint.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE),
 			new SupportedValues(
 				Set.of(String.class),
@@ -257,7 +257,7 @@ class ConstraintProcessorTest {
 			ConstraintPropertyType.HIERARCHY,
 			"within",
 			"This is a constraint.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
@@ -293,7 +293,7 @@ class ConstraintProcessorTest {
 			ConstraintPropertyType.HIERARCHY,
 			"withinSelf",
 			"This is a constraint.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			new ConstraintCreator(
@@ -332,7 +332,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithoutCreator extends AbstractAttributeFilterConstraintLeaf {
 
@@ -349,7 +349,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithoutType implements Constraint<ConstraintWithoutType> {
 
@@ -397,7 +397,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithoutPropertyType implements FilterConstraint {
 
@@ -445,7 +445,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithConstructorAndFactoryMethod extends AbstractAttributeFilterConstraintLeaf {
 
@@ -469,7 +469,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class SimilarConstraintA extends AbstractAttributeFilterConstraintLeaf {
 
@@ -487,7 +487,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class SimilarConstraintB extends AbstractAttributeFilterConstraintLeaf {
 
@@ -505,7 +505,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class SimilarConstraintWithSuffixedCreatorsA extends AbstractAttributeFilterConstraintLeaf {
 
@@ -523,7 +523,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class SimilarConstraintWithSuffixedCreatorsB extends AbstractAttributeFilterConstraintLeaf {
 
@@ -541,7 +541,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithSameConditionWithoutClassifier extends AbstractAttributeFilterConstraintLeaf {
 
@@ -559,7 +559,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithSameConditionWithClassifier extends AbstractAttributeFilterConstraintLeaf {
 
@@ -577,7 +577,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithSameConditionWithAndWithoutClassifier extends AbstractAttributeFilterConstraintLeaf {
 
@@ -600,7 +600,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersA extends AbstractAttributeFilterConstraintLeaf {
 
@@ -618,7 +618,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithSameConditionAndDifferentFullNamesOrClassifiersB extends AbstractAttributeFilterConstraintLeaf {
 
@@ -640,7 +640,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithDuplicateCreators extends AbstractAttributeFilterConstraintLeaf {
 
@@ -662,7 +662,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintAWithoutSuffix extends AbstractAttributeFilterConstraintLeaf {
 
@@ -680,7 +680,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "somethingElse",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintBWithSuffix extends AbstractAttributeFilterConstraintLeaf {
 
@@ -698,7 +698,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithMultipleImplicitClassifiers extends AbstractAttributeFilterConstraintLeaf {
 
@@ -716,7 +716,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithMultipleAdditionalChildren extends AbstractAttributeFilterConstraintContainer {
 
@@ -729,7 +729,7 @@ class ConstraintProcessorTest {
 	@ConstraintDefinition(
 		name = "something",
 		shortDescription = "This is a constraint.",
-		userDocsLink = "link"
+		userDocsLink = "/link"
 	)
 	private static class ConstraintWithMultipleSameAdditionalChildren extends AbstractAttributeFilterConstraintLeaf {
 

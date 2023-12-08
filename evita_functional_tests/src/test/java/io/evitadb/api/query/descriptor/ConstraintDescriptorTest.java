@@ -166,7 +166,7 @@ class ConstraintDescriptorTest {
 			propertyType,
 			name,
 			"This is a description.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			creator
@@ -201,7 +201,7 @@ class ConstraintDescriptorTest {
 			propertyType,
 			name,
 			"This is a description.",
-			"link",
+			"/link",
 			Set.of(ConstraintDomain.ENTITY),
 			null,
 			creator
