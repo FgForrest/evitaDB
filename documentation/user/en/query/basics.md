@@ -404,7 +404,7 @@ the resulting output to only include values that satisfy the constraint.
 
 ### String constraints
 
-String constraints are similar to [Comparable](#comparable-constraints), but operate only on the 
+String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
 <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> attribute datatype and
 allow operations specific to it:
 
