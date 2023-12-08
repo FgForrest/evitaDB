@@ -29,7 +29,8 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 
 import javax.annotation.Nonnull;
 import java.util.function.Function;
@@ -41,40 +42,52 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
+public interface GlobalAttributeSchemaMutation extends AttributeSchemaMutation, CatalogSchemaMutation {
 
 	/**
 	 * Replaces existing attribute schema with updated one but only when those schemas differ. Otherwise,
 	 * the non-changed, original catalog schema is returned.
 	 */
 	@Nonnull
-	default CatalogSchemaContract replaceAttributeIfDifferent(
+	default CatalogSchemaWithImpactOnEntitySchemas replaceAttributeIfDifferent(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull GlobalAttributeSchemaContract existingAttributeSchema,
 		@Nonnull GlobalAttributeSchemaContract updatedAttributeSchema,
-		@Nonnull EntitySchemaProvider entitySchemaAccessor
+		@Nonnull EntitySchemaProvider entitySchemaAccessor,
+		@Nonnull EntityAttributeSchemaMutation attributeSchemaMutation
 	) {
 		if (existingAttributeSchema.equals(updatedAttributeSchema)) {
 			// we don't need to update entity schema - the associated data already contains the requested change
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
-			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				catalogSchema.getDescription(),
-				catalogSchema.getCatalogEvolutionMode(),
-				Stream.concat(
-						catalogSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
-						Stream.of(updatedAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							AttributeSchemaContract::getName,
-							Function.identity()
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.getVersion() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					catalogSchema.getDescription(),
+					catalogSchema.getCatalogEvolutionMode(),
+					Stream.concat(
+							catalogSchema.getAttributes().values().stream().filter(it -> !updatedAttributeSchema.getName().equals(it.getName())),
+							Stream.of(updatedAttributeSchema)
 						)
-					),
+						.collect(
+							Collectors.toMap(
+								AttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					entitySchemaAccessor
+				),
 				entitySchemaAccessor
+					.getEntitySchemas()
+					.stream()
+					.filter(it -> it.getAttributes().containsKey(existingAttributeSchema.getName()))
+					.map(it -> new ModifyEntitySchemaMutation(
+						it.getName(),
+						attributeSchemaMutation
+					))
+					.toArray(ModifyEntitySchemaMutation[]::new)
 			);
 		}
 	}

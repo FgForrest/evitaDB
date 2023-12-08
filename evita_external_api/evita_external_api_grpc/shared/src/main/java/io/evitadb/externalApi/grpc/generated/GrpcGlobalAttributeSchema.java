@@ -53,7 +53,9 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcGlobalAttributeSchema() {
     name_ = "";
+    unique_ = 0;
     type_ = 0;
+    uniqueGlobally_ = 0;
   }
 
   @java.lang.Override
@@ -119,8 +121,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 32: {
+            int rawValue = input.readEnum();
 
-            unique_ = input.readBool();
+            unique_ = rawValue;
             break;
           }
           case 40: {
@@ -173,8 +176,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 104: {
+            int rawValue = input.readEnum();
 
-            uniqueGlobally_ = input.readBool();
+            uniqueGlobally_ = rawValue;
             break;
           }
           default: {
@@ -300,7 +304,7 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int UNIQUE_FIELD_NUMBER = 4;
-  private boolean unique_;
+  private int unique_;
   /**
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -309,12 +313,27 @@ private static final long serialVersionUID = 0L;
    * better to have this ensured by the database engine.
    * </pre>
    *
-   * <code>bool unique = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  @java.lang.Override public int getUniqueValue() {
+    return unique_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
    * @return The unique.
    */
-  @java.lang.Override
-  public boolean getUnique() {
-    return unique_;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
   }
 
   public static final int FILTERABLE_FIELD_NUMBER = 5;
@@ -492,7 +511,7 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int UNIQUEGLOBALLY_FIELD_NUMBER = 13;
-  private boolean uniqueGlobally_;
+  private int uniqueGlobally_;
   /**
    * <pre>
    * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -501,12 +520,27 @@ private static final long serialVersionUID = 0L;
    * better to have this ensured by the database engine.
    * </pre>
    *
-   * <code>bool uniqueGlobally = 13;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
+   * @return The enum numeric value on the wire for uniqueGlobally.
+   */
+  @java.lang.Override public int getUniqueGloballyValue() {
+    return uniqueGlobally_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+   * better to have this ensured by the database engine.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
    * @return The uniqueGlobally.
    */
-  @java.lang.Override
-  public boolean getUniqueGlobally() {
-    return uniqueGlobally_;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType.valueOf(uniqueGlobally_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -532,8 +566,8 @@ private static final long serialVersionUID = 0L;
     if (deprecationNotice_ != null) {
       output.writeMessage(3, getDeprecationNotice());
     }
-    if (unique_ != false) {
-      output.writeBool(4, unique_);
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
+      output.writeEnum(4, unique_);
     }
     if (filterable_ != false) {
       output.writeBool(5, filterable_);
@@ -559,8 +593,8 @@ private static final long serialVersionUID = 0L;
     if (indexedDecimalPlaces_ != 0) {
       output.writeInt32(12, indexedDecimalPlaces_);
     }
-    if (uniqueGlobally_ != false) {
-      output.writeBool(13, uniqueGlobally_);
+    if (uniqueGlobally_ != io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType.NOT_GLOBALLY_UNIQUE.getNumber()) {
+      output.writeEnum(13, uniqueGlobally_);
     }
     unknownFields.writeTo(output);
   }
@@ -582,9 +616,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getDeprecationNotice());
     }
-    if (unique_ != false) {
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(4, unique_);
+        .computeEnumSize(4, unique_);
     }
     if (filterable_ != false) {
       size += com.google.protobuf.CodedOutputStream
@@ -618,9 +652,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeInt32Size(12, indexedDecimalPlaces_);
     }
-    if (uniqueGlobally_ != false) {
+    if (uniqueGlobally_ != io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType.NOT_GLOBALLY_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(13, uniqueGlobally_);
+        .computeEnumSize(13, uniqueGlobally_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -649,8 +683,7 @@ private static final long serialVersionUID = 0L;
       if (!getDeprecationNotice()
           .equals(other.getDeprecationNotice())) return false;
     }
-    if (getUnique()
-        != other.getUnique()) return false;
+    if (unique_ != other.unique_) return false;
     if (getFilterable()
         != other.getFilterable()) return false;
     if (getSortable()
@@ -669,8 +702,7 @@ private static final long serialVersionUID = 0L;
     }
     if (getIndexedDecimalPlaces()
         != other.getIndexedDecimalPlaces()) return false;
-    if (getUniqueGlobally()
-        != other.getUniqueGlobally()) return false;
+    if (uniqueGlobally_ != other.uniqueGlobally_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -693,8 +725,7 @@ private static final long serialVersionUID = 0L;
       hash = (53 * hash) + getDeprecationNotice().hashCode();
     }
     hash = (37 * hash) + UNIQUE_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getUnique());
+    hash = (53 * hash) + unique_;
     hash = (37 * hash) + FILTERABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFilterable());
@@ -719,8 +750,7 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + INDEXEDDECIMALPLACES_FIELD_NUMBER;
     hash = (53 * hash) + getIndexedDecimalPlaces();
     hash = (37 * hash) + UNIQUEGLOBALLY_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getUniqueGlobally());
+    hash = (53 * hash) + uniqueGlobally_;
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
@@ -881,7 +911,7 @@ private static final long serialVersionUID = 0L;
         deprecationNotice_ = null;
         deprecationNoticeBuilder_ = null;
       }
-      unique_ = false;
+      unique_ = 0;
 
       filterable_ = false;
 
@@ -903,7 +933,7 @@ private static final long serialVersionUID = 0L;
       }
       indexedDecimalPlaces_ = 0;
 
-      uniqueGlobally_ = false;
+      uniqueGlobally_ = 0;
 
       return this;
     }
@@ -1014,8 +1044,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasDeprecationNotice()) {
         mergeDeprecationNotice(other.getDeprecationNotice());
       }
-      if (other.getUnique() != false) {
-        setUnique(other.getUnique());
+      if (other.unique_ != 0) {
+        setUniqueValue(other.getUniqueValue());
       }
       if (other.getFilterable() != false) {
         setFilterable(other.getFilterable());
@@ -1041,8 +1071,8 @@ private static final long serialVersionUID = 0L;
       if (other.getIndexedDecimalPlaces() != 0) {
         setIndexedDecimalPlaces(other.getIndexedDecimalPlaces());
       }
-      if (other.getUniqueGlobally() != false) {
-        setUniqueGlobally(other.getUniqueGlobally());
+      if (other.uniqueGlobally_ != 0) {
+        setUniqueGloballyValue(other.getUniqueGloballyValue());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -1387,7 +1417,7 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_;
     }
 
-    private boolean unique_ ;
+    private int unique_ = 0;
     /**
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
@@ -1396,11 +1426,10 @@ private static final long serialVersionUID = 0L;
      * better to have this ensured by the database engine.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
-     * @return The unique.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @return The enum numeric value on the wire for unique.
      */
-    @java.lang.Override
-    public boolean getUnique() {
+    @java.lang.Override public int getUniqueValue() {
       return unique_;
     }
     /**
@@ -1411,11 +1440,11 @@ private static final long serialVersionUID = 0L;
      * better to have this ensured by the database engine.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
-     * @param value The unique to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
-    public Builder setUnique(boolean value) {
+    public Builder setUniqueValue(int value) {
       
       unique_ = value;
       onChanged();
@@ -1429,12 +1458,50 @@ private static final long serialVersionUID = 0L;
      * better to have this ensured by the database engine.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @return The unique.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @param value The unique to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUnique(io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      
+      unique_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearUnique() {
       
-      unique_ = false;
+      unique_ = 0;
       onChanged();
       return this;
     }
@@ -1982,7 +2049,7 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private boolean uniqueGlobally_ ;
+    private int uniqueGlobally_ = 0;
     /**
      * <pre>
      * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -1991,11 +2058,10 @@ private static final long serialVersionUID = 0L;
      * better to have this ensured by the database engine.
      * </pre>
      *
-     * <code>bool uniqueGlobally = 13;</code>
-     * @return The uniqueGlobally.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
+     * @return The enum numeric value on the wire for uniqueGlobally.
      */
-    @java.lang.Override
-    public boolean getUniqueGlobally() {
+    @java.lang.Override public int getUniqueGloballyValue() {
       return uniqueGlobally_;
     }
     /**
@@ -2006,11 +2072,11 @@ private static final long serialVersionUID = 0L;
      * better to have this ensured by the database engine.
      * </pre>
      *
-     * <code>bool uniqueGlobally = 13;</code>
-     * @param value The uniqueGlobally to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
+     * @param value The enum numeric value on the wire for uniqueGlobally to set.
      * @return This builder for chaining.
      */
-    public Builder setUniqueGlobally(boolean value) {
+    public Builder setUniqueGloballyValue(int value) {
       
       uniqueGlobally_ = value;
       onChanged();
@@ -2024,12 +2090,50 @@ private static final long serialVersionUID = 0L;
      * better to have this ensured by the database engine.
      * </pre>
      *
-     * <code>bool uniqueGlobally = 13;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
+     * @return The uniqueGlobally.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType.valueOf(uniqueGlobally_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+     * entity having certain value of this attribute in entire catalog.
+     * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
+     * @param value The uniqueGlobally to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUniqueGlobally(io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      
+      uniqueGlobally_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+     * entity having certain value of this attribute in entire catalog.
+     * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+     * better to have this ensured by the database engine.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 13;</code>
      * @return This builder for chaining.
      */
     public Builder clearUniqueGlobally() {
       
-      uniqueGlobally_ = false;
+      uniqueGlobally_ = 0;
       onChanged();
       return this;
     }

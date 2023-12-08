@@ -104,8 +104,8 @@ public class SetAttributeSchemaRepresentativeMutation
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.isUnique(),
-				globalAttributeSchema.isUniqueGlobally(),
+				globalAttributeSchema.getUniquenessType(),
+				globalAttributeSchema.getGlobalUniquenessType(),
 				globalAttributeSchema.isFilterable(),
 				globalAttributeSchema.isSortable(),
 				globalAttributeSchema.isLocalized(),
@@ -122,7 +122,7 @@ public class SetAttributeSchemaRepresentativeMutation
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.isUnique(),
+				entityAttributeSchema.getUniquenessType(),
 				entityAttributeSchema.isFilterable(),
 				entityAttributeSchema.isSortable(),
 				entityAttributeSchema.isLocalized(),
@@ -141,7 +141,7 @@ public class SetAttributeSchemaRepresentativeMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
@@ -150,7 +150,7 @@ public class SetAttributeSchemaRepresentativeMutation
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor
+			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 		);
 	}
 

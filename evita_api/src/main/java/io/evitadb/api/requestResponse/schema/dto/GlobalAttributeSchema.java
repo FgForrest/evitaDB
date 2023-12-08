@@ -45,7 +45,7 @@ import java.util.Map;
 public final class GlobalAttributeSchema extends AttributeSchema implements GlobalAttributeSchemaContract {
 	@Serial private static final long serialVersionUID = -4016156218004708457L;
 
-	@Getter private final boolean uniqueGlobally;
+	@Getter private final GlobalAttributeUniquenessType globalUniquenessType;
 	@Getter private final boolean representative;
 
 	public <T extends Serializable> GlobalAttributeSchema(
@@ -53,8 +53,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
-		boolean uniqueGlobally,
+		@Nullable AttributeUniquenessType unique,
+		@Nullable GlobalAttributeUniquenessType globalUniquenessType,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -70,7 +70,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			unique, filterable, sortable, localized, nullable,
 			type, defaultValue, indexedDecimalPlaces
 		);
-		this.uniqueGlobally = uniqueGlobally;
+		this.globalUniquenessType = globalUniquenessType == null ? GlobalAttributeUniquenessType.NOT_UNIQUE : globalUniquenessType;
 		this.representative = representative;
 	}
 
@@ -88,7 +88,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		return new GlobalAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			false, false, false, false, localized, false, false,
+			null, null, false, false, localized, false, false,
 			type, null,
 			0
 		);
@@ -102,8 +102,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 	 */
 	public static <T extends Serializable> GlobalAttributeSchema _internalBuild(
 		@Nonnull String name,
-		boolean unique,
-		boolean uniqueGlobally,
+		@Nullable AttributeUniquenessType unique,
+		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -131,8 +131,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
-		boolean uniqueGlobally,
+		@Nullable AttributeUniquenessType unique,
+		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -162,8 +162,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
-		boolean uniqueGlobally,
+		@Nullable AttributeUniquenessType unique,
+		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -184,15 +184,30 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 
 	@Override
 	public boolean isUnique() {
-		return super.isUnique() || uniqueGlobally;
+		return super.isUnique() || isUniqueGlobally();
+	}
+
+	@Override
+	public boolean isUniqueWithinLocale() {
+		return super.isUniqueWithinLocale() || isUniqueGloballyWithinLocale();
+	}
+
+	@Override
+	public boolean isUniqueGlobally() {
+		return globalUniquenessType != GlobalAttributeUniquenessType.NOT_UNIQUE;
+	}
+
+	@Override
+	public boolean isUniqueGloballyWithinLocale() {
+		return globalUniquenessType == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 	}
 
 	@Override
 	public String toString() {
 		return "GlobalAttributeSchema{" +
 			"name='" + getName() + '\'' +
-			", unique=" + isUnique() +
-			", uniqueGlobally=" + isUniqueGlobally() +
+			", unique=" + getUniquenessType() +
+			", uniqueGlobally=" + getGlobalUniquenessType() +
 			", filterable=" + isFilterable() +
 			", sortable=" + isSortable() +
 			", localized=" + isLocalized() +

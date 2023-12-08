@@ -803,8 +803,8 @@ public class ArrayUtils {
 			throw new IllegalArgumentException("Empty argument is not allowed!");
 		}
 		int resultSize = 0;
-		for (T[] configItem : array) {
-			resultSize = resultSize + configItem.length;
+		for (T[] arrayItem : array) {
+			resultSize = resultSize + arrayItem.length;
 		}
 		int offset = 0;
 		@SuppressWarnings({"unchecked"})

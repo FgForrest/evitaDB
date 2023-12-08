@@ -71,6 +71,7 @@ public class TestDataGenerator {
 	public static final String ENTITY_EMPTY_WITHOUT_PK = "emptyWithoutPk";
 	public static final String ENTITY_BRAND_GROUP = "BrandGroup";
 	public static final String ENTITY_STORE_GROUP = "BrandGroup";
+	public static final String ATTRIBUTE_RELATIVE_URL = "relativeUrl";
 	public static final String ATTRIBUTE_SIZE = "size";
 	public static final String ATTRIBUTE_CREATED = "created";
 	public static final String ATTRIBUTE_MANUFACTURED = "manufactured";
@@ -102,6 +103,7 @@ public class TestDataGenerator {
 				.openForWrite()
 				.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGlobally())
 				.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+				.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 				.updateVia(session);
 
 			final DataGenerator dataGenerator = new DataGenerator();
@@ -181,6 +183,7 @@ public class TestDataGenerator {
 						schemaBuilder -> {
 							schemaBuilder
 								.withDescription("This is a description")
+								.withGlobalAttribute(ATTRIBUTE_RELATIVE_URL)
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs
 									.withDescription("This is a description")
 									.filterable()

@@ -26,13 +26,11 @@ package io.evitadb.externalApi.grpc.requestResponse.schema;
 import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema;
@@ -44,10 +42,8 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.ofNullable;
@@ -88,7 +84,7 @@ public class CatalogSchemaConverter {
 	 * Creates {@link SealedCatalogSchema} from the {@link GrpcCatalogSchema}.
 	 */
 	@Nonnull
-	public static CatalogSchema convert(@Nonnull GrpcCatalogSchema catalogSchema) {
+	public static CatalogSchema convert(@Nonnull GrpcCatalogSchema catalogSchema, @Nonnull EntitySchemaProvider entitySchemaProvider) {
 		return CatalogSchema._internalBuild(
 			catalogSchema.getVersion(),
 			catalogSchema.getName(),
@@ -105,7 +101,7 @@ public class CatalogSchemaConverter {
 					Entry::getKey,
 					it -> toGlobalAttributeSchema(it.getValue())
 				)),
-			GrpcMockEntitySchemaAccessor.INSTANCE
+			entitySchemaProvider
 		);
 	}
 
@@ -135,14 +131,14 @@ public class CatalogSchemaConverter {
 	private static GrpcGlobalAttributeSchema toGrpcGlobalAttributeSchema(@Nonnull GlobalAttributeSchemaContract attributeSchema) {
 		final Builder builder = GrpcGlobalAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
-			.setUnique(attributeSchema.isUnique())
+			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
 			.setFilterable(attributeSchema.isFilterable())
 			.setSortable(attributeSchema.isSortable())
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
-			.setUniqueGlobally(attributeSchema.isUniqueGlobally());
+			.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(attributeSchema.getGlobalUniquenessType()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it, null)));
@@ -163,8 +159,8 @@ public class CatalogSchemaConverter {
 			attributeSchema.getName(),
 			attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 			attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-			attributeSchema.getUnique(),
-			attributeSchema.getUniqueGlobally(),
+			EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
+			EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
 			attributeSchema.getFilterable(),
 			attributeSchema.getSortable(),
 			attributeSchema.getLocalized(),
@@ -176,24 +172,4 @@ public class CatalogSchemaConverter {
 		);
 	}
 
-	/**
-	 * Class implementing the EntitySchemaProvider interface for accessing entity schemas in the GrpcMock environment.
-	 * This class throws an exception when trying to access the entity schemas - it should be replaces with different
-	 * implementation when the current session is available.
-	 */
-	private static class GrpcMockEntitySchemaAccessor implements EntitySchemaProvider {
-		private static final GrpcMockEntitySchemaAccessor INSTANCE = new GrpcMockEntitySchemaAccessor();
-
-		@Nonnull
-		@Override
-		public Collection<EntitySchemaContract> getEntitySchemas() {
-			throw new EvitaInternalError("Unsupported operation. Missing current session.");
-		}
-
-		@Nonnull
-		@Override
-		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
-			throw new EvitaInternalError("Unsupported operation. Missing current session.");
-		}
-	}
 }

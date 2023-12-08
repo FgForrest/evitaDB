@@ -28,6 +28,7 @@ import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -1367,6 +1368,90 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					assertTrue(product.getReferences(Entities.CATEGORY).stream().noneMatch(AttributesContract::attributesAvailable));
 					assertFalse(product.getReferences(Entities.STORE).isEmpty());
 					assertTrue(product.getReferences(Entities.STORE).stream().noneMatch(AttributesContract::attributesAvailable));
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Entities should be found by their primary keys with all references without attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRetrieveEntitiesWithoutReferenceAttributes(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences().stream().noneMatch(ref -> ref.getAttributeValues().isEmpty())
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentAll()
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertTrue(
+						product.getReferences()
+							.stream()
+							.noneMatch(AttributesAvailabilityChecker::attributesAvailable)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Entities should be found by their primary keys with all references with all attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRetrieveEntitiesWithAllReferenceAttributes(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences().stream().noneMatch(ref -> ref.getAttributeValues().isEmpty())
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentAllWithAttributes()
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertTrue(
+						product.getReferences()
+							.stream()
+							.allMatch(AttributesAvailabilityChecker::attributesAvailable)
+					);
 				}
 				return null;
 			}
@@ -4110,6 +4195,62 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertThrows(
 					AttributeNotFoundException.class,
 					() -> productByPk.getAttributeValues("unknown")
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing explicitly specified localized attributes without specifying locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenAccessingExplicitlySpecifiedLocalizedAttributesWithoutSpecifyingLocale(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(2)
+							),
+							require(
+								entityFetch(
+									attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_URL)
+								)
+							)
+						)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing explicitly specified localized associated data without specifying locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenAccessingExplicitlySpecifiedLocalizedAssociatedDataWithoutSpecifyingLocale(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(2)
+							),
+							require(
+								entityFetch(
+									associatedDataContent(ASSOCIATED_DATA_LABELS)
+								)
+							)
+						)
+					)
 				);
 				return null;
 			}

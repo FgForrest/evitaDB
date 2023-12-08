@@ -29,6 +29,7 @@ import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -99,6 +100,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -4732,7 +4734,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.BRAND);
+		final var expectedBody = createNonGroupedFacetSummaryWithCountsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4745,11 +4747,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            __typename
 		                            brand {
 		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
 			                            count
 			                            facetStatistics {
 			                                __typename
@@ -4810,7 +4807,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithImpactsDto(response);
+		final var expectedBody = createNonGroupedFacetSummaryWithImpactsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4820,10 +4817,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    extraResults {
 		                        facetSummary {
 		                            brand {
-		                                groupEntity {
-		                                    primaryKey
-		                                    type
-		                                }
 		                                count
 			                            facetStatistics {
 			                                facetEntity {
@@ -4900,7 +4893,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            parameter(
 		                                filterGroupBy: {
 		                                    attributeCodeLessThanEquals: "K",
-		                                    entityLocaleEquals: en		                                   
+		                                    entityLocaleEquals: en                                   
 			                            },
 			                            orderGroupBy: {
 			                                attributeNameNatural: DESC
@@ -4937,6 +4930,60 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.body(
 				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.FACET_SUMMARY.name() + ".parameter",
 				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return empty facet summary of non-grouped reference if missing reference")
+	void shouldReturnEmptyFacetSummaryOfNonGroupedReferenceIfMissingReference(Evita evita, GraphQLTester tester) {
+		final EntityClassifier entityWithoutBrand = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					not(referenceHaving(Entities.BRAND))
+				),
+				require(
+					strip(0, 1)
+				)
+			)
+		);
+		assertNotNull(entityWithoutBrand);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: %d
+		                    }
+		                ) {
+		                    extraResults {
+		                        facetSummary {
+		                            brand {
+			                            count
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				entityWithoutBrand.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH),
+				equalTo(
+					map()
+						.e(ResponseDescriptor.EXTRA_RESULTS.name(), map()
+							.e(ExtraResultsDescriptor.FACET_SUMMARY.name(), map()
+								.e("brand", null)))
+						.build()
+				)
 			);
 	}
 
@@ -5277,6 +5324,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
+	private Map<String, Object> createNonGroupedFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                      @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.build())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
 	private List<Map<String, Object>> createFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
 	                                                                  @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
@@ -5314,11 +5390,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response) {
+	private Map<String, Object> createNonGroupedFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                   @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
+										.build())
+									.build())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
+	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                   @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return facetSummary.getReferenceStatistics()
 			.stream()
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
 				map()
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)

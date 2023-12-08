@@ -107,8 +107,8 @@ public class SetAttributeSchemaSortableMutation
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.isUnique(),
-				globalAttributeSchema.isUniqueGlobally(),
+				globalAttributeSchema.getUniquenessType(),
+				globalAttributeSchema.getGlobalUniquenessType(),
 				globalAttributeSchema.isFilterable(),
 				sortable,
 				globalAttributeSchema.isLocalized(),
@@ -125,7 +125,7 @@ public class SetAttributeSchemaSortableMutation
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.isUnique(),
+				entityAttributeSchema.getUniquenessType(),
 				entityAttributeSchema.isFilterable(),
 				sortable,
 				entityAttributeSchema.isLocalized(),
@@ -142,7 +142,7 @@ public class SetAttributeSchemaSortableMutation
 				attributeSchema.getNameVariants(),
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
-				attributeSchema.isUnique(),
+				attributeSchema.getUniquenessType(),
 				attributeSchema.isFilterable(),
 				sortable,
 				attributeSchema.isLocalized(),
@@ -156,7 +156,7 @@ public class SetAttributeSchemaSortableMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
@@ -165,7 +165,7 @@ public class SetAttributeSchemaSortableMutation
 
 		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor
+			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 		);
 	}
 

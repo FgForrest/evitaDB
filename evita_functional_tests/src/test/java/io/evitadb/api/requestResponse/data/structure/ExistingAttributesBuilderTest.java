@@ -181,23 +181,23 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		final Attributes<EntityAttributeSchemaContract> attributes = builder.build();
 
 		assertEquals(
-			EntityAttributeSchema._internalBuild("int", false, false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("int", null, false, false, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("int").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("short", false, false, false, false, false, false, Short.class, null),
+			EntityAttributeSchema._internalBuild("short", null, false, false, false, false, false, Short.class, null),
 			attributes.getAttributeSchema("short").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("range", false, false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("range", null, false, false, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("range").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("bigDecimal", false, false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("bigDecimal", null, false, false, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("bigDecimal").orElse(null)
 		);
 		assertEquals(
-			EntityAttributeSchema._internalBuild("greetings", false, false, false, true, false, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}

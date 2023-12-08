@@ -74,7 +74,7 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 			globalAttributeSchema.isUniqueGlobally()) {
 			// when entity type is not known and attribute is unique globally - access catalog index instead
 			return filterByVisitor.applyOnGlobalUniqueIndex(
-				attributeDefinition,
+				globalAttributeSchema,
 				index -> {
 					final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
 						.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))

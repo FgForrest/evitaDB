@@ -504,7 +504,9 @@ public final class Evita implements EvitaContract {
 	 */
 	private void createCatalogInternal(@Nonnull CreateCatalogSchemaMutation createCatalogSchema) {
 		final String catalogName = createCatalogSchema.getCatalogName();
-		final CatalogSchemaContract catalogSchema = Objects.requireNonNull(createCatalogSchema.mutate(null));
+		final CatalogSchemaContract catalogSchema = Objects.requireNonNull(createCatalogSchema.mutate(null))
+			.updatedCatalogSchema();
+
 		this.catalogs.compute(
 			catalogName,
 			(theCatalogName, existingCatalog) -> {
@@ -590,7 +592,8 @@ public final class Evita implements EvitaContract {
 	) {
 		try {
 			final CatalogContract replacedCatalog = catalogToBeReplacedWith.replace(
-				modifyCatalogSchemaName.mutate(catalogToBeReplacedWith.getSchema()),
+				modifyCatalogSchemaName.mutate(catalogToBeReplacedWith.getSchema())
+					.updatedCatalogSchema(),
 				catalogToBeReplaced
 			);
 			// now rewrite the original catalog with renamed contents so that the observers could access it

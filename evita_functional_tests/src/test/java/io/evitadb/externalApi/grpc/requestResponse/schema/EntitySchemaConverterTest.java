@@ -35,9 +35,11 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.test.Entities;
@@ -101,8 +103,8 @@ class EntitySchemaConverterTest {
 					"test2",
 					"description",
 					"depr",
-					true,
-					true,
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
 					true,
 					true,
 					true,
@@ -144,7 +146,7 @@ class EntitySchemaConverterTest {
 							"code",
 							"description",
 							"depr",
-							true,
+							AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
 							true,
 							true,
 							true,

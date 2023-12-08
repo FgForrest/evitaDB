@@ -1,6 +1,11 @@
 evita.updateCatalog(
 	"testCatalog",
 	session -> {
+
+		/* first create stubs of the entity schemas that the product will reference */
+		session.defineEntitySchema("Brand");
+		session.defineEntitySchema("Category");
+
 		session.defineEntitySchema("Product")
 			/* all is strictly verified but associated data
 			   and references can be added on the fly */

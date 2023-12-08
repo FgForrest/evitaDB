@@ -71,7 +71,6 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClass
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
 		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-
 		return new SuccessEndpointResponse<>(entities);
 	}
 

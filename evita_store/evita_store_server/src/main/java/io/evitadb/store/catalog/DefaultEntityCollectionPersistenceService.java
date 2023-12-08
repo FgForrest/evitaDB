@@ -866,7 +866,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			attributeKey,
 			new SortIndex(
 				sortIndexCnt.getComparatorBase(),
-				sortIndexCnt.getAttributeKey().locale(),
+				sortIndexCnt.getAttributeKey(),
 				sortIndexCnt.getSortedRecords(),
 				sortIndexCnt.getSortedRecordsValues(),
 				sortIndexCnt.getValueCardinalities()
@@ -888,6 +888,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		chainIndexes.put(
 			attributeKey,
 			new ChainIndex(
+				chainIndexCnt.getAttributeKey(),
 				chainIndexCnt.getChains(),
 				chainIndexCnt.getElementStates()
 			)
@@ -925,6 +926,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		filterIndexes.put(
 			attributeKey,
 			new FilterIndex(
+				filterIndexCnt.getAttributeKey(),
 				filterIndexCnt.getHistogram(),
 				filterIndexCnt.getRangeIndex()
 			)
@@ -945,7 +947,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		uniqueIndexes.put(
 			attributeKey,
 			new UniqueIndex(
-				entityType, attributeKey.attributeName(),
+				entityType, attributeKey,
 				uniqueIndexCnt.getType(),
 				uniqueIndexCnt.getUniqueValueToRecordId(),
 				uniqueIndexCnt.getRecordIds()

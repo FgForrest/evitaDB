@@ -24,6 +24,7 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -86,6 +87,7 @@ import static io.evitadb.utils.AssertionUtils.assertResultIs;
 import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -735,6 +737,45 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 		);
 	}
 
+	@DisplayName("Should fail to return hierarchical entities with localize attribute without specifying locale")
+	@UseDataSet(THOUSAND_CATEGORIES)
+	@Test
+	void shouldFailToRetrieveEntitiesWithLocalizedAttributesWithoutSpecifyingLocale(Evita evita, Map<Integer, SealedEntity> originalCategoryIndex, one.edee.oss.pmptt.model.Hierarchy categoryHierarchy) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> {
+						session.query(
+							query(
+								collection(Entities.CATEGORY),
+								filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1))),
+								require(
+									page(1, Integer.MAX_VALUE),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+									hierarchyOfSelf(
+										fromRoot(
+											"megaMenu",
+											entityFetch(
+												attributeContent(
+													ATTRIBUTE_NAME
+												)
+											)
+										)
+									)
+								)
+							),
+							EntityReference.class
+						);
+					}
+				);
+
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return cardinalities for categories when filter constraint is eliminated")
 	@UseDataSet(THOUSAND_CATEGORIES)
 	@Test
@@ -765,17 +806,15 @@ public class EntityByHierarchyFilteringFunctionalTest extends AbstractHierarchyT
 					categoryHierarchy, originalCategoryIndex,
 					languagePredicate,
 					languagePredicate,
-					categoryCardinalities -> {
-						return new HierarchyStatisticsTuple(
-							"megaMenu",
-							computeChildren(
-								session, null, categoryHierarchy, categoryCardinalities,
-								false,
-								false, false,
-								1
-							)
-						);
-					}
+					categoryCardinalities -> new HierarchyStatisticsTuple(
+						"megaMenu",
+						computeChildren(
+							session, null, categoryHierarchy, categoryCardinalities,
+							false,
+							false, false,
+							1
+						)
+					)
 				);
 
 				final Hierarchy statistics = result.getExtraResult(Hierarchy.class);

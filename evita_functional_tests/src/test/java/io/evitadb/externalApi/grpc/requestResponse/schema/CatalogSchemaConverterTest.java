@@ -27,8 +27,10 @@ import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.test.TestConstants;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
@@ -56,7 +58,10 @@ class CatalogSchemaConverterTest {
 		);
 		assertCatalogSchema(
 			catalogSchema,
-			CatalogSchemaConverter.convert(CatalogSchemaConverter.convert(catalogSchema))
+			CatalogSchemaConverter.convert(
+				CatalogSchemaConverter.convert(catalogSchema),
+				EmptyEntitySchemaAccessor.INSTANCE
+			)
 		);
 	}
 
@@ -73,8 +78,8 @@ class CatalogSchemaConverterTest {
 					"code",
 					"description",
 					"depr",
-					true,
-					true,
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
 					true,
 					true,
 					true,
@@ -94,7 +99,10 @@ class CatalogSchemaConverterTest {
 		);
 		assertCatalogSchema(
 			catalogSchema,
-			CatalogSchemaConverter.convert(CatalogSchemaConverter.convert(catalogSchema))
+			CatalogSchemaConverter.convert(
+				CatalogSchemaConverter.convert(catalogSchema),
+				EmptyEntitySchemaAccessor.INSTANCE
+			)
 		);
 	}
 

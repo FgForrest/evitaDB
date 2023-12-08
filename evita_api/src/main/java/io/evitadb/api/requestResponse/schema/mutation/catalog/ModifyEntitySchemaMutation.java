@@ -27,7 +27,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor, EntitySchemaMutation, InternalSchemaBuilderHelper {
+public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 7843689721519035513L;
 	@Getter @Nonnull private final String entityType;
 	@Nonnull @Getter private final EntitySchemaMutation[] schemaMutations;
@@ -93,7 +93,7 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
 			mutationEntitySchemaAccessor
 				.getEntitySchema(entityType).map(it -> mutate(catalogSchema, it))
@@ -105,7 +105,9 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 				);
 		}
 		// do nothing - we alter only the entity schema
-		return catalogSchema;
+		return new CatalogSchemaWithImpactOnEntitySchemas(
+			catalogSchema
+		);
 	}
 
 	@Nullable

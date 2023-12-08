@@ -35,6 +35,7 @@ import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescripto
 import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
@@ -103,12 +104,12 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	@Nonnull
 	private ObjectNode serializeAttributeSchema(@Nonnull GlobalAttributeSchemaContract globalAttributeSchema) {
 		final ObjectNode attributeSchemaNode = objectJsonSerializer.objectNode();
-		attributeSchemaNode.put(AttributeSchemaDescriptor.NAME.name(), globalAttributeSchema.getName());
-		attributeSchemaNode.set(AttributeSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
-		attributeSchemaNode.put(AttributeSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUE.name(), globalAttributeSchema.isUnique());
-		attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), globalAttributeSchema.isUniqueGlobally());
+		attributeSchemaNode.put(NamedSchemaDescriptor.NAME.name(), globalAttributeSchema.getName());
+		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
+		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
+		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getUniquenessType().toString());
+		attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), globalAttributeSchema.isFilterable());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), globalAttributeSchema.isSortable());
 		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), globalAttributeSchema.isLocalized());

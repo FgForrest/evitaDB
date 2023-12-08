@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.graphql.api.catalog.GraphQLContextKey;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryHeaderArgumentsJoinType;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.UnknownEntityHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.EntityFetchRequireResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.FilterConstraintResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint.OrderConstraintResolver;
@@ -60,6 +61,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -151,6 +153,8 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
             filterConstraints.add(attributeInSet(attributeSchema.getName(), attributeValues));
         }
 
+        Optional.ofNullable(arguments.locale()).ifPresent(locale -> filterConstraints.add(entityLocaleEquals(locale)));
+
         if (arguments.join() == QueryHeaderArgumentsJoinType.AND) {
             return filterBy(and(filterConstraints.toArray(FilterConstraint[]::new)));
         } else if (arguments.join() == QueryHeaderArgumentsJoinType.OR) {
@@ -184,29 +188,34 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
     /**
      * Holds parsed GraphQL query arguments relevant for single entity query
      */
-    private record Arguments(@Nullable Integer limit,
+    private record Arguments(@Nullable Locale locale,
+                             @Nullable Integer limit,
                              @Nonnull QueryHeaderArgumentsJoinType join,
                              @Nonnull Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes) {
 
         private static Arguments from(@Nonnull DataFetchingEnvironment environment, @Nonnull CatalogSchemaContract catalogSchema) {
-            final HashMap<String, Object> arguments = new HashMap<>(environment.getArguments());
-
-            final Integer limit = (Integer) arguments.remove(ListUnknownEntitiesHeaderDescriptor.LIMIT.name());
-            final QueryHeaderArgumentsJoinType join = (QueryHeaderArgumentsJoinType) arguments.get(ListUnknownEntitiesHeaderDescriptor.JOIN.name());
-
             // left over arguments are globally unique attribute filters as defined by schema
-            final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(arguments, catalogSchema);
+            final Map<GlobalAttributeSchemaContract, List<Object>> globallyUniqueAttributes = extractUniqueAttributesFromArguments(environment.getArguments(), catalogSchema);
 
             // validate that arguments contain at least one entity identifier
             if (globallyUniqueAttributes.isEmpty()) {
                 throw new GraphQLInvalidArgumentException("Missing globally unique attribute to identify entity.");
             }
 
-            return new Arguments(limit, join, globallyUniqueAttributes);
+            final Locale locale = environment.getArgument(UnknownEntityHeaderDescriptor.LOCALE.name());
+            if (locale == null &&
+                globallyUniqueAttributes.keySet().stream().anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale)) {
+                throw new GraphQLInvalidArgumentException("Globally unique within locale attribute used but no locale was passed.");
+            }
+            final Integer limit = environment.getArgument(ListUnknownEntitiesHeaderDescriptor.LIMIT.name());
+            final QueryHeaderArgumentsJoinType join = environment.getArgument(ListUnknownEntitiesHeaderDescriptor.JOIN.name());
+
+
+            return new Arguments(locale, limit, join, globallyUniqueAttributes);
         }
 
         private static Map<GlobalAttributeSchemaContract, List<Object>> extractUniqueAttributesFromArguments(
-            @Nonnull HashMap<String, Object> arguments,
+            @Nonnull Map<String, Object> arguments,
             @Nonnull CatalogSchemaContract catalogSchema
         ) {
             final Map<GlobalAttributeSchemaContract, List<Object>> uniqueAttributes = createHashMap(arguments.size());

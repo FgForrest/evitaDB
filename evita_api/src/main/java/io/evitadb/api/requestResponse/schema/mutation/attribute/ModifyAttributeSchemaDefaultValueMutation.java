@@ -35,7 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -70,7 +70,7 @@ import java.io.Serializable;
 @EqualsAndHashCode
 public class ModifyAttributeSchemaDefaultValueMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutationWithProvidedEntitySchemaAccessor {
+	CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -7126530716174758452L;
 	@Nonnull @Getter private final String name;
 	@Getter @Nullable private final Serializable defaultValue;
@@ -111,8 +111,8 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				globalAttributeSchema.getNameVariants(),
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.isUnique(),
-				globalAttributeSchema.isUniqueGlobally(),
+				globalAttributeSchema.getUniquenessType(),
+				globalAttributeSchema.getGlobalUniquenessType(),
 				globalAttributeSchema.isFilterable(),
 				globalAttributeSchema.isSortable(),
 				globalAttributeSchema.isLocalized(),
@@ -129,7 +129,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				entityAttributeSchema.getNameVariants(),
 				entityAttributeSchema.getDescription(),
 				entityAttributeSchema.getDeprecationNotice(),
-				entityAttributeSchema.isUnique(),
+				entityAttributeSchema.getUniquenessType(),
 				entityAttributeSchema.isFilterable(),
 				entityAttributeSchema.isSortable(),
 				entityAttributeSchema.isLocalized(),
@@ -146,7 +146,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				attributeSchema.getNameVariants(),
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
-				attributeSchema.isUnique(),
+				attributeSchema.getUniquenessType(),
 				attributeSchema.isFilterable(),
 				attributeSchema.isSortable(),
 				attributeSchema.isLocalized(),
@@ -160,7 +160,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
@@ -170,7 +170,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 		try {
 			final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 			return replaceAttributeIfDifferent(
-				catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor
+				catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 			);
 		} catch (UnsupportedDataTypeException ex) {
 			throw new InvalidSchemaMutationException(
@@ -196,7 +196,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				existingAttributeSchema.getNameVariants(),
 				existingAttributeSchema.getDescription(),
 				existingAttributeSchema.getDeprecationNotice(),
-				existingAttributeSchema.isUnique(),
+				existingAttributeSchema.getUniquenessType(),
 				existingAttributeSchema.isFilterable(),
 				existingAttributeSchema.isSortable(),
 				existingAttributeSchema.isLocalized(),
@@ -235,7 +235,7 @@ public class ModifyAttributeSchemaDefaultValueMutation
 				existingAttributeSchema.getNameVariants(),
 				existingAttributeSchema.getDescription(),
 				existingAttributeSchema.getDeprecationNotice(),
-				existingAttributeSchema.isUnique(),
+				existingAttributeSchema.getUniquenessType(),
 				existingAttributeSchema.isFilterable(),
 				existingAttributeSchema.isSortable(),
 				existingAttributeSchema.isLocalized(),

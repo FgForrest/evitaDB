@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -89,6 +90,7 @@ import io.evitadb.store.spi.operation.PutStoragePartOperation;
 import io.evitadb.store.spi.operation.RemoveCollectionOperation;
 import io.evitadb.store.spi.operation.RemoveStoragePartOperation;
 import io.evitadb.store.spi.operation.RenameCollectionOperation;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -400,6 +402,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	public CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema currentSchema = getInternalSchema();
+		ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 		CatalogSchemaContract updatedSchema = currentSchema;
 		for (CatalogSchemaMutation theMutation : schemaMutation) {
 			// if the mutation implements entity schema mutation apply it on the appropriate schema
@@ -450,7 +453,20 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					getEntitySchemaAccessor()
 				);
 			} else {
-				updatedSchema = Objects.requireNonNull(theMutation.mutate(updatedSchema));
+				final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas;
+				if (theMutation instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
+					schemaWithImpactOnEntitySchemas = localCatalogSchemaMutation.mutate(updatedSchema, getEntitySchemaAccessor());
+				} else {
+					schemaWithImpactOnEntitySchemas = theMutation.mutate(updatedSchema);
+				}
+				Assert.isPremiseValid(
+					schemaWithImpactOnEntitySchemas != null && schemaWithImpactOnEntitySchemas.updatedCatalogSchema() != null,
+					"Catalog schema mutation is expected to produce CatalogSchema instance!"
+				);
+				updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
+				modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
+					schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
+					ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
 			}
 		}
 		final CatalogSchemaContract nextSchema = updatedSchema;
@@ -467,6 +483,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 			this.dataStoreBuffer.update(new CatalogSchemaStoragePart(updatedInternalSchema));
+		}
+		// alter affected entity schemas
+		if (modifyEntitySchemaMutations != null) {
+			updateSchema(session, modifyEntitySchemaMutations);
 		}
 		return getSchema();
 	}

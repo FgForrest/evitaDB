@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.lab.api.resolver.endpoint;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.Query;
@@ -34,7 +33,6 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.lab.api.dto.QueryEntitiesRequestBodyDto;
@@ -137,7 +135,14 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 			.recordPage(serializeRecordPage(result));
 		if (!result.getExtraResults().isEmpty()) {
 			queryResponseBuilder
-				.extraResults(extraResultsJsonSerializer.serialize(result.getExtraResults()));
+				.extraResults(
+					extraResultsJsonSerializer.serialize(
+						result.getExtraResults(),
+						exchange.session()
+							.getEntitySchema(result.getSourceQuery().getCollection().getEntityType())
+							.orElseThrow(() -> new RestInternalError("No entity schema found for entity type `" + result.getSourceQuery().getCollection().getEntityType() + "`."))
+					)
+				);
 		}
 		return queryResponseBuilder.build();
 	}

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
@@ -58,13 +59,20 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			""")
 		.type(nullable(String.class))
 		.build();
-	PropertyDescriptor UNIQUE = PropertyDescriptor.builder()
-		.name("unique")
+	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
+		.name("uniquenessType")
 		.description("""
 			When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
 			having certain value of this attribute among other entities in the same collection.
+						
+			As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+			better to have this ensured by the database engine.
+						
+			If the attribute is localized you can choose between `UNIQUE_WITHIN_COLLECTION` and `UNIQUE_WITHIN_COLLECTION_LOCALE`
+			modes. The first will ensure there is only single value within entire collection regardless of locale,
+			the second will ensure there is only single value within collection and specific locale.
 			""")
-		.type(nullable(Boolean.class))
+		.type(nullable(AttributeUniquenessType.class))
 		.build();
 	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
 		.name("filterable")
@@ -148,7 +156,7 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			NAME,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,
-			UNIQUE,
+			UNIQUENESS_TYPE,
 			FILTERABLE,
 			SORTABLE,
 			LOCALIZED,

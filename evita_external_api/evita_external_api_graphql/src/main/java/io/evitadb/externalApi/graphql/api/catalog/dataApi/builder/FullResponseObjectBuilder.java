@@ -433,9 +433,16 @@ public class FullResponseObjectBuilder {
 			referenceSchema
 		);
 
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
 		final GraphQLFieldDefinition.Builder facetGroupStatisticsFieldBuilder = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(facetGroupStatisticsObject)));
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			facetGroupStatisticsFieldBuilder.type(list(nonNull(facetGroupStatisticsObject)));
+		} else {
+			// if there is no group type, then the result will always be a single virtual group covering all facet statistics
+			facetGroupStatisticsFieldBuilder.type(facetGroupStatisticsObject);
+		}
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			final DataLocator groupEntityDataLocator;
@@ -458,7 +465,7 @@ public class FullResponseObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			facetGroupStatisticsFieldBuilder.build(),
-			new FacetGroupStatisticsDataFetcher(referenceSchema)
+			isGrouped ? new FacetGroupStatisticsDataFetcher(referenceSchema) : new NonGroupedFacetGroupStatisticsDataFetcher(referenceSchema)
 		);
 	}
 
@@ -471,11 +478,13 @@ public class FullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		buildingContext.registerFieldToObject(
-			objectName,
-			facetGroupStatisticsBuilder,
-			buildFacetGroupEntityField(referenceSchema)
-		);
+		if (referenceSchema.getReferencedGroupType() != null) {
+			buildingContext.registerFieldToObject(
+				objectName,
+				facetGroupStatisticsBuilder,
+				buildFacetGroupEntityField(referenceSchema)
+			);
+		}
 
 		buildingContext.registerFieldToObject(
 			objectName,

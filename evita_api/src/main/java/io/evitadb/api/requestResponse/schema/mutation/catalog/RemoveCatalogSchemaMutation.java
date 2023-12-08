@@ -54,7 +54,7 @@ public class RemoveCatalogSchemaMutation implements TopLevelCatalogSchemaMutatio
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
 		Assert.notNull(
 			catalogSchema,
 			() -> new InvalidSchemaMutationException("Catalog `" + catalogName + "` doesn't exist!")

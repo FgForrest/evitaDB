@@ -49,7 +49,12 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
@@ -801,6 +806,44 @@ class EvitaTest implements EvitaTestSupport {
 			assertEquals(2, session.getEntityCollectionSize(Entities.CATEGORY));
 			return null;
 		});
+	}
+
+	@Test
+	void shouldUpdateEntitySchemaAttributeDefinitionsReferingToGlobalOnes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
+					.updateVia(session);
+
+				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertTrue(firstAttribute instanceof GlobalAttributeSchemaContract);
+				assertTrue(firstAttribute.isLocalized());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract)firstAttribute).getGlobalUniquenessType());
+
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGloballyWithinLocale)
+					.updateVia(session);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				assertTrue(catalogSchema.getAttribute(ATTRIBUTE_URL).isPresent());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, catalogSchema.getAttribute(ATTRIBUTE_URL).orElseThrow().getGlobalUniquenessType());
+
+				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertTrue(secondAttribute instanceof GlobalAttributeSchemaContract);
+				assertTrue(secondAttribute.isLocalized());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract)secondAttribute).getGlobalUniquenessType());
+			}
+		);
 	}
 
 	@Test

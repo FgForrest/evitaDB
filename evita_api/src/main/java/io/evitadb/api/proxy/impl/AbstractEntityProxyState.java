@@ -475,6 +475,24 @@ abstract class AbstractEntityProxyState implements
 		);
 	}
 
+	/**
+	 * Method unregisters created proxy object that was created by this proxy instance and relates to referenced objects
+	 * accessed via it.
+	 *
+	 * @param referencedEntityType the {@link EntitySchemaContract#getName()} of the referenced entity type
+	 * @param referencedPrimaryKey the {@link EntityContract#getPrimaryKey()} of the referenced entity
+	 * @param logicalType          logical type of the proxy object
+	 */
+	public void unregisterReferencedEntityObject(
+		@Nonnull String referencedEntityType,
+		int referencedPrimaryKey,
+		@Nonnull ProxyType logicalType
+	) {
+		generatedProxyObjects.remove(
+			new ProxyInstanceCacheKey(referencedEntityType, referencedPrimaryKey, logicalType)
+		);
+	}
+
 	@Override
 	@Nonnull
 	public Stream<EntityBuilderWithCallback> getReferencedEntityBuildersWithCallback() {

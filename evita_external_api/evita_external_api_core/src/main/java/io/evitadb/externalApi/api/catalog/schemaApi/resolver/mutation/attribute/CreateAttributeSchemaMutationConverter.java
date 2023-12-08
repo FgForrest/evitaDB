@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
@@ -65,7 +66,7 @@ public class CreateAttributeSchemaMutationConverter extends AttributeSchemaMutat
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUE, false),
+			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE, AttributeUniquenessType.NOT_UNIQUE),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.FILTERABLE, false),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.SORTABLE, false),
 			input.getOptionalField(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),

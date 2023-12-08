@@ -35,8 +35,7 @@ import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutationWithProvidedEntitySchemaAccessor;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionModeInCatalogSchemaMutation;
@@ -108,7 +107,10 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 	 */
 	private MutationEntitySchemaAccessor updatedEntitySchemaAccessor;
 
-	public InternalCatalogSchemaBuilder(@Nonnull CatalogSchemaContract baseSchema, @Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations) {
+	public InternalCatalogSchemaBuilder(
+		@Nonnull CatalogSchemaContract baseSchema,
+		@Nonnull Collection<LocalCatalogSchemaMutation> schemaMutations
+	) {
 		this.baseSchema = baseSchema;
 		this.updatedEntitySchemaAccessor = new MutationEntitySchemaAccessor(baseSchema);
 		this.updatedSchemaDirty = addMutations(
@@ -323,6 +325,7 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 			// and reapply all mutations
 			if (this.updatedSchemaDirty == MutationImpact.MODIFIED_PREVIOUS) {
 				this.lastMutationReflectedInSchema = -1;
+				this.updatedSchema = null;
 			}
 			// if the last mutation reflected in the schema is zero we need to start from the base schema
 			// else we can continue modification last known updated schema by adding additional mutations
@@ -331,15 +334,12 @@ public final class InternalCatalogSchemaBuilder implements CatalogSchemaBuilder,
 
 			// apply the mutations not reflected in the schema
 			for (int i = lastMutationReflectedInSchema + 1; i < this.mutations.size(); i++) {
-				final CatalogSchemaMutation mutation = this.mutations.get(i);
-				Assert.isPremiseValid(
-					mutation instanceof CatalogSchemaMutationWithProvidedEntitySchemaAccessor,
-					() -> new EvitaInternalError("We expect that all CatalogSchemaMutations will implement CatalogSchemaMutationWithProvidedEntitySchemaAccessor (internally)!")
-				);
-				currentSchema = ((CatalogSchemaMutationWithProvidedEntitySchemaAccessor)mutation).mutate(currentSchema, updatedEntitySchemaAccessor);
-				if (currentSchema == null) {
+				final LocalCatalogSchemaMutation mutation = this.mutations.get(i);
+				final CatalogSchemaWithImpactOnEntitySchemas mutationImpact = mutation.mutate(currentSchema, updatedEntitySchemaAccessor);
+				if (mutationImpact == null || mutationImpact.updatedCatalogSchema() == null) {
 					throw new EvitaInternalError("Catalog schema unexpectedly removed from inside!");
 				}
+				currentSchema = mutationImpact.updatedCatalogSchema();
 			}
 			this.updatedSchema = currentSchema;
 			this.updatedSchemaDirty = MutationImpact.NO_IMPACT;

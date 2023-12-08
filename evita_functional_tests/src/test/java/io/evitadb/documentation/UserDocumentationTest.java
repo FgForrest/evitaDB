@@ -322,7 +322,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(DocumentationProfile.DEFAULT, it, new ExampleFilter[] {ExampleFilter.CSHARP, ExampleFilter.JAVA, ExampleFilter.REST, ExampleFilter.GRAPHQL, ExampleFilter.EVITAQL});
+					final List<DynamicTest> tests = this.createTests(
+						DocumentationProfile.DEFAULT,
+						it,
+						new ExampleFilter[] {
+							ExampleFilter.CSHARP,
+							ExampleFilter.JAVA,
+							ExampleFilter.REST,
+							ExampleFilter.GRAPHQL,
+							ExampleFilter.EVITAQL
+						}
+					);
 					if (tests.isEmpty()) {
 						return null;
 					} else {
@@ -349,7 +359,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			DocumentationProfile.DEFAULT,
-			getRootDirectory().resolve("documentation/user/en/operate/monitor.md"),
+			getRootDirectory().resolve("documentation/user/en/use/api/schema-api.md"),
 			ExampleFilter.values()
 		).stream();
 	}
@@ -365,8 +375,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			DocumentationProfile.LOCALHOST,
-			getRootDirectory().resolve("documentation/user/en/query/ordering/natural.md"),
+			DocumentationProfile.DEFAULT,
+			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,7 @@ class SetAttributeSchemaGloballyUniqueMutationConverterTest {
 	@Test
 	void shouldConvertMutation() {
 		final SetAttributeSchemaGloballyUniqueMutation mutation2 = new SetAttributeSchemaGloballyUniqueMutation(
-			"code", true
+			"code", GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 		);
 		assertEquals(mutation2, converter.convert(converter.convert(mutation2)));
 	}

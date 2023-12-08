@@ -205,7 +205,8 @@ public class EvitaRequest {
 	public EvitaRequest(
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull String entityType,
-		@Nonnull EntityFetchRequire requirements) {
+		@Nonnull EntityFetchRequire requirements
+	) {
 
 		this.requiresEntity = true;
 		this.entityRequirement = new EntityFetch(requirements.getRequirements());
@@ -221,8 +222,13 @@ public class EvitaRequest {
 		this.primaryKeys = evitaRequest.primaryKeys;
 		this.localeExamined = evitaRequest.localeExamined;
 		this.locale = evitaRequest.locale;
-		this.requiredLocales = evitaRequest.requiredLocales;
-		this.requiredLocaleSet = evitaRequest.requiredLocaleSet;
+		if (Arrays.stream(requirements.getRequirements()).anyMatch(it -> it instanceof DataInLocales)) {
+			this.requiredLocales = null;
+			this.requiredLocaleSet = null;
+		} else {
+			this.requiredLocales = evitaRequest.requiredLocales;
+			this.requiredLocaleSet = evitaRequest.requiredLocaleSet;
+		}
 		this.queryPriceMode = evitaRequest.queryPriceMode;
 		this.priceValidInTimeSet = evitaRequest.priceValidInTimeSet;
 		this.priceValidInTime = evitaRequest.priceValidInTime;

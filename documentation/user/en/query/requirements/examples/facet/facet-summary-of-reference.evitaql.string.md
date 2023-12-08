@@ -5,12 +5,6 @@ Facet summary:
 		[ ] 'Kobo' (6)
 		[ ] 'Onyx Boox' (18)
 		[ ] 'PocketBook' (11)
-	parameterValues: 'Operating system' [41]:
-		[ ] 'Google Android 10 (Q)' (6)
-		[ ] 'Google Android 11 (R)' (10)
-		[ ] 'Proprietal' (6)
-		[ ] 'Google Android 4.4' (2)
-		[ ] 'Linux' (17)
 	parameterValues: 'Number of CPU cores' [41]:
 		[ ] '4' (8)
 		[ ] '8' (11)

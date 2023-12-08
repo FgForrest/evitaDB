@@ -49,8 +49,10 @@ import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.ConditionalSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.primaryKey.TranslatedPrimaryKeySorter;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
@@ -433,7 +435,7 @@ public class QueryPlanner {
 					// in case of debug cached variant tree or the entity is not known, we cannot use cache here
 					// and we need to retain original non-cached sorter
 					final Sorter sorter = orderByVisitor.getSorter();
-					builder.appendSorter(sorter);
+					builder.appendSorter(replaceNoSorterIfNecessary(queryContext, sorter));
 				} finally {
 					if (multipleAlternatives) {
 						queryContext.popStep();
@@ -456,7 +458,7 @@ public class QueryPlanner {
 									queryContext, builder.getFilterFormula(),
 									builder.getTargetIndexes(),
 									builder.getPrefetchFormulaVisitor(),
-									replacedSorter
+									replaceNoSorterIfNecessary(queryContext, replacedSorter)
 								)
 							);
 						} else {
@@ -469,6 +471,26 @@ public class QueryPlanner {
 			}
 		} finally {
 			queryContext.popStep();
+		}
+	}
+
+	/**
+	 * This method replaces no sorter - which should always represent primary keys in ascending order - with the special
+	 * implementation in case the entity is not known in the query. In such case the primary keys are translated
+	 * different ids and those ids are translated back at the end of the query. Unfortunately the order of the translated
+	 * keys might be different than the original order of the primary keys, so we need to sort them here according to
+	 * their original primary keys order in ascending fashion.
+	 *
+	 * @param queryContext query context
+	 * @param sorter identified sorter
+	 * @return sorter in input or new implementation that ensures proper sorting by primary keys in ascending order
+	 */
+	@Nonnull
+	private static Sorter replaceNoSorterIfNecessary(@Nonnull QueryContext queryContext, @Nonnull Sorter sorter) {
+		if (sorter instanceof NoSorter && !queryContext.isEntityTypeKnown()) {
+			return TranslatedPrimaryKeySorter.INSTANCE;
+		} else {
+			return sorter;
 		}
 	}
 

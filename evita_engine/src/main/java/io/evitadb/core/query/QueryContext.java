@@ -504,6 +504,18 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	}
 
 	/**
+	 * Method returns requested entity primary key by specifying its primary key (either virtual or real).
+	 */
+	public int translateToEntityPrimaryKey(int primaryKey) {
+		if (this.entityReferencePkSequence > 0) {
+			final EntityReferenceContract<EntityReference> referencedEntity = this.entityReferencePkIndex.get(primaryKey);
+			return referencedEntity == null ? primaryKey : referencedEntity.getPrimaryKey();
+		} else {
+			return primaryKey;
+		}
+	}
+
+	/**
 	 * Method returns requested {@link EntityReference} by specifying its primary key (either virtual or real).
 	 */
 	@Nonnull
@@ -1303,8 +1315,8 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
-	 * {@link EntityCollection#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} or
-	 * {@link EntityCollection#enrichEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} methods.
+	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
+	 * {@link EntityCollection#enrichEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  methods.
 	 */
 	@Nonnull
 	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {

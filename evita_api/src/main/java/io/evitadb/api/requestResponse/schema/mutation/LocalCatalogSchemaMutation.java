@@ -23,7 +23,13 @@
 
 package io.evitadb.api.requestResponse.schema.mutation;
 
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.MutationEntitySchemaAccessor;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * This interface marks all {@link CatalogSchemaMutation} that can be locally applicable to an already identified
@@ -33,5 +39,22 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchem
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public interface LocalCatalogSchemaMutation extends CatalogSchemaMutation {
+
+	@Nullable
+	@Override
+	default CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema) {
+		return mutate(catalogSchema, MutationEntitySchemaAccessor.INSTANCE);
+	}
+
+	/**
+	 * Method applies the mutation operation on the catalog schema in the input and returns modified version
+	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
+	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
+	 *
+	 * @param catalogSchema current version of the schema as an input to mutate
+	 * @param entitySchemaAccessor entity schema provider allowing to access list of entity schemas in the catalog
+	 */
+	@Nullable
+	CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor);
 
 }

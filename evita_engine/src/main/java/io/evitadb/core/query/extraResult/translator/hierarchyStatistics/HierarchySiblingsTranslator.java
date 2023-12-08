@@ -67,7 +67,8 @@ public class HierarchySiblingsTranslator
 				context,
 				createEntityFetcher(
 					siblings.getEntityFetch().orElse(null),
-					context
+					context,
+					extraResultPlanningVisitor
 				),
 				context.hierarchyFilterPredicateProducer(),
 				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(),
