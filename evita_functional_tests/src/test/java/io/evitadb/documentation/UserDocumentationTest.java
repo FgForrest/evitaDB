@@ -323,7 +323,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
 					final List<DynamicTest> tests = this.createTests(
-						DocumentationProfile.LOCALHOST,
+						DocumentationProfile.DEFAULT,
 						it,
 						new ExampleFilter[] {
 							ExampleFilter.CSHARP,
@@ -375,7 +375,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			DocumentationProfile.LOCALHOST,
+			DocumentationProfile.DEFAULT,
 			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
