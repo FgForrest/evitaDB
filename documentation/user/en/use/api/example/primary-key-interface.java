@@ -1,14 +1,13 @@
 @EntityRef("Product")
 public interface MyEntity {
 
-	@PrimaryKey int any();
-	@PrimaryKey Integer any();
-	@PrimaryKey long any();
-	@PrimaryKey Long any();
-
-	@PrimaryKeyRef int any();
-	@PrimaryKeyRef Integer any();
-	@PrimaryKeyRef long any();
-	@PrimaryKeyRef Long any();
+	@PrimaryKey int id();
+	@PrimaryKey Integer idAsIntegerObject();
+	@PrimaryKey long idAsLong();
+	@PrimaryKey Long idAsLongObject();
+	@PrimaryKeyRef int idAlternative();
+	@PrimaryKeyRef Integer idAlternativeAsIntegerObject();
+	@PrimaryKeyRef long idAlternativeAsLong();
+	@PrimaryKeyRef Long idAlternativeAsLongObject();
 
 }

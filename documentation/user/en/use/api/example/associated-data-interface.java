@@ -2,7 +2,7 @@
 public interface MyEntity {
 
 	// returns associated data `warrantySpecification` if fetched and not null
-	@AssociatedData(warrantySpecification = "warrantySpecification", locale = true)
+	@AssociatedData(name = "warrantySpecification", localized = true)
 	@Nullable String getWarrantySpecification();
 
 	// returns associated data `warrantySpecification` in requested locale
@@ -20,7 +20,7 @@ public interface MyEntity {
 
 	// returns associated data `warrantySpecification` or empty optional wrapper, if not fetched (unknown state) throws exception
 	@AssociatedDataRef("warrantySpecification")
-	@Nonnull Optional<String> getWarrantySpecificationOrThrow() throws ContextMissingException;
+	@Nonnull Optional<String> getWarrantySpecificationIfPresent() throws ContextMissingException;
 
 	// returns associated data `parameters` or null if not fetched or not set
 	@AssociatedDataRef("parameters")
@@ -46,7 +46,7 @@ public interface MyEntity {
 	// returns associated data `parameters` as collection (or you can use list/set/array variants)
 	// or empty optional if associated data is not set, throws exception when associated data is not fetched
 	@AssociatedDataRef("parameters")
-	@Nonnull Optional<Collection<String>> getParametersAsCollection() throws ContextMissingException;
+	@Nonnull Optional<Collection<String>> getParametersAsCollectionIfPresent() throws ContextMissingException;
 
 	// returns associated data `localization` or null if not fetched or not set
 	@AssociatedDataRef("localization")
