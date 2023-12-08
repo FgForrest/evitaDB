@@ -49,7 +49,7 @@ import java.io.Serializable;
 	shortDescription = "The constraint triggers computation of query telemetry (explaining what operations were performed and how long they took) in extra results of the response.",
 	userDocsLink = "/documentation/query/requirements/debug#query-telemetry"
 )
-public class QueryTelemetry extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
+public class QueryTelemetry extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = -5121347556508500340L;
 
 	private QueryTelemetry(Serializable... arguments) {

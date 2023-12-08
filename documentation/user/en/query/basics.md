@@ -561,3 +561,10 @@ The price requirement controls which form of price for sale is taken into accoun
 or their histograms are calculated:
 
 - [price type](requirements/price.md#price-type)
+
+### Telemetry
+
+The telemetry requirements trigger the calculation of additional telemetry data for looking under the hood of the
+database engine:
+
+- [query telemetry](requirements/telemetry.md#query-telemetry)

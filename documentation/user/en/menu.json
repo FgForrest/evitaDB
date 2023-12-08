@@ -190,6 +190,10 @@
 		  {
 			"title": "Histogram",
 			"path": "/query/requirements/histogram.md"
+		  },
+		  {
+			"title": "Telemetry",
+			"path": "/query/requirements/telemetry.md"
 		  }
 		]
 	  }

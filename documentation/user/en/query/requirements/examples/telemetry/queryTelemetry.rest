@@ -1,0 +1,15 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "attributeCodeStartsWith" : "garmin"
+  },
+  "orderBy" : [
+    {
+      "attributeCodeNatural" : "ASC"
+    }
+  ],
+  "require" : {
+    "queryTelemetry" : true
+  }
+}
