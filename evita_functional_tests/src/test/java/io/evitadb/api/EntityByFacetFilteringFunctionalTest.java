@@ -538,7 +538,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElse(null))
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null))
 						.collect(toList())
 				),
 				tuple(
@@ -547,7 +547,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.collect(
 							toMap(
 								EntityReference::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElse(null)
+								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
 							)
 						)
 				),
@@ -557,7 +557,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 						.collect(
 							toMap(
 								EntityReference::getPrimaryKey,
-								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElse(null)
+								it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElse(null)
 							)
 						)
 				),

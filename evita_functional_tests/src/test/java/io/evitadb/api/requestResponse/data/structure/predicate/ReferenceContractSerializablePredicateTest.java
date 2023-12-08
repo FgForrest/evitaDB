@@ -93,6 +93,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForNoReferences() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			false,
 			null,
 			Collections.emptySet()
@@ -110,6 +111,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForNoReferences() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -127,6 +129,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForNoReferencesWhenReferencesPresent() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -144,6 +147,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForReferences() {
 		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -161,6 +165,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForReferences() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			toAttributeRequestIndex(getDefaultRequirementContext()),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -180,6 +185,7 @@ class ReferenceContractSerializablePredicateTest {
 			toAttributeRequestIndex(
 				getDefaultRequirementContext(Arrays.asList("A", "B"))
 			),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -197,6 +203,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForRicherCopyOfAttributePredicate() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			Collections.emptySet()
@@ -217,6 +224,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForGlobalAndLocalizedAttributes() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -237,6 +245,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributes() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA))
@@ -256,6 +265,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldNotCreateRicherCopyForGlobalAndLocalizedAttributesSubset() {
 		final ReferenceContractSerializablePredicate noReferencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			true,
 			null,
 			new HashSet<>(Arrays.asList(Locale.ENGLISH, Locale.CANADA))
@@ -275,6 +285,7 @@ class ReferenceContractSerializablePredicateTest {
 	void shouldCreateRicherCopyForAttributesByName() {
 		final ReferenceContractSerializablePredicate referencesRequired = new ReferenceContractSerializablePredicate(
 			Collections.emptyMap(),
+			null,
 			false,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -301,6 +312,7 @@ class ReferenceContractSerializablePredicateTest {
 			Map.of(
 				"A", createRequirementContext("D", "E").attributeRequest()
 			),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -327,6 +339,7 @@ class ReferenceContractSerializablePredicateTest {
 			Map.of(
 				"A", createRequirementContext("D", "E").attributeRequest()
 			),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))
@@ -354,6 +367,7 @@ class ReferenceContractSerializablePredicateTest {
 			Map.of(
 				"A", createRequirementContext().attributeRequest()
 			),
+			null,
 			true,
 			null,
 			new HashSet<>(Collections.singletonList(Locale.ENGLISH))

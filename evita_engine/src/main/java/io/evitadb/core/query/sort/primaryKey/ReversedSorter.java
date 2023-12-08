@@ -73,8 +73,9 @@ public class ReversedSorter implements Sorter {
 
 			// copy the sorted data to result
 			final int length = endIndex - startIndex;
-			System.arraycopy(filteredRecordIds, startIndex, result, peak, Math.min(result.length, length));
-			return length;
+			final int newPeak = Math.min(filteredRecordIds.length, length);
+			System.arraycopy(filteredRecordIds, startIndex, result, peak, newPeak);
+			return newPeak;
 		}
 	}
 

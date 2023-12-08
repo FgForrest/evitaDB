@@ -504,6 +504,18 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	}
 
 	/**
+	 * Method returns requested entity primary key by specifying its primary key (either virtual or real).
+	 */
+	public int translateToEntityPrimaryKey(int primaryKey) {
+		if (this.entityReferencePkSequence > 0) {
+			final EntityReferenceContract<EntityReference> referencedEntity = this.entityReferencePkIndex.get(primaryKey);
+			return referencedEntity == null ? primaryKey : referencedEntity.getPrimaryKey();
+		} else {
+			return primaryKey;
+		}
+	}
+
+	/**
 	 * Method returns requested {@link EntityReference} by specifying its primary key (either virtual or real).
 	 */
 	@Nonnull
