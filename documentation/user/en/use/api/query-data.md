@@ -366,7 +366,22 @@ TODO JNO - Work in progress
 
 #### Hierarchy
 
-TODO JNO - Work in progress
+To access the placement information of the entity or hierarchy (i.e., its parent), you must use either the numeric data 
+type, your own custom interface type, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass> 
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass> 
+data type and annotate it with the `@ParentEntity` annotation. The datatype can be wrapped in 
+[Optional](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Optional.html) 
+(or its counterparts [OptionalInt](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalInt.html) 
+or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/OptionalLong.html)).
+
+<SourceAlternativeTabs variants="interface|record|class">
+
+[Example interface with parent access](/documentation/user/en/use/api/example/parent-interface.java)
+
+</SourceAlternativeTabs>
+
+The method may return null if the entity is a root entity. Therefore, it's not recommended to use primitive data types, 
+because the method call may fail with a `NullPointerException` in such a case.
 
 #### References
 

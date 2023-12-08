@@ -359,7 +359,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			DocumentationProfile.DEFAULT,
-			getRootDirectory().resolve("documentation/user/en/operate/monitor.md"),
+			getRootDirectory().resolve("documentation/user/en/use/api/schema-api.md"),
 			ExampleFilter.values()
 		).stream();
 	}
