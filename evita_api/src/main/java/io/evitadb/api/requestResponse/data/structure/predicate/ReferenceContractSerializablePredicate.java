@@ -51,6 +51,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Optional.ofNullable;
+
 /**
  * This predicate allows limiting number of references visible to the client based on query constraints.
  *
@@ -64,6 +66,10 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	 * Contains information about all reference names that has been fetched / requested for the entity.
 	 */
 	@Nonnull @Getter private final Map<String, AttributeRequest> referenceSet;
+	/**
+	 * Contains information about default attribute request for references that has no explicit attribute request.
+	 */
+	@Nullable @Getter private final AttributeRequest defaultAttributeRequest;
 	/**
 	 * Contains true if any of the references of the entity has been fetched / requested.
 	 */
@@ -88,6 +94,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate() {
 		this.requiresEntityReferences = true;
 		this.referenceSet = Collections.emptyMap();
+		this.defaultAttributeRequest = null;
 		this.implicitLocale = null;
 		this.locales = Collections.emptySet();
 		this.underlyingPredicate = null;
@@ -104,6 +111,9 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 					entry -> entry.getValue().attributeRequest()
 				)
 			);
+		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
+			.map(RequirementContext::attributeRequest)
+			.orElse(null);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = null;
@@ -112,6 +122,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 	public ReferenceContractSerializablePredicate(boolean requiresEntityReferences) {
 		this.requiresEntityReferences = requiresEntityReferences;
 		this.referenceSet = Collections.emptyMap();
+		this.defaultAttributeRequest = null;
 		this.implicitLocale = null;
 		this.locales = Collections.emptySet();
 		this.underlyingPredicate = null;
@@ -137,6 +148,9 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 					entry -> entry.getValue().attributeRequest()
 				)
 			);
+		this.defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
+			.map(RequirementContext::attributeRequest)
+			.orElse(null);
 		this.implicitLocale = evitaRequest.getImplicitLocale();
 		this.locales = evitaRequest.getRequiredLocales();
 		this.underlyingPredicate = underlyingPredicate;
@@ -144,11 +158,13 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 
 	ReferenceContractSerializablePredicate(
 		@Nonnull Map<String, AttributeRequest> referenceSet,
+		@Nullable AttributeRequest defaultAttributeRequest,
 		boolean requiresEntityReferences,
 		@Nullable Locale implicitLocale,
 		@Nonnull Set<Locale> locales
 	) {
 		this.referenceSet = referenceSet;
+		this.defaultAttributeRequest = defaultAttributeRequest;
 		this.requiresEntityReferences = requiresEntityReferences;
 		this.implicitLocale = implicitLocale;
 		this.locales = locales;
@@ -209,9 +225,13 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 
 		final Map<String, AttributeRequest> requiredReferencedEntities = combineReferencedEntities(evitaRequest);
 		final boolean doesRequireEntityReferences = evitaRequest.isRequiresEntityReferences();
+		final AttributeRequest defaultAttributeRequest = ofNullable(evitaRequest.getDefaultReferenceRequirement())
+			.map(RequirementContext::attributeRequest)
+			.orElse(null);
 
 		if ((this.requiresEntityReferences || !doesRequireEntityReferences) &&
 			Objects.equals(this.referenceSet, requiredReferencedEntities) &&
+			Objects.equals(this.defaultAttributeRequest, defaultAttributeRequest) &&
 			Objects.equals(this.implicitLocale, evitaRequest.getImplicitLocale()) &&
 			Objects.equals(this.locales, requiredLocales)
 		) {
@@ -219,6 +239,7 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		} else {
 			return new ReferenceContractSerializablePredicate(
 				requiredReferencedEntities,
+				mergeAttributeRequests(this.defaultAttributeRequest, defaultAttributeRequest),
 				this.requiresEntityReferences || doesRequireEntityReferences,
 				implicitLocale,
 				requiredLocales
@@ -232,9 +253,23 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			this.implicitLocale,
 			this.locales,
 			this.referenceSet.isEmpty() ?
-				AttributeRequest.FULL :
+				(this.defaultAttributeRequest == null ? AttributeRequest.EMPTY : this.defaultAttributeRequest) :
 				this.referenceSet.getOrDefault(referenceName, AttributeRequest.EMPTY)
 		);
+	}
+
+	@Nullable
+	public Set<Locale> getAllLocales() {
+		if (this.implicitLocale != null && this.locales == null) {
+			return Set.of(this.implicitLocale);
+		} else if (this.implicitLocale != null) {
+			return Stream.concat(
+				Stream.of(implicitLocale),
+				locales.stream()
+			).collect(Collectors.toSet());
+		} else {
+			return this.locales;
+		}
 	}
 
 	@Nonnull
@@ -257,26 +292,8 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 			for (Entry<String, RequirementContext> newEntry : referenceEntityFetch.entrySet()) {
 				final AttributeRequest existingAttributeRequest = requiredReferences.get(newEntry.getKey());
 				final AttributeRequest newAttributeRequest = newEntry.getValue().attributeRequest();
-				if (existingAttributeRequest == null) {
-					requiredReferences.put(newEntry.getKey(), newAttributeRequest);
-				} else {
-					final AttributeRequest attributeRequest;
-					if (existingAttributeRequest.isRequiresEntityAttributes() && existingAttributeRequest.attributeSet().isEmpty()) {
-						attributeRequest = existingAttributeRequest;
-					} else if (newAttributeRequest.isRequiresEntityAttributes() && newAttributeRequest.attributeSet().isEmpty()) {
-						attributeRequest = newAttributeRequest;
-					} else {
-						attributeRequest = new AttributeRequest(
-							CollectionUtils.combine(existingAttributeRequest.attributeSet(), newAttributeRequest.attributeSet()),
-							existingAttributeRequest.isRequiresEntityAttributes() ||
-								newAttributeRequest.isRequiresEntityAttributes()
-						);
-					}
-					requiredReferences.put(
-						newEntry.getKey(),
-						attributeRequest
-					);
-				}
+				final AttributeRequest mergedAttributeRequest = mergeAttributeRequests(existingAttributeRequest, newAttributeRequest);
+				requiredReferences.put(newEntry.getKey(), mergedAttributeRequest);
 			}
 		} else {
 			requiredReferences = this.referenceSet;
@@ -284,18 +301,29 @@ public class ReferenceContractSerializablePredicate implements SerializablePredi
 		return requiredReferences;
 	}
 
-	@Nullable
-	public Set<Locale> getAllLocales() {
-		if (this.implicitLocale != null && this.locales == null) {
-			return Set.of(this.implicitLocale);
-		} else if (this.implicitLocale != null) {
-			return Stream.concat(
-				Stream.of(implicitLocale),
-				locales.stream()
-			).collect(Collectors.toSet());
+	private static AttributeRequest mergeAttributeRequests(
+		@Nullable AttributeRequest existingAttributeRequest,
+		@Nullable AttributeRequest newAttributeRequest
+	) {
+		final AttributeRequest mergedAttributeRequest;
+		if (existingAttributeRequest == null) {
+			mergedAttributeRequest = newAttributeRequest;
 		} else {
-			return this.locales;
+			final AttributeRequest attributeRequest;
+			if (existingAttributeRequest.isRequiresEntityAttributes() && existingAttributeRequest.attributeSet().isEmpty()) {
+				attributeRequest = existingAttributeRequest;
+			} else if (newAttributeRequest.isRequiresEntityAttributes() && newAttributeRequest.attributeSet().isEmpty()) {
+				attributeRequest = newAttributeRequest;
+			} else {
+				attributeRequest = new AttributeRequest(
+					CollectionUtils.combine(existingAttributeRequest.attributeSet(), newAttributeRequest.attributeSet()),
+					existingAttributeRequest.isRequiresEntityAttributes() ||
+						newAttributeRequest.isRequiresEntityAttributes()
+				);
+			}
+			mergedAttributeRequest = attributeRequest;
 		}
+		return mergedAttributeRequest;
 	}
 
 	@Nullable

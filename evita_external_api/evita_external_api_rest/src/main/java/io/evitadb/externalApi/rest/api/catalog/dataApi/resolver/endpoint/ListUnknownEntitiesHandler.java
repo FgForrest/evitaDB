@@ -41,7 +41,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Handles requests for multiple unknown entities identified by their URLs or codes.
@@ -72,8 +71,6 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClass
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
 		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-		log.info("Fetched list of unknown entities: {}", entities.stream().map(it -> it.getPrimaryKey().toString()).collect(Collectors.joining(", ")));
-
 		return new SuccessEndpointResponse<>(entities);
 	}
 
