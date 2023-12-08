@@ -171,11 +171,12 @@ public class GraphQLQueryConverter {
 			final Page page = QueryUtils.findConstraint(require, Page.class, SeparateEntityContentRequireContainer.class);
 			final Strip strip = QueryUtils.findConstraint(require, Strip.class, SeparateEntityContentRequireContainer.class);
 			final List<Constraint<?>> extraResultConstraints = QueryUtils.findConstraints(require, c -> c instanceof ExtraResultRequireConstraint);
+			final QueryTelemetry queryTelemetry = QueryUtils.findConstraint(require, QueryTelemetry.class);
 
 			recordsConverter.convert(fieldsBuilder, entityType, locale, entityFetch, page, strip, !extraResultConstraints.isEmpty());
 
 			// build extra results
-			if (!extraResultConstraints.isEmpty()) {
+			if (!extraResultConstraints.isEmpty() || queryTelemetry != null) {
 				fieldsBuilder.addObjectField(ResponseDescriptor.EXTRA_RESULTS, extraResultsBuilder -> {
 					facetSummaryConverter.convert(
 						extraResultsBuilder,
@@ -203,8 +204,8 @@ public class GraphQLQueryConverter {
 					Optional.ofNullable(QueryUtils.findConstraint(require, PriceHistogram.class))
 						.ifPresent(priceHistogram -> priceHistogramConverter.convert(extraResultsBuilder, priceHistogram));
 
-					Optional.ofNullable(QueryUtils.findConstraint(require, QueryTelemetry.class))
-						.ifPresent(queryTelemetry -> queryTelemetryConverter.convert(extraResultsBuilder, queryTelemetry));
+					Optional.ofNullable(queryTelemetry)
+						.ifPresent(it -> queryTelemetryConverter.convert(extraResultsBuilder, it));
 				});
 			}
 		}
