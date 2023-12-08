@@ -1,80 +1,80 @@
 ```json
 {
   "operation": "OVERALL",
-  "start": 177425764174411,
+  "start": 182792818627703,
   "steps": [
     {
       "operation": "PLANNING",
-      "start": 177425764186033,
+      "start": 182792818636219,
       "steps": [
         {
           "operation": "PLANNING_INDEX_USAGE",
-          "start": 177425764188768,
+          "start": 182792818637391,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "0.000012364s"
+          "spentTime": "0.000010700s"
         },
         {
           "operation": "PLANNING_FILTER",
-          "start": 177425764211030,
+          "start": 182792818660134,
           "steps": [
             {
               "operation": "PLANNING_FILTER_ALTERNATIVE",
-              "start": 177425764217070,
+              "start": 182792818663169,
               "steps": [ ],
               "arguments": [
                 "Index type: GLOBAL, estimated costs 585"
               ],
-              "spentTime": "0.000986590s"
+              "spentTime": "0.000884458s"
             }
           ],
           "arguments": [
             "Selected index: Index type: GLOBAL, estimated costs 585"
           ],
-          "spentTime": "0.001002448s"
+          "spentTime": "0.000895418s"
         },
         {
           "operation": "PLANNING_SORT",
-          "start": 177425765215422,
+          "start": 182792819556774,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "0.000113883s"
+          "spentTime": "0.000109916s"
         },
         {
           "operation": "PLANNING_EXTRA_RESULT_FABRICATION",
-          "start": 177425765330918,
+          "start": 182792819667421,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "0.000009688s"
+          "spentTime": "0.000008095s"
         }
       ],
       "arguments": [ ],
-      "spentTime": "0.001157799s"
+      "spentTime": "0.001042102s"
     },
     {
       "operation": "EXECUTION",
-      "start": 177425765381451,
+      "start": 182792819679143,
       "steps": [
         {
           "operation": "EXECUTION_FILTER",
-          "start": 177425765386741,
+          "start": 182792819686767,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "0.000043041s"
+          "spentTime": "0.000039393s"
         },
         {
           "operation": "EXECUTION_SORT_AND_SLICE",
-          "start": 177425765430594,
+          "start": 182792819726230,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "0.000157423s"
+          "spentTime": "0.000127649s"
         }
       ],
       "arguments": [ ],
-      "spentTime": "0.000262340s"
+      "spentTime": "0.000273029s"
     }
   ],
   "arguments": [ ],
-  "spentTime": "0.001470131s"
+  "spentTime": "0.001324970s"
 }
 ```

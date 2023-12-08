@@ -1,80 +1,80 @@
 ```json
 {
   "operation": "OVERALL",
-  "start": 177425818030395,
+  "start": 182792910774973,
   "steps": [
     {
       "operation": "PLANNING",
-      "start": 177425818039060,
+      "start": 182792910785703,
       "steps": [
         {
           "operation": "PLANNING_INDEX_USAGE",
-          "start": 177425818040553,
+          "start": 182792910786665,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "10129"
+          "spentTime": "13845"
         },
         {
           "operation": "PLANNING_FILTER",
-          "start": 177425818096047,
+          "start": 182792910807253,
           "steps": [
             {
               "operation": "PLANNING_FILTER_ALTERNATIVE",
-              "start": 177425818101938,
+              "start": 182792910811050,
               "steps": [ ],
               "arguments": [
                 "Index type: GLOBAL, estimated costs 585"
               ],
-              "spentTime": "953217"
+              "spentTime": "1081806"
             }
           ],
           "arguments": [
             "Selected index: Index type: GLOBAL, estimated costs 585"
           ],
-          "spentTime": "969337"
+          "spentTime": "1097987"
         },
         {
           "operation": "PLANNING_SORT",
-          "start": 177425819073169,
+          "start": 182792911914768,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "184534"
+          "spentTime": "198009"
         },
         {
           "operation": "PLANNING_EXTRA_RESULT_FABRICATION",
-          "start": 177425819259727,
+          "start": 182792912113819,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "31859"
+          "spentTime": "11440"
         }
       ],
       "arguments": [ ],
-      "spentTime": "1256193"
+      "spentTime": "1343494"
     },
     {
       "operation": "EXECUTION",
-      "start": 177425819296625,
+      "start": 182792912130589,
       "steps": [
         {
           "operation": "EXECUTION_FILTER",
-          "start": 177425819301374,
+          "start": 182792912135459,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "45776"
+          "spentTime": "53931"
         },
         {
           "operation": "EXECUTION_SORT_AND_SLICE",
-          "start": 177425819347701,
+          "start": 182792912189580,
           "steps": [ ],
           "arguments": [ ],
-          "spentTime": "500843"
+          "spentTime": "149889"
         }
       ],
       "arguments": [ ],
-      "spentTime": "616930"
+      "spentTime": "255648"
     }
   ],
   "arguments": [ ],
-  "spentTime": "1883812"
+  "spentTime": "1611755"
 }
 ```
