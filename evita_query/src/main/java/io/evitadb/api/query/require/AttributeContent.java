@@ -62,6 +62,8 @@ import static java.util.Optional.of;
  *    attributeContent("code", "name")
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

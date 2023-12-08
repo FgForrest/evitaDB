@@ -120,6 +120,8 @@ import java.io.Serializable;
  * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
  * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
  * nodes (entire subtree).
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

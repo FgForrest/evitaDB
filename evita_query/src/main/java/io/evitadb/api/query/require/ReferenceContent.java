@@ -148,6 +148,8 @@ import static java.util.Optional.ofNullable;
  *     )
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

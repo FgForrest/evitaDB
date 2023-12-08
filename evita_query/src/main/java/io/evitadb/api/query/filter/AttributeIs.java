@@ -51,6 +51,8 @@ import java.io.Serializable;
  * </pre>
  *
  * Function supports attribute arrays in the same way as plain values.
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a>
  *
  * @see AttributeSpecialValue
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021

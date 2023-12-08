@@ -70,6 +70,8 @@ import java.util.Optional;
  *      - {@link HierarchySiblings}
  *      - {@link HierarchyChildren}
  *      - {@link HierarchyParents}
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

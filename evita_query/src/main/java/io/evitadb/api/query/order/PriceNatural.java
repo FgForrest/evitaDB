@@ -49,6 +49,8 @@ import java.io.Serializable;
  * priceNatural()
  * priceNatural(DESC)
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

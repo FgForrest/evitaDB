@@ -131,6 +131,8 @@ import java.io.Serializable;
  * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
  * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
  * product reference that is part of the visible part of the tree.
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */

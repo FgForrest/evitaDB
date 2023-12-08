@@ -48,6 +48,8 @@ import java.io.Serializable;
  * <pre>
  * priceHistogram(20)
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

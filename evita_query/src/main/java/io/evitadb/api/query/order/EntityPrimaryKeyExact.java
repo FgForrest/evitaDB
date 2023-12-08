@@ -55,6 +55,8 @@ import java.util.Arrays;
  * this ordering constraint. If there are entities, whose primary keys are not present in the argument, then they
  * will be present at the end of the output in ascending order of their primary keys (or they will be sorted by
  * additional ordering constraint in the chain).
+ * 
+ * <a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

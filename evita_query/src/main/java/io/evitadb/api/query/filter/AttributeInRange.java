@@ -72,6 +72,8 @@ import java.util.Optional;
  * inRange("age", 24)
  * inRange("age", 63)
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

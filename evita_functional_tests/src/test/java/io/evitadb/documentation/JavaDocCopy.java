@@ -24,25 +24,31 @@
 package io.evitadb.documentation;
 
 import com.thoughtworks.qdox.JavaProjectBuilder;
+import com.thoughtworks.qdox.model.JavaAnnotation;
 import com.thoughtworks.qdox.model.JavaClass;
 import com.thoughtworks.qdox.model.JavaMethod;
 import com.thoughtworks.qdox.model.impl.DefaultJavaClass;
 import com.thoughtworks.qdox.model.impl.DefaultJavaMethod;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
+import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -202,6 +208,63 @@ public class JavaDocCopy implements EvitaTestSupport {
 			String.join("\n", queryConstraintsSource),
 			StandardOpenOption.TRUNCATE_EXISTING
 		);
+	}
+
+	@Test
+	void copyConstraintUserDocsLinksToJavaDocs() throws URISyntaxException, IOException {
+		final JavaProjectBuilder builder = new JavaProjectBuilder();
+
+		// add all source folders to the QDox library
+		for (String constraintRoot : CONSTRAINTS_ROOT) {
+			builder.addSourceTree(getRootDirectory().resolve(constraintRoot).toFile());
+		}
+
+		final Collection<JavaClass> classesByName = builder.getClasses();
+
+		for (JavaClass constraintClass : classesByName) {
+			final Path constraintClassPath = Path.of(constraintClass.getParentSource().getURL().toURI());
+			final List<String> constraintSource = Files.readAllLines(constraintClassPath, StandardCharsets.UTF_8);
+			final Optional<JavaAnnotation> constraintDefinition = constraintClass.getAnnotations()
+				.stream()
+				.filter(it -> it.getType().getName().equals(ConstraintDefinition.class.getSimpleName()))
+				.findFirst();
+			if (constraintDefinition.isEmpty()) {
+				// this class is not a constraint
+				continue;
+			}
+			final String userDocsLink = ((String) constraintDefinition.get().getNamedParameter("userDocsLink")).replace("\"", "");
+
+			int commentStartLine = -1;
+			for (int i = 0; i < constraintDefinition.get().getLineNumber(); i++) {
+				if (constraintSource.get(i).startsWith("/**")) {
+					commentStartLine = i;
+					break;
+				}
+			}
+			if (commentStartLine == -1) {
+				throw new EvitaInternalError("Could not find author line in `" + constraintClass.getName() + "`");
+			}
+			final String comment = constraintClass.getComment();
+			final int commentEndLine = comment.split("\n").length + commentStartLine;
+
+			final int originalUserDocsLinkLineNumber = commentEndLine;
+			final String originalUserDocsLinkLine = constraintSource.get(originalUserDocsLinkLineNumber);
+			if (originalUserDocsLinkLine.contains("<a href=\"https://evitadb.io")) {
+				// there is a link from previous generation, just update it
+				constraintSource.set(originalUserDocsLinkLineNumber, " * <a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a>");
+			} else {
+				// there is no link, add it
+				constraintSource.add(originalUserDocsLinkLineNumber + 1, " * <a href=\"https://evitadb.io" + userDocsLink + "\">Visit detailed user documentation</a>");
+				constraintSource.add(originalUserDocsLinkLineNumber + 1, " * ");
+			}
+
+			// rewrite the file with replaced JavaDoc
+			Files.writeString(
+				constraintClassPath,
+				String.join("\n", constraintSource),
+				StandardOpenOption.TRUNCATE_EXISTING
+			);
+		}
 	}
 
 	/**

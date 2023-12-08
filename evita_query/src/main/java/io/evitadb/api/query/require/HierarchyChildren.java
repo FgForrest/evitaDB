@@ -103,6 +103,8 @@ import static java.util.Optional.of;
  * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
  * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
  * user.
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

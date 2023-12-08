@@ -75,6 +75,8 @@ import java.io.Serializable;
  * compound will cover multiple attributes and prepares a special sort index for this particular combination of
  * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
  * name instead of the default attribute name and achieve the expected results.
+ * 
+ * <a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */

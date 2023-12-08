@@ -80,6 +80,8 @@ import java.io.Serializable;
  * between("validity", 0, 1)
  * between("validity", 6, 7)
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

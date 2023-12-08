@@ -87,6 +87,8 @@ import java.io.Serializable;
  *
  * ... returns a single result - product with entity primary key 106742, which is the only one that all three
  * `entityPrimaryKeyInSet` constraints have in common.
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/logical#and">Visit detailed user documentation</a>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

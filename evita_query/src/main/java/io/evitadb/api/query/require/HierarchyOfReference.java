@@ -79,6 +79,8 @@ import static java.util.Optional.ofNullable;
  *      - {@link HierarchySiblings}
  *      - {@link HierarchyChildren}
  *      - {@link HierarchyParents}
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -46,6 +46,8 @@ import java.util.Currency;
  * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
  * Currently, there is no way to switch context between different parts of the filter and build queries such as find
  * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

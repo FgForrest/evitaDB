@@ -41,6 +41,8 @@ import java.io.Serializable;
  * <pre>
  * queryTelemetry()
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/debug#query-telemetry">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

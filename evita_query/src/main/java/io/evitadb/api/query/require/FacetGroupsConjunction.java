@@ -94,6 +94,8 @@ import java.util.Optional;
  * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
  * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
  * be composed as: blue(11) AND red(12)
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

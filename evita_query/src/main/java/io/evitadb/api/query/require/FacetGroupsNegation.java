@@ -75,6 +75,8 @@ import java.util.Optional;
  * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
  * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
  * default behavior predicts only a dozen of them.
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -58,6 +58,8 @@ import static java.util.Optional.of;
  * <pre>
  * associatedData("description", "gallery-3d")
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

@@ -62,6 +62,8 @@ import java.io.Serializable;
  *     priceDescending()
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

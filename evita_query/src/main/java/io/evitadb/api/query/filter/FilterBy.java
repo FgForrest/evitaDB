@@ -52,6 +52,8 @@ import java.io.Serializable;
  *    )
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

@@ -49,6 +49,8 @@ import java.io.Serializable;
  *     entityFetch()
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/basics#require">Visit detailed user documentation</a>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */

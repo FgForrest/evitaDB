@@ -72,6 +72,8 @@ import java.io.Serializable;
  * The following query lists products in category Audio and its subcategories. Along with the products returned, it
  * also returns a computed subcategories data structure that lists the flat category list the currently focused category
  * Audio.
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#distance">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

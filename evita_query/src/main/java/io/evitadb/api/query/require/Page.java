@@ -53,6 +53,8 @@ import java.util.Optional;
  * <pre>
  * page(1, 24)
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

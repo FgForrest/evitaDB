@@ -65,6 +65,8 @@ import java.util.stream.Stream;
  * <pre>
  * dataInLocalesAll()
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

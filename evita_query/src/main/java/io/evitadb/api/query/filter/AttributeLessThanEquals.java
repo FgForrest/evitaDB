@@ -52,6 +52,8 @@ import java.io.Serializable;
  * <pre>
  * lessThanEquals("age", 20)
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-less-than-equals">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

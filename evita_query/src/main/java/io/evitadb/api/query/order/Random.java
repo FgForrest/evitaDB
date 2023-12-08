@@ -43,6 +43,8 @@ import java.io.Serializable;
  * <pre>
  * random()
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

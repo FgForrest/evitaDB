@@ -110,6 +110,8 @@ import static java.util.Optional.of;
  * the first string argument that defines the name for the output data structure. The reason is that this name is
  * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
  * in its data structure.
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

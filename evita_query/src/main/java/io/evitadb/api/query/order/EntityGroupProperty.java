@@ -104,6 +104,8 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/ordering/reference#entity-group-property">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

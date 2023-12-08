@@ -100,6 +100,8 @@ import static java.util.Optional.of;
  * the parents will respect them as well during child nodes / queried entities statistics calculation. The reason is
  * simple: when you render a menu for the query result, you want the calculated statistics to respect the rules that
  * apply to the {@link HierarchyWithin} so that the calculated number remains consistent for the end user.
+ * 
+ * <a href="https://evitadb.io/documentation/query/requirements/hierarchy#parents">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

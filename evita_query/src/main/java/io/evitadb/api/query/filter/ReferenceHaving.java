@@ -65,6 +65,8 @@ import java.io.Serializable;
  *     entityPrimaryKeyInSet(1)
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/references#reference-having">Visit detailed user documentation</a>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */

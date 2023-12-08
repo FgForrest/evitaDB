@@ -51,6 +51,8 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <a href="https://evitadb.io/documentation/query/filtering/references#entity-having">Visit detailed user documentation</a>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
