@@ -190,7 +190,7 @@ public class ReferencingEntityByHierarchyFilteringFunctionalTest extends Abstrac
 				tuple(
 					"originalProductEntities",
 					storedProducts.stream()
-						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAll(), dataInLocalesAll()).orElseThrow())
+						.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), attributeContentAll(), referenceContentAllWithAttributes(), dataInLocalesAll()).orElseThrow())
 						.collect(Collectors.toList())
 				),
 				tuple(
