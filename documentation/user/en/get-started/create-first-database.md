@@ -156,7 +156,7 @@ the load in the cluster.
 Let's see how you can retrieve the entity you just created in another read-only session via the same catalog data API
 as mentioned above.
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
 
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.graphql)
 </SourceCodeTabs>
@@ -184,7 +184,7 @@ the load in the cluster.
 Let's see how you can retrieve the entity you just created in another read-only session via the same catalog data API
 as mentioned above.
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-first-entity.java" langSpecificTabOnly local>
 
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.rest)
 </SourceCodeTabs>
@@ -213,21 +213,21 @@ have in the relational database. The example shows how to define attributes, ass
 
 To get a better idea of the data, let's list the existing entities from the database.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/list-entities.java)
 </SourceCodeTabs>
 
 You can also filter and sort the data:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of filtering and ordering entities](/documentation/user/en/get-started/example/filter-order-entities.java)
 </SourceCodeTabs>
 
 Or you can filter all products by price in EUR greater than €300 and order by price with the cheapest products first:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of filtering and ordering products by price](/documentation/user/en/get-started/example/filter-order-products-by-price.java)
 </SourceCodeTabs>
@@ -240,7 +240,7 @@ Or you can filter all products by price in EUR greater than €300 and order by 
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.java)
 </SourceCodeTabs>
@@ -260,7 +260,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.graphql)
 </SourceCodeTabs>
@@ -277,7 +277,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.rest)
 </SourceCodeTabs>
@@ -326,13 +326,13 @@ Or, you can issue a query that removes all the entities that match the query:
 When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
 
 <LanguageSpecific to="java">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" local>
 
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.java)
 </SourceCodeTabs>
 </LanguageSpecific>
 <LanguageSpecific to="csharp">
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java">
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" local>
 
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.cs)
 </SourceCodeTabs>
