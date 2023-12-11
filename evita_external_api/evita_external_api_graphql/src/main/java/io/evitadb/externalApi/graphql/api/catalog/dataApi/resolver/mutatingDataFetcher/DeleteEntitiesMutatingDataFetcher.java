@@ -60,6 +60,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.strip;
 
@@ -159,7 +160,7 @@ public class DeleteEntitiesMutatingDataFetcher implements DataFetcher<DataFetche
 			extractDesiredLocale(filterBy),
 			entitySchema
 		);
-		entityFetch.ifPresent(requireConstraints::add);
+		entityFetch.ifPresentOrElse(requireConstraints::add, () -> requireConstraints.add(entityFetch()));
 
 		if (arguments.offset() != null && arguments.limit() != null) {
 			requireConstraints.add(strip(arguments.offset(), arguments.limit()));

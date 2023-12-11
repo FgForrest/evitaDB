@@ -533,9 +533,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			if (ofNullable(sourceCodeTabsMatcher.group(2)).map(it -> it.contains("ignoreTest")).orElse(false)) {
 				continue;
 			}
-			final String localParameter = sourceCodeTabsMatcher.group(4);
-			final Environment environment = localParameter != null && "local".equals(localParameter.trim()) ?
-				Environment.LOCALHOST : profile;
+			final boolean isLocal = sourceCodeTabsMatcher.group(4) != null && "local".equals(sourceCodeTabsMatcher.group(4).trim());
+			final Environment environment = isLocal ? Environment.LOCALHOST : profile;
 
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))

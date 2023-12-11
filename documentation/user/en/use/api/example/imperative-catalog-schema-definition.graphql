@@ -55,14 +55,14 @@ mutation {
               createAttributeSchemaMutation: {
                 name: "code",
                 type: String
-                unique: true
+                uniquenessType: UNIQUE_WITHIN_COLLECTION
               }
             },
             {
               createAttributeSchemaMutation: {
                 name: "url"
                 type: String
-                unique: true
+                uniquenessType: UNIQUE_WITHIN_COLLECTION
                 localized: true
               }
             },

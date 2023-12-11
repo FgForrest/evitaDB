@@ -66,7 +66,7 @@ that forms a tree, product is enabled to have prices:
 Now you can use the [system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) via the URL
 `https://your-server:5555/gql/system` to create a new empty catalog:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-catalog.graphql)
 </SourceCodeTabs>
@@ -77,7 +77,7 @@ modifying its schema via the [catalog schema API](/documentation/user/en/use/con
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-schema-for-catalog.graphql)
 </SourceCodeTabs>
@@ -91,7 +91,7 @@ a tree, product is enabled to have prices:
 Now you can use the [system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) via the URL
 `https://your-server:5555/rest/system/catalogs` to create a new empty catalog:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-catalog.rest)
 </SourceCodeTabs>
@@ -102,7 +102,7 @@ modifying its schema via the [catalog schema API](/documentation/user/en/use/con
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-schema-for-catalog.rest)
 </SourceCodeTabs>
@@ -115,7 +115,7 @@ a tree, product is enabled to have prices:
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.java)
 </SourceCodeTabs>
@@ -142,7 +142,7 @@ Once the catalog is created and the schema is known, you can insert a first enti
 [catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) at the
 `https://your-server:5555/gql/test-catalog` URL:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.graphql)
 </SourceCodeTabs>
@@ -170,7 +170,7 @@ Once the catalog is created and the schema is known, you can insert a first enti
 [catalog data API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) at the URL
 `https://your-server:5555/rest/test-catalog/brand`:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.rest)
 </SourceCodeTabs>
@@ -197,7 +197,7 @@ as mentioned above.
 
 Once you learn the basics, you can create a small dataset to work with:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Example of creating a small dataset](/documentation/user/en/get-started/example/create-small-dataset.java)
 </SourceCodeTabs>
@@ -260,7 +260,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.graphql)
 </SourceCodeTabs>
@@ -277,7 +277,7 @@ For more information, see the [write API description](../use/api/write-data.md#u
 
 Updating an entity is similar to creating a new entity:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of listing entities](/documentation/user/en/get-started/example/update-entity.rest)
 </SourceCodeTabs>
@@ -349,7 +349,7 @@ For more complex examples and explanations, see the [write API chapter](../use/a
 You can issue a query that removes all the entities that match the query using the same catalog data API that you
 would use to insert, update or retrieve entities:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.graphql)
 </SourceCodeTabs>
@@ -363,7 +363,7 @@ For more complex examples and explanations, see the [write API chapter](../use/a
 
 You can delete entity by is primary key:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.rest)
 </SourceCodeTabs>
@@ -371,7 +371,7 @@ You can delete entity by is primary key:
 Or, you can issue a query that removes all the entities that match the query using the same catalog data API that you
 would use to insert, update or retrieve entities:
 
-<SourceCodeTabs langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.rest)
 </SourceCodeTabs>

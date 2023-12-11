@@ -50,22 +50,27 @@ public class GraphQLClient extends ApiClient {
 	}
 
 	@Nonnull
-	public JsonNode call(@Nonnull String document) {
+	public JsonNode call(@Nonnull String instancePath, @Nonnull String document) {
 		HttpURLConnection connection = null;
 		try {
-			connection = createConnection();
+			connection = createConnection(instancePath);
 			writeRequestBody(connection, document);
 
 			connection.connect();
-			Assert.isPremiseValid(
-				connection.getResponseCode() == 200,
-				"Call to GraphQL server ended with status " + connection.getResponseCode() + ", query was:\n" + document
-			);
+			final int responseCode = connection.getResponseCode();
+			if (responseCode == 200) {
+				final JsonNode responseBody = readResponseBody(connection.getInputStream());
+				validateResponseBody(responseBody);
 
-			final JsonNode responseBody = readResponseBody(connection.getInputStream());
-			validateResponseBody(responseBody);
+				return responseBody;
+			}
+			if (responseCode >= 400 && responseCode <= 499 && responseCode != 404) {
+				final JsonNode errorResponse = readResponseBody(connection.getErrorStream());
+				final String errorResponseString = objectMapper.writeValueAsString(errorResponse);
+				throw new EvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + errorResponseString);
+			}
 
-			return responseBody;
+			throw new EvitaInternalError("Call to GraphQL server ended with status " + responseCode + ", query was:\n" + document);
 		} catch (IOException e) {
 			throw new EvitaInternalError("Unexpected error.", e);
 		} finally {
@@ -76,8 +81,8 @@ public class GraphQLClient extends ApiClient {
 	}
 
 	@Nonnull
-	private HttpURLConnection createConnection() throws IOException {
-		final URL url = new URL(this.url);
+	private HttpURLConnection createConnection(@Nonnull String instancePath) throws IOException {
+		final URL url = new URL(this.url + instancePath);
 		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setRequestMethod("POST");
 		connection.setRequestProperty("Content-Type", "application/json");
