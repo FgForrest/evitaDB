@@ -1,5 +1,5 @@
 @EntityRef("Product")
-public interface MyEntity(
+public record MyEntity(
 
 	// component contains referenced entity Brand if such reference with cardinality ZERO_OR_ONE exists
 	// and the Brand entity is fetched along with MyEntity
@@ -49,7 +49,37 @@ public interface MyEntity(
 		@AttributeRef("code")
 		@Nullable String code
 
-	) extends Serializable {
+	) implements Serializable {
+
+	}
+
+	// simplified Parameter entity interface
+	@EntityRef("Parameter")
+	public record Parameter(
+
+		@PrimaryKeyRef
+		int id,
+
+		// attribute code of the Parameter entity
+		@AttributeRef("code")
+		@Nullable String code
+
+	) implements Serializable {
+
+	}
+
+	// simplified ParameterGroup entity interface
+	@EntityRef("ParameterGroup")
+	public record ParameterGroup(
+
+		@PrimaryKeyRef
+		int id,
+
+		// attribute code of the ParameterGroup entity
+		@AttributeRef("code")
+		@Nullable String code
+
+	) implements Serializable {
 
 	}
 
@@ -92,37 +122,7 @@ public interface MyEntity(
 		@ReferencedEntityGroup
 		@Nullable ParameterGroup parameterGroupEntity
 
-	) extends Serializable {
-
-	}
-
-	// simplified Parameter entity interface
-	@EntityRef("Parameter")
-	public interface ParameterGroupInterfaceEditor(
-
-		@PrimaryKeyRef
-		int id,
-
-		// attribute code of the Parameter entity
-		@AttributeRef("code")
-		@Nullable String code
-
-	) extends Serializable {
-
-	}
-
-	// simplified ParameterGroup entity interface
-	@EntityRef("ParameterGroup")
-	public interface ParameterGroupInterfaceEditor(
-
-		@PrimaryKeyRef
-		int id,
-
-		// attribute code of the ParameterGroup entity
-		@AttributeRef("code")
-		@Nullable String code
-
-	) extends Serializable {
+	) implements Serializable {
 
 	}
 

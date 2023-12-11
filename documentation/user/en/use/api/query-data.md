@@ -288,23 +288,23 @@ versatile and can also be applied to classes. However, if you follow the record 
 where the data is passed through the constructor, you're limited in some features and other behavior:
 
 - You cannot distinguish between the fact that the data was not fetched and the fact that the data does not exist.
-- You cannot use controllable accessors that change output based on method parameters (for example, `String getName(Locale, locale)`), 
+- You cannot use controllable accessors that change output based on method parameters (for example, `String getName(Locale locale)`), 
   because there is no way to represent the method parameters in the constructor arguments.
 
 The record and immutable class example variants are suitable for secondary data structures or simplified structures 
 returned as a result of reference getter calls, where you don't need the full-fledged read contract.
 
-Methods annotated with these annotations must follow the expected signature conventions:
+Methods annotated with these annotations must follow the expected method signature conventions:
 
 #### Primary key
 
 In order to access the primary key of the entity, you must use number data type (usually
-[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the `@PrimaryKey`
-or `@PrimaryKeyRef` annotation:
+[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKey.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKeyRef.java</SourceClass> annotation:
 
 <SourceAlternativeTabs variants="interface|record|class">
 
-[Example interface with primary key access](/documentation/user/en/use/api/example/primary-key-interface.java)
+[Example interface with primary key access](/documentation/user/en/use/api/example/primary-key-read-interface.java)
 
 </SourceAlternativeTabs>
 
@@ -323,7 +323,7 @@ or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/
 
 <SourceAlternativeTabs variants="interface|record|class">
 
-[Example interface with attribute access](/documentation/user/en/use/api/example/attribute-interface.java)
+[Example interface with attribute access](/documentation/user/en/use/api/example/attribute-read-interface.java)
 
 </SourceAlternativeTabs>
 
@@ -357,11 +357,11 @@ or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/
 
 <SourceAlternativeTabs variants="interface|record|class">
 
-[Example interface with associated data access](/documentation/user/en/use/api/example/associated-data-interface.java)
+[Example interface with associated data access](/documentation/user/en/use/api/example/associated-data-read-interface.java)
 
 </SourceAlternativeTabs>
 
-If the method returns ["non-supported"](../data-types.md#simple-data-types) evitaDB automatically converts the data
+If the method returns ["non-supported data type"](../data-types.md#simple-data-types) evitaDB automatically converts the data
 from ["complex data type"](../data-types.md#complex-data-types) using [documented deserialization rules](../data-types.md#deserialization).
 
 #### Prices
@@ -381,7 +381,7 @@ If the method can return multiple prices, you need to wrap it in [Collection](ht
 
 <SourceAlternativeTabs variants="interface|record|class">
 
-[Example interface with prices](/documentation/user/en/use/api/example/price-interface.java)
+[Example interface with prices](/documentation/user/en/use/api/example/price-read-interface.java)
 
 </SourceAlternativeTabs>
 
@@ -401,7 +401,7 @@ or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/j
 
 <SourceAlternativeTabs variants="interface|record|class">
 
-[Example interface with parent access](/documentation/user/en/use/api/example/parent-interface.java)
+[Example interface with parent access](/documentation/user/en/use/api/example/parent-read-interface.java)
 
 </SourceAlternativeTabs>
 
@@ -426,7 +426,7 @@ If the method can return multiple references, you need to wrap it in [Collection
 
 <SourceAlternativeTabs variants="interface|record|class">
 
-[Example interface with references](/documentation/user/en/use/api/example/reference-interface.java)
+[Example interface with references](/documentation/user/en/use/api/example/reference-read-interface.java)
 
 </SourceAlternativeTabs>
 

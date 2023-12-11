@@ -238,7 +238,7 @@ class SortIndexTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			1_000,
-			new TestState(new StringBuilder(), new SortIndex(String.class, null)),
+			new TestState(new StringBuilder(), new SortIndex(String.class, new AttributeKey("whatever"))),
 			(random, testState) -> {
 				final StringBuilder ops = testState.code();
 				ops.append("final SortIndex sortIndex = new SortIndex(String.class);\n")
