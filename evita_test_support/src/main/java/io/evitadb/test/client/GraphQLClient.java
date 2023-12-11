@@ -50,6 +50,11 @@ public class GraphQLClient extends ApiClient {
 	}
 
 	@Nonnull
+	public JsonNode call(@Nonnull String document) {
+		return call("/gql/evita", document);
+	}
+
+	@Nonnull
 	public JsonNode call(@Nonnull String instancePath, @Nonnull String document) {
 		HttpURLConnection connection = null;
 		try {
