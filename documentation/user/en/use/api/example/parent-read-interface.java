@@ -1,4 +1,4 @@
-@EntityRef("Product")
+@EntityRef("Category")
 public interface MyEntity {
 
 	// return id of parent entity, or null if this entity is a root entity
@@ -26,7 +26,7 @@ public interface MyEntity {
 
 	// return optional reference to a parent entity, or empty if this entity is a root entity
 	@ParentEntity
-	@Nonnull Optional<EntityReference> getParentEntityReferenceIfPresent();
+	@Nonnull Optional<EntityReferenceContract> getParentEntityReferenceIfPresent();
 
 	// return reference to a parent wrapped in this interface, or null if this entity is a root entity
 	// method throws ContextMissingException if the information about parent was not fetched from the server

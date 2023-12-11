@@ -277,7 +277,7 @@ the beginning, it will pay off in the long run. The reasons behind this idea are
 1. the read instances remain immutable and can be safely shared between threads and cached in shared memory
 2. the read interface is not polluted with methods that are not needed to read data, and stays clean and simple.
 
-We call this the "sealed/open" principle, and it works like this.
+We call this the "sealed/open" principle, and it works like this:
 
 #### 1. define a read only interface
 

@@ -186,7 +186,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	 */
 	@SuppressWarnings("rawtypes")
 	@Nonnull
-	private static Comparator createComparatorFor(@Nonnull Locale locale, @Nonnull ComparatorSource comparatorSource) {
+	private static Comparator createComparatorFor(@Nullable Locale locale, @Nonnull ComparatorSource comparatorSource) {
 		final Comparator nextComparator = String.class.isAssignableFrom(comparatorSource.type()) ?
 			ofNullable(locale)
 				.map(it -> {

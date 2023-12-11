@@ -95,6 +95,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
+	 * <SourceAlternativeTabs variants="interface|record|class">
+	 * Pattern for searching for <SourceAlternativeTabs> blocks.
+	 */
+	private static final Pattern SOURCE_ALTERNATIVE_TABS_PATTERN = Pattern.compile(
+		"<SourceAlternativeTabs\\s*(requires=\"(.*?)\")?\\s*variants=\"(.*?)\">\\s*\\[.*?]\\((.*?)\\)\\s*</SourceAlternativeTabs>",
+		Pattern.DOTALL | Pattern.MULTILINE
+	);
+	/**
 	 * Pattern for searching for <MDInclude> blocks.
 	 */
 	private static final Pattern MD_INCLUDE_PATTERN = Pattern.compile(
@@ -450,7 +458,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			Environment.LOCALHOST,
 			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md"),
 			ExampleFilter.values(),
-			CreateSnippets.MARKDOWN/*, CreateSnippets.JAVA*//*, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP*/
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();
 	}
 
@@ -581,6 +589,72 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						.toArray(CodeSnippet[]::new),
 					convertToRunnable(
 						environment,
+						referencedFileExtension,
+						readFileOrThrowException(referencedFile),
+						rootDirectory,
+						referencedFile,
+						requiredScripts,
+						contextAccessor,
+						codeSnippetIndex,
+						outputSnippet,
+						createSnippets
+					)
+				);
+				codeSnippets.add(codeSnippet);
+				codeSnippetIndex.put(codeSnippet.path(), codeSnippet);
+			}
+		}
+
+		final Matcher sourceAlternativeTabsMatcher = SOURCE_ALTERNATIVE_TABS_PATTERN.matcher(fileContent);
+		while (sourceAlternativeTabsMatcher.find()) {
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(4));
+			final String referencedFileExtension = getFileNameExtension(referencedFile);
+			final Path[] requiredScripts = ofNullable(sourceAlternativeTabsMatcher.group(2))
+				.map(
+					requires -> Arrays.stream(requires.split(","))
+						.filter(it -> !it.isBlank())
+						.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
+						.toArray(Path[]::new)
+				)
+				.orElse(null);
+			final String[] variants = sourceAlternativeTabsMatcher.group(3).split("\\|");
+			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
+					.orElse(Collections.emptyList());
+				final CodeSnippet codeSnippet = new CodeSnippet(
+					"Example `" + referencedFile.getFileName() + "`",
+					referencedFileExtension,
+					referencedFile.normalize(),
+					findVariants(referencedFile, alreadyUsedRelatedResources, variants)
+						.stream()
+						.map(relatedFile -> {
+							final String relatedFileExtension = getFileNameExtension(relatedFile);
+							return new CodeSnippet(
+								"Example `" + relatedFile.getFileName() + "`",
+								relatedFileExtension,
+								relatedFile.normalize(),
+								null,
+								convertToRunnable(
+									profile,
+									relatedFileExtension,
+									readFileOrThrowException(relatedFile),
+									rootDirectory,
+									relatedFile,
+									requiredScripts,
+									contextAccessor,
+									codeSnippetIndex,
+									ofNullable(
+										relatedFileExtension.equals("cs") ?
+											outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) :
+											outputSnippetIndex.get(relatedFile)
+									).orElse(Collections.emptyList()),
+									createSnippets
+								)
+							);
+						})
+						.toArray(CodeSnippet[]::new),
+					convertToRunnable(
+						profile,
 						referencedFileExtension,
 						readFileOrThrowException(referencedFile),
 						rootDirectory,

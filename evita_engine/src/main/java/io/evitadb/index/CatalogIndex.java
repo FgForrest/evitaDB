@@ -179,7 +179,7 @@ public class CatalogIndex implements Index<CatalogIndexKey>, TransactionalLayerP
 	) {
 		final AttributeKey lookupKey = createAttributeKey(attributeSchema, allowedLocales, locale, value);
 		final GlobalUniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
-		notNull(theUniqueIndex, "Unique index for attribute " + attributeSchema.getName() + " not found!");
+		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		theUniqueIndex.unregisterUniqueKey(value, entitySchema.getName(), locale, recordId);
 
 		if (theUniqueIndex.isEmpty()) {
