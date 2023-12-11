@@ -2,18 +2,18 @@
 @Data
 public class MyEntity {
 
-	// component contains referenced entity Brand if such reference with cardinality ZERO_OR_ONE exists
+	// field contains referenced entity Brand if such reference with cardinality ZERO_OR_ONE exists
 	// and the Brand entity is fetched along with MyEntity
 	// throws ContextMissingException if the reference information was not fetched from the server
 	@ReferenceRef("brand")
 	@Nullable private final Brand brand;
 
-	// component contains referenced Brand entity primary key if such reference with cardinality ZERO_OR_ONE exists
+	// field contains referenced Brand entity primary key if such reference with cardinality ZERO_OR_ONE exists
 	// throws ContextMissingException if the reference information was not fetched from the server
 	@ReferenceRef("brand")
 	@Nullable private final Integer brandId;
 
-	// component contains collection of referenced ProductParameter references or empty list
+	// field contains collection of referenced ProductParameter references or empty list
 	// reference `parameters` has cardinality ZERO_OR_MORE
 	// throws ContextMissingException if the reference information was not fetched from the server
 	@ReferenceRef("parameters")
@@ -31,7 +31,7 @@ public class MyEntity {
 	@ReferenceRef("parameters")
 	@NonNull private final ProductParameter[] parameterAsArray;
 
-	// component contains array of referenced Parameter entities or null
+	// field contains array of referenced Parameter entities or null
 	// reference `parameters` has cardinality ZERO_OR_MORE
 	// throws ContextMissingException if the reference information was not fetched from the server
 	@ReferenceRef("parameters")

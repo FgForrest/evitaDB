@@ -1,4 +1,4 @@
-@EntityRef("Product")
+@EntityRef("Category")
 @Data
 public class MyEntity {
 	

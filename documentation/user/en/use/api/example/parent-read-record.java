@@ -1,4 +1,4 @@
-@EntityRef("Product")
+@EntityRef("Category")
 public record MyEntity(
 	// contains id of parent entity, or null if this entity is a root entity
 	@ParentEntity

@@ -97,7 +97,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for <SourceAlternativeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_ALTERNATIVE_TABS_PATTERN = Pattern.compile(
-		"<SourceAlternativeTabs\\s*variants=\"(.*?)\">\\s*\\[.*?]\\((.*?)\\)\\s*</SourceAlternativeTabs>",
+		"<SourceAlternativeTabs\\s*(requires=\"(.*?)\")?\\s*variants=\"(.*?)\">\\s*\\[.*?]\\((.*?)\\)\\s*</SourceAlternativeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -403,7 +403,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			DocumentationProfile.DEFAULT,
-			getRootDirectory().resolve("documentation/user/en/use/api/schema-api.md"),
+			getRootDirectory().resolve("documentation/user/en/use/api/write-data.md"),
 			ExampleFilter.values()
 		).stream();
 	}
@@ -569,9 +569,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceAlternativeTabsMatcher = SOURCE_ALTERNATIVE_TABS_PATTERN.matcher(fileContent);
 		while (sourceAlternativeTabsMatcher.find()) {
-			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(2));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(4));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
-			final String[] variants = sourceAlternativeTabsMatcher.group(1).split("\\|");
+			final Path[] requiredScripts = ofNullable(sourceAlternativeTabsMatcher.group(2))
+				.map(
+					requires -> Arrays.stream(requires.split(","))
+						.filter(it -> !it.isBlank())
+						.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
+						.toArray(Path[]::new)
+				)
+				.orElse(null);
+			final String[] variants = sourceAlternativeTabsMatcher.group(3).split("\\|");
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
 				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
 					.orElse(Collections.emptyList());
@@ -594,7 +602,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									readFileOrThrowException(relatedFile),
 									rootDirectory,
 									relatedFile,
-									null,
+									requiredScripts,
 									contextAccessor,
 									codeSnippetIndex,
 									ofNullable(
@@ -613,7 +621,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						readFileOrThrowException(referencedFile),
 						rootDirectory,
 						referencedFile,
-						null,
+						requiredScripts,
 						contextAccessor,
 						codeSnippetIndex,
 						outputSnippet,
