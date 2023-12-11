@@ -529,7 +529,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.java)
 </SourceCodeTabs>
@@ -600,7 +600,7 @@ Anyway, there is also the [possibility of creating them directly](#creating-enti
 
 Usually the entity creation will look like this:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.cs)
 </SourceCodeTabs>
@@ -685,7 +685,7 @@ at the `https://your-server:5555/gql/test-catalog` URL. This API contains `upser
 the changes to be applied to an entity. In one go, you can then retrieve the entity with the changes applied by defining
 return data.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.graphql)
 </SourceCodeTabs>
@@ -728,7 +728,7 @@ There endpoints are customized to collections' [schemas](/documentation/user/en/
 collection of evitaDB mutations which define the changes to be applied to an entity. In one go, you can then retrieve the
 entity with the changes applied by defining requirements.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.rest)
 </SourceCodeTabs>
