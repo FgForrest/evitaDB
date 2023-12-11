@@ -8,7 +8,7 @@ query(
     ),
     orderBy(
         attributeNatural("code", ASC),
-        attributeNatural("priority", DESC)
+        attributeNatural("catalogNumber", DESC)
     ),
     require(
         entityFetch(

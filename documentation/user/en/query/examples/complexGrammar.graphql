@@ -6,7 +6,7 @@
     },
     orderBy: [
       { attributeCodeNatural: ASC },
-      { attributePriorityNatural: DESC }
+      { attributeCatalogNumberNatural: DESC }
     ]
   ) {
     recordPage {
