@@ -67,7 +67,7 @@ sessions in parallel to this particular catalog.
 <LanguageSpecific to="graphql,rest">
 
 Any newly created catalog starts in `WARMUP` state and must be manually switched to *transactional* mode using the
-[system API]<LanguageSpecific to="graphql">(/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LanguageSpecific><LanguageSpecific to="rest">(/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LanguageSpecific>
+<LanguageSpecific to="graphql">[system API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)</LanguageSpecific><LanguageSpecific to="rest">[system API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)</LanguageSpecific>
 by executing:
 
 <SourceCodeTabs requires="ignoreTest,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
