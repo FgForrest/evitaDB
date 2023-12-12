@@ -1,3 +1,26 @@
+package io.evitadb.documentation.mock;
+
+import io.evitadb.api.requestResponse.data.PriceContract;
+import io.evitadb.api.requestResponse.data.SealedInstance;
+import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
+import io.evitadb.api.requestResponse.data.annotation.Attribute;
+import io.evitadb.api.requestResponse.data.annotation.Entity;
+import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
+import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
+import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
+import io.evitadb.api.requestResponse.data.annotation.Reference;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
+import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+
+import javax.annotation.Nonnull;
+import java.io.Serializable;
+
+/**
+ * We have these classes because of `java.md` documentation file. Unfortunately, there is problem with Proxycian and
+ * ByteBuddy in the JShell REPL classloader and we need to declare the main interfaces on standard classpath.
+ */
 @Entity(
 	allowedEvolution = {
 		EvolutionMode.ADDING_LOCALES,
@@ -6,7 +29,7 @@
 )
 public interface Product extends SealedInstance<Product, ProductEditor>, Serializable {
 
-	@PrimaryKey
+	@PrimaryKey(autoGenerate = false)
 	int getId();
 
 	@Attribute(

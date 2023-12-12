@@ -1,31 +1,36 @@
-public interface ProductEditor implements InstanceEditor<Product> {
+public interface ProductEditor extends Product, InstanceEditor<Product> {
 
-	void setCode(@Nonnull String code);
+	ProductEditor setCode(String code);
+
+	ProductEditor setName(String name, Locale locale);
+
+	ProductEditor setEAN(String ean);
 
 	@AttributeRef("manufacturedBefore")
-	void setYears(int... year);
+	ProductEditor setYears(int... year);
 
-	void setReferencedFiles(@Nonnull Product.ReferencedFiles files);
+	ProductEditor setReferencedFiles(ReferencedFiles files);
 
-	void setParentEntity(@Nullable Integer parentId);
+	ProductEditor setParentEntity(Integer parentId);
 
 	@Price
-	void setPrices(PriceContract... price);
+	ProductEditor setPrices(PriceContract... price);
 
-	@Reference
-	void setMarketingBrand(int brandId, @Nonnull Consumer<BrandEditor> brandEditor);
-
-	@Reference
-	void addOrUpdateLicensingBrand(int brandId, @Nonnull Consumer<BrandEditor> brandEditor);
+	@ReferenceRef("marketingBrand")
+	ProductEditor addOrUpdateMarketingBrand(int brandId, @CreateWhenMissing Consumer<BrandEditor> brandEditor);
 
 	@ReferenceRef("licensingBrands")
-	void removeLicensingBrandById(int brandId);
+	ProductEditor addOrUpdateLicensingBrand(int brandId, @CreateWhenMissing Consumer<BrandEditor> brandEditor);
 
-	interface BrandEditor extends Product.Brand {
+	@ReferenceRef("licensingBrands")
+	@RemoveWhenExists
+	ProductEditor removeLicensingBrandById(int brandId);
 
-		void setBrandGroup(@Nullable Integer brandGroupId);
+	interface BrandEditor extends Brand {
 
-		void setMarket(@NullableString market);
+		BrandEditor setBrandGroup(Integer brandGroupId);
+
+		BrandEditor setMarket(String market);
 
 	}
 

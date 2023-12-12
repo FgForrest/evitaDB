@@ -697,6 +697,43 @@ public class ReflectionLookup {
 	}
 
 	/**
+	 * Returns the class the passed annotation belongs to.
+	 *
+	 * @param clazz              class to start the search from
+	 * @param annotationInstance annotation instance to find the origin class for
+	 * @return the class the passed annotation belongs to
+	 * @throws IllegalArgumentException if the annotation is not present on the class
+	 */
+	@Nonnull
+	public Class<?> findOriginClass(@Nonnull Class<?> clazz, @Nonnull Annotation annotationInstance) {
+		Class<?> examinedClass = clazz;
+		do {
+			final Annotation[] someAnnotation = examinedClass.getAnnotations();
+			if (someAnnotation.length > 0) {
+				for (Annotation annotation : expand(someAnnotation)) {
+					if (annotation == annotationInstance) {
+						return examinedClass;
+					}
+				}
+			}
+			for (Class<?> implementedInterface : examinedClass.getInterfaces()) {
+				final List<Annotation> interfaceAnnotation = getClassAnnotations(implementedInterface);
+				if (!interfaceAnnotation.isEmpty()) {
+					for (Annotation annotation : expand(interfaceAnnotation.toArray(new Annotation[0]))) {
+						if (annotation == annotationInstance) {
+							return implementedInterface;
+						}
+					}
+				}
+			}
+
+			examinedClass = examinedClass.getSuperclass();
+		} while (examinedClass != null && !Objects.equals(Object.class, examinedClass));
+
+		throw new IllegalArgumentException("Annotation " + annotationInstance + " is not present on class " + clazz + "!");
+	}
+
+	/**
 	 * Returns all annotations of certain type from the class. Annotations are also looked up in superclass/implements hierarchy.
 	 * Annotations on annotation are also taken into account.
 	 */

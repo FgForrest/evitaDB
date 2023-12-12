@@ -4,7 +4,7 @@
 		EvolutionMode.ADDING_CURRENCIES
 	}
 )
-public interface Product {
+public interface Product extends Serializable {
 	@PrimaryKey
 	int getId();
 

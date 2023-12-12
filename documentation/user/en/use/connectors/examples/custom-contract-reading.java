@@ -7,7 +7,7 @@ evita.queryCatalog(
 		);
 
 		// get single product by specific query
-		final Optional<ProductInterface> product = session.queryOne(
+		final Optional<Product> optionalProduct = session.queryOne(
 			query(
 				filterBy(
 					attributeEquals("code", "macbook-pro-13")
@@ -16,17 +16,19 @@ evita.queryCatalog(
 					entityFetchAll()
 				)
 			),
-			ProductInterface.class
+			Product.class
 		);
 
 		// get multiple products in category
-		final List<ProductInterface> products = session.queryList(
+		final List<Product> products = session.queryList(
 			query(
 				filterBy(
-					hierarchyWithin(
-						"categories", 
-						filterBy(
-							attributeEquals("code", "laptops")
+					referenceHaving(
+						"marketingBrand",
+						entityHaving(
+							filterBy(
+								attributeEquals("code", "sony")
+							)
 						)
 					)
 				),
@@ -34,17 +36,19 @@ evita.queryCatalog(
 					entityFetchAll()
 				)
 			),
-			ProductInterface.class
+			Product.class
 		);
 
 		// or finally get page of products in category
-		final EvitaResponse<ProductInterface> productResponse = session.query(
+		final EvitaResponse<Product> productResponse = session.query(
 			query(
 				filterBy(
-					hierarchyWithin(
-						"categories",
-						filterBy(
-							attributeEquals("code", "laptops")
+					referenceHaving(
+						"marketingBrand",
+						entityHaving(
+							filterBy(
+								attributeEquals("code", "sony")
+							)
 						)
 					)
 				),
@@ -52,7 +56,7 @@ evita.queryCatalog(
 					entityFetchAll()
 				)
 			),
-			ProductInterface.class
+			Product.class
 		);
 	}
 );
