@@ -91,7 +91,8 @@ the primary data store. One of the more interesting recent developments in this 
 [the Debezium project](https://debezium.io/), which allows changes from primary data stores to be streamed to secondary
 indexes fairly easily.
 
-There might be multiple clients reading & writing data to the same catalog when it is in `ALIVE` state. Each catalog
+There might be multiple clients reading & writing data to the same catalog when it is in <LanguageSpecific to="java">`ALIVE`</LanguageSpecific>
+<LanguageSpecific to="cshapr">`Alive`</LanguageSpecific> state. Each catalog
 update is wrapped into a *transaction* that meets
 [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation). More details about transaction
 handling is in [separate chapter](../../deep-dive/transactions.md).
@@ -125,7 +126,7 @@ Interfaces follow this structure:
 When you create new entity using evitaDB API, you obtain a builder, and you can immediately start setting the data
 to the entity and then store the entity to the database:
 
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/use/api/example/open-session-manually.java" langSpecificTabOnly local>
 
 [Creating new entity returns a builder](/documentation/user/en/use/api/example/create-new-entity-shortened.java)
 </SourceCodeTabs>
@@ -136,7 +137,7 @@ basically a contract interface with a few methods allowing you to convert it to 
 for updating the data:
 
 <LanguageSpecific to="java,csharp">
-<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" local>
+<SourceCodeTabs requires="ignoreTest,/documentation/user/en/use/api/example/finalization-of-warmup-mode.java,/documentation/user/en/get-started/example/create-small-dataset.java,/documentation/user/en/use/api/example/open-session-manually.java" langSpecificTabOnly local>
 
 [Retrieving existing entity returns a sealed entity](/documentation/user/en/use/api/example/update-existing-entity-shortened.java)
 </SourceCodeTabs>
@@ -428,7 +429,7 @@ the builder wrapper), modify it, and finally collect the changes and send them t
 
 <Note type="info">
 
-The <LanguageSpecific to="java">`upsertVia`</LanguageSpecific><LanguageSpecific to="csharp">`UpsertVia</LanguageSpecific>
+The <LanguageSpecific to="java">`upsertVia`</LanguageSpecific><LanguageSpecific to="csharp">`UpsertVia`</LanguageSpecific>
 method is a shortcut for calling <LanguageSpecific to="java">`session.upsertEntity(builder.buildChangeSet())`</LanguageSpecific>
 <LanguageSpecific to="csharp">`session.UpsertEntity(builder.BuildChangeSet())`</LanguageSpecific>. If you look at the
 <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/BuilderContract.java</SourceClass></LanguageSpecific>
@@ -803,11 +804,12 @@ usual way.
 <Note type="warning">
 
 evitaDB may not remove all entities matched by the filter part of the query. The removal of entities is subject to the
-logic of the <LanguageSpecific to="java,rest,csharp">`require` conditions [`page` or `strip`](../../query/requirements/paging.md)</LanguageSpecific>
-<LanguageSpecific to="grahpql">pagination arguments [`offset` and `limit`](../../query/requirements/paging.md)</LanguageSpecific>.
-Even if you omit the these completely, implicit pagination <LanguageSpecific to="java,rest,csharp">(`page(1, 20)`)</LanguageSpecific>
-<LanguageSpecific to="graphql">(`offset: 1, limit: 20`)</LanguageSpecific> will be used. If the number of entities removed
-is equal to the size of the defined paging, you should repeat the removal command.
+logic of the <LanguageSpecific to="java,rest">`require` conditions [`page` or `strip`](../../query/requirements/paging.md)</LanguageSpecific>
+<LanguageSpecific to="csharp">`Require` conditions [`Page` or `Strip`](../../query/requirements/paging.md)</LanguageSpecific>
+<LanguageSpecific to="graphql">pagination arguments [`offset` and `limit`](../../query/requirements/paging.md)</LanguageSpecific>.
+Even if you omit the these completely, implicit pagination <LanguageSpecific to="java,rest">(`page(1, 20)`)</LanguageSpecific>
+<LanguageSpecific to="csharp">(`Page(1, 20)`)</LanguageSpecific><LanguageSpecific to="graphql">(`offset: 1, limit: 20`)</LanguageSpecific>
+will be used. If the number of entities removed is equal to the size of the defined paging, you should repeat the removal command.
 
 Massive entity removal is better to execute in multiple transactional rounds rather than in one big transaction<LanguageSpecific to="graphql,rest">, i.e. multiple requests</LanguageSpecific>.
 This is at least a good practice, because large and long-running transactions increase probability of conflicts that lead to
@@ -820,7 +822,8 @@ rollbacks of other transactions.
 <LanguageSpecific to="java,csharp">
 
 If you are removing a hierarchical entity, and you need to remove not only the entity itself, but its entire subtree,
-you can take advantage of <LanguageSpecific to="java">`deleteEntityAndItsHierarchy`</LanguageSpecific><LanguageSpecific to="csharp">`DeleteEntityAndItsHierarchy`</LanguageSpecific> method.
+you can take advantage of <LanguageSpecific to="java">`deleteEntityAndItsHierarchy`</LanguageSpecific>
+<LanguageSpecific to="csharp">`DeleteEntityAndItsHierarchy`</LanguageSpecific> method.
 By default, the method returns the number of entities removed, but alternatively it can return the body of the removed root
 entity with the size and form you specify in
 its <LanguageSpecific to="java">`require`</LanguageSpecific><LanguageSpecific to="csharp">`Require`</LanguageSpecific> argument.
