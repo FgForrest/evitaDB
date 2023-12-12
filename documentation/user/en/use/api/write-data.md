@@ -355,7 +355,7 @@ the lambda function.
 
 That's why there is an alternative - not so secure - approach to handling sessions and transactions:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/finalization-of-warmup-mode.java" langSpecificTabOnly local>
 
 [Manual session and transaction handling](/documentation/user/en/use/api/example/manual-transaction-management.java)
 </SourceCodeTabs>
@@ -371,7 +371,7 @@ Both <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb
 `Autocloseable`</LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClientTransaction.cs</SourceClass> implement C# `IDisposable`</LanguageSpecific>
 interface, so you can use them this way:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Get advantage of Autocloseable behaviour](/documentation/user/en/use/api/example/autocloseable-transaction-management.java)
 </SourceCodeTabs>
@@ -384,7 +384,7 @@ have all the business logic executable within the same block.
 
 For testing purposes, there is a special flag that can be used when opening a new session - a **dry run** flag:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Opening dry-run session](/documentation/user/en/use/api/example/dry-run-session.java)
 </SourceCodeTabs>
@@ -681,7 +681,7 @@ the reference is automatically removed.
 
 Entity instances can be created even if no evitaDB instance is available:
 
-<SourceCodeTabs>
+<SourceCodeTabs langSpecificTabOnly>
 [Detached instantiation example](/documentation/user/en/use/api/example/detached-instantiation.java)
 </SourceCodeTabs>
 
@@ -690,7 +690,7 @@ a stream of mutations that can be sent to and processed by the evitaDB server on
 
 There is an analogous builder that takes an existing entity and tracks changes made to it.
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java">
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/detached-existing-entity-preparation.java" langSpecificTabOnly>
 
 [Detached existing entity example](/documentation/user/en/use/api/example/detached-existing-entity-instantiation.java)
 </SourceCodeTabs>
