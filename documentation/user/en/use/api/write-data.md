@@ -740,7 +740,7 @@ entity with the changes applied by defining requirements.
 
 </LanguageSpecific>
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
 [Creating new entity example](/documentation/user/en/use/api/example/create-new-entity.graphql)
 </SourceCodeTabs>
