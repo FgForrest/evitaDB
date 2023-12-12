@@ -374,8 +374,8 @@ interface, so you can use them this way:
 [Get advantage of Autocloseable behaviour](/documentation/user/en/use/api/example/autocloseable-transaction-management.java)
 </SourceCodeTabs>
 
-This approach is safe, but has the same disadvantage as using <LangaugeSpecific to="java">`queryCatalog` / `updateCatalog`</LangaugeSpecific>
-<LangaugeSpecific to="csharp">`QueryCatalog` / `UpdateCatalog`</LangaugeSpecific> methods - you need to
+This approach is safe, but has the same disadvantage as using <LanguageSpecific to="java">`queryCatalog` / `updateCatalog`</LanguageSpecific>
+<LanguageSpecific to="csharp">`QueryCatalog` / `UpdateCatalog`</LanguageSpecific> methods - you need to
 have all the business logic executable within the same block.
 
 #### Dry-run session
@@ -447,7 +447,7 @@ see, that you can call on it either:
 </dl>
 
 </LanguageSpecific>
-<LangaugeSpecific to="csharp">
+<LanguageSpecific to="csharp">
 
 <dl>
 	<dt>`BuildChangeSet`</dt>
@@ -458,7 +458,7 @@ see, that you can call on it either:
 		from the server again, you'll see that none of the changes have been applied to the database entity.</dd>
 </dl>
 
-</LangaugeSpecific>
+</LanguageSpecific>
 
 </Note>
 
