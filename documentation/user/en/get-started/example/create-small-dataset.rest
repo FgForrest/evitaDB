@@ -30,7 +30,7 @@ PUT /rest/evita/Brand/3
 
 ---
 
-PUT /rest/evita/Bran/4
+PUT /rest/evita/Brand/4
 
 {
   "entityExistence": "MUST_NOT_EXIST",

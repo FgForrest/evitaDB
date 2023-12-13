@@ -2,7 +2,7 @@ evita.UpdateCatalog(
 	"evita", session => {
 		return session.DeleteEntity(
 			"Brand",
-			1
+			2
 		);
 	}
 );

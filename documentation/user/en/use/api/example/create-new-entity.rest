@@ -1,4 +1,4 @@
-PUT /rest/evita/Product
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -79,8 +79,8 @@ PUT /rest/evita/Product
   ],
   "require": {
 	"entityFetch": {
-	  "attributeContent": [],
-	  "dataInLocales": []
+	  "attributeContentAll": true,
+	  "dataInLocalesAll": true
 	}
   }
 }

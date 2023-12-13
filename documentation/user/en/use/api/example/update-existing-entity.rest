@@ -1,7 +1,6 @@
-PUT /rest/evita/Product
+PUT /rest/evita/Product/1
 
 {
-  "primaryKey": 1,
   "entityExistence": "MUST_EXIST",
   "mutations": [
 	{
@@ -21,8 +20,8 @@ PUT /rest/evita/Product
   ],
   "require": {
 	"entityFetch": {
-	  "attributeContent": [],
-	  "dataInLocales": []
+	  "attributeContentAll": true,
+	  "dataInLocalesAll": true
 	}
   }
 }

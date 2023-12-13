@@ -28,7 +28,9 @@ POST /rest/evita/Product/query
       "attributeContent": ["code"],
       "referenceCategoriesContent": {}
     },
-    "facetSummary": {},
+    "facetSummary": {
+      "statisticsDepth": "COUNTS"
+    },
     "priceHistogram": 30
   }
 }

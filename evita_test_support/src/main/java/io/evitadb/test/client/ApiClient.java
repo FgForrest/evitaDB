@@ -28,19 +28,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
-import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import java.io.BufferedReader;
+import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.nio.charset.StandardCharsets;
+import java.net.Socket;
+import java.net.http.HttpClient;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
 /**
@@ -51,6 +49,7 @@ import java.security.cert.X509Certificate;
 abstract class ApiClient {
 
 	protected static final ObjectMapper objectMapper = new ObjectMapper();
+	protected final HttpClient client;
 
 	@Nonnull protected final String url;
 
@@ -61,53 +60,64 @@ abstract class ApiClient {
 	protected ApiClient(@Nonnull String url, boolean validateSsl) {
 		this.url = url;
 
-		if (!validateSsl) {
+		if (validateSsl) {
+			this.client = HttpClient.newHttpClient();
+		} else {
 			// Create a trust manager that does not validate certificate chains
-			final TrustManager[] trustAllCerts = new TrustManager[] {
-				new X509TrustManager() {
-					public X509Certificate[] getAcceptedIssuers() {
-						return null;
-					}
-					public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-					public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-				}
-			};
-			// Install the all-trusting trust manager
-			final SSLContext sc;
+			final TrustManager trustManager = new NoValidateTrustManager();
+			SSLContext sslContext = null;
 			try {
-				sc = SSLContext.getInstance("SSL");
-			} catch (NoSuchAlgorithmException e) {
-				throw new EvitaInternalError("Cannot get SSL context.", e);
+				sslContext = SSLContext.getInstance("TLS");
+				sslContext.init(null, new TrustManager[]{trustManager}, new SecureRandom());
+			} catch (NoSuchAlgorithmException | KeyManagementException e) {
+				throw new EvitaInternalError("Could create no-validate trust manager: ", e);
 			}
-			try {
-				sc.init(null, trustAllCerts, new java.security.SecureRandom());
-			} catch (KeyManagementException e) {
-				throw new EvitaInternalError("Cannot init SSL context with custom trust manager.", e);
-			}
-			HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
 
-			// Install the all-trusting host verifier
-			HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> true);
-		}
-	}
-
-	protected void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String body) throws IOException {
-		try (OutputStream os = connection.getOutputStream()) {
-			byte[] input = body.getBytes(StandardCharsets.UTF_8);
-			os.write(input, 0, input.length);
+			this.client = HttpClient.newBuilder()
+				.sslContext(sslContext)
+				.build();
 		}
 	}
 
 	@Nonnull
-	protected JsonNode readResponseBody(@Nonnull InputStream bodyStream) throws IOException {
-		final StringBuilder rawResponseBody = new StringBuilder();
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(bodyStream, StandardCharsets.UTF_8))) {
-			String responseLine;
-			while ((responseLine = br.readLine()) != null) {
-				rawResponseBody.append(responseLine.trim());
-			}
+	protected JsonNode readResponseBody(@Nonnull String body) throws IOException {
+		return objectMapper.readTree(body);
+	}
+
+	private static class NoValidateTrustManager extends X509ExtendedTrustManager {
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
+
 		}
 
-		return objectMapper.readTree(rawResponseBody.toString());
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {
+
+		}
+
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
+
+		}
+
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {
+
+		}
+
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+
+		}
+
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+
+		}
+
+		@Override
+		public X509Certificate[] getAcceptedIssuers() {
+			return new X509Certificate[]{};
+		}
 	}
 }

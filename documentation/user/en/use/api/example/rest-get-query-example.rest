@@ -1,1 +1,1 @@
-GET /rest/evita/Product/get/1?attributeContent=code&referenceContentAll=true
+GET /rest/evita/Product/get/63049?attributeContent=code&referenceContentAll=true

@@ -31,8 +31,10 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 
 /**
  * Simple client for calling GraphQL requests from documentation.
@@ -56,52 +58,38 @@ public class GraphQLClient extends ApiClient {
 
 	@Nonnull
 	public JsonNode call(@Nonnull String instancePath, @Nonnull String document) {
-		HttpURLConnection connection = null;
 		try {
-			connection = createConnection(instancePath);
-			writeRequestBody(connection, document);
+			final HttpRequest request = createRequest(instancePath, document);
+			final HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
 
-			connection.connect();
-			final int responseCode = connection.getResponseCode();
+			final int responseCode = response.statusCode();
 			if (responseCode == 200) {
-				final JsonNode responseBody = readResponseBody(connection.getInputStream());
+				final JsonNode responseBody = readResponseBody(response.body());
 				validateResponseBody(responseBody);
 
 				return responseBody;
 			}
 			if (responseCode >= 400 && responseCode <= 499 && responseCode != 404) {
-				final JsonNode errorResponse = readResponseBody(connection.getErrorStream());
-				final String errorResponseString = objectMapper.writeValueAsString(errorResponse);
-				throw new EvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + errorResponseString);
+				throw new EvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + response.body());
 			}
 
 			throw new EvitaInternalError("Call to GraphQL server ended with status " + responseCode + ", query was:\n" + document);
-		} catch (IOException e) {
+		} catch (IOException | InterruptedException e) {
 			throw new EvitaInternalError("Unexpected error.", e);
-		} finally {
-			if (connection != null) {
-				connection.disconnect();
-			}
 		}
 	}
 
 	@Nonnull
-	private HttpURLConnection createConnection(@Nonnull String instancePath) throws IOException {
-		final URL url = new URL(this.url + instancePath);
-		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-		connection.setRequestMethod("POST");
-		connection.setRequestProperty("Content-Type", "application/json");
-		connection.setRequestProperty("Accept", "application/graphql-response+json");
-		connection.setDoOutput(true);
-		return connection;
-	}
-
-	@Override
-	protected void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String document) throws IOException {
+	private HttpRequest createRequest(@Nonnull String instancePath, @Nonnull String document) throws IOException {
 		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null, null);
 		final String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
-		super.writeRequestBody(connection, requestBodyJson);
+		return HttpRequest.newBuilder()
+			.uri(URI.create(this.url + instancePath))
+			.method("POST", HttpRequest.BodyPublishers.ofString(requestBodyJson))
+			.header("Accept", "application/graphql-response+json")
+			.header("Content-Type", "application/json")
+			.build();
 	}
 
 	private void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {
@@ -113,8 +101,14 @@ public class GraphQLClient extends ApiClient {
 
 		final JsonNode data = responseBody.get("data");
 		Assert.isPremiseValid(
-			data != null && !data.isNull() && !data.isEmpty(),
+			data != null && !data.isNull() && (data.isValueNode() || !data.isEmpty()),
 			"Call to GraphQL server ended with empty data."
 		);
+		data.elements().forEachRemaining(element -> {
+			Assert.isPremiseValid(
+				element != null && !element.isNull(),
+				"Call to GraphQL server ended with empty data."
+			);
+		});
 	}
 }
