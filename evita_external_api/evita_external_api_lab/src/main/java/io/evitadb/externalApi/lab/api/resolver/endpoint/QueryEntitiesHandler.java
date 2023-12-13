@@ -47,6 +47,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Extra
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +65,7 @@ import java.util.Set;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityClassifier>, LabApiHandlingContext> {
+public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext> {
 
 	@Nonnull private final QueryParser queryParser;
 	@Nonnull private final GenericEntityJsonSerializer entityJsonSerializer;
@@ -94,12 +95,12 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<EvitaResponse<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
 		log.debug("Generated evitaDB query for entity query is `{}`.", query);
 
 		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
-		return new SuccessEndpointResponse<>(response);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
 	}
 
 	@Nonnull
@@ -130,17 +131,23 @@ public class QueryEntitiesHandler extends JsonRestHandler<EvitaResponse<EntityCl
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> result) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object result) {
+		Assert.isPremiseValid(
+			result instanceof EvitaResponse,
+			() -> new RestInternalError("Expected evitaDB response, but got `" + result.getClass().getName() + "`.")
+		);
+		//noinspection unchecked
+		final EvitaResponse<EntityClassifier> evitaResponse = (EvitaResponse<EntityClassifier>) result;
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
-			.recordPage(serializeRecordPage(result));
-		if (!result.getExtraResults().isEmpty()) {
+			.recordPage(serializeRecordPage(evitaResponse));
+		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
 				.extraResults(
 					extraResultsJsonSerializer.serialize(
-						result.getExtraResults(),
+						evitaResponse.getExtraResults(),
 						exchange.session()
-							.getEntitySchema(result.getSourceQuery().getCollection().getEntityType())
-							.orElseThrow(() -> new RestInternalError("No entity schema found for entity type `" + result.getSourceQuery().getCollection().getEntityType() + "`."))
+							.getEntitySchema(evitaResponse.getSourceQuery().getCollection().getEntityType())
+							.orElseThrow(() -> new RestInternalError("No entity schema found for entity type `" + evitaResponse.getSourceQuery().getCollection().getEntityType() + "`."))
 					)
 				);
 		}

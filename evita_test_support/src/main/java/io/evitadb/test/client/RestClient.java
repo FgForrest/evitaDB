@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -30,9 +31,11 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 import java.util.Optional;
 
 /**
@@ -52,46 +55,44 @@ public class RestClient extends ApiClient {
 
 	@Nullable
 	public Optional<JsonNode> call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
-		HttpURLConnection connection = null;
 		try {
-			connection = createConnection(method, resource);
-			if (body != null && !body.isBlank()) {
-				writeRequestBody(connection, body);
-			}
+			final HttpRequest request = createRequest(method, resource, body);
+			final HttpResponse<String> response = createClient().send(request, BodyHandlers.ofString());
 
-			connection.connect();
-
-			final int responseCode = connection.getResponseCode();
+			final int responseCode = response.statusCode();
 			if (responseCode == 200) {
-				return Optional.of(readResponseBody(connection.getInputStream()));
+				final JsonNode responseBody = readResponseBody(response.body());
+				validateResponseBody(responseBody);
+
+				return Optional.of(responseBody);
 			}
 			if (responseCode == 404) {
 				return Optional.empty();
 			}
 			if (responseCode >= 400 && responseCode <= 499) {
-				final JsonNode errorResponse = readResponseBody(connection.getErrorStream());
-				final String errorResponseString = objectMapper.writeValueAsString(errorResponse);
-				throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + errorResponseString);
+				throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode + " and response: \n" + response.body());
 			}
 
 			throw new EvitaInternalError("Call to REST server `" + this.url + resource + "` ended with status " + responseCode);
-		} catch (IOException | URISyntaxException e) {
+		} catch (IOException | URISyntaxException | InterruptedException e) {
 			throw new EvitaInternalError("Unexpected error.", e);
-		} finally {
-			if (connection != null) {
-				connection.disconnect();
-			}
 		}
 	}
 
 	@Nonnull
-	private  HttpURLConnection createConnection(@Nonnull String method, @Nonnull String resource) throws IOException, URISyntaxException {
-		final URL url = new URL(this.url + resource);
-		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-		connection.setRequestProperty("Accept", "application/json");
-		connection.setRequestProperty("Content-Type", "application/json");
-		connection.setRequestMethod(method);
-		connection.setDoOutput(true);
-		return connection;
+	private  HttpRequest createRequest(@Nonnull String method, @Nonnull String resource, @Nullable String body) throws IOException, URISyntaxException {
+		return HttpRequest.newBuilder()
+			.uri(URI.create(this.url + resource))
+			.method(method, body != null && !body.isBlank() ? HttpRequest.BodyPublishers.ofString(body) : HttpRequest.BodyPublishers.noBody())
+			.header("Accept", "application/json")
+			.header("Content-Type", "application/json")
+			.build();
+	}
+
+	private void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {
+		Assert.isPremiseValid(
+			responseBody != null && !responseBody.isNull(),
+			"Call to REST server ended with empty data."
+		);
 	}
 }

@@ -28,7 +28,7 @@ package io.evitadb.documentation;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public enum DocumentationProfile {
+public enum Environment {
 
 	/**
 	 * Localhost profile when evitaQL runs on the developer environment.
@@ -38,6 +38,6 @@ public enum DocumentationProfile {
 	/**
 	 * Default profile when evitaQL runs on the demo server.
 	 */
-	DEFAULT
+	DEMO_SERVER
 
 }

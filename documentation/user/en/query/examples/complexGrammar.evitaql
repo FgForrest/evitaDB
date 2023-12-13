@@ -3,12 +3,12 @@ query(
     filterBy(
        and(
           entityPrimaryKeyInSet(1, 2, 3),
-          attributeEquals("visibility", "VISIBLE")
+          attributeEquals("status", "ACTIVE")
        )
     ),
     orderBy(
         attributeNatural("code", ASC),
-        attributeNatural("priority", DESC)
+        attributeNatural("catalogNumber", DESC)
     ),
     require(
         entityFetch(

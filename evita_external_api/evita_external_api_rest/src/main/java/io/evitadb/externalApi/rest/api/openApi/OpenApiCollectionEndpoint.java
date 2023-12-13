@@ -77,7 +77,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 	                                  @Nonnull List<OpenApiEndpointParameter> parameters,
 	                                  @Nullable OpenApiSimpleType requestBody,
 	                                  @Nonnull OpenApiSimpleType successResponse,
-	                                  @Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<?, CollectionRestHandlingContext>> handlerBuilder) {
+	                                  @Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder) {
 		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
@@ -94,7 +94,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, CollectionRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<CollectionRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                                       @Nonnull Evita evita,
 	                                                                       @Nonnull OpenAPI openApi,
 	                                                                       @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -129,7 +129,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CollectionRestHandlingContext, RestEndpointHandler<?, CollectionRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder;
 
 		private Builder(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaContract entitySchema) {
 			this.catalogSchema = catalogSchema;
@@ -258,7 +258,7 @@ public class OpenApiCollectionEndpoint extends OpenApiEndpoint<CollectionRestHan
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<?, CollectionRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<CollectionRestHandlingContext, RestEndpointHandler<CollectionRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

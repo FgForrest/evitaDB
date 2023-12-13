@@ -1,5 +1,5 @@
 evita.UpdateCatalog(
-	"testCatalog", session => {
+	"evita", session => {
 		return session.DeleteEntityAndItsHierarchy(
 			"Category",
 			1

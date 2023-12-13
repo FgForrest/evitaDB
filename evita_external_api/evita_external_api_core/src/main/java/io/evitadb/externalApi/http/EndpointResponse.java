@@ -26,8 +26,7 @@ package io.evitadb.externalApi.http;
 /**
  * Response of {@link EndpointHandler}. It is used to determine HTTP response and its body.
  *
- * @param <R> type of response body
  * @author Lukáš Hornych, 2023
  */
-public interface EndpointResponse<R> {
+public interface EndpointResponse {
 }

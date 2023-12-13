@@ -1,5 +1,5 @@
 string brandNameInEnglish = evita.QueryCatalog(
-	"testCatalog",
+	"evita",
 	session => {
 		return session.GetEntity("brand", 1)
 			.GetAttribute("name");

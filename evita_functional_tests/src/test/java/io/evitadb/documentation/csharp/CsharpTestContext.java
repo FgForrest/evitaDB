@@ -23,7 +23,7 @@
 
 package io.evitadb.documentation.csharp;
 
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import lombok.Getter;
 
@@ -43,7 +43,7 @@ public class CsharpTestContext implements TestContext {
 	 * CShell instance used for C# code validation and fetching results.
 	 */
 	private final CShell cshell;
-	public CsharpTestContext(@Nonnull DocumentationProfile profile) {
+	public CsharpTestContext(@Nonnull Environment profile) {
 		this.cshell = new CShell(profile);
 	}
 }

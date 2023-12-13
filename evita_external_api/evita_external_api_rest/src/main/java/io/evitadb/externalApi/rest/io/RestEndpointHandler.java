@@ -23,12 +23,14 @@
 
 package io.evitadb.externalApi.rest.io;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
+import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.openApi.SchemaUtils;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataDeserializer;
@@ -46,7 +48,6 @@ import javax.annotation.Nullable;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -57,7 +58,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange, R> {
+public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange> {
 
     private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
     private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
@@ -115,6 +116,12 @@ public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> ex
         createSession(exchange).ifPresent(exchange::session);
     }
 
+    @Override
+    protected void afterRequestHandled(@Nonnull RestEndpointExchange exchange, @Nonnull EndpointResponse response) {
+        // we need to close a current session and commit changes before we send the response to client
+        exchange.closeSessionIfOpen();
+    }
+
     /**
      * Tries to create a {@link EvitaSessionContract} automatically from context.
      */
@@ -128,7 +135,13 @@ public abstract class RestEndpointHandler<R, CTX extends RestHandlingContext> ex
         final Evita evita = restApiHandlingContext.getEvita();
         final String catalogName = catalogRestHandlingContext.getCatalogSchema().getName();
         if (modifiesData()) {
-            return Optional.of(evita.createReadWriteSession(catalogName));
+            final EvitaSessionContract session = evita.createReadWriteSession(catalogName);
+            final CatalogContract catalog = evita.getCatalogInstance(catalogName)
+                .orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` could not be found."));
+            if (catalog.supportsTransaction()) {
+                session.openTransaction();
+            }
+            return Optional.of(session);
         } else {
             return Optional.of(evita.createReadOnlySession(catalogName));
         }

@@ -23,7 +23,7 @@
 
 package io.evitadb.documentation.java;
 
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.documentation.UserDocumentationTest;
 import io.evitadb.documentation.java.JavaExecutable.InvocationResult;
@@ -74,7 +74,7 @@ public class JavaTestContext implements TestContext {
 	@Getter
 	private final JShell jShell;
 
-	public JavaTestContext(@Nonnull DocumentationProfile profile) {
+	public JavaTestContext(@Nonnull Environment profile) {
 		this.jShell = JShell.builder()
 			// this is faster because JVM is not forked for each test
 			.executionEngine(new LocalExecutionControlProvider(), Collections.emptyMap())

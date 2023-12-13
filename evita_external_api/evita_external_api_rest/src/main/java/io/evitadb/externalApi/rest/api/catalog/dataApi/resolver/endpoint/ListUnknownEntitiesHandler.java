@@ -31,8 +31,10 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.Filte
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.constraint.RequireConstraintFromRequestQueryBuilder;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
@@ -48,7 +50,7 @@ import java.util.Set;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClassifier>, CatalogRestHandlingContext> {
+public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final EntityJsonSerializer entityJsonSerializer;
@@ -60,7 +62,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClass
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<List<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
@@ -71,7 +73,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClass
 		log.debug("Generated evitaDB query for unknown entity list fetch is `{}`.", query);
 
 		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
-		return new SuccessEndpointResponse<>(entities);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
 	}
 
 	@Nonnull
@@ -88,7 +90,12 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<List<EntityClass
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull List<EntityClassifier> entities) {
-		return entityJsonSerializer.serialize(entities);
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object entities) {
+		Assert.isPremiseValid(
+			entities instanceof List,
+			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")
+		);
+		//noinspection unchecked
+		return entityJsonSerializer.serialize((List<EntityClassifier>) entities);
 	}
 }

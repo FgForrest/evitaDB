@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/product/schema
+PUT /rest/evita/Product/schema
 
 {
   "mutations": [

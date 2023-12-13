@@ -59,6 +59,10 @@ public class RestEndpointExchange implements EndpointExchange {
 			session != null,
 			() -> new RestInternalError("Session is not available for this exchange.")
 		);
+		Assert.isPremiseValid(
+			this.session.isActive(),
+			() -> new RestInternalError("Session has been already closed. No one should access the session!")
+		);
 		return session;
 	}
 
@@ -71,6 +75,18 @@ public class RestEndpointExchange implements EndpointExchange {
 			() -> new RestInternalError("Session cannot overwritten when already set.")
 		);
 		this.session = session;
+	}
+
+	/**
+	 * Closes the current session (and transaction) if it is open.
+	 */
+	public void closeSessionIfOpen() {
+		if (session != null) {
+			if (session.isTransactionOpen()) {
+				session.closeTransaction();
+			}
+			session.close();
+		}
 	}
 
 	@Nonnull
@@ -93,8 +109,7 @@ public class RestEndpointExchange implements EndpointExchange {
 
 	@Override
 	public void close() {
-		if (session != null) {
-			session.close();
-		}
+		// the session may not be properly closed in case of exception during request handling
+		closeSessionIfOpen();
 	}
 }

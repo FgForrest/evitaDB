@@ -1,5 +1,5 @@
 evita.updateCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		session.getEntity("Product", 1, attributeContentAll(), dataInLocalesAll())
 			.orElseThrow(

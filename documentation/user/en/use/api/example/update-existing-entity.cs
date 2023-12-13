@@ -1,5 +1,5 @@
 evita.UpdateCatalog(
-	"testCatalog",
+	"evita",
 	session => {
 		session.GetEntity("Product", 1, AttributeContentAll(), DataInLocalesAll())
 			.OpenForWrite()

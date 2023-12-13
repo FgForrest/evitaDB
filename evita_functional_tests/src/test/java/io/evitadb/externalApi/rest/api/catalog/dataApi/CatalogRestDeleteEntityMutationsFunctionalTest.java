@@ -69,6 +69,37 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
+	@DisplayName("Should delete entity by primary key")
+	void shouldDeleteEntityByPrimaryKey(Evita evita, RestTester tester) {
+		final List<SealedEntity> entitiesToDelete = getEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeLessThan(ATTRIBUTE_QUANTITY, 5500)
+				),
+				require(
+					strip(0, 1),
+					entityFetch(
+						attributeContent(ATTRIBUTE_CODE)
+					)
+				)
+			),
+			SealedEntity.class
+		);
+		assertEquals(1, entitiesToDelete.size());
+
+		tester.test(TEST_CATALOG)
+			.httpMethod(Request.METHOD_DELETE)
+			.urlPathSuffix("/PRODUCT/" + entitiesToDelete.get(0).getPrimaryKey())
+			.executeAndThen()
+			.statusCode(200);
+
+		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_DELETE)
 	@DisplayName("Should delete entity by query")
 	void shouldDeleteEntityByQuery(Evita evita, RestTester tester) {
 		final List<SealedEntity> entitiesToDelete = getEntities(

@@ -45,7 +45,7 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class DeleteCatalogHandler extends JsonRestHandler<Void, SystemRestHandlingContext>  {
+public class DeleteCatalogHandler extends JsonRestHandler<SystemRestHandlingContext>  {
 
 	public DeleteCatalogHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -58,13 +58,13 @@ public class DeleteCatalogHandler extends JsonRestHandler<Void, SystemRestHandli
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<Void> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		final Optional<CatalogContract> catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName);
 		if (catalog.isEmpty()) {
-			return new NotFoundEndpointResponse<>();
+			return new NotFoundEndpointResponse();
 		}
 
 		final boolean deleted = restApiHandlingContext.getEvita().deleteCatalogIfExists(catalog.get().getName());
@@ -72,7 +72,7 @@ public class DeleteCatalogHandler extends JsonRestHandler<Void, SystemRestHandli
 			deleted,
 			() -> new RestInternalError("Could not delete catalog `" + catalog.get().getName() + "`, even though it should exist.")
 		);
-		return new SuccessEndpointResponse<>();
+		return new SuccessEndpointResponse();
 	}
 
 	@Nonnull

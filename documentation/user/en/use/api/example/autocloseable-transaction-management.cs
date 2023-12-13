@@ -1,5 +1,5 @@
 // open session
-using EvitaClientSession session = evita.CreateReadWriteSession("testCatalog");
+using EvitaClientSession session = evita.CreateReadWriteSession("evita");
 try
 {
     // do your work

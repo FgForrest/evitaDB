@@ -23,7 +23,7 @@
 
 package io.evitadb.documentation.evitaql;
 
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContextFactory;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -45,7 +45,7 @@ public class EvitaTestContextFactory implements TestContextFactory<EvitaTestCont
 	private final AtomicReference<EvitaTestContext> testContextRef = new AtomicReference<>();
 
 	@Override
-	public DynamicTest getInitTest(@Nonnull DocumentationProfile profile) {
+	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Init Evita EvitaQL connection (" + profile + ")",
 			() -> testContextRef.set(new EvitaTestContext(profile))
@@ -53,7 +53,7 @@ public class EvitaTestContextFactory implements TestContextFactory<EvitaTestCont
 	}
 
 	@Override
-	public DynamicTest getTearDownTest(@Nonnull DocumentationProfile profile) {
+	public DynamicTest getTearDownTest(@Nonnull Environment profile) {
 		return dynamicTest(
 			"Destroy Evita EvitaQL connection (" + profile + ")",
 			() -> {

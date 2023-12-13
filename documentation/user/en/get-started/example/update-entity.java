@@ -1,10 +1,10 @@
 evita.updateCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		session.getEntity(
 			"Product", 1,
 			attributeContentAll(),
-			priceContentRespectingFilter()
+			priceContentAll()
 		)
 			.orElseThrow()
 			.openForWrite()

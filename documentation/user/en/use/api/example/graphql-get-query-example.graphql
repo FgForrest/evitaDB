@@ -1,5 +1,5 @@
 {
-  getProduct(primaryKey: 1) {
+  getProduct(primaryKey: 63049) {
     primaryKey
     attributes {
       code

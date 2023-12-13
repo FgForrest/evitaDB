@@ -41,7 +41,7 @@ import java.util.List;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class JsonRestHandler<R, CTX extends RestHandlingContext> extends RestEndpointHandler<R, CTX> {
+public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends RestEndpointHandler<CTX> {
 
 	protected static final LinkedHashSet<String> DEFAULT_SUPPORTED_CONTENT_TYPES = new LinkedHashSet<>(List.of(MimeTypes.APPLICATION_JSON));
 
@@ -68,10 +68,9 @@ public abstract class JsonRestHandler<R, CTX extends RestHandlingContext> extend
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull R result) {
+	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		try {
-			final Object serializableResult = convertResultIntoSerializableObject(exchange, result);
-			restApiHandlingContext.getObjectMapper().writeValue(outputStream, serializableResult);
+			restApiHandlingContext.getObjectMapper().writeValue(outputStream, result);
 		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),
@@ -89,7 +88,7 @@ public abstract class JsonRestHandler<R, CTX extends RestHandlingContext> extend
 	 * @return result object read to be serialized
 	 */
 	@Nonnull
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull R result) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object result) {
 		return result;
 	}
 }

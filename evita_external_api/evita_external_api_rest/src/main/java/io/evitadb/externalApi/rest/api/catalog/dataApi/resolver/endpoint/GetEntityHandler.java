@@ -46,7 +46,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetEntityHandler extends EntityHandler<EntityClassifier, CollectionRestHandlingContext> {
+public class GetEntityHandler extends EntityHandler<CollectionRestHandlingContext> {
 
 	public GetEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -54,7 +54,7 @@ public class GetEntityHandler extends EntityHandler<EntityClassifier, Collection
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntityClassifier> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
@@ -67,8 +67,8 @@ public class GetEntityHandler extends EntityHandler<EntityClassifier, Collection
 
 		return exchange.session()
 			.queryOne(query, EntityClassifier.class)
-			.map(it -> (EndpointResponse<EntityClassifier>) new SuccessEndpointResponse<>(it))
-			.orElse(new NotFoundEndpointResponse<>());
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull

@@ -1,7 +1,7 @@
 // open both session
 using EvitaClientSession session = evita.CreateSession(
 		new SessionTraits(
-			"testCatalog",
+			"evita",
 			SessionFlags.ReadWrite,
 			SessionFlags.DryRun
 		)

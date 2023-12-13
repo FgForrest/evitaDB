@@ -71,6 +71,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.proxy.impl.ProxyUtils.getResolvedTypes;
 import static io.evitadb.dataType.data.ComplexDataObjectConverter.getOriginalForm;
+import static java.util.Optional.ofNullable;
 
 /**
  * Identifies methods that are used to get associated data from an entity and provides their implementation.
@@ -181,7 +182,11 @@ public class GetAssociatedDataMethodClassifier extends DirectMethodClassificatio
 		final AssociatedData associatedDataInstance = reflectionLookup.getAnnotationInstanceForProperty(method, AssociatedData.class);
 		final AssociatedDataRef associatedDataRefInstance = reflectionLookup.getAnnotationInstanceForProperty(method, AssociatedDataRef.class);
 		if (associatedDataInstance != null) {
-			return entitySchema.getAssociatedDataOrThrowException(associatedDataInstance.name());
+			return entitySchema.getAssociatedDataOrThrowException(
+				ofNullable(associatedDataInstance.name())
+					.filter(it -> !it.isBlank())
+					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
+			);
 		} else if (associatedDataRefInstance != null) {
 			return entitySchema.getAssociatedDataOrThrowException(associatedDataRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, AssociatedData.class) && ClassUtils.isAbstract(method)) {

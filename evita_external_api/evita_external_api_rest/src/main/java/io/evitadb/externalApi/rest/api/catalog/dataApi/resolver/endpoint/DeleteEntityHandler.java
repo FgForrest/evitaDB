@@ -46,7 +46,7 @@ import java.util.Set;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class DeleteEntityHandler extends EntityHandler<SealedEntity, CollectionRestHandlingContext> {
+public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingContext> {
 
 	public DeleteEntityHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -59,7 +59,7 @@ public class DeleteEntityHandler extends EntityHandler<SealedEntity, CollectionR
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<SealedEntity> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		Assert.isTrue(
@@ -75,8 +75,8 @@ public class DeleteEntityHandler extends EntityHandler<SealedEntity, CollectionR
 				(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 				entityContentRequires
 			)
-			.map(it -> (EndpointResponse<SealedEntity>) new SuccessEndpointResponse<>(it))
-			.orElse(new NotFoundEndpointResponse<>());
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull
