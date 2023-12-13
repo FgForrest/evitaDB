@@ -49,8 +49,8 @@ import java.security.cert.X509Certificate;
 abstract class ApiClient {
 
 	protected static final ObjectMapper objectMapper = new ObjectMapper();
-	protected final HttpClient client;
 
+	protected final boolean validateSsl;
 	@Nonnull protected final String url;
 
 	protected ApiClient(@Nonnull String url) {
@@ -59,9 +59,16 @@ abstract class ApiClient {
 
 	protected ApiClient(@Nonnull String url, boolean validateSsl) {
 		this.url = url;
+		this.validateSsl = validateSsl;
 
+	}
+
+	@Nonnull
+	protected HttpClient createClient() {
+		// todo lho - this is terrible, but I all other way result in `HTTP/1.1 header parser received no bytes`
 		if (validateSsl) {
-			this.client = HttpClient.newHttpClient();
+			return HttpClient.newBuilder()
+				.build();
 		} else {
 			// Create a trust manager that does not validate certificate chains
 			final TrustManager trustManager = new NoValidateTrustManager();
@@ -73,7 +80,7 @@ abstract class ApiClient {
 				throw new EvitaInternalError("Could create no-validate trust manager: ", e);
 			}
 
-			this.client = HttpClient.newBuilder()
+			return HttpClient.newBuilder()
 				.sslContext(sslContext)
 				.build();
 		}

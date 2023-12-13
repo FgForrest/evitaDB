@@ -57,7 +57,7 @@ public class RestClient extends ApiClient {
 	public Optional<JsonNode> call(@Nonnull String method, @Nonnull String resource, @Nullable String body) {
 		try {
 			final HttpRequest request = createRequest(method, resource, body);
-			final HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
+			final HttpResponse<String> response = createClient().send(request, BodyHandlers.ofString());
 
 			final int responseCode = response.statusCode();
 			if (responseCode == 200) {

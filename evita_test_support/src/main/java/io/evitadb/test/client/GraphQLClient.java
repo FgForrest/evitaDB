@@ -60,7 +60,7 @@ public class GraphQLClient extends ApiClient {
 	public JsonNode call(@Nonnull String instancePath, @Nonnull String document) {
 		try {
 			final HttpRequest request = createRequest(instancePath, document);
-			final HttpResponse<String> response = client.send(request, BodyHandlers.ofString());
+			final HttpResponse<String> response = createClient().send(request, BodyHandlers.ofString());
 
 			final int responseCode = response.statusCode();
 			if (responseCode == 200) {
