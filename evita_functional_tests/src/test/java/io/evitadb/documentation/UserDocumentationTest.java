@@ -319,7 +319,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Returns array of files with same name and different extension from the same directory.
 	 */
 	@Nonnull
-	private static List<Path> findRelatedFiles(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedRelatedResources, Map<Path, CodeSnippet> codeSnippetIndex) {
+	private static List<Path> findRelatedFiles(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedPaths, Map<Path, CodeSnippet> codeSnippetIndex) {
 		try (final Stream<Path> siblings = Files.list(theFile.getParent())) {
 			final String theFileName = theFile.getFileName().toString();
 			final String theFileExtension = getFileNameExtension(theFile);
@@ -328,13 +328,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					final String fileNameExtension = getFileNameExtension(it);
 					return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
 						!theFileExtension.equals(fileNameExtension) &&
-						!alreadyUsedRelatedResources.contains(it) &&
+						!alreadyUsedPaths.contains(it) &&
 						fileName.substring(0, fileName.length() - fileNameExtension.length())
 							.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
 				})
 				.map(Path::normalize)
-				.filter(it -> !codeSnippetIndex.containsKey(it))
-				.peek(alreadyUsedRelatedResources::add)
+				.filter(it -> !alreadyUsedPaths.contains(it))
+				.peek(alreadyUsedPaths::add)
 				.toList();
 		} catch (IOException e) {
 			Assertions.fail(
@@ -348,7 +348,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Returns array of files with same name and different extension from the same directory.
 	 */
 	@Nonnull
-	private static List<Path> findVariants(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedRelatedResources, @Nonnull String[] variants) {
+	private static List<Path> findVariants(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedPaths, @Nonnull String[] variants) {
 		Integer indexOfMainVariant = null;
 		final String theFileName = theFile.getFileName().toString();
 		final String theFileExtension = getFileNameExtension(theFile);
@@ -370,8 +370,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			if (i != indexOfMainVariant) {
 				final String variant = variants[i];
 				final Path variantFile = theFile.getParent().resolve(theFileName.replace(variants[indexOfMainVariant], variant)).normalize();
-				if (!alreadyUsedRelatedResources.contains(variantFile)) {
-					alreadyUsedRelatedResources.add(variantFile);
+				if (!alreadyUsedPaths.contains(variantFile)) {
+					alreadyUsedPaths.add(variantFile);
 					variantsFiles.add(variantFile);
 				}
 			}
@@ -406,9 +406,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
-							// ExampleFilter.CSHARP,
+							ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
-							 ExampleFilter.REST,
+							ExampleFilter.REST,
 							ExampleFilter.GRAPHQL,
 							ExampleFilter.EVITAQL
 						}
@@ -439,7 +439,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/get-started/create-first-database.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/fetching.md"),
 			ExampleFilter.values()
 		).stream();
 	}
@@ -455,7 +455,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			Environment.LOCALHOST,
+			Environment.DEMO_SERVER,
 			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
@@ -484,7 +484,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final AtomicInteger index = new AtomicInteger();
 		final List<CodeSnippet> codeSnippets = new LinkedList<>();
 		final TestContextProvider contextAccessor = new TestContextProvider();
-		final Set<Path> alreadyUsedRelatedResources = new HashSet<>();
+		final Set<Path> alreadyUsedPaths = new HashSet<>();
 
 		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
 		while (sourceCodeMatcher.find()) {
@@ -544,7 +544,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final boolean isLocal = sourceCodeTabsMatcher.group(4) != null && "local".equals(sourceCodeTabsMatcher.group(4).trim());
 			final Environment environment = isLocal ? Environment.LOCALHOST : profile;
 
+			if (profile == Environment.LOCALHOST && isLocal) {
+				// we need to skip the local tests when profile is localhost and the example is local
+				// it starts local instance of evitaDB which will fail on already opened ports
+				continue;
+			}
+
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				alreadyUsedPaths.add(referencedFile);
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
 					.map(
 						requires -> Arrays.stream(requires.split(","))
@@ -559,7 +566,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
 					referencedFile.normalize(),
-					findRelatedFiles(referencedFile, alreadyUsedRelatedResources, codeSnippetIndex)
+					findRelatedFiles(referencedFile, alreadyUsedPaths, codeSnippetIndex)
 						.stream()
 						.map(relatedFile -> {
 							final String relatedFileExtension = getFileNameExtension(relatedFile);
@@ -619,13 +626,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				.orElse(null);
 			final String[] variants = sourceAlternativeTabsMatcher.group(3).split("\\|");
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				alreadyUsedPaths.add(referencedFile);
 				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
 					.orElse(Collections.emptyList());
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
 					referencedFile.normalize(),
-					findVariants(referencedFile, alreadyUsedRelatedResources, variants)
+					findVariants(referencedFile, alreadyUsedPaths, variants)
 						.stream()
 						.map(relatedFile -> {
 							final String relatedFileExtension = getFileNameExtension(relatedFile);

@@ -68,6 +68,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -141,11 +142,15 @@ public class ClassSchemaAnalyzer {
 			clazz -> {
 				final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
 				if (entityRef != null) {
-					return ofNullable(entityRef.value());
+					return ofNullable(entityRef.value())
+						.filter(it -> !it.isBlank())
+						.or(() -> of(reflectionLookup.findOriginClass(clazz, entityRef).getSimpleName()));
 				}
 				final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
 				if (entity != null) {
-					return ofNullable(entity.name());
+					return ofNullable(entity.name())
+						.filter(it -> !it.isBlank())
+						.or(() -> of(reflectionLookup.findOriginClass(clazz, entity).getSimpleName()));
 				}
 				return empty();
 			}
