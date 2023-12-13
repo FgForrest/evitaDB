@@ -45,7 +45,7 @@ import java.util.Set;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class GetUnknownEntityHandler extends EntityHandler<EntityClassifier, CatalogRestHandlingContext> {
+public class GetUnknownEntityHandler extends EntityHandler<CatalogRestHandlingContext> {
 
 	public GetUnknownEntityHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
@@ -53,7 +53,7 @@ public class GetUnknownEntityHandler extends EntityHandler<EntityClassifier, Cat
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntityClassifier> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
@@ -65,8 +65,8 @@ public class GetUnknownEntityHandler extends EntityHandler<EntityClassifier, Cat
 
 		return exchange.session()
 			.queryOne(query, EntityClassifier.class)
-			.map(it -> (EndpointResponse<EntityClassifier>) new SuccessEndpointResponse<>(it))
-			.orElse(new NotFoundEndpointResponse<>());
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull

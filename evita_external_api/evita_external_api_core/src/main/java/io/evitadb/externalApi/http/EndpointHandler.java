@@ -56,7 +56,7 @@ import java.util.stream.Collectors;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class EndpointHandler<E extends EndpointExchange, R> implements HttpHandler {
+public abstract class EndpointHandler<E extends EndpointExchange> implements HttpHandler {
 
 	private static final String CONTENT_TYPE_CHARSET = "; charset=UTF-8";
 
@@ -71,12 +71,13 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 				getPreferredResponseContentType(serverExchange).orElse(null)
 			)) {
 			beforeRequestHandled(exchange);
+			final EndpointResponse response = doHandleRequest(exchange);
+			afterRequestHandled(exchange, response);
 
-			final EndpointResponse<R> response = doHandleRequest(exchange);
 			if (response instanceof NotFoundEndpointResponse) {
 				throw new HttpExchangeException(StatusCodes.NOT_FOUND, "Requested resource wasn't found.");
-			} else if (response instanceof SuccessEndpointResponse<R> successResponse) {
-				final R result = successResponse.getResult();
+			} else if (response instanceof SuccessEndpointResponse successResponse) {
+				final Object result = successResponse.getResult();
 				if (result == null) {
 					sendEmptySuccessResponse(exchange);
 				} else {
@@ -105,10 +106,17 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 	}
 
 	/**
+	 * Hook method called after actual endpoint handling logic is executed. Default implementation does nothing.
+	 */
+	protected void afterRequestHandled(@Nonnull E exchange, @Nonnull EndpointResponse response) {
+		// default implementation does nothing
+	}
+
+	/**
 	 * Actual endpoint logic.
 	 */
 	@Nonnull
-	protected abstract EndpointResponse<R> doHandleRequest(@Nonnull E exchange);
+	protected abstract EndpointResponse doHandleRequest(@Nonnull E exchange);
 
 	@Nonnull
 	protected abstract <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message);
@@ -289,7 +297,7 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 	 * @param outputStream  output stream to write serialized data to
 	 * @param result        result data from handler to write to response
 	 */
-	protected void writeResult(@Nonnull E exchange, @Nonnull OutputStream outputStream, @Nonnull R result) {
+	protected void writeResult(@Nonnull E exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		throw createInternalError("Cannot serialize response body because handler doesn't support it.");
 	}
 
@@ -298,7 +306,7 @@ public abstract class EndpointHandler<E extends EndpointExchange, R> implements 
 		exchange.serverExchange().endExchange();
 	}
 
-	private void sendSuccessResponseWithBody(@Nonnull E exchange, @Nonnull R result) {
+	private void sendSuccessResponseWithBody(@Nonnull E exchange, @Nonnull Object result) {
 		exchange.serverExchange().setStatusCode(StatusCodes.OK);
 		exchange.serverExchange().getResponseHeaders().put(Headers.CONTENT_TYPE, exchange.preferredResponseContentType() + CONTENT_TYPE_CHARSET);
 		writeResult(exchange, exchange.serverExchange().getOutputStream(), result);

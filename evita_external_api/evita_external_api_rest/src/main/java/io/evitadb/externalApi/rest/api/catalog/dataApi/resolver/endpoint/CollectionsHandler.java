@@ -43,7 +43,7 @@ import java.util.Set;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class CollectionsHandler extends JsonRestHandler<List<CollectionPointer>, CatalogRestHandlingContext> {
+public class CollectionsHandler extends JsonRestHandler<CatalogRestHandlingContext> {
 
 	public CollectionsHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
@@ -51,7 +51,7 @@ public class CollectionsHandler extends JsonRestHandler<List<CollectionPointer>,
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<List<CollectionPointer>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 		final Boolean withCounts = (Boolean) parametersFromRequest.get(CollectionsEndpointHeaderDescriptor.ENTITY_COUNT.name());
 
@@ -64,7 +64,7 @@ public class CollectionsHandler extends JsonRestHandler<List<CollectionPointer>,
 			))
 			.toList();
 
-		return new SuccessEndpointResponse<>(collections);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, collections));
 	}
 
 	@Nonnull

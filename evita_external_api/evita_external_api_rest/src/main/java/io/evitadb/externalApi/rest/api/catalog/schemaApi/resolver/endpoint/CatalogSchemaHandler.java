@@ -26,8 +26,10 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
 import io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer.CatalogSchemaJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,7 +41,7 @@ import java.util.LinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchemaContract, CatalogRestHandlingContext> {
+public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogRestHandlingContext> {
 
 	@Nonnull
 	private final CatalogSchemaJsonSerializer catalogSchemaJsonSerializer;
@@ -57,9 +59,13 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<CatalogSchema
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogSchemaContract catalogSchema) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object catalogSchema) {
+		Assert.isPremiseValid(
+			catalogSchema instanceof CatalogSchemaContract,
+			() -> new RestInternalError("Expected CatalogSchemaContract, but got `" + catalogSchema.getClass().getName() + "`.")
+		);
 		return catalogSchemaJsonSerializer.serialize(
-			catalogSchema,
+			(CatalogSchemaContract) catalogSchema,
 			exchange.session()::getEntitySchemaOrThrow,
 			exchange.session().getAllEntityTypes()
 		);

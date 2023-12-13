@@ -67,7 +67,7 @@ import static java.util.Optional.ofNullable;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class QueryOrientedEntitiesHandler<R> extends JsonRestHandler<R, CollectionRestHandlingContext> {
+public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<CollectionRestHandlingContext> {
 
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;

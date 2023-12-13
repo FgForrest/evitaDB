@@ -30,22 +30,22 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Represents successful response. Either {@link StatusCodes#OK} or {@link StatusCodes#NO_CONTENT} depending on passed body
- * object.
+ * Represents a successful response. Either {@link StatusCodes#OK} or {@link StatusCodes#NO_CONTENT} depending on passed body
+ * object. The result object must be in serializable form and thus be ready to be serialized.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class SuccessEndpointResponse<R> implements EndpointResponse<R> {
+public class SuccessEndpointResponse implements EndpointResponse {
 
 	@Nullable
 	@Getter
-	private final R result;
+	private final Object result;
 
 	public SuccessEndpointResponse() {
 		this.result = null;
 	}
 
-	public SuccessEndpointResponse(@Nonnull R result) {
+	public SuccessEndpointResponse(@Nonnull Object result) {
 		this.result = result;
 	}
 }

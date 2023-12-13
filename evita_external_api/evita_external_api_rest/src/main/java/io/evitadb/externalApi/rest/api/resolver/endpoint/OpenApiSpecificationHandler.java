@@ -30,7 +30,6 @@ import io.evitadb.externalApi.rest.api.openApi.OpenApiWriter;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
 import io.evitadb.externalApi.rest.io.RestEndpointHandler;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
-import io.swagger.v3.oas.models.OpenAPI;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
@@ -46,7 +45,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  *
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestEndpointHandler<OpenAPI, C> {
+public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends RestEndpointHandler<C> {
 
 	public OpenApiSpecificationHandler(@Nonnull C restHandlingContext) {
 		super(restHandlingContext);
@@ -54,8 +53,8 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<OpenAPI> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse<>(restApiHandlingContext.getOpenApi());
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse(restApiHandlingContext.getOpenApi());
 	}
 
 	@Nonnull
@@ -74,7 +73,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	}
 
 	@Override
-	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull OpenAPI openApiSpecification) {
+	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object openApiSpecification) {
 		final String preferredResponseMediaType = exchange.preferredResponseContentType();
 		try {
 			if (preferredResponseMediaType.equals(MimeTypes.APPLICATION_YAML)) {

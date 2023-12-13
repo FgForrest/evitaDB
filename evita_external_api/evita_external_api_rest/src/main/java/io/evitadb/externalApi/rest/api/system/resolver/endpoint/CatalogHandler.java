@@ -25,8 +25,10 @@ package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashSet;
@@ -36,7 +38,7 @@ import java.util.LinkedHashSet;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public abstract class CatalogHandler extends JsonRestHandler<CatalogContract, SystemRestHandlingContext> {
+public abstract class CatalogHandler extends JsonRestHandler<SystemRestHandlingContext> {
 
 	@Nonnull
 	private final CatalogJsonSerializer catalogJsonSerializer;
@@ -54,7 +56,11 @@ public abstract class CatalogHandler extends JsonRestHandler<CatalogContract, Sy
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull CatalogContract catalog) {
-		return catalogJsonSerializer.serialize(catalog);
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object catalog) {
+		Assert.isPremiseValid(
+			catalog instanceof CatalogContract,
+			() -> new RestInternalError("Catalog should be instance of CatalogContract, but was `" + catalog.getClass().getName() + "`.")
+		);
+		return catalogJsonSerializer.serialize((CatalogContract) catalog);
 	}
 }

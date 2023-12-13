@@ -74,7 +74,7 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
             evitaSession = evita.createReadWriteSession(catalogName);
             final CatalogContract catalog = evita.getCatalogInstance(catalogName)
                 .orElseThrow(() -> new GraphQLInternalError("Catalog `" + catalogName + "` could not be found."));
-            if (catalog.getCatalogState().equals(CatalogState.ALIVE)) {
+            if (catalog.supportsTransaction()) {
                 evitaSession.openTransaction();
             }
         } else {

@@ -70,7 +70,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 	                              @Nonnull List<OpenApiEndpointParameter> parameters,
 	                              @Nullable OpenApiSimpleType requestBody,
 	                              @Nonnull OpenApiSimpleType successResponse,
-	                              @Nonnull Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder) {
+	                              @Nonnull Function<LabApiHandlingContext, RestEndpointHandler<LabApiHandlingContext>> handlerBuilder) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
@@ -84,7 +84,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, LabApiHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<LabApiHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                               @Nonnull Evita evita,
 	                                                               @Nonnull OpenAPI openApi,
 	                                                               @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -111,7 +111,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder;
+		@Nullable private Function<LabApiHandlingContext, RestEndpointHandler<LabApiHandlingContext>> handlerBuilder;
 
 		private Builder() {
 			this.parameters = new LinkedList<>();
@@ -218,7 +218,7 @@ public class OpenApiLabApiEndpoint extends OpenApiEndpoint<LabApiHandlingContext
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<LabApiHandlingContext, RestEndpointHandler<?, LabApiHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<LabApiHandlingContext, RestEndpointHandler<LabApiHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

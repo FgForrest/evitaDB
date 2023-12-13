@@ -72,7 +72,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 	                               @Nonnull List<OpenApiEndpointParameter> parameters,
 	                               @Nullable OpenApiSimpleType requestBody,
 	                               @Nonnull OpenApiSimpleType successResponse,
-	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
+	                               @Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder) {
 		super(method, path, localized, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 		this.catalogSchema = catalogSchema;
 	}
@@ -87,7 +87,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<CatalogRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                                    @Nonnull Evita evita,
 	                                                                    @Nonnull OpenAPI openApi,
 	                                                                    @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -119,7 +119,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder;
 
 		private Builder(@Nonnull CatalogSchemaContract catalogSchema) {
 			this.catalogSchema = catalogSchema;
@@ -246,7 +246,7 @@ public class OpenApiCatalogEndpoint extends OpenApiEndpoint<CatalogRestHandlingC
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<?, CatalogRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<CatalogRestHandlingContext, RestEndpointHandler<CatalogRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}
