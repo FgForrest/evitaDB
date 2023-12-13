@@ -1,6 +1,11 @@
 evita.UpdateCatalog(
 	"evita",
 	session => {
+
+	    /* first create stubs of the entity schemas that the product will reference */
+        session.DefineEntitySchema("Brand");
+        session.DefineEntitySchema("Category");
+
 		session.DefineEntitySchema("Product")
 			/* all is strictly verified but associated data
 			   and references can be added on the fly */

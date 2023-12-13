@@ -2,6 +2,17 @@ PUT /rest/evita/schema
 
 {
   "mutations": [
+    // first create stubs of the entity schemas that the product will reference
+    {
+      "createEntitySchemaMutation": {
+        "entityType": "Brand"
+      }
+    },
+    {
+      "createEntitySchemaMutation": {
+        "entityType": "Category"
+      }
+    },
     {
       "createEntitySchemaMutation": {
         "entityType": "Product"

@@ -156,7 +156,7 @@ at the `https://your-server:5555/gql/evita/schema` URL:
 
 or update the schema of a specific entity collection at the same URL using a GraphQL mutation of the selected collection like this:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/imperative-schema-definition.java" langSpecificTabOnly local>
 
 [Imperative collection schema definition via GraphQL API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.graphql)
 </SourceCodeTabs>
@@ -196,7 +196,7 @@ at the `https://your-server:5555/rest/evita/schema` URL:
 or update the schema of a specific entity collection at e.g. an `https://your-server:5555/rest/evita/product/schema` URL
 for the collection `Product` using a REST mutation of the selected collection like this:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/use/api/example/imperative-schema-definition.java" langSpecificTabOnly local>
 
 [Imperative collection schema definition via REST API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.rest)
 </SourceCodeTabs>
