@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/schema
+PUT /rest/evita/schema
 
 {
   "mutations": [
@@ -56,14 +56,14 @@ PUT /rest/test-catalog/schema
             "createAttributeSchemaMutation": {
               "name": "code",
               "type": "String",
-              "unique": true
+              "uniquenessType": "UNIQUE_WITHIN_COLLECTION"
             }
           },
           {
             "createAttributeSchemaMutation": {
               "name": "url",
               "type": "String",
-              "unique": true,
+              "uniquenessType": "UNIQUE_WITHIN_COLLECTION",
               "localized": true
             }
           },

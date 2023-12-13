@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/product
+PUT /rest/evita/Product
 
 {
   "primaryKey": 1,

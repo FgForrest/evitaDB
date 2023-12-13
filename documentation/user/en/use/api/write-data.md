@@ -723,7 +723,7 @@ will create a library with e.g. entity builders that will generate the collectio
 <LanguageSpecific to="graphql">
 
 You can create a new entity or update an existing one using the [catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)
-at the `https://your-server:5555/gql/test-catalog` URL. This API contains `upsertCollectionName` GraphQL mutations for each
+at the `https://your-server:5555/gql/evita` URL. This API contains `upsertCollectionName` GraphQL mutations for each
 [entity collection](/documentation/user/en/use/data-model.md#collection) that are customized to collections'
 [schemas](/documentation/user/en/use/schema.md#entity). These mutations take a collection of evitaDB mutations which define
 the changes to be applied to an entity. In one go, you can then retrieve the entity with the changes applied by defining
@@ -733,7 +733,7 @@ return data.
 <LanguageSpecific to="rest">
 
 You can create a new entity or update an existing one using the [catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)
-at a collection endpoint, for example `https://your-server:5555/test/test-catalog/product` with `PUT` HTTP method.
+at a collection endpoint, for example `https://your-server:5555/test/evita/product` with `PUT` HTTP method.
 There endpoints are customized to collections' [schemas](/documentation/user/en/use/schema.md#entity). These endpoints take a
 collection of evitaDB mutations which define the changes to be applied to an entity. In one go, you can then retrieve the
 entity with the changes applied by defining requirements.

@@ -73,7 +73,7 @@ Now you can use the [system API](/documentation/user/en/use/connectors/graphql.m
 
 and fill it with new predefined schemas for multiple collections: `Brand`, `Category` and `Product` by
 modifying its schema via the [catalog schema API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) at URL
-`https://your-server:5555/gql/test-catalog/schema`. Each collection
+`https://your-server:5555/gql/evita/schema`. Each collection
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
@@ -98,7 +98,7 @@ Now you can use the [system API](/documentation/user/en/use/connectors/rest.md#r
 
 and fill it with new predefined schemas for multiple collections: `Brand`, `Category` and `Product` by
 modifying its schema via the [catalog schema API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) at URL
-`https://your-server:5555/rest/test-catalog/schema`. Each collection
+`https://your-server:5555/rest/evita/schema`. Each collection
 contains some attributes (either localized or non-localized), category is marked as a hierarchical entity that forms
 a tree, product is enabled to have prices:
 
@@ -140,7 +140,7 @@ Let's see how you can retrieve the entity you just created in another read-only 
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog via the
 [catalog data API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances) at the
-`https://your-server:5555/gql/test-catalog` URL:
+`https://your-server:5555/gql/evita` URL:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 
@@ -168,7 +168,7 @@ as mentioned above.
 
 Once the catalog is created and the schema is known, you can insert a first entity to the catalog via the
 [catalog data API](/documentation/user/en/use/connectors/rest.md#rest-api-instances) at the URL
-`https://your-server:5555/rest/test-catalog/brand`:
+`https://your-server:5555/rest/evita/brand`:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/define-catalog-with-schema.java" langSpecificTabOnly local>
 

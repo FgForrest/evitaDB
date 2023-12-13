@@ -11,14 +11,14 @@ POST /rest/evita/Product/query
 	"priceValidInNow": true,
 	"priceInCurrency": "CZK",
 	"priceInPriceLists": ["vip", "loyal-customer", "regular-prices"],
-	"userFilter": {
-	  "facetParameterValuesHaving": {
+	"userFilter": [{
+	  "facetParameterValuesHaving": [{
 		"entityHaving": {
 		  "attributeCodeInSet": ["gluten-free", "original-recipe"]
 		}
-	  },
+	  }],
 	  "priceBetween": ["600", "1600"]
-	}
+	}]
   },
   "require": {
 	"page": {

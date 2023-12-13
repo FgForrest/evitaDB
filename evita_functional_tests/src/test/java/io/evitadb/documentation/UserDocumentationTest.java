@@ -408,7 +408,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						new ExampleFilter[]{
 							// ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
-							// ExampleFilter.REST,
+							 ExampleFilter.REST,
 							ExampleFilter.GRAPHQL,
 							ExampleFilter.EVITAQL
 						}

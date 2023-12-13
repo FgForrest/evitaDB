@@ -147,7 +147,7 @@ the schema definition.
 
 You can define a new catalog schema or update an existing one using the
 [catalog schema API](/documentation/user/en/use/connectors/graphql.md#graphql-api-instances)
-at the `https://your-server:5555/gql/test-catalog/schema` URL:
+at the `https://your-server:5555/gql/evita/schema` URL:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
@@ -186,14 +186,14 @@ the schema definition.
 
 You can define a new catalog schema or update an existing one using the
 [catalog API](/documentation/user/en/use/connectors/rest.md#rest-api-instances)
-at the `https://your-server:5555/rest/test-catalog/schema` URL:
+at the `https://your-server:5555/rest/evita/schema` URL:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Imperative catalog schema definition via REST API](/documentation/user/en/use/api/example/imperative-catalog-schema-definition.rest)
 </SourceCodeTabs>
 
-or update the schema of a specific entity collection at e.g. an `https://your-server:5555/rest/test-catalog/product/schema` URL
+or update the schema of a specific entity collection at e.g. an `https://your-server:5555/rest/evita/product/schema` URL
 for the collection `Product` using a REST mutation of the selected collection like this:
 
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>

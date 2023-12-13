@@ -1,1 +1,1 @@
-DELETE /rest/test-catalog/brand/1
+DELETE /rest/evita/Brand/delete/1

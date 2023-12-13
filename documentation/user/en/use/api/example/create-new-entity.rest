@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/product
+PUT /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -19,7 +19,7 @@ PUT /rest/test-catalog/product
 	},
 	{
 	  "upsertAttributeMutation": {
-		"name": "catalogName",
+		"name": "catalogCode",
 		"value": "X1605EA-MB044W"
 	  }
 	},

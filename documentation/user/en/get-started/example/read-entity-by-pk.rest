@@ -1,1 +1,1 @@
-GET /rest/test-catalog/brand/get/1?attributeContent=name
+GET /rest/evita/Brand/get/1?attributeContent=name
