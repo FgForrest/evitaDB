@@ -8,6 +8,11 @@ author: 'Ing. Tomáš Pozler'
 preferredLang: 'java'
 ---
 
+<LanguageSpecific to="evitaql,graphql,rest">
+This chapter describes the gRPC protocol for evitaDB and relates only to Java or C# drivers. If you're interested 
+in the details of the gRPC implementation, please change your preferred language in the upper right corner.
+</LanguageSpecific>
+<LanguageSpecific to="java,csharp">
 The main idea behind the design was to define a universal communication protocol that follows design of [Java API](https://github.com/FgForrest/evitaDB/tree/dev/evita_api/src/main/java/io/evitadb/api).
 Unlike [REST](rest.md) and [GraphQL](graphql.md), this API is not intended for direct use by end users / developers, but
 primarily as a building block for evitaDB drivers or similar tools created for the database consumers.
@@ -188,3 +193,4 @@ You can find all the officially maintained libraries on the [gRPC](https://grpc.
 your own programming language. Along with a library, you also need to download a suitable protocol [compiler](https://grpc.io/docs/protoc-installation/), 
 which is not directly included in any of the libraries. It comes in the form of plugins, tools or completely separate
 libraries - it just depends on the language you are using.
+</LanguageSpecific>
