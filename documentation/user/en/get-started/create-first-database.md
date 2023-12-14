@@ -121,7 +121,7 @@ Once the catalog is created and the schema is known, you can insert a first enti
 </SourceCodeTabs>
 
 The session is implicitly opened for the scope of the <LanguageSpecific to="java">`updateCatalog` method. The analogous method `queryCatalog` on
-the evitaDB contract</LanguageSpecific><LanguageSpecific to="csharp">`UpdateCatalog` method. The analogous method `UueryCatalog` on
+the evitaDB contract</LanguageSpecific><LanguageSpecific to="csharp">`UpdateCatalog` method. The analogous method `QueryCatalog` on
 the evitaDB class level</LanguageSpecific> also opens a session, but only in read-only mode, which doesn't allow updating the catalog.
 Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute
 the load in the cluster.
