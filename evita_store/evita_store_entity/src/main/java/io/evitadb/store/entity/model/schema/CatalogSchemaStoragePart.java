@@ -114,7 +114,7 @@ public record CatalogSchemaStoragePart(CatalogSchema catalogSchema) implements S
 
 	@Nonnull
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		return 1L;
 	}
 

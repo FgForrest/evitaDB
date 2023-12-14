@@ -1029,10 +1029,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	 * This method writes all changed storage parts into the persistent storage of this {@link EntityCollection} and
 	 * then returns updated {@link EntityCollectionHeader}.
 	 */
-	EntityCollectionHeader flush(long transactionId, @Nonnull List<DeferredStorageOperation<?>> updateInstructions) {
+	EntityCollectionHeader flush(long catalogVersionId, @Nonnull List<DeferredStorageOperation<?>> updateInstructions) {
 		return doWithPersistenceService(() -> {
-			this.persistenceService.applyUpdates(getEntityType(), transactionId, updateInstructions);
-			return this.persistenceService.flush(transactionId, catalogEntityHeaderFactory);
+			this.persistenceService.applyUpdates(getEntityType(), catalogVersionId, updateInstructions);
+			return this.persistenceService.flush(catalogVersionId, catalogEntityHeaderFactory);
 		});
 	}
 

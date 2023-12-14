@@ -45,8 +45,25 @@ public interface GrpcOpenTransactionResponseOrBuilder extends
    * The id of the opened transaction.
    * </pre>
    *
-   * <code>int64 transactionId = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
+   * @return Whether the transactionId field is set.
+   */
+  boolean hasTransactionId();
+  /**
+   * <pre>
+   * The id of the opened transaction.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
    * @return The transactionId.
    */
-  long getTransactionId();
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getTransactionId();
+  /**
+   * <pre>
+   * The id of the opened transaction.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid transactionId = 2;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getTransactionIdOrBuilder();
 }

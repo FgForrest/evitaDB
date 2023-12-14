@@ -289,7 +289,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 				this.bufferedChangeSet.setNonFlushedCompressedId(((RecordWithCompressedId<?>) value).getStoragePartSourceKey(), partId);
 			}
 		} else {
-			final Long uniquePartId = value.getUniquePartId();
+			final Long uniquePartId = value.getStoragePartPK();
 			if (value instanceof RecordWithCompressedId) {
 				if (uniquePartId != null) {
 					layer.updateContainerByPrimaryKey(uniquePartId, ((RecordWithCompressedId<?>) value).getStoragePartSourceKey(), value);

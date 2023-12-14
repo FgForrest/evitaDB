@@ -113,7 +113,7 @@ public class EntityIndexStoragePart implements StoragePart {
 
 	@Nullable
 	@Override
-	public Long getUniquePartId() {
+	public Long getStoragePartPK() {
 		return (long) primaryKey;
 	}
 

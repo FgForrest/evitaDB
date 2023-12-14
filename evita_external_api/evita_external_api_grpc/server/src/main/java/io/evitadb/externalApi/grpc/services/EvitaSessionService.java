@@ -76,8 +76,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Consumer;
 
+import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter.convert;
 import static java.util.Optional.empty;
@@ -771,12 +773,12 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	@Override
 	public void openTransaction(@Nonnull Empty request, @Nonnull StreamObserver<GrpcOpenTransactionResponse> responseObserver) {
 		executeWithClientContext(session -> {
-			final long txId = session.openTransaction();
+			final UUID txId = session.openTransaction();
 			responseObserver.onNext(
 				GrpcOpenTransactionResponse
 					.newBuilder()
 					.setAlreadyOpenedBefore(false)
-					.setTransactionId(txId)
+					.setTransactionId(toGrpcUuid(txId))
 					.build()
 			);
 			responseObserver.onCompleted();

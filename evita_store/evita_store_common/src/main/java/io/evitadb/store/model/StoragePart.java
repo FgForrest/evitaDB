@@ -31,7 +31,7 @@ import java.io.Serializable;
 
 /**
  * StoragePart is a data container, that can be stored via file offset index to the persistent storage. Each storage
- * part is uniquely determined by {@link #getUniquePartId()} and the type (e.g. {@link StoragePart#getClass()} implementation class}).
+ * part is uniquely determined by {@link #getStoragePartPK()} and the type (e.g. {@link StoragePart#getClass()} implementation class}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -41,13 +41,13 @@ public interface StoragePart extends Serializable {
 	 * Returns id unique for the entity part. Id must be unique among all parts of the same type.
 	 */
 	@Nullable
-	Long getUniquePartId();
+	Long getStoragePartPK();
 
 	/**
 	 * Returns TRUE if the storage part is new and has never been stored to persistent storage (yet).
 	 */
 	default boolean isNew() {
-		return getUniquePartId() == null;
+		return getStoragePartPK() == null;
 	}
 
 	/**

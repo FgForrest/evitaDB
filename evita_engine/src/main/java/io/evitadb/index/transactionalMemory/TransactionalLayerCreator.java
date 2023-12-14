@@ -58,7 +58,7 @@ public interface TransactionalLayerCreator<T> {
 	/**
 	 * Uniquely identifies instance of {@link TransactionalLayerCreator} among other instances of the same class.
 	 * Each instance of the class must return unique id that doesn't change in time. Id connect origin object with
-	 * it's transactional states in memory.
+	 * its transactional states in memory.
 	 *
 	 * Using {@link TransactionalObjectVersion} is highly recommended.
 	 */

@@ -40,7 +40,7 @@ public interface RecordWithCompressedId<T extends Comparable<T>> {
 	/**
 	 * Returns instance of the source key, that is required for unique part id computation.
 	 * The key must uniquely identify the record among all other records both of the same type. You need to be able
-	 * to fully compute {@link EntityStoragePart#getUniquePartId()} based on information stored in this key. The key
+	 * to fully compute {@link EntityStoragePart#getStoragePartPK()} based on information stored in this key. The key
 	 * must have proper equals and hashCode implementation and also {@link Comparable} interface is recommended to be
 	 * implemented by the key.
 	 */

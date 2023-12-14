@@ -21,40 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.entity.model.schema;
+package io.evitadb.api.exception;
 
-import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import lombok.Getter;
+import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 
 /**
- * Storage part envelops {@link EntitySchema}. Storage part has always id fixed to 1 because there is no other schema
- * in the entity collection than this one.
+ * This exception is thrown when internal counters exceeded safe limits and the database cannot continue to serve safely.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public record EntitySchemaStoragePart(@Getter EntitySchema entitySchema) implements StoragePart {
-	@Serial private static final long serialVersionUID = -1973029963787048578L;
+public class IdentifierOverflowException extends EvitaInternalError {
+	@Serial private static final long serialVersionUID = -9111617180591842555L;
 
-	@Nonnull
-	@Override
-	public Long getStoragePartPK() {
-		return 1L;
-	}
-
-	@Override
-	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		return 1L;
-	}
-
-	@Override
-	public String toString() {
-		return "EntitySchemaStoragePart{" +
-			"schema=" + entitySchema.getName() +
-			'}';
+	public IdentifierOverflowException(@Nonnull String privateMessage) {
+		super(
+			privateMessage,
+			"Internal counters exceeded safe limits, please restart the database to continue."
+		);
 	}
 }

@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
 /**
  * evitaDB catalog header that contains all key information for loading/persisting single catalog of evitaDB to disk.
  *
- * TOBEDONE JNO - we should change the format of the bootstrap file to fixed length file that would contain minuscule
+ * TODO JNO - we should change the format of the bootstrap file to fixed length file that would contain minuscule
  * records that will map catalog file offset index file location only. All key information should be part of the catalog
  * file offset index file. This way we could any time revert database to a previous moment in time.
  *
@@ -56,9 +56,9 @@ public class CatalogBootstrap {
 	 */
 	@Getter private final CatalogState catalogState;
 	/**
-	 * Contains last committed transaction id for this catalog.
+	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
 	 */
-	@Getter private final long lastTransactionId;
+	@Getter private final long versionId;
 	/**
 	 * Contains the catalog header that contains {@link CatalogSchema} as well as catalog wide
 	 * indexes and also set of {@link EntityCollectionHeader};
@@ -67,21 +67,21 @@ public class CatalogBootstrap {
 	/**
 	 * Contains index of all {@link EntityCollection} headers that are necessary for accessing the entities.
 	 *
-	 * TOBEDONE JNO - THIS COULD BE PART OF CATALOG FILE OFFSET INDEX IN THE FUTURE
+	 * TODO JNO - THIS COULD BE PART OF CATALOG FILE OFFSET INDEX IN THE FUTURE
 	 */
 	@Getter private final Map<String, EntityCollectionHeader> collectionHeaders;
 
 	public CatalogBootstrap(@Nonnull CatalogState catalogState) {
 		this.catalogHeader = null;
 		this.catalogState = catalogState;
-		this.lastTransactionId = 0L;
+		this.versionId = 0L;
 		this.collectionHeaders = Collections.emptyMap();
 	}
 
-	public CatalogBootstrap(@Nonnull CatalogState catalogState, long lastTransactionId, @Nonnull CatalogHeader catalogHeader, @Nonnull Collection<EntityCollectionHeader> collectionHeaders) {
+	public CatalogBootstrap(@Nonnull CatalogState catalogState, long versionId, @Nonnull CatalogHeader catalogHeader, @Nonnull Collection<EntityCollectionHeader> collectionHeaders) {
 		this.catalogHeader = catalogHeader;
 		this.catalogState = catalogState;
-		this.lastTransactionId = lastTransactionId;
+		this.versionId = versionId;
 		this.collectionHeaders = collectionHeaders
 			.stream()
 			.collect(

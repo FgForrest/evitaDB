@@ -83,7 +83,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	/**
 	 * Id used for lookups in persistent storage for this particular container.
 	 */
-	@Getter private Long uniquePartId;
+	@Getter private Long storagePartPK;
 	/**
 	 * See {@link Attributes#getAttributeValues()}. Attributes are sorted in ascending order according to {@link AttributeKey}.
 	 */
@@ -110,19 +110,19 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey) {
-		this.uniquePartId = null;
+		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, null);
 	}
 
 	public AttributesStoragePart(int entityPrimaryKey, Locale locale) {
-		this.uniquePartId = null;
+		this.storagePartPK = null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
 	}
 
-	public AttributesStoragePart(long uniquePartId, int entityPrimaryKey, Locale locale, AttributeValue[] attributes) {
-		this.uniquePartId = uniquePartId;
+	public AttributesStoragePart(long storagePartPK, int entityPrimaryKey, Locale locale, AttributeValue[] attributes) {
+		this.storagePartPK = storagePartPK;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.attributeSetKey = new EntityAttributesSetKey(entityPrimaryKey, locale);
 		this.attributes = attributes;
@@ -135,10 +135,10 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 
 	@Override
 	public long computeUniquePartIdAndSet(@Nonnull KeyCompressor keyCompressor) {
-		Assert.isTrue(this.uniquePartId == null, "Unique part id is already known!");
+		Assert.isTrue(this.storagePartPK == null, "Unique part id is already known!");
 		Assert.notNull(entityPrimaryKey, "Entity primary key must be non null!");
-		this.uniquePartId = computeUniquePartId(keyCompressor, attributeSetKey);
-		return this.uniquePartId;
+		this.storagePartPK = computeUniquePartId(keyCompressor, attributeSetKey);
+		return this.storagePartPK;
 	}
 
 	/**
@@ -217,7 +217,7 @@ public class AttributesStoragePart implements EntityStoragePart, RecordWithCompr
 	}
 
 	/**
-	 * This key is registered in {@link KeyCompressor} to retrieve id that is part of the {@link AttributesStoragePart#getUniquePartId()}.
+	 * This key is registered in {@link KeyCompressor} to retrieve id that is part of the {@link AttributesStoragePart#getStoragePartPK()}.
 	 * Key can be shared among attribute sets of different entities, but is single for all global attributes and single
 	 * for attribute sets in certain language. Together with entityPrimaryKey composes part id unique among all other
 	 * attribute set part types.

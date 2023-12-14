@@ -424,7 +424,7 @@ public class FileOffsetIndex {
 		return writeHandle.execute(
 			"Storing record",
 			exclusiveWriteAccess -> {
-				final long partId = ofNullable(value.getUniquePartId())
+				final long partId = ofNullable(value.getStoragePartPK())
 					.orElseGet(() -> value.computeUniquePartIdAndSet(fileOffsetDescriptor.getWriteKeyCompressor()));
 				doPut(
 					transactionId,

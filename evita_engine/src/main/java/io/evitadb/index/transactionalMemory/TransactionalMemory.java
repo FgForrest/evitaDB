@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -70,7 +71,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 public class TransactionalMemory {
-	@Getter private final long transactionId;
+	@Getter private final UUID transactionId;
 	private final TransactionalLayerMaintainer transactionalLayer;
 	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new LinkedList<>();
 
@@ -169,7 +170,7 @@ public class TransactionalMemory {
 		return this.transactionalLayer.removeTransactionalMemoryLayerIfExists(layerCreator);
 	}
 
-	public TransactionalMemory(long transactionId) {
+	public TransactionalMemory(@Nonnull UUID transactionId) {
 		this.transactionId = transactionId;
 		this.transactionalLayer = new TransactionalLayerMaintainer();
 	}

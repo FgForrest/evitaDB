@@ -337,7 +337,7 @@ message GrpcOpenTransactionResponse {
   // True, if the transaction was opened before corresponding request.
   bool alreadyOpenedBefore = 1;
   // The id of the opened transaction.
-  int64 transactionId = 2;
+  GrpcUuid transactionId = 2;
 }
 
 // Request for closing a transaction.

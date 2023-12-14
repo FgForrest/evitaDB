@@ -188,9 +188,9 @@ public interface CatalogPersistenceService extends PersistenceService {
 	void deleteEntityCollection(@Nonnull String entityType);
 
 	@Override
-	default void applyUpdates(@Nonnull String owner, long transactionId, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
+	default void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
 		executeWriteSafely(() -> {
-			PersistenceService.super.applyUpdates(owner, transactionId, deferredOperations);
+			PersistenceService.super.applyUpdates(owner, storagePartPk, deferredOperations);
 			return null;
 		});
 	}

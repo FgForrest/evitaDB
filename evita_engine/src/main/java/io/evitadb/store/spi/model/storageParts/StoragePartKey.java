@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
  * serially executed transactions and persist them at the end so that I/O is minimized.
  *
  * @param originalKey    The original key must uniquely identify the record among all other records both of the same type. You need to be able
- *                       to fully compute {@link StoragePart#getUniquePartId()} based on information stored in this key. The key
+ *                       to fully compute {@link StoragePart#getStoragePartPK()} based on information stored in this key. The key
  *                       must have proper equals and hashCode implementation and also {@link Comparable} interface is recommended to be
  *                       implemented by the key.
  * @param containerClass The type of the storage part that distinguishes record of this type from other StorageParts.

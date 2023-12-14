@@ -23,6 +23,9 @@
 
 package io.evitadb.api;
 
+import javax.annotation.Nonnull;
+import java.util.UUID;
+
 /**
  * Transaction represents internal object that allows to track all information necessary to keep writes in isolation
  * and finally commits them to the shared data storage or throw them away in case of rollback.
@@ -37,9 +40,11 @@ package io.evitadb.api;
 public interface TransactionContract extends AutoCloseable {
 
 	/**
-	 * Returns unique id of the transaction (the overflow risk for long type is ignored).
+	 * Returns unique id of the transaction. This id serves only to identify the transaction among other transactions
+	 * and doesn't relate to MVVC mechanism of the database.
 	 */
-	long getId();
+	@Nonnull
+	UUID getTransactionId();
 
 	/**
 	 * Marks this transaction for rollback only. Ie. when transaction terminates, all changes will be rolled back.
@@ -62,5 +67,42 @@ public interface TransactionContract extends AutoCloseable {
 	 * Returns TRUE if {@link #close()} was called anytime in this transaction.
 	 */
 	boolean isClosed();
+
+	/**
+	 * Enum representing the different behaviors a transaction can have when committing changes.
+	 */
+	enum CommitBehaviour {
+
+		/**
+		 * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
+		 * is found the transaction is marked as completed and commit is finished. This behaviour is fastest, but does
+		 * not guarantee that the changes are persisted on disk and durable. If the server crashes before the changes
+		 * are written to disk, the changes are lost.
+		 */
+		NO_WAIT,
+
+		/**
+		 * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
+		 * is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
+		 * (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
+		 * slower than {@link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
+		 * may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
+		 * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
+		 * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
+		 *
+		 * This behaviour is default.
+		 */
+		WAIT_FOR_LOG_PERSISTENCE,
+
+		/**
+		 * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
+		 * is found, they are written to Write Ahead Log (WAL). Then the WAL is processed and all changes are propagated
+		 * to indexes. After that the transaction is marked as completed and commit is finished. This behaviour is
+		 * slowest but guarantees that the changes are persisted on disk and durable and that they are visible
+		 * immediately after the commit is marked as completed.
+		 */
+		WAIT_FOR_INDEX_PROPAGATION
+
+	}
 
 }

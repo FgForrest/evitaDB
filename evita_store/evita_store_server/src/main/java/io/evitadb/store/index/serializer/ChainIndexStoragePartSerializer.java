@@ -52,7 +52,7 @@ public class ChainIndexStoragePartSerializer extends Serializer<ChainIndexStorag
 	@Override
 	public void write(Kryo kryo, Output output, ChainIndexStoragePart chainIndex) {
 		output.writeInt(chainIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = chainIndex.getUniquePartId();
+		final Long uniquePartId = chainIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(chainIndex.getAttributeKey()), true);

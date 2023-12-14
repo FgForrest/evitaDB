@@ -55,7 +55,7 @@ public class SortIndexStoragePartSerializer extends Serializer<SortIndexStorageP
 	@Override
 	public void write(Kryo kryo, Output output, SortIndexStoragePart sortIndex) {
 		output.writeInt(sortIndex.getEntityIndexPrimaryKey());
-		final Long uniquePartId = sortIndex.getUniquePartId();
+		final Long uniquePartId = sortIndex.getStoragePartPK();
 		Assert.notNull(uniquePartId, "Unique part id should have been computed by now!");
 		output.writeVarLong(uniquePartId, true);
 		output.writeVarInt(keyCompressor.getId(sortIndex.getAttributeKey()), true);

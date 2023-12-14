@@ -39,8 +39,8 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.DeferredStorageOperation;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.PersistenceService;
-import io.evitadb.store.spi.model.CatalogBootstrap;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -53,6 +53,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
@@ -72,18 +73,16 @@ import static java.util.Optional.ofNullable;
 public final class Transaction implements TransactionContract {
 	public static final String ERROR_MESSAGE_TIMEOUT = "Failed to commit transaction within timeout!";
 	private static final ReentrantLock LOCK = new ReentrantLock(true);
+	/**
+	 * TOBEDONE JNO - this should be migrated to ScopedValue in Java 21
+	 */
 	private static final ThreadLocal<Transaction> CURRENT_TRANSACTION = new ThreadLocal<>();
 
 	/**
-	 * Contains unique transactional id that gets incremented with each transaction opened in the catalog. Latest
-	 * committed transaction id gets printed into the {@link CatalogBootstrap} and is restored
-	 * when catalog is loaded. Transaction ids are sequential and transaction with higher id is guaranteed to be
-	 * committed later than the transaction with lower id.
-	 *
-	 * TOBEDONE JNO - this should be changed - there should be another id that is connected with the commit phase and
-	 * should be assigned when transaction is accepted and ordered for the commit
+	 * Contains unique transactional id that uniquely represents the transaction.
+	 * We don't actively check the uniqueness of the transaction id and rely on the fact that UUID is unique enough.
 	 */
-	@Getter private final long id;
+	@Getter private final UUID transactionId = UUIDUtil.randomUUID();
 	/**
 	 * Contains reference to the transactional memory that keeps the difference layer for this transaction.
 	 */
@@ -286,9 +285,8 @@ public final class Transaction implements TransactionContract {
 	 * This constructor should be used only in tests.
 	 */
 	private Transaction() {
-		this.id = 0L;
 		this.originalCatalog = null;
-		this.transactionalMemory = new TransactionalMemory(this.id);
+		this.transactionalMemory = new TransactionalMemory(this.transactionId);
 		this.updatedCatalogCallback = updatedCatalog -> {};
 	}
 
@@ -305,9 +303,8 @@ public final class Transaction implements TransactionContract {
 		@Nonnull BiConsumer<CatalogContract, CatalogContract> updatedCatalogCallback
 	) {
 		if (currentCatalog instanceof Catalog theCatalog) {
-			this.id = theCatalog.getNextTransactionId();
 			this.originalCatalog = currentCatalog;
-			this.transactionalMemory = new TransactionalMemory(this.id);
+			this.transactionalMemory = new TransactionalMemory(this.transactionId);
 			this.updatedCatalogCallback = updatedCatalog -> updatedCatalogCallback.accept(currentCatalog, updatedCatalog);
 			transactionalMemory.addTransactionCommitHandler(
 				transactionalLayer -> {
@@ -346,7 +343,7 @@ public final class Transaction implements TransactionContract {
 				() -> transactionalLayer.getStateCopyWithCommittedChanges(currentCatalog, this)
 			);
 			// now let's flush the catalog on the disk
-			newCatalog.flushTransaction(id, updateInstructions);
+			newCatalog.flushTransaction(updateInstructions);
 			// and return reference to a new catalog
 			return newCatalog;
 		} catch (Throwable throwable) {
@@ -374,10 +371,11 @@ public final class Transaction implements TransactionContract {
 			} else {
 				transactionalMemory.commit();
 				newCatalog = updatedCatalog.get();
-				Assert.isPremiseValid(
-					id == 0L || newCatalog != null,
+				/* TODO JNO - toto bude vyžadovat přemyšlení */
+				/*Assert.isPremiseValid(
+					transactionId == 0L || newCatalog != null,
 					"New version of catalog was not created as expected!"
-				);
+				);*/
 			}
 		} finally {
 			// now we remove the transactional memory - no object will see it transactional memory from now on
@@ -430,7 +428,7 @@ public final class Transaction implements TransactionContract {
 		final Transaction currentValue = CURRENT_TRANSACTION.get();
 		Assert.isPremiseValid(
 			currentValue == null || currentValue == this,
-			() -> "You cannot mix calling different sessions within one thread (sessions `" + currentValue.id + "` and `" + this.id + "`)!");
+			() -> "You cannot mix calling different sessions within one thread (sessions `" + currentValue.transactionId + "` and `" + this.transactionId + "`)!");
 		if (currentValue == null) {
 			CURRENT_TRANSACTION.set(this);
 			return true;

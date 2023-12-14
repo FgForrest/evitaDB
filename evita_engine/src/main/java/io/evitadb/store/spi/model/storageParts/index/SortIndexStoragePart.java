@@ -82,7 +82,7 @@ public class SortIndexStoragePart implements AttributeIndexStoragePart, RecordWi
 	/**
 	 * Id used for lookups in persistent data storage for this particular container.
 	 */
-	@Getter @Setter private Long uniquePartId;
+	@Getter @Setter private Long storagePartPK;
 
 	@Override
 	public AttributeIndexType getIndexType() {

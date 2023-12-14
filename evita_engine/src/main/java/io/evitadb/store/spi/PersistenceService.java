@@ -46,28 +46,28 @@ public interface PersistenceService extends Closeable {
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	<T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType);
+	<T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	<T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType);
+	<T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 *
-	 * @return already or newly assigned {@link StoragePart#getUniquePartId()} - primary key of the storage part
+	 * @return already or newly assigned {@link StoragePart#getStoragePartPK()} - primary key of the storage part
 	 */
-	<T extends StoragePart> long putStoragePart(long transactionId, @Nonnull T container);
+	<T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container);
 
 	/**
 	 * Removes container from the transactional memory. This method should be used only for container, that has
 	 * no uniqueId assigned so far (e.g. they haven't been stored yet).
 	 */
-	<T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> containerType);
+	<T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType);
 
 	/**
 	 * Returns true if persistent storage contains non-removed storage part of particular primary key and container
@@ -78,14 +78,14 @@ public interface PersistenceService extends Closeable {
 	/**
 	 * Method applies all deferredOperations from the passed list on current data storage.
 	 */
-	default void applyUpdates(@Nonnull String owner, long transactionId, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
+	default void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
 		for (final DeferredStorageOperation<?> deferredOperation : deferredOperations) {
 			Assert.isPremiseValid(
 				deferredOperation.getRequiredPersistenceServiceType().isInstance(this),
 				() -> new EvitaInternalError("Incompatible deferred operation!")
 			);
 			//noinspection unchecked,rawtypes
-			((DeferredStorageOperation)deferredOperation).execute(owner, transactionId, this);
+			((DeferredStorageOperation)deferredOperation).execute(owner, storagePartPk, this);
 		}
 	}
 

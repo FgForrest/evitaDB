@@ -27,6 +27,8 @@ import io.evitadb.api.TransactionContract;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * {@inheritDoc TransactionContract}
  *
@@ -43,7 +45,7 @@ public class EvitaClientTransaction implements TransactionContract {
 	/**
 	 * Contains unique id of the transaction (the overflow risk for long type is ignored).
 	 */
-	@Getter private final long id;
+	@Getter private final UUID transactionId;
 	/**
 	 * Rollback only flag.
 	 */

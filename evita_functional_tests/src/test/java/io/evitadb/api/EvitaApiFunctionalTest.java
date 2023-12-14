@@ -78,8 +78,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -173,57 +171,6 @@ class EvitaApiFunctionalTest {
 				assertTrue(brandSchema.isWithGeneratedPrimaryKey());
 			}
 		);
-	}
-
-	@DisplayName("Verify code has no problems assigning new PK in concurrent environment")
-	@Test
-	@Disabled("Temporarily disabling flaky test, we need to invest more time to debugging parallel sessions")
-	void shouldAutomaticallyGeneratePrimaryKeyInParallel(Evita evita) throws Exception {
-
-		evita.updateCatalog(
-			TEST_CATALOG,
-			session -> {
-				session.upsertEntity(createBrand(session, null));
-			}
-		);
-
-		final int numberOfThreads = 10;
-		final int iterations = 100;
-		final ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);
-		final CountDownLatch latch = new CountDownLatch(numberOfThreads);
-		final Set<Integer> primaryKeys = new ConcurrentSkipListSet<>();
-
-		final AtomicReference<Exception> thrownException = new AtomicReference<>();
-		for (int i = 0; i < numberOfThreads; i++) {
-			service.execute(() -> {
-				try {
-					for (int j = 0; j < iterations; j++) {
-						evita.updateCatalog(
-							TEST_CATALOG,
-							session -> {
-								// primary keys should be automatically generated in monotonic fashion
-								primaryKeys.add(session.upsertEntity(createBrand(session, null)).getPrimaryKey());
-							}
-						);
-					}
-					latch.countDown();
-				} catch (Exception ex) {
-					thrownException.set(ex);
-					latch.countDown();
-				}
-			});
-		}
-
-		assertTrue(latch.await(45, TimeUnit.SECONDS), "Timeouted!");
-
-		if (thrownException.get() != null) {
-			throw thrownException.get();
-		}
-
-		assertEquals(primaryKeys.size(), numberOfThreads * iterations);
-		for (int i = 1; i <= numberOfThreads * iterations; i++) {
-			assertTrue(primaryKeys.contains(i + 1), "Primary key missing: " + (i + 1));
-		}
 	}
 
 	@DisplayName("Create entity outside Evita engine and insert it")

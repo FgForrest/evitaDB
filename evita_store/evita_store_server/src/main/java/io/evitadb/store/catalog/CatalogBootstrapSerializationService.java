@@ -64,7 +64,7 @@ public class CatalogBootstrapSerializationService implements SerializationServic
 
 		kryo.writeObject(output, header.getCatalogHeader());
 		kryo.writeObject(output, header.getCatalogState());
-		output.writeVarLong(header.getLastTransactionId(), true);
+		output.writeVarLong(header.getVersionId(), true);
 
 		final Map<String, EntityCollectionHeader> collectionHeaders = header.getCollectionHeaders();
 		output.writeVarInt(collectionHeaders.size(), true);

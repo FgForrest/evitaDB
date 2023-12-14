@@ -190,7 +190,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					if (part.getUniquePartId() == null) {
+					if (part.getStoragePartPK() == null) {
 						Assert.isPremiseValid(
 							part instanceof RecordWithCompressedId,
 							"Removed container must have already its unique part id assigned or must be unsaved RecordWithCompressedId!"
@@ -205,13 +205,13 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 					} else {
 						if (part instanceof RecordWithCompressedId<?> recordWithCompressedId) {
 							this.storageContainerBuffer.removeByPrimaryAndOriginalKey(
-								part.getUniquePartId(),
+								part.getStoragePartPK(),
 								recordWithCompressedId.getStoragePartSourceKey(),
 								part.getClass()
 							);
 						} else {
 							this.storageContainerBuffer.removeByPrimaryKey(
-								part.getUniquePartId(),
+								part.getStoragePartPK(),
 								part.getClass()
 							);
 						}

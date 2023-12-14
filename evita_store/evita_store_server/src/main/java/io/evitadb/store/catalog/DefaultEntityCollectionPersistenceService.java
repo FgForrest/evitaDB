@@ -557,9 +557,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	@Override
-	public <T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
 		if (fileOffsetIndex.isOperative()) {
-			return this.fileOffsetIndex.get(primaryKey, containerType);
+			return this.fileOffsetIndex.get(storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
@@ -567,27 +567,27 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 
 	@Nullable
 	@Override
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType) {
 		if (fileOffsetIndex.isOperative()) {
-			return this.fileOffsetIndex.getBinary(primaryKey, containerType);
+			return this.fileOffsetIndex.getBinary(storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
 	}
 
 	@Override
-	public <T extends StoragePart> long putStoragePart(long transactionId, @Nonnull T container) {
+	public <T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container) {
 		if (fileOffsetIndex.isOperative()) {
-			return this.fileOffsetIndex.put(transactionId, container);
+			return this.fileOffsetIndex.put(storagePartPk, container);
 		} else {
 			throw new PersistenceServiceClosed();
 		}
 	}
 
 	@Override
-	public <T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
+	public <T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
 		if (fileOffsetIndex.isOperative()) {
-			return fileOffsetIndex.remove(primaryKey, containerType);
+			return fileOffsetIndex.remove(storagePartPk, containerType);
 		} else {
 			throw new PersistenceServiceClosed();
 		}

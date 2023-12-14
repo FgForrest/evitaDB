@@ -589,24 +589,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public <T extends StoragePart> T getStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.fileOffsetIndex.get(primaryKey, containerType);
+	public <T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
+		return this.fileOffsetIndex.get(storagePartPk, containerType);
 	}
 
 	@Nullable
 	@Override
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long primaryKey, @Nonnull Class<T> containerType) {
-		return this.fileOffsetIndex.getBinary(primaryKey, containerType);
+	public <T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType) {
+		return this.fileOffsetIndex.getBinary(storagePartPk, containerType);
 	}
 
 	@Override
-	public <T extends StoragePart> long putStoragePart(long transactionId, @Nonnull T container) {
-		return this.fileOffsetIndex.put(transactionId, container);
+	public <T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container) {
+		return this.fileOffsetIndex.put(storagePartPk, container);
 	}
 
 	@Override
-	public <T extends StoragePart> boolean removeStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return fileOffsetIndex.remove(primaryKey, containerType);
+	public <T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
+		return fileOffsetIndex.remove(storagePartPk, containerType);
 	}
 
 	@Override

@@ -108,7 +108,6 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -126,6 +125,10 @@ import static java.util.Optional.ofNullable;
 @ThreadSafe
 public final class Catalog implements CatalogContract, TransactionalLayerProducer<DataSourceChanges<CatalogIndexKey, CatalogIndex>, Catalog> {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/**
+	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
+	 */
+	@Getter private final long versionId;
 	/**
 	 * CatalogIndex factory implementation.
 	 */
@@ -148,11 +151,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * This information is used to control lifecycle of {@link #ioService} object.
 	 */
 	private final AtomicInteger readWriteSessionCount;
-	/**
-	 * Contains last given transaction id - it represents sequence number that allows to generate unique number across
-	 * multiple clients.
-	 */
-	private final AtomicLong txPkSequence;
 	/**
 	 * Service containing I/O related methods.
 	 */
@@ -205,10 +203,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Provides access to the entity schema in the catalog.
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
-	/**
-	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
-	 */
-	@Getter long lastCommittedTransactionId;
 
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
@@ -239,8 +233,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogBootstrap catalogBootstrap = new CatalogBootstrap(CatalogState.WARMING_UP);
 		this.state = new AtomicReference<>(CatalogState.WARMING_UP);
 		this.readWriteSessionCount = new AtomicInteger(0);
-		this.lastCommittedTransactionId = catalogBootstrap.getLastTransactionId();
-		this.txPkSequence = sequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
+		this.versionId = catalogBootstrap.getVersionId();
 		this.cacheSupervisor = cacheSupervisor;
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
@@ -283,8 +276,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.catalogIndex = this.ioService.readCatalogIndex(this);
 
 		this.readWriteSessionCount = new AtomicInteger(0);
-		this.lastCommittedTransactionId = catalogBootstrap.getLastTransactionId();
-		this.txPkSequence = sequenceService.getOrCreateSequence(getName(), SequenceType.TRANSACTION, this.lastCommittedTransactionId);
+		this.versionId = catalogBootstrap.getVersionId();
 		this.cacheSupervisor = cacheSupervisor;
 
 		final Collection<EntityCollectionHeader> entityCollectionHeaders = catalogBootstrap.getEntityTypeHeaders();
@@ -333,17 +325,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	Catalog(
+		long versionId,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
 		@Nonnull CatalogPersistenceService ioService,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull AtomicInteger readWriteSessionCount,
-		@Nonnull AtomicLong txPkSequence,
-		long lastCommittedTransactionId,
 		@Nonnull AtomicInteger entityTypeSequence,
 		@Nonnull Map<String, EntityCollection> entityCollections,
 		@Nonnull ProxyFactory proxyFactory
 	) {
+		this.versionId = versionId;
 		this.state = new AtomicReference<>(catalogState);
 		this.catalogIndex = catalogIndex;
 		catalogIndex.updateReferencesTo(this);
@@ -359,8 +351,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 		this.cacheSupervisor = cacheSupervisor;
 		this.readWriteSessionCount = readWriteSessionCount;
-		this.txPkSequence = txPkSequence;
-		this.lastCommittedTransactionId = lastCommittedTransactionId;
 		this.dataStoreBuffer = new DataStoreTxMemoryBuffer<>(this, ioService);
 		// we need to switch references working with catalog (inter index relations) to new catalog
 		// the collections are not yet used anywhere - we're still safe here
@@ -625,7 +615,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				updatedSchema.getName(),
 				updatedSchema.getNameVariants(),
 				CatalogSchema._internalBuild(updatedSchema),
-				getCatalogState() == CatalogState.WARMING_UP ? 0L : getNextTransactionId()
+				getCatalogState() == CatalogState.WARMING_UP ? 0L : versionId
 			);
 			final Map<String, EntityCollection> newCollections = entityCollections
 				.values()
@@ -641,13 +631,12 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				);
 
 			final Catalog catalogAfterRename = new Catalog(
+				versionId + 1,
 				getCatalogState(),
 				catalogIndex,
 				newIoService,
 				cacheSupervisor,
 				readWriteSessionCount,
-				txPkSequence,
-				id,
 				entityTypeSequence,
 				newCollections,
 				proxyFactory
@@ -700,7 +689,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					if (warmingUpState) {
 						final long lastSeenVersion = entityCollection.getVersion();
 						entityHeaders.add(entityCollection.flush());
-						changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+						changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 					}
 					// in all states terminate collection operations
 					entityCollection.terminate();
@@ -711,7 +700,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					// store catalog header
 					this.ioService.storeHeader(
 						getCatalogState(),
-						this.lastCommittedTransactionId,
+						this.versionId,
 						this.entityTypeSequence.get(),
 						entityHeaders
 					);
@@ -840,7 +829,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 			if (transaction != null) {
 				if (newSchema.getVersion() != storedSchema.catalogSchema().getVersion()) {
-					this.ioService.putStoragePart(transaction.getId(), new CatalogSchemaStoragePart(newSchema.getDelegate()));
+					final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
+					this.ioService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
 				}
 
 				transactionalChanges.getModifiedStoragePartsToPersist()
@@ -854,13 +844,12 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			transactionalLayer.removeTransactionalMemoryLayer(this);
 
 			return new Catalog(
+				versionId,
 				getCatalogState(),
 				possiblyUpdatedCatalogIndex,
 				ioService,
 				cacheSupervisor,
 				readWriteSessionCount,
-				txPkSequence,
-				id,
 				entityTypeSequence,
 				possiblyUpdatedCollections,
 				proxyFactory
@@ -873,13 +862,12 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					.anyMatch(it -> this.entityCollections.get(it.getKey()) != it.getValue())
 			) {
 				return new Catalog(
+					versionId,
 					getCatalogState(),
 					possiblyUpdatedCatalogIndex,
 					ioService,
 					cacheSupervisor,
 					readWriteSessionCount,
-					txPkSequence,
-					id,
 					entityTypeSequence,
 					possiblyUpdatedCollections,
 					proxyFactory
@@ -889,20 +877,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				return this;
 			}
 		}
-	}
-
-	/**
-	 * Returns next unique transaction id for the catalog.
-	 */
-	long getNextTransactionId() {
-		return txPkSequence.updateAndGet(operand -> {
-			try {
-				return Math.addExact(operand, 1);
-			} catch (ArithmeticException ex) {
-				log.warn("Transactional id overflew! Starting from 1 again.");
-				return 1L;
-			}
-		});
 	}
 
 	/*
@@ -934,28 +908,27 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	/**
 	 * This method writes all changed storage parts into the file offset index of {@link EntityCollection} and then stores
-	 * {@link CatalogBootstrap} marking transactionId as committed.
+	 * {@link CatalogBootstrap} marking catalog version as committed.
 	 */
-	void flushTransaction(long transactionId, @Nonnull CommitUpdateInstructionSet commitInstructionSet) {
+	void flushTransaction(@Nonnull CommitUpdateInstructionSet commitInstructionSet) {
 		boolean changeOccurred = false;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
 		for (EntityCollection entityCollection : entityCollections.values()) {
 			final String entityType = entityCollection.getSchema().getName();
 			final long lastSeenVersion = entityCollection.getVersion();
 			final List<DeferredStorageOperation<?>> collectionUpdates = commitInstructionSet.getEntityCollectionUpdates(entityType);
-			entityHeaders.add(entityCollection.flush(transactionId, collectionUpdates));
-			changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+			entityHeaders.add(entityCollection.flush(versionId, collectionUpdates));
+			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 		}
 
 		final List<DeferredStorageOperation<?>> catalogUpdates = commitInstructionSet.getCatalogUpdates();
 		if (!catalogUpdates.isEmpty()) {
-			this.ioService.applyUpdates("catalog", transactionId, catalogUpdates);
+			this.ioService.applyUpdates("catalog", versionId, catalogUpdates);
 			changeOccurred = true;
 		}
 
 		if (changeOccurred) {
-			this.ioService.storeHeader(getCatalogState(), transactionId, this.entityTypeSequence.get(), entityHeaders);
-			this.lastCommittedTransactionId = transactionId;
+			this.ioService.storeHeader(getCatalogState(), versionId, this.entityTypeSequence.get(), entityHeaders);
 		}
 	}
 
@@ -976,14 +949,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		for (EntityCollection entityCollection : entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
 			entityHeaders.add(entityCollection.flush());
-			changeOccurred |= entityCollection.getVersion() != lastSeenVersion;
+			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
 		}
 
 		if (changeOccurred) {
 			this.ioService.flushTrappedUpdates(this.dataStoreBuffer.exchangeBuffer());
 			this.ioService.storeHeader(
 				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
-				this.lastCommittedTransactionId,
+				this.versionId,
 				this.entityTypeSequence.get(),
 				entityHeaders
 			);
