@@ -55,7 +55,7 @@ public class GenericEntityObjectBuilder {
 
 	@Nonnull
 	private OpenApiObject buildEntityObject() {
-		final String objectName = EntityDescriptor.THIS_GLOBAL.name();
+		final String objectName = GenericEntityDescriptor.THIS.name();
 
 		// build specific entity object
 		final OpenApiObject.Builder entityObject = GenericEntityDescriptor.THIS
