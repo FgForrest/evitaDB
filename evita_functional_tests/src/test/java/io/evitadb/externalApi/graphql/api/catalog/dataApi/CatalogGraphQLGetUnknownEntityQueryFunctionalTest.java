@@ -133,6 +133,9 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 	                        __typename
 	                        primaryKey
 	                        type
+	                        attributes {
+	                            relativeUrl
+	                        }
 	                    }
 	                }
 					""",
@@ -149,6 +152,9 @@ public class CatalogGraphQLGetUnknownEntityQueryFunctionalTest extends CatalogGr
 						.e(TYPENAME_FIELD, GlobalEntityDescriptor.THIS.name())
 						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+						.e(EntityDescriptor.ATTRIBUTES.name(), map()
+							.e(ATTRIBUTE_RELATIVE_URL, relativeUrl.value())
+							.build())
 						.build()
 				)
 			);

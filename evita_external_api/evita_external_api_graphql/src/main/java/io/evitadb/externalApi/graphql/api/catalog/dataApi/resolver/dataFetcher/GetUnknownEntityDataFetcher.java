@@ -165,7 +165,7 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
         if (loadedEntity != null) {
             resultBuilder
                 .data(loadedEntity)
-                .localContext(EntityQueryContext.empty());
+                .localContext(buildResultContext(arguments));
         }
 
         return resultBuilder.build();
@@ -230,6 +230,11 @@ public class GetUnknownEntityDataFetcher implements DataFetcher<DataFetcherResul
                 .map(EntityFetch::getRequirements)
                 .orElse(new EntityContentRequire[0])
         );
+    }
+
+    @Nonnull
+    private static EntityQueryContext buildResultContext(@Nonnull Arguments arguments) {
+        return new EntityQueryContext(arguments.locale(), null, null, null, false);
     }
 
     /**

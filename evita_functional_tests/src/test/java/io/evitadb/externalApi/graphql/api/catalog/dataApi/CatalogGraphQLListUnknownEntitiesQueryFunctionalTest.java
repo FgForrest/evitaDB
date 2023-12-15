@@ -147,6 +147,9 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 	                        __typename
 	                        primaryKey
 	                        type
+	                        attributes {
+	                            relativeUrl
+	                        }
 	                    }
 	                }
 					""",
@@ -164,6 +167,9 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 							.e(TYPENAME_FIELD, GlobalEntityDescriptor.THIS.name())
 							.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
 							.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+							.e(EntityDescriptor.ATTRIBUTES.name(), map()
+								.e(ATTRIBUTE_RELATIVE_URL, relativeUrl.value())
+								.build())
 							.build()
 					)
 				)

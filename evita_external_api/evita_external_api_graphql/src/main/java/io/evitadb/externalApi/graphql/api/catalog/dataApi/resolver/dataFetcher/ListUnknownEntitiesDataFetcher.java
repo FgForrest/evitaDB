@@ -175,7 +175,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         final DataFetcherResult.Builder<List<SealedEntity>> resultBuilder = DataFetcherResult.<List<SealedEntity>>newResult()
             .data(loadedEntities);
         if (!entities.isEmpty()) {
-            resultBuilder.localContext(EntityQueryContext.empty());
+            resultBuilder.localContext(buildResultContext(arguments));
         }
 
         return resultBuilder.build();
@@ -253,6 +253,11 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
                 .map(EntityFetch::getRequirements)
                 .orElse(new EntityContentRequire[0])
         );
+    }
+
+    @Nonnull
+    private static EntityQueryContext buildResultContext(@Nonnull Arguments arguments) {
+        return new EntityQueryContext(arguments.locale(), null, null, null, false);
     }
 
     /**
