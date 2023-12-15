@@ -23,6 +23,8 @@
 
 package io.evitadb.documentation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.thoughtworks.qdox.JavaProjectBuilder;
 import com.thoughtworks.qdox.model.JavaAnnotation;
 import com.thoughtworks.qdox.model.JavaClass;
@@ -34,6 +36,7 @@ import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -50,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -83,6 +87,11 @@ public class JavaDocCopy implements EvitaTestSupport {
 	 * Full class name of the class with the factory methods.
 	 */
 	private static final String QUERY_CONSTRAINTS_CLASS = "io.evitadb.api.query.QueryConstraints";
+
+	/**
+	 * Finds constant with custom name for constraint in class.
+	 */
+	private static final Pattern CONSTRAINT_CUSTOM_NAME_PATTERN = Pattern.compile("private +static +final +String +CONSTRAINT_NAME += +\"(\\w+)\";");
 
 	/**
 	 * Collects information about all factory methods.
@@ -268,6 +277,56 @@ public class JavaDocCopy implements EvitaTestSupport {
 				StandardOpenOption.TRUNCATE_EXISTING
 			);
 		}
+	}
+
+	/**
+	 * Exports all constraint definitions to a JSON file.
+	 */
+	@Test
+	void exportConstraintDefinitions() throws URISyntaxException, IOException {
+		final Path rootDirectory = getRootDirectory();
+
+		final JavaProjectBuilder builder = new JavaProjectBuilder();
+
+		// add all source folders to the QDox library
+		for (String constraintRoot : CONSTRAINTS_ROOT) {
+			builder.addSourceTree(rootDirectory.resolve(constraintRoot).toFile());
+		}
+
+		final Collection<JavaClass> classesByName = builder.getClasses();
+
+		final ObjectMapper objectMapper = new ObjectMapper();
+		final ObjectNode export = objectMapper.createObjectNode();
+		for (JavaClass constraintClass : classesByName) {
+			final Path constraintClassPath = Path.of(constraintClass.getParentSource().getURL().toURI());
+			final String constraintSource = Files.readString(constraintClassPath, StandardCharsets.UTF_8);
+
+			final Optional<JavaAnnotation> constraintDefinition = constraintClass.getAnnotations()
+				.stream()
+				.filter(it -> it.getType().getName().equals(ConstraintDefinition.class.getSimpleName()))
+				.findFirst();
+			if (constraintDefinition.isEmpty()) {
+				// this class is not a constraint
+				continue;
+			}
+
+			final String constraintName;
+			final Matcher constraintCustomNameMatcher = CONSTRAINT_CUSTOM_NAME_PATTERN.matcher(constraintSource);
+			if (constraintCustomNameMatcher.find()) {
+				constraintName = constraintCustomNameMatcher.group(1);
+			} else {
+				constraintName = StringUtils.uncapitalize(constraintClass.getName());
+			}
+			final String shortDescription = ((String) constraintDefinition.get().getNamedParameter("shortDescription")).replace("\"", "");
+			final String userDocsLink = "https://evitadb.io" + ((String) constraintDefinition.get().getNamedParameter("userDocsLink")).replace("\"", "");
+
+			final ObjectNode exportedConstraintDefinition = objectMapper.createObjectNode();
+			exportedConstraintDefinition.put("shortDescription", shortDescription);
+			exportedConstraintDefinition.put("userDocsLink", userDocsLink);
+			export.putIfAbsent(constraintName, exportedConstraintDefinition);
+		}
+
+		Files.writeString(rootDirectory.resolve("exported-constraints.json"), objectMapper.writeValueAsString(export), StandardCharsets.UTF_8);
 	}
 
 	/**
