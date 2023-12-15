@@ -222,6 +222,22 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 	}
 
 	@Nonnull
+	protected Map<String, Object> createEntityDtoWithPrices(@Nonnull SealedEntity entity) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.PRICES.name(), List.of(
+				map()
+					.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+					.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+					.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
+					.build()
+			))
+			.build();
+	}
+
+	@Nonnull
 	protected Map<String, Object> createEntityDtoWithAssociatedData(@Nonnull SealedEntity entity) {
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())

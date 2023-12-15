@@ -703,18 +703,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String,Object>> expectedBody = entities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
-						.e(EntityDescriptor.PRICE_FOR_SALE.name(), map()
-							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())))
-					.build()
-			)
+			.map(entity -> createTargetEntityDto(createEntityDtoWithPriceForSale(entity), true))
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -755,18 +744,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
-						.e(EntityDescriptor.PRICE.name(), map()
-							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())))
-					.build()
-			)
+			.map(entity -> createTargetEntityDto(createEntityDtoWithPrice(entity, CURRENCY_CZK, PRICE_LIST_BASIC), true))
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -846,21 +824,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
-						.e(EntityDescriptor.PRICES.name(), List.of(
-							map()
-								.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-								.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-								.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
-								.build()
-						)))
-					.build()
-			)
+			.map(entity -> createTargetEntityDto(createEntityDtoWithPrices(entity), true))
 			.toList();
 
 		tester.test(TEST_CATALOG)
@@ -953,16 +917,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 		);
 
 		final var expectedBody = entities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), map()
-						.e(EntityDescriptor.ASSOCIATED_DATA.name(), map()
-							.e(TYPENAME_FIELD, AssociatedDataDescriptor.THIS.name(createEmptyEntitySchema("Product")))
-							.e(ASSOCIATED_DATA_LABELS, map())))
-					.build()
-			)
+			.map(entity -> createTargetEntityDto(createEntityDtoWithAssociatedData(entity), true))
 			.toList();
 
 		tester.test(TEST_CATALOG)
