@@ -51,6 +51,13 @@ class EvitaQLQueryVisitorTest {
     void shouldParseQuery() {
         assertEquals(
             query(
+                filterBy(attributeEquals("a", true))
+            ),
+            parseQuery("query(filterBy(attributeEqualsTrue('a')))")
+        );
+
+        assertEquals(
+            query(
                 collection("a")
             ),
             parseQuery("query(collection('a'))")
