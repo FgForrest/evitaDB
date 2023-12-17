@@ -29,9 +29,6 @@ import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
-import java.util.List;
-import java.util.Locale;
-
 import static io.evitadb.externalApi.api.catalog.dataApi.model.CatalogDataApiRootDescriptor.LOCALE_ENUM;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullListRef;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nullableRef;
@@ -123,20 +120,27 @@ public interface EntityDescriptor extends VersionedDescriptor, AttributesProvide
         .type(nonNull(PriceInnerRecordHandling.class))
         .build();
 
-    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.builder()
+    ObjectDescriptor THIS_CLASSIFIER = ObjectDescriptor.builder()
+        .name("Entity")
+        .description("""
+            Generic the most basic entity.
+            Common ancestor for all specific entities which correspond to specific collections.
+            """)
+        .staticField(PRIMARY_KEY)
+        .staticField(TYPE)
+        .staticField(VERSION)
+        .build();
+    /**
+     * Used only to distinguish from entity classifier for clarity, that this is a final object that just references an
+     * entity, not that an entity should extend this.
+     */
+    ObjectDescriptor THIS_REFERENCE = ObjectDescriptor.extend(THIS_CLASSIFIER)
         .name("EntityReference")
         .description("""
             Pointer to a full entity.
             """)
-        .staticFields(List.of(PRIMARY_KEY, TYPE, VERSION))
         .build();
-    ObjectDescriptor THIS_GLOBAL = ObjectDescriptor.extend(THIS_REFERENCE)
-        .name("Entity")
-        .description("""
-            Catalog-wise entity with only common data across all entity collections.
-            """)
-        .build();
-    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_REFERENCE)
+    ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_CLASSIFIER)
         .name("*")
         .build();
 }

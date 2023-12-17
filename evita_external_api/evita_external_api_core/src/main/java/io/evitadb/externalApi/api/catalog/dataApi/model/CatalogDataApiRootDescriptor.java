@@ -70,7 +70,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Finds and returns single entity from unspecified collection by shared arguments between collections.
             """)
-        .type(nullableRef(EntityDescriptor.THIS_GLOBAL))
+        // type can be entity of any collection
         .build();
 
     EndpointDescriptor LIST_UNKNOWN_ENTITY = EndpointDescriptor.builder()
@@ -80,7 +80,7 @@ public interface CatalogDataApiRootDescriptor extends CatalogRootDescriptor {
         .description("""
             Finds and returns list of entities from unspecified collections by shared arguments between collections.
             """)
-        .type(nullableListRef(EntityDescriptor.THIS_GLOBAL))
+        // type can be list of entities of any collection
         .build();
 
     EndpointDescriptor GET_ENTITY = EndpointDescriptor.builder()

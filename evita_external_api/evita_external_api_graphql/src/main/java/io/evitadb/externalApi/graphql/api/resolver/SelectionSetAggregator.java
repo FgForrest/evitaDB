@@ -53,19 +53,44 @@ public class SelectionSetAggregator {
 
 	@Nullable private final DataFetchingFieldSelectionSet originalSelectionSet;
 	@Nullable private final List<DataFetchingFieldSelectionSet> originalSelectionSets;
+	@Nullable private final String entityDtoObjectTypeName;
 
 	/**
 	 * Creates wrapper without filtering of fields. Functions same as original {@link DataFetchingFieldSelectionSet}.
 	 */
 	public static SelectionSetAggregator from(@Nonnull DataFetchingFieldSelectionSet originalSelectionSet) {
-		return new SelectionSetAggregator(originalSelectionSet, null);
+		return new SelectionSetAggregator(originalSelectionSet, null, null);
 	}
 
 	/**
 	 * Creates wrapper without filtering of fields. Functions same as original {@link DataFetchingFieldSelectionSet}.
 	 */
 	public static SelectionSetAggregator from(@Nonnull List<DataFetchingFieldSelectionSet> originalSelectionSets) {
-		return new SelectionSetAggregator(null, originalSelectionSets);
+		return new SelectionSetAggregator(null, originalSelectionSets, null);
+	}
+
+	/**
+	 * Creates wrapper with filtering of fields of original {@link DataFetchingFieldSelectionSet} to fields for
+	 * {@code entityDtoObjectTypeName}.
+	 */
+	public static SelectionSetAggregator from(@Nonnull DataFetchingFieldSelectionSet originalSelectionSet, @Nonnull String entityDtoObjectTypeName) {
+		return new SelectionSetAggregator(
+			originalSelectionSet,
+			null,
+			entityDtoObjectTypeName
+		);
+	}
+
+	/**
+	 * Creates wrapper with filtering of fields of original {@link DataFetchingFieldSelectionSet} to fields for
+	 * {@code entityDtoObjectTypeName}.
+	 */
+	public static SelectionSetAggregator from(@Nonnull List<DataFetchingFieldSelectionSet> originalSelectionSets, @Nonnull String entityDtoObjectTypeName) {
+		return new SelectionSetAggregator(
+			null,
+			originalSelectionSets,
+			entityDtoObjectTypeName
+		);
 	}
 
 	/**
@@ -74,9 +99,9 @@ public class SelectionSetAggregator {
 	 */
 	public boolean containsImmediate(@Nonnull String fieldNamePattern) {
 		if (originalSelectionSet != null) {
-			return containsImmediate(fieldNamePattern, originalSelectionSet);
+			return containsImmediate(fieldNamePattern, originalSelectionSet, entityDtoObjectTypeName);
 		} else {
-			return containsImmediate(fieldNamePattern, originalSelectionSets);
+			return containsImmediate(fieldNamePattern, originalSelectionSets, entityDtoObjectTypeName);
 		}
 	}
 
@@ -86,9 +111,9 @@ public class SelectionSetAggregator {
 	@Nonnull
 	public List<SelectedField> getImmediateFields() {
 		if (originalSelectionSet != null) {
-			return getImmediateFields(originalSelectionSet);
+			return getImmediateFields(originalSelectionSet, entityDtoObjectTypeName);
 		} else {
-			return getImmediateFields(originalSelectionSets);
+			return getImmediateFields(originalSelectionSets, entityDtoObjectTypeName);
 		}
 	}
 
@@ -98,9 +123,9 @@ public class SelectionSetAggregator {
 	@Nonnull
 	public List<SelectedField> getImmediateFields(@Nonnull String fieldName) {
 		if (originalSelectionSet != null) {
-			return getImmediateFields(fieldName, originalSelectionSet);
+			return getImmediateFields(fieldName, originalSelectionSet, entityDtoObjectTypeName);
 		} else {
-			return getImmediateFields(fieldName, originalSelectionSets);
+			return getImmediateFields(fieldName, originalSelectionSets, entityDtoObjectTypeName);
 		}
 	}
 
@@ -110,9 +135,9 @@ public class SelectionSetAggregator {
 	@Nonnull
 	public List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames) {
 		if (originalSelectionSet != null) {
-			return getImmediateFields(fieldNames, originalSelectionSet);
+			return getImmediateFields(fieldNames, originalSelectionSet, entityDtoObjectTypeName);
 		} else {
-			return getImmediateFields(fieldNames, originalSelectionSets);
+			return getImmediateFields(fieldNames, originalSelectionSets, entityDtoObjectTypeName);
 		}
 	}
 
@@ -121,9 +146,9 @@ public class SelectionSetAggregator {
 	 */
 	public boolean isEmpty() {
 		if (originalSelectionSet != null) {
-			return isEmpty(originalSelectionSet);
+			return isEmpty(originalSelectionSet, entityDtoObjectTypeName);
 		} else {
-			return isEmpty(originalSelectionSets);
+			return isEmpty(originalSelectionSets, entityDtoObjectTypeName);
 		}
 	}
 
@@ -132,18 +157,29 @@ public class SelectionSetAggregator {
 	 * Whether there is at least one field that matches the given pattern. The pattern can be either exact field name or
 	 * field name with `*` wildcard at the end to match all fields starting with the pattern.
 	 */
-	public static boolean containsImmediate(@Nonnull String fieldNamePattern, @Nonnull DataFetchingFieldSelectionSet selectionSet) {
+	public static boolean containsImmediate(@Nonnull String fieldNamePattern,
+	                                        @Nonnull DataFetchingFieldSelectionSet selectionSet) {
+		return containsImmediate(fieldNamePattern, selectionSet, null);
+	}
+
+	/**
+	 * Whether there is at least one field that matches the given pattern. The pattern can be either exact field name or
+	 * field name with `*` wildcard at the end to match all fields starting with the pattern.
+	 */
+	public static boolean containsImmediate(@Nonnull String fieldNamePattern,
+	                                        @Nonnull DataFetchingFieldSelectionSet selectionSet,
+	                                        @Nullable String entityDtoObjectTypeName) {
 		final List<SelectedField> immediateFields = selectionSet.getImmediateFields();
 		if (fieldNamePattern.endsWith(FIELD_NAME_PATTERN_WILDCARD)) {
 			final String normalizedPattern = fieldNamePattern.substring(0, fieldNamePattern.length() - 1);
 			for (SelectedField field : immediateFields) {
-				if (field.getName().startsWith(normalizedPattern)) {
+				if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && field.getName().startsWith(normalizedPattern)) {
 					return true;
 				}
 			}
 		} else {
 			for (SelectedField field : immediateFields) {
-				if (field.getName().equals(fieldNamePattern)) {
+				if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && field.getName().equals(fieldNamePattern)) {
 					return true;
 				}
 			}
@@ -155,19 +191,30 @@ public class SelectionSetAggregator {
 	 * Whether there is at least one field that matches the given pattern. The pattern can be either exact field name or
 	 * field name with `*` wildcard at the end to match all fields starting with the pattern.
 	 */
-	public static boolean containsImmediate(@Nonnull String fieldNamePattern, @Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+	public static boolean containsImmediate(@Nonnull String fieldNamePattern,
+	                                        @Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+		return containsImmediate(fieldNamePattern, selectionSets, null);
+	}
+
+	/**
+	 * Whether there is at least one field that matches the given pattern. The pattern can be either exact field name or
+	 * field name with `*` wildcard at the end to match all fields starting with the pattern.
+	 */
+	public static boolean containsImmediate(@Nonnull String fieldNamePattern,
+	                                        @Nonnull List<DataFetchingFieldSelectionSet> selectionSets,
+	                                        @Nullable String entityDtoObjectTypeName) {
 		if (selectionSets.isEmpty()) {
 			return false;
         } else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return containsImmediate(fieldNamePattern, selectionSets.get(0));
+			return containsImmediate(fieldNamePattern, selectionSets.get(0), entityDtoObjectTypeName);
 		} else {
 			if (fieldNamePattern.endsWith(FIELD_NAME_PATTERN_WILDCARD)) {
 				final String normalizedPattern = fieldNamePattern.substring(0, fieldNamePattern.length() - 1);
 				for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 					for (SelectedField field : selectionSet.getImmediateFields()) {
-						if (field.getName().startsWith(normalizedPattern)) {
+						if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && field.getName().startsWith(normalizedPattern)) {
 							return true;
 						}
 					}
@@ -175,7 +222,7 @@ public class SelectionSetAggregator {
 			} else {
 				for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 					for (SelectedField field : selectionSet.getImmediateFields()) {
-						if (field.getName().equals(fieldNamePattern)) {
+						if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && field.getName().equals(fieldNamePattern)) {
 							return true;
 						}
 					}
@@ -190,9 +237,18 @@ public class SelectionSetAggregator {
 	 */
 	@Nonnull
 	public static List<SelectedField> getImmediateFields(@Nonnull DataFetchingFieldSelectionSet selectionSet) {
+		return getImmediateFields(selectionSet, null);
+	}
+
+	/**
+	 * Returns all immediate fields.
+	 */
+	@Nonnull
+	public static List<SelectedField> getImmediateFields(@Nonnull DataFetchingFieldSelectionSet selectionSet,
+	                                                     @Nullable String entityDtoObjectTypeName) {
 		final List<SelectedField> matchingFields = new ArrayList<>(selectionSet.getImmediateFields().size());
 		for (SelectedField field : selectionSet.getImmediateFields()) {
-			if (!field.getName().equals(TYPENAME_FIELD)) {
+			if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && !field.getName().equals(TYPENAME_FIELD)) {
 				matchingFields.add(field);
 			}
 		}
@@ -204,10 +260,19 @@ public class SelectionSetAggregator {
 	 */
 	@Nonnull
 	public static List<SelectedField> getImmediateFields(@Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+		return getImmediateFields(selectionSets, null);
+	}
+
+	/**
+	 * Returns all immediate fields.
+	 */
+	@Nonnull
+	public static List<SelectedField> getImmediateFields(@Nonnull List<DataFetchingFieldSelectionSet> selectionSets,
+	                                                     @Nullable String entityDtoObjectTypeName) {
 		final List<SelectedField> matchingFields = new LinkedList<>();
 		for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 			for (SelectedField field : selectionSet.getImmediateFields()) {
-				if (!field.getName().equals(TYPENAME_FIELD)) {
+				if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && !field.getName().equals(TYPENAME_FIELD)) {
 					matchingFields.add(field);
 				}
 			}
@@ -219,10 +284,21 @@ public class SelectionSetAggregator {
 	 * Returns all immediate fields with given name.
 	 */
 	@Nonnull
-	public static List<SelectedField> getImmediateFields(@Nonnull String fieldName, @Nonnull DataFetchingFieldSelectionSet selectionSet) {
+	public static List<SelectedField> getImmediateFields(@Nonnull String fieldName,
+	                                                     @Nonnull DataFetchingFieldSelectionSet selectionSet) {
+		return getImmediateFields(fieldName, selectionSet, null);
+	}
+
+	/**
+	 * Returns all immediate fields with given name.
+	 */
+	@Nonnull
+	public static List<SelectedField> getImmediateFields(@Nonnull String fieldName,
+	                                                     @Nonnull DataFetchingFieldSelectionSet selectionSet,
+	                                                     @Nullable String entityDtoObjectTypeName) {
 		final List<SelectedField> matchingFields = new LinkedList<>();
 		for (SelectedField field : selectionSet.getImmediateFields()) {
-			if (field.getName().equals(fieldName)) {
+			if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && field.getName().equals(fieldName)) {
 				matchingFields.add(field);
 			}
 		}
@@ -233,10 +309,21 @@ public class SelectionSetAggregator {
 	 * Returns all immediate fields with given name.s
 	 */
 	@Nonnull
-	public static List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames, @Nonnull DataFetchingFieldSelectionSet selectionSet) {
+	public static List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames,
+	                                                     @Nonnull DataFetchingFieldSelectionSet selectionSet) {
+		return getImmediateFields(fieldNames, selectionSet, null);
+	}
+
+	/**
+	 * Returns all immediate fields with given name.s
+	 */
+	@Nonnull
+	public static List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames,
+	                                                     @Nonnull DataFetchingFieldSelectionSet selectionSet,
+	                                                     @Nullable String entityDtoObjectTypeName) {
 		final List<SelectedField> matchingFields = new LinkedList<>();
 		for (SelectedField field : selectionSet.getImmediateFields()) {
-			if (fieldNames.contains(field.getName())) {
+			if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && fieldNames.contains(field.getName())) {
 				matchingFields.add(field);
 			}
 		}
@@ -247,19 +334,30 @@ public class SelectionSetAggregator {
 	 * Returns all immediate fields with given name.
 	 */
 	@Nonnull
-	public static List<SelectedField> getImmediateFields(@Nonnull String fieldName, @Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+	public static List<SelectedField> getImmediateFields(@Nonnull String fieldName,
+	                                                     @Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+		return getImmediateFields(fieldName, selectionSets, null);
+	}
+
+	/**
+	 * Returns all immediate fields with given name.
+	 */
+	@Nonnull
+	public static List<SelectedField> getImmediateFields(@Nonnull String fieldName,
+	                                                     @Nonnull List<DataFetchingFieldSelectionSet> selectionSets,
+	                                                     @Nullable String entityDtoObjectTypeName) {
 		// this categorization is there just to get a little bit better performance for simple cases
 		if (selectionSets.isEmpty()) {
 			return EMPTY_LIST;
 		} else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return getImmediateFields(fieldName, selectionSets.get(0));
+			return getImmediateFields(fieldName, selectionSets.get(0), entityDtoObjectTypeName);
 		} else {
 			final List<SelectedField> matchingFields = new LinkedList<>();
 			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 				for (SelectedField field : selectionSet.getImmediateFields()) {
-					if (field.getName().equals(fieldName)) {
+					if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && field.getName().equals(fieldName)) {
 						matchingFields.add(field);
 					}
 				}
@@ -272,19 +370,30 @@ public class SelectionSetAggregator {
 	 * Returns all immediate fields with given name.
 	 */
 	@Nonnull
-	public static List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames, @Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+	public static List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames,
+	                                                     @Nonnull List<DataFetchingFieldSelectionSet> selectionSets) {
+		return getImmediateFields(fieldNames, selectionSets, null);
+	}
+
+	/**
+	 * Returns all immediate fields with given name.
+	 */
+	@Nonnull
+	public static List<SelectedField> getImmediateFields(@Nonnull Set<String> fieldNames,
+	                                                     @Nonnull List<DataFetchingFieldSelectionSet> selectionSets,
+	                                                     @Nullable String entityDtoObjectTypeName) {
 		// this categorization is there just to get a little bit better performance for simple cases
 		if (selectionSets.isEmpty()) {
 			return EMPTY_LIST;
 		} else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return getImmediateFields(fieldNames, selectionSets.get(0));
+			return getImmediateFields(fieldNames, selectionSets.get(0), entityDtoObjectTypeName);
 		} else {
 			final List<SelectedField> matchingFields = new LinkedList<>();
 			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 				for (SelectedField field : selectionSet.getImmediateFields()) {
-					if (fieldNames.contains(field.getName())) {
+					if (isFieldOfEntityDto(field, entityDtoObjectTypeName) && fieldNames.contains(field.getName())) {
 						matchingFields.add(field);
 					}
 				}
@@ -298,6 +407,18 @@ public class SelectionSetAggregator {
 	 */
 	public static boolean isEmpty(@Nonnull DataFetchingFieldSelectionSet selectionSet) {
 		return selectionSet.getImmediateFields().isEmpty();
+	}
+
+	/**
+	 * Whether there are no fields.
+	 */
+	public static boolean isEmpty(@Nonnull DataFetchingFieldSelectionSet selectionSet, @Nullable String entityDtoObjectTypeName) {
+		for (SelectedField field : selectionSet.getImmediateFields()) {
+			if (isFieldOfEntityDto(field, entityDtoObjectTypeName)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -320,4 +441,34 @@ public class SelectionSetAggregator {
 		}
 	}
 
+	/**
+	 * Whether there are no fields.
+	 */
+	public static boolean isEmpty(@Nonnull List<DataFetchingFieldSelectionSet> selectionSets, @Nullable String entityDtoObjectTypeName) {
+		if (selectionSets.isEmpty()) {
+			return true;
+		} else if (selectionSets.size() == 1) {
+			// this should not be really used, there is different variant of same method for single set, but just in case
+			// someone forgets, this should prevent going with full list iteration
+			return isEmpty(selectionSets.get(0), entityDtoObjectTypeName);
+		} else {
+			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
+				if (!isEmpty(selectionSet, entityDtoObjectTypeName)) {
+					return false;
+				}
+			}
+			return true;
+		}
+	}
+
+	/**
+	 * Whether the field is part of the entity DTO object. This is needed an interface is used and castings to implementations
+	 * can be present and we want field only of one specific implementation.
+	 */
+	private static boolean isFieldOfEntityDto(@Nonnull SelectedField field, @Nullable String entityDtoObjectTypeName) {
+		if (entityDtoObjectTypeName == null) {
+			return true;
+		}
+		return field.getObjectTypeNames().contains(entityDtoObjectTypeName);
+	}
 }

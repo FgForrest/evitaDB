@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.schema.DataFetcher;
 import graphql.schema.GraphQLFieldDefinition;
 import graphql.schema.GraphQLInputType;
+import graphql.schema.GraphQLInterfaceType;
 import graphql.schema.GraphQLObjectType;
 import graphql.schema.GraphQLOutputType;
 import graphql.schema.GraphQLType;
@@ -51,6 +52,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Fil
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.GraphQLConstraintSchemaBuildingContext;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.OrderConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AssociatedDataFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.AttributesFieldHeaderDescriptor;
@@ -60,6 +62,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PriceForS
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.PricesFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.entity.ReferenceFieldHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.BigDecimalDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.EntityDtoTypeResolver;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity.*;
 import io.evitadb.externalApi.graphql.api.dataType.DataTypesConverter;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInterfaceTransformer;
@@ -130,6 +133,12 @@ public class EntityObjectBuilder {
 	}
 
 	public void buildCommonTypes() {
+		final GraphQLInterfaceType entityClassifier = EntityDescriptor.THIS_CLASSIFIER.to(interfaceBuilderTransformer).build();
+		buildingContext.registerType(entityClassifier);
+		buildingContext.registerTypeResolver(
+			entityClassifier,
+			new EntityDtoTypeResolver(buildingContext.getEntityTypeToEntityObject())
+		);
 		buildingContext.registerType(EntityDescriptor.THIS_REFERENCE.to(objectBuilderTransformer).build());
 		buildingContext.registerType(buildPriceObject());
 		buildingContext.registerType(buildGlobal());
@@ -155,7 +164,8 @@ public class EntityObjectBuilder {
 		final GraphQLObjectType.Builder entityObjectBuilder = entityDescriptor
 			.to(objectBuilderTransformer)
 			.name(objectName)
-			.description(entitySchema.getDescription());
+			.description(entitySchema.getDescription())
+			.withInterface(typeRef(GraphQLEntityDescriptor.THIS_CLASSIFIER.name()));
 
 		// build locale fields
 		if (!entitySchema.getLocales().isEmpty()) {
@@ -236,20 +246,26 @@ public class EntityObjectBuilder {
 	private GraphQLObjectType buildGlobal() {
 		final CatalogSchemaContract catalogSchema = buildingContext.getSchema();
 
-		final GraphQLObjectType.Builder globalEntityObjectBuilder = GraphQLEntityDescriptor.THIS_GLOBAL.to(objectBuilderTransformer);
+		final GraphQLObjectType.Builder globalEntityObjectBuilder = GlobalEntityDescriptor.THIS.to(objectBuilderTransformer);
 
 		if (!buildingContext.getSupportedLocales().isEmpty()) {
-			globalEntityObjectBuilder.field(GraphQLEntityDescriptor.LOCALES.to(fieldBuilderTransformer));
-			globalEntityObjectBuilder.field(GraphQLEntityDescriptor.ALL_LOCALES.to(fieldBuilderTransformer));
+			globalEntityObjectBuilder.field(GlobalEntityDescriptor.LOCALES.to(fieldBuilderTransformer));
+			globalEntityObjectBuilder.field(GlobalEntityDescriptor.ALL_LOCALES.to(fieldBuilderTransformer));
 		}
 
 		if (!catalogSchema.getAttributes().isEmpty()) {
 			buildingContext.registerFieldToObject(
-				GraphQLEntityDescriptor.THIS_GLOBAL,
+				GlobalEntityDescriptor.THIS,
 				globalEntityObjectBuilder,
 				buildGlobalEntityAttributesField()
 			);
 		}
+
+		buildingContext.registerDataFetcher(
+			GlobalEntityDescriptor.THIS,
+			GlobalEntityDescriptor.TARGET_ENTITY,
+			new TargetEntityDataFetcher()
+		);
 
 		return globalEntityObjectBuilder.build();
 	}
