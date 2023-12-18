@@ -104,12 +104,15 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-group-property">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupProperty",
 	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity group.",
+	userDocsLink = "/documentation/query/ordering/reference#entity-group-property",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class EntityGroupProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {

@@ -9,5 +9,5 @@ query(
     orderBy(
         attributeNatural("name", ASC)
     ),
-    require(entityFetchAll())
+    require(entityFetch())
 )

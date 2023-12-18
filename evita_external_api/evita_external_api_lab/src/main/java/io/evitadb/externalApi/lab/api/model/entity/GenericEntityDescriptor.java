@@ -25,6 +25,7 @@ package io.evitadb.externalApi.lab.api.model.entity;
 
 import io.evitadb.externalApi.api.catalog.dataApi.model.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
+import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.GenericObject;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.model.entity.RestEntityDescriptor;
@@ -53,5 +54,12 @@ public interface GenericEntityDescriptor extends RestEntityDescriptor {
 			entities or external entities in different systems.
 			""")
 		.type(nullable(GenericObject.class))
+		.build();
+
+	ObjectDescriptor THIS = ObjectDescriptor.extend(THIS_REFERENCE)
+		.name("Entity")
+		.description("""
+            Catalog-wise entity with only common data across all entity collections.
+            """)
 		.build();
 }

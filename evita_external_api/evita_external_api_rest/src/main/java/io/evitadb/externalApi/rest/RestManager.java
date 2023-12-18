@@ -201,7 +201,7 @@ public class RestManager {
 	/**
 	 * Registers endpoints into router. Also CORS endpoint is created automatically for this endpoint.
 	 */
-	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?, ?> handler) {
+	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?> handler) {
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(restConfig));
 		corsEndpoint.addMetadataFromHandler(handler);
 

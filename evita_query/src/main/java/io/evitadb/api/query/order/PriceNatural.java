@@ -49,12 +49,15 @@ import java.io.Serializable;
  * priceNatural()
  * priceNatural(DESC)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "natural",
 	shortDescription = "The constraint sorts returned entities by selected price for sale.",
+	userDocsLink = "/documentation/query/ordering/price#price-natural",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceConstraint<OrderConstraint> {

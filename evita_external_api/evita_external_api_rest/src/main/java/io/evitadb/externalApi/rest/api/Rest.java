@@ -40,5 +40,5 @@ public record Rest(@Nonnull OpenAPI openApi, @Nonnull List<Endpoint> endpoints) 
 
 	public record Endpoint(@Nonnull UriPath path,
 	                       @Nonnull HttpString method,
-	                       @Nonnull RestEndpointHandler<?, ?> handler) {}
+	                       @Nonnull RestEndpointHandler<?> handler) {}
 }

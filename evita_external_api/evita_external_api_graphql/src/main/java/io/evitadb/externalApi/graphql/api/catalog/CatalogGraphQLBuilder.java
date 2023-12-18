@@ -26,7 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog;
 import graphql.GraphQL;
 import graphql.schema.GraphQLSchema;
 import io.evitadb.api.CatalogContract;
-import io.evitadb.api.EvitaContract;
+import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.api.GraphQLBuilder;
 import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.EvitaDataFetcherExceptionHandler;
@@ -43,7 +43,7 @@ import javax.annotation.Nonnull;
 public class CatalogGraphQLBuilder implements GraphQLBuilder {
 
     @Nonnull
-    private final EvitaContract evita;
+    private final Evita evita;
     @Nonnull
     private final CatalogContract catalog;
     @Nonnull

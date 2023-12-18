@@ -28,5 +28,5 @@ package io.evitadb.externalApi.http;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record NotFoundEndpointResponse<R>() implements EndpointResponse<R> {
+public record NotFoundEndpointResponse() implements EndpointResponse {
 }

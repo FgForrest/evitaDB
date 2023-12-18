@@ -79,22 +79,26 @@ import java.util.EnumSet;
  * even considering that all the indexes are in-memory. Caching is probably the only way out if you really need
  * to crunch these numbers.
  *
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#statistics">Visit detailed user documentation</a></p>
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "statistics",
 	shortDescription = "The constraint triggers computing the count of children for each returned hierarchy node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#statistics",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyStatistics extends AbstractRequireConstraintLeaf implements HierarchyOutputRequireConstraint {
 	@Serial private static final long serialVersionUID = 264601966496432983L;
+	private static final String CONSTRAINT_NAME = "statistics";
 
 	private HierarchyStatistics(@Nonnull Serializable... arguments) {
 		super(arguments);
 	}
 
 	public HierarchyStatistics() {
-		super("statistics", StatisticsBase.WITHOUT_USER_FILTER);
+		super(CONSTRAINT_NAME, StatisticsBase.WITHOUT_USER_FILTER);
 	}
 
 	public HierarchyStatistics(
@@ -103,7 +107,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(
-			"statistics",
+			CONSTRAINT_NAME,
 			statisticsBase == null
 				? StatisticsBase.WITHOUT_USER_FILTER
 				: statisticsBase
@@ -118,7 +122,7 @@ public class HierarchyStatistics extends AbstractRequireConstraintLeaf implement
 		// because this query can be used only within some other hierarchy query, it would be
 		// unnecessary to duplicate the hierarchy prefix
 		super(
-			"statistics",
+			CONSTRAINT_NAME,
 			ArrayUtils.mergeArrays(
 				statisticsBase == null ?
 					new Serializable[] {StatisticsBase.WITHOUT_USER_FILTER} : new Serializable[] {statisticsBase},

@@ -53,12 +53,15 @@ import java.util.Optional;
  * <pre>
  * page(1, 24)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "page",
-	shortDescription = "The constraint specifies which page of found entities will be returned."
+	shortDescription = "The constraint specifies which page of found entities will be returned.",
+	userDocsLink = "/documentation/query/requirements/paging#page"
 )
 public class Page extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

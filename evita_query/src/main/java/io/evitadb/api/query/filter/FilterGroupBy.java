@@ -57,12 +57,15 @@ import java.io.Serializable;
  *    )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "filterGroupBy",
 	shortDescription = "The container encapsulating filter constraint limiting the facet groups returned in facet summary.",
+	userDocsLink = "/documentation/query/basics#filter-by",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class FilterGroupBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

@@ -1,5 +1,5 @@
 evita.UpdateCatalog(
-	"testCatalog",
+	"evita",
 	session => {
 		session
 			.CreateNewEntity("Brand", 1)

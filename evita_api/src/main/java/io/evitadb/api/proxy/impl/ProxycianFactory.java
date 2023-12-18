@@ -225,9 +225,11 @@ public class ProxycianFactory implements ProxyFactory {
 					if (stateInitializer != null) {
 						stateInitializer.accept(proxyState);
 					}
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
-						proxyState
+						recipe,
+						proxyState,
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else if (!isFinal(expectedType)) {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -241,11 +243,13 @@ public class ProxycianFactory implements ProxyFactory {
 					if (stateInitializer != null) {
 						stateInitializer.accept(proxyState);
 					}
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
+						recipe,
 						proxyState,
 						bestMatchingConstructor.constructor().getParameterTypes(),
-						bestMatchingConstructor.constructorArguments(entity)
+						bestMatchingConstructor.constructorArguments(entity),
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else {
 					final BestMatchingEntityConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -293,15 +297,17 @@ public class ProxycianFactory implements ProxyFactory {
 				);
 			} else {
 				if (expectedType.isInterface()) {
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
+						recipe,
 						new SealedEntityReferenceProxyState(
 							entity, entityPrimaryKeySupplier,
 							referencedEntitySchemas, reference,
 							mainType, expectedType, recipes,
 							collectedRecipes, reflectionLookup,
 							instanceCache
-						)
+						),
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else if (isAbstract(expectedType)) {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(
@@ -309,8 +315,9 @@ public class ProxycianFactory implements ProxyFactory {
 						reference.getReferenceSchemaOrThrow(), reflectionLookup,
 						new DirectProxyFactory(recipes, collectedRecipes, reflectionLookup)
 					);
+					final ProxyRecipe recipe = recipeLocator.apply(cacheKey);
 					return ByteBuddyProxyGenerator.instantiate(
-						recipeLocator.apply(cacheKey),
+						recipe,
 						new SealedEntityReferenceProxyState(
 							entity, entityPrimaryKeySupplier,
 							referencedEntitySchemas, reference,
@@ -319,7 +326,8 @@ public class ProxycianFactory implements ProxyFactory {
 							instanceCache
 						),
 						bestMatchingConstructor.constructor().getParameterTypes(),
-						bestMatchingConstructor.constructorArguments(entity, reference)
+						bestMatchingConstructor.constructorArguments(entity, reference),
+						recipe.getInterfaces()[0].getClassLoader()
 					);
 				} else {
 					final BestMatchingReferenceConstructorWithExtractionLambda<T> bestMatchingConstructor = findBestMatchingConstructor(

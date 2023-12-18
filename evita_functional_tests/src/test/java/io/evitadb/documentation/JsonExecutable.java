@@ -40,6 +40,7 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
@@ -75,7 +76,8 @@ public abstract class JsonExecutable {
                         allow(AttributeHistogram.class),
                         allow(PriceHistogram.class),
                         allow(Bucket.class),
-                        allow(StripList.class)
+                        allow(StripList.class),
+                        allow(QueryTelemetry.class)
                 )
         );
         OBJECT_MAPPER.registerModule(new Jdk8Module());

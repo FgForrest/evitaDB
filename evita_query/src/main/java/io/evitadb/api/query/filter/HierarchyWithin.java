@@ -107,12 +107,15 @@ import static java.util.Optional.ofNullable;
  *
  * Products assigned to two or more subcategories of Accessories category will only appear once in the response
  * (contrary to what you might expect if you have experience with SQL).
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "within",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree (or has reference to any hierarchical entity in the tree).",
+	userDocsLink = "/documentation/query/filtering/hierarchy#hierarchy-within",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithin extends AbstractFilterConstraintContainer

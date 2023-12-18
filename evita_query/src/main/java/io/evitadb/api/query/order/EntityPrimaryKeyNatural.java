@@ -49,12 +49,15 @@ import java.io.Serializable;
  * The example will return the selected entities (if present) in the descending order of their primary keys. Since
  * the entities are by default ordered by their primary key in ascending order, it has no sense to use this constraint
  * with {@link OrderDirection#ASC} direction.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#primary-key-natural">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "natural",
 	shortDescription = "The constraint sorts returned entities by primary key in specific order.",
+	userDocsLink = "/documentation/query/ordering/comparable#primary-key-natural",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyNatural extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {

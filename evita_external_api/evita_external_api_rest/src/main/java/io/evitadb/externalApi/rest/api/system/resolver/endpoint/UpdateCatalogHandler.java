@@ -60,14 +60,14 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final UpdateCatalogRequestDto requestBody = parseRequestBody(exchange, UpdateCatalogRequestDto.class);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		final Optional<CatalogContract> catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName);
 		if (catalog.isEmpty()) {
-			return new NotFoundEndpointResponse<>();
+			return new NotFoundEndpointResponse();
 		}
 
 		final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
@@ -75,8 +75,8 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 		final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
 		final CatalogContract updatedCatalog = restApiHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
-				.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
-		return new SuccessEndpointResponse<>(updatedCatalog);
+			.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalog));
 	}
 
 	@Nonnull

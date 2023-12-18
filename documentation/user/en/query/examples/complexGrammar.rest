@@ -3,11 +3,11 @@ POST /rest/evita/Product/query
 {
   "filterBy": {
     "entityPrimaryKeyInSet": [1, 2, 3],
-    "attributeVisibilityEquals": "VISIBLE"
+    "attributeStatusEquals": "VISIBLE"
   },
   "orderBy": [
     { "attributeCodeNatural": "ASC" },
-    { "attributePriorityNatural": "DESC" }
+    { "attributeCatalogNumberNatural": "DESC" }
   ],
   "require": {
     "entityFetch": {

@@ -23,7 +23,7 @@
 
 package io.evitadb.documentation.rest;
 
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.test.client.RestClient;
 import lombok.Getter;
@@ -43,8 +43,8 @@ public class RestTestContext implements TestContext {
 	@Getter
 	private final RestClient restClient;
 
-	public RestTestContext(@Nonnull DocumentationProfile profile) {
-		this.restClient = profile == DocumentationProfile.LOCALHOST ?
+	public RestTestContext(@Nonnull Environment profile) {
+		this.restClient = profile == Environment.LOCALHOST ?
 			new RestClient("https://localhost:5555", false) :
 			new RestClient("https://demo.evitadb.io:5555");
 	}

@@ -37,8 +37,10 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
@@ -52,14 +54,15 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 	@Getter @Nonnull private final Set<Locale> supportedLocales;
 	@Getter @Nonnull private final Set<Currency> supportedCurrencies;
 	@Getter @Nonnull private final Set<EntitySchemaContract> entitySchemas;
+	@Getter @Nonnull private final Map<String, GraphQLObjectType> entityTypeToEntityObject;
 
 	public CatalogGraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config,
 	                                           @Nonnull Evita evita,
 	                                           @Nonnull CatalogContract catalog) {
 		super(config, evita);
 		this.catalog = catalog;
-		this.supportedLocales = createHashSet(20);
-		this.supportedCurrencies = createHashSet(20);
+		this.supportedLocales = createHashSet(10);
+		this.supportedCurrencies = createHashSet(10);
 
 		this.entitySchemas = evita.queryCatalog(catalog.getName(), session -> {
 			final Set<String> collections = session.getAllEntityTypes();
@@ -73,6 +76,7 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 			});
 			return schemas;
 		});
+		this.entityTypeToEntityObject = createHashMap(this.entitySchemas.size());
 	}
 
 	@Nonnull
@@ -80,7 +84,8 @@ public class CatalogGraphQLSchemaBuildingContext extends GraphQLSchemaBuildingCo
 		return catalog.getSchema();
 	}
 
-	public void registerEntityObject(@Nonnull GraphQLObjectType entityObject) {
+	public void registerEntityObject(@Nonnull String entityType, @Nonnull GraphQLObjectType entityObject) {
 		registerType(entityObject);
+		entityTypeToEntityObject.putIfAbsent(entityType, entityObject);
 	}
 }

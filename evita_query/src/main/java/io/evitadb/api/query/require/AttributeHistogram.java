@@ -50,12 +50,15 @@ import java.util.Arrays;
  * <pre>
  * attributeHistogram(5, "width", "height")
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "histogram",
 	shortDescription =  "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
+	userDocsLink = "/documentation/query/requirements/histogram#attribute-histogram",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
 )
 public class AttributeHistogram extends AbstractRequireConstraintLeaf implements AttributeConstraint<RequireConstraint>, ExtraResultRequireConstraint {

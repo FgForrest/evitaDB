@@ -1,0 +1,28 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "and" : [
+      {
+        "entityPrimaryKeyInSet" : [
+          1
+        ],
+        "entityLocaleEquals" : "en",
+        "priceInPriceLists" : [
+          "basic"
+        ],
+        "priceInCurrency" : "CZK"
+      }
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "name"
+      ],
+      "associatedDataContentAll" : true,
+      "priceContentRespectingFilter" : [ ],
+      "referenceBrandContent" : { }
+    }
+  }
+}

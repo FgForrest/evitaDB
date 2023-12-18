@@ -64,14 +64,14 @@ The grammar of a query is as follows:
 The grammar of a full query is as follows:
 </LanguageSpecific>
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Example of grammar of a query](/documentation/user/en/query/examples/grammar.evitaql)
 </SourceCodeTabs>
 
 Or more complex one:
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
 </SourceCodeTabs>
@@ -134,7 +134,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 
 </LanguageSpecific>
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Example of the simplest query](/documentation/user/en/query/examples/simplestQuery.evitaql)
 </SourceCodeTabs>
@@ -142,7 +142,7 @@ I.e. the following query is still a valid query and represents the simplest quer
 ... or even this one (although it is recommended to keep the order for better readability:
 <LanguageSpecific to="evitaql,java,csharp">`collection`</LanguageSpecific>, `filterBy`, `orderBy`, `require`):
 
-<SourceCodeTabs requires="ignoreTest" langSpecificTabOnly>
+<SourceCodeTabs langSpecificTabOnly>
 
 [Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
 </SourceCodeTabs>
@@ -448,6 +448,7 @@ filtering of entities by the fact that they refer to a particular part of the tr
 - [hierarchy within root](filtering/hierarchy.md#hierarchy-within-root)
 - [excluding root](filtering/hierarchy.md#excluding-root)
 - [excluding](filtering/hierarchy.md#excluding)
+- [having](filtering/hierarchy.md#having)
 - [direct relation](filtering/hierarchy.md#direct-relation)
 
 ### Special constraints
@@ -462,10 +463,11 @@ calculations:
 Order constraints allow you to define a rule that controls the order of entities in the response. It's similar to the
 "order by" clause in SQL. Currently, these ordering constraints are available for use:
 
-- [entityPrimaryKeyInFilter](ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
-- [entityPrimaryKeyExact](ordering/constant.md#exact-entity-primary-key-order)
-- [attributeSetInFilter](ordering/constant.md#exact-entity-attribute-value-order-used-in-filter)
-- [attributeSetExact](ordering/constant.md#exact-entity-attribute-value-order)
+- [entity primary key in filter](ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
+- [entity primary key exact](ordering/constant.md#exact-entity-primary-key-order)
+- [entity primary key natural](ordering/comparable.md#primary-key-natural)
+- [attribute set in filter](ordering/constant.md#exact-entity-attribute-value-order-used-in-filter)
+- [attribute set exact](ordering/constant.md#exact-entity-attribute-value-order)
 - [attribute natural](ordering/comparable.md#attribute-natural)
 - [price natural](ordering/price.md#price-natural)
 - [reference property](ordering/reference.md#reference-property)
@@ -502,13 +504,14 @@ is returned in query response.</LanguageSpecific> In order an entity body is ret
 of it:
 
 - [entity fetch](requirements/fetching.md#entity-fetch)
+- [entity group fetch](requirements/fetching.md#entity-group-fetch)
 - [attribute content](requirements/fetching.md#attribute-content)
 - [associated data content](requirements/fetching.md#associated-data-content)
 - [price content](requirements/fetching.md#price-content)
 - [reference content](requirements/fetching.md#reference-content)
 - [hierarchy content](requirements/fetching.md#hierarchy-content)
 <LanguageSpecific to="evitaql,java,rest,csharp">
-- [data in locale](requirements/fetching.md#data-in-locale)
+- [data in locale](requirements/fetching.md#data-in-locales)
 </LanguageSpecific>
 
 ### Hierarchy
@@ -537,6 +540,9 @@ the summary could include a calculation of how many entities will be left when t
 the filter:
 
 - [facet summary](requirements/facet.md#facet-summary)
+<LanguageSpecific to="evitaql,java,rest,csharp">
+- [facet summary of reference](requirements/facet.md#facet-summary-of-reference)
+</LanguageSpecific>
 - [facet conjunction](requirements/facet.md#facet-groups-conjunction)
 - [facet disjunction](requirements/facet.md#facet-groups-disjunction)
 - [facet negation](requirements/facet.md#facet-groups-negation)
@@ -555,3 +561,10 @@ The price requirement controls which form of price for sale is taken into accoun
 or their histograms are calculated:
 
 - [price type](requirements/price.md#price-type)
+
+### Telemetry
+
+The telemetry requirements trigger the calculation of additional telemetry data for looking under the hood of the
+database engine:
+
+- [query telemetry](requirements/telemetry.md#query-telemetry)

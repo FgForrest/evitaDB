@@ -43,6 +43,8 @@ import java.util.Arrays;
  * <pre>
  * primaryKey(1, 2, 3)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -50,6 +52,7 @@ import java.util.Arrays;
 	name = "inSet",
 	shortDescription = "The constraint checks if primary key of the entity equals to at least one of the passed values. " +
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
+	userDocsLink = "/documentation/query/filtering/constant#entity-primary-key-in-set",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf

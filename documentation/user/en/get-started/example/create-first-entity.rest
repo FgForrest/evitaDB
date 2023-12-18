@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/brand/1
+PUT /rest/evita/Brand/1
 
 {
   "entityExistence": "MUST_NOT_EXIST",

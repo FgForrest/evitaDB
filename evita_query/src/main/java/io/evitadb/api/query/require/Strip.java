@@ -51,12 +51,15 @@ import java.util.Optional;
  * <pre>
  * strip(52, 24)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/paging#strip">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "strip",
-	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned."
+	shortDescription = "The constraint specifies which strip (subset) of found entities will be returned.",
+	userDocsLink = "/documentation/query/requirements/paging#strip"
 )
 public class Strip extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

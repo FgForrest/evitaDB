@@ -1,1 +1,1 @@
-evita.defineCatalog("testCatalog");
+evita.defineCatalog("evita");

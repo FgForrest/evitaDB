@@ -67,12 +67,15 @@ import java.util.stream.Stream;
  * - {@link PriceContent}
  * - {@link HierarchyContent}
  * - {@link ReferenceContent}
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-fetch">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "fetch",
 	shortDescription = "Returns richer entities instead of just entity references (empty container returns only entity body).",
+	userDocsLink = "/documentation/query/requirements/fetching#entity-fetch",
 	supportedIn = {ConstraintDomain.GENERIC, ConstraintDomain.REFERENCE, ConstraintDomain.HIERARCHY, ConstraintDomain.FACET}
 )
 public class EntityFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {

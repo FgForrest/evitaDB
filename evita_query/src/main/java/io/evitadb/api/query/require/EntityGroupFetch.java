@@ -71,12 +71,15 @@ import java.util.stream.Stream;
  * - {@link PriceContent}
  * - {@link HierarchyContent}
  * - {@link ReferenceContent}
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "groupFetch",
 	shortDescription = "Returns richer group entities instead of just entity references (empty container returns only entity body).",
+	userDocsLink = "/documentation/query/requirements/fetching#entity-group-fetch",
 	supportedIn = {ConstraintDomain.FACET}
 )
 public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {

@@ -79,12 +79,15 @@ import static java.util.Optional.ofNullable;
  *      - {@link HierarchySiblings}
  *      - {@link HierarchyChildren}
  *      - {@link HierarchyParents}
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "ofReference",
-	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response."
+	shortDescription = "The constraint triggers computation of hierarchy statistics (how many matching children the hierarchy nodes have) of referenced hierarchical entities into response.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#hierarchy-of-reference"
 )
 public class HierarchyOfReference extends AbstractRequireConstraintContainer
 	implements RootHierarchyConstraint, SeparateEntityContentRequireContainer, ExtraResultRequireConstraint {

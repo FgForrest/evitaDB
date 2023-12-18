@@ -65,12 +65,15 @@ import java.util.stream.Stream;
  * <pre>
  * dataInLocalesAll()
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#data-in-locales">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "dataInLocales",
 	shortDescription = "The constraint triggers fetching of the localized attributes or associated data in different/additional locales than the locale specified in filtering constraints (if any at all).",
+	userDocsLink = "/documentation/query/requirements/fetching#data-in-locales",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class DataInLocales extends AbstractRequireConstraintLeaf

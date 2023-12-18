@@ -36,6 +36,7 @@ import io.evitadb.externalApi.http.EndpointExchange;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
+import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +58,7 @@ import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. 2023
  */
 @Slf4j
-public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLSchema> {
+public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchange> {
 
     private static final Set<String> IMPLICIT_DIRECTIVES = Set.of("deprecated", "skip", "include", "specifiedBy");
 
@@ -83,8 +84,8 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
 
     @Override
     @Nonnull
-    protected EndpointResponse<GraphQLSchema> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
-        return new SuccessEndpointResponse<>(graphQL.get().getGraphQLSchema());
+    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+        return new SuccessEndpointResponse(graphQL.get().getGraphQLSchema());
     }
 
     @Nonnull
@@ -124,8 +125,12 @@ public class GraphQLSchemaHandler extends EndpointHandler<GraphQLEndpointExchang
 
 
     @Override
-    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull GraphQLSchema response) {
-        final String printedSchema = schemaPrinter.print(response);
+    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object response) {
+        Assert.isPremiseValid(
+            response instanceof GraphQLSchema,
+            () -> new GraphQLInternalError("Expected response to be instance of GraphQLSchema, but was `" + response.getClass().getName() + "`.")
+        );
+        final String printedSchema = schemaPrinter.print((GraphQLSchema) response);
         try (PrintWriter writer = new PrintWriter(outputStream)) {
             writer.write(printedSchema);
         }

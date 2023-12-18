@@ -241,7 +241,7 @@ public class AttributeIndex implements AttributeIndexContract,
 	) {
 		final AttributeKey lookupKey = createUniqueAttributeKey(attributeSchema, allowedLocales, locale, value);
 		final UniqueIndex theUniqueIndex = this.uniqueIndex.get(lookupKey);
-		notNull(theUniqueIndex, "Unique index for attribute " + attributeSchema.getName() + " not found!");
+		notNull(theUniqueIndex, "Unique index for attribute `" + attributeSchema.getName() + "` not found!");
 		theUniqueIndex.unregisterUniqueKey(value, recordId);
 
 		if (theUniqueIndex.isEmpty()) {

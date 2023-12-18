@@ -41,12 +41,15 @@ import java.io.Serializable;
  * <pre>
  * queryTelemetry()
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/debug#query-telemetry">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "queryTelemetry",
-	shortDescription = "The constraint triggers computation of query telemetry (explaining what operations were performed and how long they took) in extra results of the response."
+	shortDescription = "The constraint triggers computation of query telemetry (explaining what operations were performed and how long they took) in extra results of the response.",
+	userDocsLink = "/documentation/query/requirements/debug#query-telemetry"
 )
 public class QueryTelemetry extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -5121347556508500340L;

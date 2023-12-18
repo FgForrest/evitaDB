@@ -95,6 +95,7 @@ class ConstraintProcessor {
 						? constraintDefinition.name()
 						: constraintDefinition.name() + StringUtils.capitalize(creator.suffix().get()),
 					constraintDefinition.shortDescription(),
+					constraintDefinition.userDocsLink(),
 					Set.of(constraintDefinition.supportedIn()),
 					supportedValues,
 					creator

@@ -86,12 +86,15 @@ import java.io.Serializable;
  * </pre>
  *
  * ... which returns only three products that were not excluded by the following `not` constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "not",
 	shortDescription = "The container that behaves as [logical NOT](https://en.wikipedia.org/wiki/Negation) for the inner constraint.",
+	userDocsLink = "/documentation/query/filtering/logical#not",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class Not extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

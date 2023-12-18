@@ -77,12 +77,15 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#node">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "node",
 	shortDescription = "The constraint allows to locate the pivot hierarchy node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyNode extends AbstractRequireConstraintContainer implements HierarchyStopAtRequireConstraint {

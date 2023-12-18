@@ -80,12 +80,15 @@ import java.io.Serializable;
  * between("validity", 0, 1)
  * between("validity", 6, 7)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-between">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "between",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is within the passed range (both ends are inclusive).",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-between",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

@@ -55,12 +55,15 @@ import java.io.Serializable;
  * contains("code","mou")
  * contains("code","o")
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "contains",
 	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attribute contains part of passed text (case-sensitive).",
+	userDocsLink = "/documentation/query/filtering/string#attribute-contains",
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
 	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )

@@ -39,7 +39,7 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class LivenessHandler extends JsonRestHandler<LivenessDto, SystemRestHandlingContext> {
+public class LivenessHandler extends JsonRestHandler<SystemRestHandlingContext> {
 
 	public LivenessHandler(@Nonnull SystemRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
@@ -47,8 +47,8 @@ public class LivenessHandler extends JsonRestHandler<LivenessDto, SystemRestHand
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<LivenessDto> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse<>(new LivenessDto(true));
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse(new LivenessDto(true));
 	}
 
 	@Nonnull

@@ -57,6 +57,8 @@ import java.util.Arrays;
  * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
  * Currently, there is no way to switch context between different parts of the filter and build queries such as find
  * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-price-lists">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -65,6 +67,7 @@ import java.util.Arrays;
 	shortDescription = "The constraint filters out all entities that lack selling price in specified price lists. " +
 		"Order of price lists also defines priority for selecting the entity selling price - the price from first price " +
 		"list in the list will be used as a selling price for the entire entity.",
+	userDocsLink = "/documentation/query/filtering/price#price-in-price-lists",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceInPriceLists extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {

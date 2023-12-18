@@ -10,6 +10,11 @@ author: 'Ing. Jan Novotný'
 preferredLang: 'java'
 ---
 
+<LanguageSpecific to="evitaql,csharp,graphql,rest">
+This chapter describes the Java driver for evitaDB and doesn't make sense for other languages. If you're interested 
+in the details of the Java driver implementation, please change your preferred language in the upper right corner.
+</LanguageSpecific>
+<LanguageSpecific to="java">
 Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
 Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
 The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
@@ -239,7 +244,7 @@ described in detail in the [schema API chapter](../../use/api/schema-api.md#decl
 Entity in the form of custom contract can be read from the database using dedicated methods on
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java" local langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/selective-imports.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,documentation/user/en/use/api/example/declarative-schema-definition.java" langSpecificTabOnly local>
 
 [Fetching the entity using custom interface](/documentation/user/en/use/connectors/examples/custom-contract-reading.java)
 
@@ -259,7 +264,7 @@ Read-only entity fetching is described in detail in the [read API chapter](../..
 Entity in the form of custom contract can be written to the database using dedicated methods on
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java" local langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/selective-imports.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,documentation/user/en/use/api/example/declarative-schema-definition.java" langSpecificTabOnly local>
 
 [Writing the entity using custom interface](/documentation/user/en/use/connectors/examples/custom-contract-writing.java)
 
@@ -277,13 +282,13 @@ the beginning, it will pay off in the long run. The reasons behind this idea are
 1. the read instances remain immutable and can be safely shared between threads and cached in shared memory
 2. the read interface is not polluted with methods that are not needed to read data, and stays clean and simple.
 
-We call this the "sealed/open" principle, and it works like this.
+We call this the "sealed/open" principle, and it works like this:
 
 #### 1. define a read only interface
 
 You define an interface or class with final fields that are initialized in the constructor:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java" local langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java" langSpecificTabOnly local>
 
 [Sealed instance in custom interface](/documentation/user/en/use/connectors/examples/sealed-instance-example.java)
 
@@ -305,7 +310,7 @@ practice to keep the schema definition and the data access interface in the same
 
 Then you define a separate interface to modify the data:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java" local langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/sealed-instance-example.java" langSpecificTabOnly local>
 
 [Instance editor in custom interface](/documentation/user/en/use/connectors/examples/instance-editor-example.java)
 
@@ -319,7 +324,7 @@ and specifies that the `<READ_INTERFACE>` is the `Product` interface.
 
 Now we can use the interfaces described above in the following way:
 
-<SourceCodeTabs requires="/documentation/user/en/use/api/example/declarative-model-example.java,/documentation/user/en/get-started/example/define-test-catalog.java" local langSpecificTabOnly>
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/custom-contract-writing.java" langSpecificTabOnly local>
 
 [Opening the sealed interface](/documentation/user/en/use/connectors/examples/sealed-open-lifecycle-example.java)
 
@@ -328,3 +333,4 @@ Now we can use the interfaces described above in the following way:
 The sealed/open principle is a bit more complex than the naive approach of using a single interface for both reading and 
 writing data, but it clearly separates the read and write scenarios, allowing you to maintain control over mutations and 
 their visibility in a multi-threaded environment.
+</LanguageSpecific>

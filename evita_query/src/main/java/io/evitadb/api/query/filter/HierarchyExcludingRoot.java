@@ -94,12 +94,15 @@ import java.io.Serializable;
  *
  * ... we get only 4 items, which means that 16 were assigned directly to Keyboards category and only 4 of them were
  * assigned to Exotic keyboards.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding-root">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "excludingRoot",
 	shortDescription = "The constraint limits hierarchy within parent constraint to exclude the entities directly related to the searched root node.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#excluding-root",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyExcludingRoot extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {

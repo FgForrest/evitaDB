@@ -70,12 +70,15 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "property",
 	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity.",
+	userDocsLink = "/documentation/query/ordering/reference#entity-property",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class EntityProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {

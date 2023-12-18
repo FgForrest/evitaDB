@@ -1,3 +1,4 @@
+@EntityRef("Product")
 public record MyEntity(
 	@PrimaryKey int id,
 	@PrimaryKey Integer idAsIntegerObject,

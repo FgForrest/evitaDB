@@ -1,8 +1,8 @@
 evita.UpdateCatalog(
-	"testCatalog", session => {
+	"evita", session => {
 		return session.DeleteEntity(
 			"Brand",
-			1
+			2
 		);
 	}
 );

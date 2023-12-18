@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/product
+POST /rest/evita/Product
 
 {
   "entityExistence": "MUST_NOT_EXIST",
@@ -19,7 +19,7 @@ PUT /rest/test-catalog/product
 	},
 	{
 	  "upsertAttributeMutation": {
-		"name": "catalogName",
+		"name": "catalogCode",
 		"value": "X1605EA-MB044W"
 	  }
 	},
@@ -79,8 +79,8 @@ PUT /rest/test-catalog/product
   ],
   "require": {
 	"entityFetch": {
-	  "attributeContent": [],
-	  "dataInLocales": []
+	  "attributeContentAll": true,
+	  "dataInLocalesAll": true
 	}
   }
 }

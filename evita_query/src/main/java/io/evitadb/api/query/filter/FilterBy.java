@@ -52,12 +52,15 @@ import java.io.Serializable;
  *    )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "filterBy",
-	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query."
+	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query.",
+	userDocsLink = "/documentation/query/basics#filter-by"
 )
 public class FilterBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -2294600717092701351L;

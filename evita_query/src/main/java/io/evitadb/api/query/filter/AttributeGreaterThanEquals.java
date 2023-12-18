@@ -52,12 +52,15 @@ import java.io.Serializable;
  * <pre>
  * greaterThanEquals("age", 20)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-greater-than-equals">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "greaterThanEquals",
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute is greater than or equals to the passed value.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-greater-than-equals",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

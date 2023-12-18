@@ -27,8 +27,10 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.system.resolver.serializer.CatalogJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
@@ -41,7 +43,7 @@ import java.util.Set;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContract>, SystemRestHandlingContext> {
+public class ListCatalogsHandler extends JsonRestHandler<SystemRestHandlingContext> {
 
 	@Nonnull
 	private final CatalogJsonSerializer catalogJsonSerializer;
@@ -53,9 +55,9 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<Collection<CatalogContract>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Collection<CatalogContract> catalogs = restApiHandlingContext.getEvita().getCatalogs();
-		return new SuccessEndpointResponse<>(catalogs);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs));
 	}
 
 	@Nonnull
@@ -72,7 +74,13 @@ public class ListCatalogsHandler extends JsonRestHandler<Collection<CatalogContr
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Collection<CatalogContract> catalogs) {
-		return catalogJsonSerializer.serialize(catalogs);
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object catalogs) {
+		// Collection<CatalogContract>
+		Assert.isPremiseValid(
+			catalogs instanceof Collection,
+			() -> new RestInternalError("Expected collection of catalogs, but got `" + catalogs.getClass().getName() + "`.")
+		);
+		//noinspection unchecked
+		return catalogJsonSerializer.serialize((Collection<CatalogContract>) catalogs);
 	}
 }

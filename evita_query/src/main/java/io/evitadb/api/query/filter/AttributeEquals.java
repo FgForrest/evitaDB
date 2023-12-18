@@ -57,12 +57,15 @@ import java.io.Serializable;
  * equals("code","B")
  * equals("code","C")
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "equals",
 	shortDescription = "Compares value of the attribute with passed value and checks if they are both equal.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-equals",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

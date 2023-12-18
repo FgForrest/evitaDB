@@ -65,12 +65,15 @@ import static java.util.Optional.of;
  *    hierarchyContent()
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#hierarchy-content">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching parent hierarchy entity parent chain and its bodies into returned main entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#hierarchy-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyContent extends AbstractRequireConstraintContainer implements HierarchyConstraint<RequireConstraint>, SeparateEntityContentRequireContainer, EntityContentRequire {

@@ -51,6 +51,8 @@ import java.io.Serializable;
  * </pre>
  *
  * Function supports attribute arrays in the same way as plain values.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-is">Visit detailed user documentation</a></p>
  *
  * @see AttributeSpecialValue
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -58,6 +60,7 @@ import java.io.Serializable;
 @ConstraintDefinition(
 	name = "is",
 	shortDescription = "The constraint if value of the attribute is same as passed special value.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-is",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

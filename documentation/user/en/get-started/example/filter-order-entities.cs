@@ -1,5 +1,5 @@
 return evita.QueryCatalog(
-	"testCatalog",
+	"evita",
 	session => {
 		return session.QueryListOfSealedEntities(
 			Query(

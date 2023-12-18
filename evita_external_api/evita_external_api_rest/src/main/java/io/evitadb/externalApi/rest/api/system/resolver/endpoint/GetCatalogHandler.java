@@ -49,12 +49,12 @@ public class GetCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
 		return restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
-			.map(it -> (EndpointResponse<CatalogContract>) new SuccessEndpointResponse<>(it))
-			.orElse(new NotFoundEndpointResponse<>());
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull

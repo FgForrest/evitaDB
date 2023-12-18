@@ -87,12 +87,15 @@ import java.io.Serializable;
  *
  * ... returns four results representing a combination of all primary keys used in the `entityPrimaryKeyInSet`
  * constraints.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/logical#or">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "or",
 	shortDescription = "The container that combines inner constraints with [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction).",
+	userDocsLink = "/documentation/query/filtering/logical#or",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class Or extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

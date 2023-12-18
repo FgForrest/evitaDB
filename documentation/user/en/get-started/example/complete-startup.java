@@ -6,6 +6,8 @@ final ExternalApiServer externalApiServer = new ExternalApiServer(
 	evita,
 	ApiOptions.builder()
 		.enable(GrpcProvider.CODE)
+		.enable(GraphQLProvider.CODE)
+		.enable(RestProvider.CODE)
 		.enable(SystemProvider.CODE)
 		.build()
 );

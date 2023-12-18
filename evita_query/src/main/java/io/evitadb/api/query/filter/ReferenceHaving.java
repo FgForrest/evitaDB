@@ -65,6 +65,8 @@ import java.io.Serializable;
  *     entityPrimaryKeyInSet(1)
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/references#reference-having">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -72,6 +74,7 @@ import java.io.Serializable;
 	name = "having",
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match the inner filter constraint. This container resembles the SQL inner join clauses.",
+	userDocsLink = "/documentation/query/filtering/references#reference-having",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer {

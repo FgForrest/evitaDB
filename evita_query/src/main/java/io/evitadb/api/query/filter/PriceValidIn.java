@@ -53,12 +53,15 @@ import static java.util.Optional.of;
  * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
  * Currently, there is no way to switch context between different parts of the filter and build queries such as find
  * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "validIn",
 	shortDescription = "The constraint checks if entity has selling price valid at the passed moment.",
+	userDocsLink = "/documentation/filtering/price#price-valid-in",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceValidIn extends AbstractFilterConstraintLeaf

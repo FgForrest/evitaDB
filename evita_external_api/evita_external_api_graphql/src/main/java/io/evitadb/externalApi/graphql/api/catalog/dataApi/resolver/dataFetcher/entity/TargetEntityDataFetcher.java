@@ -21,23 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.documentation;
+package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.entity;
+
+import graphql.schema.DataFetcher;
+import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 
 /**
- * Documentation profile defines the environment where evitaQL runs.
+ * TODO lho docs
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Lukáš Hornych, 2023
  */
-public enum DocumentationProfile {
-
-	/**
-	 * Localhost profile when evitaQL runs on the developer environment.
-	 */
-	LOCALHOST,
-
-	/**
-	 * Default profile when evitaQL runs on the demo server.
-	 */
-	DEFAULT
-
+public class TargetEntityDataFetcher implements DataFetcher<EntityClassifier> {
+	@Override
+	public EntityClassifier get(DataFetchingEnvironment environment) throws Exception {
+		// we just pass the global entity as the target entity, because the global entity is the target entity on the server side
+		return environment.getSource();
+	}
 }

@@ -58,12 +58,15 @@ import static java.util.Optional.of;
  * <pre>
  * associatedData("description", "gallery-3d")
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity associated data of specified names into the returned entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#associated-data-content",
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

@@ -59,6 +59,8 @@ import java.util.stream.Collectors;
  *   )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/behavioral#user-filter">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
@@ -67,6 +69,7 @@ import java.util.stream.Collectors;
 	shortDescription = "The container for constraints that are controlled by the user (client UI widgets). " +
 		"It is used mainly to distinguish between user constraint (refining the search) and program defined " +
 		"constraints (considered mandatory), when the extra results are computed.",
+	userDocsLink = "/documentation/query/filtering/behavioral#user-filter",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class UserFilter extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

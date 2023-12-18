@@ -30,8 +30,11 @@ import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
-import io.evitadb.api.EvitaContract;
+import io.evitadb.api.CatalogContract;
+import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.Evita;
+import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import lombok.RequiredArgsConstructor;
 
@@ -53,7 +56,7 @@ import java.util.concurrent.CompletableFuture;
 public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrumentation {
 
     @Nonnull
-    private final EvitaContract evita;
+    private final Evita evita;
     @Nonnull
     private final String catalogName;
 
@@ -69,9 +72,13 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
             evitaSession = evita.createReadOnlySession(catalogName);
         } else if (operation == OperationDefinition.Operation.MUTATION) {
             evitaSession = evita.createReadWriteSession(catalogName);
-            evitaSession.openTransaction();
+            final CatalogContract catalog = evita.getCatalogInstance(catalogName)
+                .orElseThrow(() -> new GraphQLInternalError("Catalog `" + catalogName + "` could not be found."));
+            if (catalog.supportsTransaction()) {
+                evitaSession.openTransaction();
+            }
         } else {
-            throw new GraphQLSchemaBuildingError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
+            throw new GraphQLInternalError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
         }
         executionContext.getGraphQLContext().put(GraphQLContextKey.EVITA_SESSION, evitaSession);
 
@@ -86,6 +93,7 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
         final EvitaSessionContract evitaSession = parameters.getGraphQLContext().get(GraphQLContextKey.EVITA_SESSION);
         if (evitaSession != null) {
             // there may not be any session if there was some error in GraphQL query parsing before the session creation
+            // or the catalog is in WARMING_UP state
             if (evitaSession.isTransactionOpen()) {
                 evitaSession.closeTransaction();
             }

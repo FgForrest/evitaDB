@@ -50,7 +50,7 @@ public class CorsEndpoint {
 		this.allowedOrigins = restConfig.getAllowedOrigins() == null ? null : Set.of(restConfig.getAllowedOrigins());
 	}
 
-	public void addMetadataFromHandler(@Nonnull RestEndpointHandler<?, ?> handler) {
+	public void addMetadataFromHandler(@Nonnull RestEndpointHandler<?> handler) {
 		addMetadata(
 			handler.getSupportedHttpMethods(),
 			!handler.getSupportedRequestContentTypes().isEmpty(),

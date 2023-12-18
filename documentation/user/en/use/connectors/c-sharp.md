@@ -1,21 +1,20 @@
 ---
 title: C#
-perex: 
+perex: |
+  Main goal behind the C# driver of evitaDB was to create as similar API as possible to the Java one for the sake of
+  consistency and to make it easier for developers to switch between languages. However, there are some minor differences
+  between the two languages, so the C# API is not 100% identical to the Java one. Many of mentioned differences are mostly
+  semantics and language conventions.
 date: '10.11.2023'
 author: 'Ing. Tomáš Pozler'
+preferredLang: 'csharp'
 ---
 
-**Work in progress**
-
-This article will contain description of C#, mainly the ideas behind its design from the API consumer perspective
-(not from the perspective of the C# API developer). It should also contain recommendations and hint how to use
-API correctly.
-
-Main goal behind the C# driver of evitaDB was to create as similar API as possible to the Java one for the sake of
-consistency and to make it easier for developers to switch between languages. However, there are some minor differences
-between the two languages, so the C# API is not 100% identical to the Java one. Many of mentioned differences are mostly 
-semantics and language conventions.
-
+<LanguageSpecific to="evitaql,java,graphql,rest">
+This chapter describes the C# driver for evitaDB and doesn't make sense for other languages. If you're interested in 
+the details of the C# implementation, please change your preferred language in the upper right corner.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
 This API unification was possible thanks to the common [gRPC](grpc.md) protocol and protobuf data format used by both clients.
 It is built on top of the same interfaces (especially <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> 
 and <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>) for the client and the database itself,
@@ -124,3 +123,4 @@ The above intervals are not currently configurable because we believe they are o
 to change them, please contact us with your specific use case and we will consider adding the configuration option.
 
 </Note>
+</LanguageSpecific>

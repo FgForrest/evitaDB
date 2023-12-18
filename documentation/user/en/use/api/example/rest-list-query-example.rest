@@ -11,14 +11,14 @@ POST /rest/evita/Product/list
     "priceValidInNow": true,
     "priceInCurrency": "CZK",
     "priceInPriceLists": ["vip", "loyal-customer", "regular-prices"],
-    "userFilter": {
-      "facetParameterValuesHaving": {
+    "userFilter": [{
+      "facetParameterValuesHaving": [{
         "entityHaving": {
           "attributeCodeInSet": ["gluten-free", "original-recipe"]
         }
-      },
+      }],
       "priceBetween": ["600", "1600"]
-    }
+    }]
   },
   "orderBy": [
     {
@@ -27,7 +27,7 @@ POST /rest/evita/Product/list
   ],
   "require": {
     "entityFetch": {
-      "attributeContent": "code",
+      "attributeContent": ["code"],
       "referenceCategoriesContent": {}
     }
   }

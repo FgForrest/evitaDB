@@ -1,0 +1,46 @@
+{
+  queryProduct(
+    filterBy: {
+      and: [
+        {
+          entityPrimaryKeyInSet: [
+            1
+          ],
+          entityLocaleEquals: en,
+          priceInPriceLists: [
+            "basic"
+          ],
+          priceInCurrency: CZK
+        }
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          name
+        }
+        associatedData {
+          localization
+          allActiveUrls
+          allRelatedFiles
+        }
+        priceForSale {
+          priceWithoutTax(
+formatted: true
+withCurrency: true
+          )
+          priceWithTax(
+formatted: true
+withCurrency: true
+          )
+          taxRate
+        }
+        brand {
+          referencedPrimaryKey
+        }
+      }
+    }
+  }
+}

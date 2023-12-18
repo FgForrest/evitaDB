@@ -18,7 +18,7 @@ mutation {
       },
       {
         upsertAttributeMutation: {
-          name: "catalogName"
+          name: "catalogCode"
           value: "X1605EA-MB044W"
         }
       },
@@ -91,7 +91,7 @@ mutation {
     associatedData {
       gallery
     }
-    prices(priceList: "basic") {
+    prices(priceLists: "basic") {
       priceId
       currency
       priceWithoutTax

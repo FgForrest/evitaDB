@@ -48,12 +48,15 @@ import java.io.Serializable;
  * <pre>
  * priceHistogram(20)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "histogram",
-	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response."
+	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of price for sale into response.",
+	userDocsLink = "/documentation/query/requirements/histogram#price-histogram"
 )
 public class PriceHistogram extends AbstractRequireConstraintLeaf implements PriceConstraint<RequireConstraint>, ExtraResultRequireConstraint {
 	@Serial private static final long serialVersionUID = 7734875430759525982L;

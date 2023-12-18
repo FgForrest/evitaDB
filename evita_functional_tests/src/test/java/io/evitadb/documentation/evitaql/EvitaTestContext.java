@@ -24,7 +24,7 @@
 package io.evitadb.documentation.evitaql;
 
 import io.evitadb.api.EvitaContract;
-import io.evitadb.documentation.DocumentationProfile;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -56,9 +56,9 @@ public class EvitaTestContext implements TestContext {
 	 */
 	@Nonnull @Getter private final RestQueryConverter restQueryConverter;
 
-	public EvitaTestContext(@Nonnull DocumentationProfile profile) {
+	public EvitaTestContext(@Nonnull Environment profile) {
 		this.evitaContract = new EvitaClient(
-			profile == DocumentationProfile.LOCALHOST ?
+			profile == Environment.LOCALHOST ?
 				EvitaClientConfiguration.builder()
 					.host("localhost")
 					.port(5556)

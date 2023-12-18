@@ -103,7 +103,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	@Nullable protected final OpenApiSimpleType requestBody;
 	@Nullable protected final OpenApiSimpleType successResponse;
 
-	@Nonnull protected final Function<HC, RestEndpointHandler<?, HC>> handlerBuilder;
+	@Nonnull protected final Function<HC, RestEndpointHandler<HC>> handlerBuilder;
 
 	/**
 	 * Instantiate a new handler for this particular endpoint with passed data.
@@ -115,7 +115,7 @@ public abstract class OpenApiEndpoint<HC extends RestHandlingContext> {
 	 * @return ready-to-handle endpoint handler
 	 */
 	@Nonnull
-	public abstract RestEndpointHandler<?, HC> toHandler(@Nonnull ObjectMapper objectMapper,
+	public abstract RestEndpointHandler<HC> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                     @Nonnull Evita evita,
 	                                                     @Nonnull OpenAPI openApi,
 	                                                     @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping);

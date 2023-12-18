@@ -148,12 +148,15 @@ import static java.util.Optional.ofNullable;
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#reference-content">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching referenced entity bodies into returned main entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#reference-content",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceContent extends AbstractRequireConstraintContainer

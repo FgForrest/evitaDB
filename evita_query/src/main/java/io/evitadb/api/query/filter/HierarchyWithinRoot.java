@@ -104,12 +104,15 @@ import static java.util.Optional.ofNullable;
  *
  * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
  * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "withinRoot",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
+	userDocsLink = "/documentation/query/filtering/hierarchy#hierarchy-within-root",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithinRoot extends AbstractFilterConstraintContainer

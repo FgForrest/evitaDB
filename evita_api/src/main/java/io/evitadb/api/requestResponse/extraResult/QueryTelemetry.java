@@ -87,7 +87,7 @@ public class QueryTelemetry implements EvitaResponseExtraResult {
 		this.spentTime = spentTime;
 		this.arguments = arguments;
 		for (QueryTelemetry step : steps) {
-			step.addStep(step);
+			addStep(step);
 		}
 	}
 

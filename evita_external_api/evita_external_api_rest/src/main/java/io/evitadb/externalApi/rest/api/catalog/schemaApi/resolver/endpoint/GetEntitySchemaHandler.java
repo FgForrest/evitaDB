@@ -49,10 +49,10 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntitySchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		return exchange.session().getEntitySchema(restApiHandlingContext.getEntityType())
-			.map(it -> (EndpointResponse<EntitySchemaContract>) new SuccessEndpointResponse<>((EntitySchemaContract) it))
-			.orElse(new NotFoundEndpointResponse<>());
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull

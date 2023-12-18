@@ -243,7 +243,11 @@ public class GetAttributeMethodClassifier extends DirectMethodClassification<Obj
 		final Function<String, AttributeSchemaContract> schemaLocator = attributeName -> entitySchema.getAttribute(attributeName)
 			.orElseThrow(() -> new AttributeNotFoundException(attributeName, entitySchema));
 		if (attributeInstance != null) {
-			return schemaLocator.apply(attributeInstance.name());
+			return schemaLocator.apply(
+				ofNullable(attributeInstance.name())
+					.filter(it -> !it.isBlank())
+					.orElseGet(() -> ReflectionLookup.getPropertyNameFromMethodName(method.getName()))
+			);
 		} else if (attributeRefInstance != null) {
 			return schemaLocator.apply(attributeRefInstance.value());
 		} else if (!reflectionLookup.hasAnnotationForPropertyInSamePackage(method, Attribute.class) && ClassUtils.isAbstract(method)) {

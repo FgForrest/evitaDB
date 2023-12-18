@@ -79,12 +79,15 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/basics#order-by">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "orderGroupBy",
 	shortDescription = "The container encapsulates order constraints that control the order of the facet groups in facet summary.",
+	userDocsLink = "/documentation/query/basics#order-by",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class OrderGroupBy extends AbstractOrderConstraintContainer implements GenericConstraint<OrderConstraint> {

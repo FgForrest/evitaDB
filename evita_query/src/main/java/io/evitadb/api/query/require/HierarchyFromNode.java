@@ -124,12 +124,15 @@ import static java.util.Optional.of;
  * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
  * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
  * remains consistent for the end user.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "fromNode",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at pivot node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#from-node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyFromNode extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

@@ -1,7 +1,8 @@
+@EntityRef("Product")
 public interface MyEntity {
 
 	// returns attribute `name` if fetched and not null
-	@Attribute(name = "name", locale = true)
+	@Attribute(name = "name", localized = true)
 	@Nullable String getName();
 
 	// returns attribute `name` in requested locale
@@ -19,7 +20,7 @@ public interface MyEntity {
 
 	// returns attribute `name` or empty optional wrapper, if not fetched (unknown state) throws exception
 	@AttributeRef("name")
-	@Nonnull Optional<String> getNameOrThrow() throws ContextMissingException;
+	@Nonnull Optional<String> getNameIfPresent() throws ContextMissingException;
 
 	// returns attribute `markets` or null if not fetched or not set
 	@AttributeRef("markets")
@@ -45,6 +46,6 @@ public interface MyEntity {
 	// returns attribute `markets` as collection (or you can use list/set/array variants)
 	// or empty optional if attribute is not set, throws exception when attribute is not fetched
 	@AttributeRef("markets")
-	@Nonnull Optional<Collection<String>> getMarketsAsCollection() throws ContextMissingException;
+	@Nonnull Optional<Collection<String>> getMarketsAsCollectionIfPresent() throws ContextMissingException;
 
 }

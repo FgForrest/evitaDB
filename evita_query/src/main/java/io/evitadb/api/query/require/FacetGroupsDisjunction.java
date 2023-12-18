@@ -94,12 +94,15 @@ import java.util.Optional;
  * When user selects facets: blue (11), large (22), new products (31) - the default meaning would be: get all entities that
  * have facet blue as well as facet large and action products tag (AND). If require `facetGroupsDisjunction('tag', 3)`
  * is passed in the query, filtering condition will be composed as: (`blue(11)` AND `large(22)`) OR `new products(31)`
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-disjunction">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsDisjunction",
-	shortDescription = "Sets relation of facets in the specified groups towards facets in different groups to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) ."
+	shortDescription = "Sets relation of facets in the specified groups towards facets in different groups to [logical OR](https://en.wikipedia.org/wiki/Logical_disjunction) .",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-disjunction"
 )
 public class FacetGroupsDisjunction extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 1087282346634617160L;
