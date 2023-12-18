@@ -6,7 +6,6 @@ evita.updateCatalog(
 		session.createNewEntity(
 			ProductEditor.class, 100
 		)
-
 		/*
  *
  *                         _ _        ____  ____
