@@ -48,7 +48,7 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	public ListEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 	}
 
 	@Nonnull
@@ -56,7 +56,7 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
+		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
 		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
 
@@ -71,6 +71,6 @@ public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")
 		);
 		//noinspection unchecked
-		return entityJsonSerializer.serialize((List<EntityClassifier>) entities);
+		return entityJsonSerializer.serialize((List<EntityClassifier>) entities, restHandlingContext.getCatalogSchema());
 	}
 }

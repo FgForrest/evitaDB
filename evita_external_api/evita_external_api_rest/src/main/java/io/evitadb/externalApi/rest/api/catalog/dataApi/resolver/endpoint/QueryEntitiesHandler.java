@@ -63,17 +63,17 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
-	public QueryEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+	public QueryEntitiesHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+		super(restHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 
-		final Map<String, String> referenceNameToFieldName = restApiHandlingContext.getEntitySchema().getReferences().values().stream()
+		final Map<String, String> referenceNameToFieldName = this.restHandlingContext.getEntitySchema().getReferences().values().stream()
 			.map(referenceSchema -> new SimpleEntry<>(referenceSchema.getName(), referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION)))
 			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
-			restApiHandlingContext,
 			this.entityJsonSerializer,
-			referenceNameToFieldName::get
+			referenceNameToFieldName::get,
+			this.restHandlingContext.getObjectMapper()
 		);
 	}
 
@@ -81,7 +81,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 	@Nonnull
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
-		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
+		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
 		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
 
@@ -102,7 +102,7 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 			.recordPage(serializeRecordPage(evitaResponse));
 		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
-				.extraResults(extraResultsJsonSerializer.serialize(evitaResponse.getExtraResults(), restApiHandlingContext.getEntitySchema()));
+				.extraResults(extraResultsJsonSerializer.serialize(evitaResponse.getExtraResults(), restHandlingContext.getEntitySchema(), restHandlingContext.getCatalogSchema()));
 		}
 
 		return queryResponseBuilder.build();
@@ -115,12 +115,12 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 		if (recordPage instanceof PaginatedList<EntityClassifier> paginatedList) {
 			return new PaginatedListDto(
 				paginatedList,
-				entityJsonSerializer.serialize(paginatedList.getData())
+				entityJsonSerializer.serialize(paginatedList.getData(), restHandlingContext.getCatalogSchema())
 			);
 		} else if (recordPage instanceof StripList<EntityClassifier> stripList) {
 			return new StripListDto(
 				stripList,
-				entityJsonSerializer.serialize(stripList.getData())
+				entityJsonSerializer.serialize(stripList.getData(), restHandlingContext.getCatalogSchema())
 			);
 		} else {
 			throw new RestInternalError("Unsupported data chunk type `" + recordPage.getClass().getName() + "`.");

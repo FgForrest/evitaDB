@@ -59,7 +59,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 
 	public DeleteEntitiesByQueryHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 	}
 
 	@Override
@@ -84,7 +84,7 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 				)
 			);
 		}
-		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
+		log.debug("Generated evitaDB query for deletion of entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
 		final SealedEntity[] deletedEntities = exchange.session().deleteSealedEntitiesAndReturnBodies(query);
 
@@ -104,6 +104,6 @@ public class DeleteEntitiesByQueryHandler extends QueryOrientedEntitiesHandler {
 			deletedEntities instanceof SealedEntity[],
 			() -> new RestInternalError("Expected SealedEntity[], but got `" + deletedEntities.getClass().getName() + "`.")
 		);
-		return entityJsonSerializer.serialize((SealedEntity[]) deletedEntities);
+		return entityJsonSerializer.serialize((SealedEntity[]) deletedEntities, restHandlingContext.getCatalogSchema());
 	}
 }

@@ -23,9 +23,12 @@
 
 package io.evitadb.externalApi.lab.api.resolver.serializer;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.lab.api.model.entity.GenericEntityDescriptor;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
@@ -43,12 +46,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class GenericEntityJsonSerializer extends EntityJsonSerializer {
 
-	public GenericEntityJsonSerializer(@Nonnull RestHandlingContext restHandlingContext) {
-		super(restHandlingContext);
+	public GenericEntityJsonSerializer(@Nonnull ObjectMapper objectMapper) {
+		super(false, objectMapper);
 	}
 
 	@Override
-	protected void serializeReferences(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
+	protected void serializeReferences(@Nonnull ObjectNode rootNode,
+	                                   @Nonnull EntityContract entity,
+	                                   @Nonnull CatalogSchemaContract catalogSchema,
+	                                   @Nonnull EntitySchemaContract entitySchema) {
 		if (entity.referencesAvailable() && !entity.getReferences().isEmpty()) {
 			final ObjectNode referencesObject = objectJsonSerializer.objectNode();
 
@@ -56,7 +62,7 @@ public class GenericEntityJsonSerializer extends EntityJsonSerializer {
 				.stream()
 				.map(ReferenceContract::getReferenceName)
 				.collect(Collectors.toCollection(TreeSet::new))
-				.forEach(it -> serializeReferencesWithSameName(referencesObject, entity, it));
+				.forEach(it -> serializeReferencesWithSameName(referencesObject, entity, it, catalogSchema, entitySchema));
 
 			rootNode.putIfAbsent(GenericEntityDescriptor.REFERENCES.name(), referencesObject);
 		}

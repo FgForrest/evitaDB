@@ -65,7 +65,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		final UpdateCatalogRequestDto requestBody = parseRequestBody(exchange, UpdateCatalogRequestDto.class);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName);
+		final Optional<CatalogContract> catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName);
 		if (catalog.isEmpty()) {
 			return new NotFoundEndpointResponse();
 		}
@@ -74,7 +74,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 		switchCatalogToAliveState(catalog.get(), requestBody);
 
 		final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-		final CatalogContract updatedCatalog = restApiHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
+		final CatalogContract updatedCatalog = restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
 			.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
 		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalog));
 	}
@@ -94,7 +94,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 	@Nonnull
 	private Optional<String> renameCatalog(@Nonnull CatalogContract catalog,
 	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
-		final Evita evita = restApiHandlingContext.getEvita();
+		final Evita evita = restHandlingContext.getEvita();
 
 		final Optional<String> newCatalogName = Optional.ofNullable(requestBody.name());
 		if (newCatalogName.isEmpty()) {

@@ -80,7 +80,7 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
 		}
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
-			restApiHandlingContext.getEntityType(),
+			restHandlingContext.getEntityType(),
 			schemaMutations.toArray(EntitySchemaMutation[]::new)
 		);
 
