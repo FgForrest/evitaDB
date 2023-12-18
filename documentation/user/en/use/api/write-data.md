@@ -488,193 +488,6 @@ argument.
 
 </LanguageSpecific>
 
-<LanguageSpecific to="java">
-
-#### Custom contracts
-
-Similar to [query data using custom contracts](query-data.md#custom-contracts), you can also create new entities and
-modify existing ones using custom contracts. This allows you to completely bypass working with the evitaDB internal
-model and stick to your own - domain specific - model. When modeling your read/write contracts, we recommend to stick
-to the [sealed/open principle](../connectors/java.md#data-modeling-recommendations).
-
-Your write contract will likely extend read contracts using annotations described in
-the [schema API](schema-api.md#schema-controlling-annotations) and/or [query data API](query-data.md#custom-contracts).
-If you follow the Java Beans naming convention, you don't need to use annotations on write methods, but if you want to
-use different names or clarify your write contract, just use the [query data annotations](query-data.md#custom-contracts)
-on write methods. In some cases, you may want to use the following additional annotations:
-
-<dl>
-    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/CreateWhenMissing.java</SourceClass></dt>
-    <dd>
-        Annotation can be used on methods accepting [Consumer](/https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html)
-         type or methods that return/accept your custom contract. When the method is called, the automatic
-         implementation logic will create a new instance of this contract for you to work with. The new instance is
-         persisted along with the entity that was responsible for creating it (see details in the following paragraphs).
-    </dd>
-    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/RemoveWhenExists.java</SourceClass></dt>
-    <dd>
-        Annotation can be used on methods and will trigger the removal of the specific entity data - attribute,
-         associated data, parent reference, entity reference, or price. The removal only affects the entity itself,
-         never the target entity. Physical removal is only performed when the entity itself is upserted to the database.
-    </dd>
-</dl>
-
-Write methods can return several types (in some cases the supported list is even longer - but these cases are described
-in the appropriate sections):
-
-- `void` - the method performs the modification and returns no value
-- `selfType` - the method executes the modification and returns the reference to the contract itself, which allows
-    to chain multiple write calls together ([builder pattern](https://blogs.oracle.com/javamagazine/post/exploring-joshua-blochs-builder-design-pattern-in-java))
-
-In the following sections, we'll describe the behavior of the automatic implementation logic in detail and with
-examples:
-
-<Note type="info">
-
-The examples contain only interface/class definitions since the Java record is read-only. Examples describe
-a read/write contract in the same class, which is the simpler approach, but not entirely safe in terms of parallel
-access to the data. If you want to follow the recommended [sealed/open principle](../connectors/java.md#data-modeling-recommendations)
-you should declare `extends SealedEntity<MyEntity, MyEntityEditor>` in the read interface contract
-and `extends InstanceEditor<MyEntity>` in the write interface contract.
-
-</Note>
-
-<Note type="warning">
-
-When you create new (non-existing) entities using methods annotated with `@CreateWhenMissing`, these entities are held
-in local memory and their persistence is delayed until the entity that created them is persisted using
-the `upsertDeeply` method. If you don't call this method, or call the simple `upsert` method, the created entities and
-references to them will be lost. You may also want to persist them separately or before the main entity that created
-them. In this case you can call the `upsert` method on them directly.
-
-The API allows you to create an infinite depth chain of dependent entities and the `upsertDeeply` / `upsert` logic will
-work correctly at all levels. If you create entity `A` in which you created a reference to entity `B` in which you
-created another reference to entity `C`, the `upsertDeeply` method called on entity `A` will persist all three entities
-in the correct order (`C`, `B`, `A`). If you call the `upsertDeeply` method on entity `B`, it will only persist
-the sub-entities in the correct order (`C`, `B`). You can also manually call the `upsert` method on entity `C`, then `B`
-and finally `A`. However, if you persist entity `A` without first persisting entities `B` and `C`, the reference between
-`A` and `B` will be dropped. You can still call `upsertDeeply` on entity `B`, which will keep the reference between `B`
-and `C`.
-
-</Note>
-
-##### Primary key
-
-The primary key might be assigned by evitaDB, but can be set also from the outside. To allow setting the primary key you
-need to declare method accepting number data type (usually
-[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the `@PrimaryKey`
-or `@PrimaryKeyRef` annotation:
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/primary-key-read-interface.java" variants="interface|class">
-
-[Example interface with primary key modifier](/documentation/user/en/use/api/example/primary-key-write-interface.java)
-
-</SourceAlternativeTabs>
-
-##### Attributes
-
-To set the entity or reference attribute, you must use the appropriate data type and annotate it with the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass>
-or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass>
-annotation or have a corresponding getter (or field) with this annotation in the same class.
-
-If the attribute represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
-(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
-or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)) or pass it as simple array of values. The rules apply to both for entity and reference attributes:
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/attribute-read-interface.java" variants="interface|class">
-
-[Example interface with attribute modifier](/documentation/user/en/use/api/example/attribute-write-interface.java)
-
-</SourceAlternativeTabs>
-
-<Note type="info">
-
-Java enum data types are automatically converted to evitaDB string data type using the `name()` method and vice versa
-using the `valueOf()` method.
-
-</Note>
-
-##### Associated Data
-
-To set the entity associated data, you must use the appropriate data type and annotate it with the
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass>
-or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass>
-annotation or have a corresponding getter (or field) with this annotation in the same class.
-
-If the associated date represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
-(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
-or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)) or pass it as simple array of values.
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/associated-data-read-interface.java" variants="interface|class">
-
-[Example interface with associated data modifier](/documentation/user/en/use/api/example/associated-data-write-interface.java)
-
-</SourceAlternativeTabs>
-
-If the method accepts ["non-supported data type"](../data-types.md#simple-data-types) evitaDB automatically converts the data
-to ["complex data type"](../data-types.md#complex-data-types) using [documented deserialization rules](../data-types.md#deserialization).
-
-##### Prices
-
-To set the entity prices, you could work with
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> data type or
-pass all necessary dat in method parameters and annotate the methods with
-the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass>
-annotation. You can set (create or update) a single price by its business key, which consists of:
-
-- **`priceId`** - number datatype with external price identifier
-- **`currency`** - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) or [string](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) datatype accepting 3-letter currency ISO code
-- **`priceList`** - [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) data type with price list name
-
-or you can set all prices using the method that takes the array, [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html), [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) or
-[Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html) parameter with all entity prices.
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/price-read-interface.java" variants="interface|class">
-
-[Example interface with price modifier](/documentation/user/en/use/api/example/price-write-interface.java)
-
-</SourceAlternativeTabs>
-
-##### Hierarchy
-
-To set the hierarchy placement information of the entity (i.e., its parent), you must use either the numeric data
-type, your own custom interface type, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
-or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
-data type and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass>
-annotation or have a corresponding getter (or field) with this annotation in the same class.
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/parent-read-interface.java" variants="interface|class">
-
-[Example interface with parent modifier](/documentation/user/en/use/api/example/parent-write-interface.java)
-
-</SourceAlternativeTabs>
-
-If you set the value to `NULL`, the entity becomes a root entity.
-
-##### References
-
-To set the entity references, you must use either the numeric data type, your own custom interface type,
-<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
-or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>
-data type and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass>
-or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass>
-annotation or have a corresponding getter (or field) with this annotation in the same class.
-
-If the reference has `ZERO_OR_MORE` or `ONE_OR_MORE` cardinality, you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
-(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
-or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)), or pass it as a simple array
-to rewrite all the values at once. If the reference has `ZERO_OR_ONE` cardinality and you pass a `NULL` value,
-the reference is automatically removed.
-
-<SourceAlternativeTabs requires="documentation/user/en/use/api/example/reference-read-interface.java" variants="interface|class">
-
-[Example interface with reference modifier](/documentation/user/en/use/api/example/reference-write-interface.java)
-
-</SourceAlternativeTabs>
-
-</LanguageSpecific>
-
 <LanguageSpecific to="java,csharp">
 
 #### Creating entities in detached mode
@@ -856,5 +669,192 @@ There are a few reasons for this decision:
 3. it is consistent with our *append-only* storage approach where we need to write [tombstones](https://en.wikipedia.org/wiki/Tombstone_(data_store)) in case of entity or other object removals
 
 </Note>
+
+</LanguageSpecific>
+
+<LanguageSpecific to="java">
+
+## Custom contracts
+
+Similar to [query data using custom contracts](query-data.md#custom-contracts), you can also create new entities and
+modify existing ones using custom contracts. This allows you to completely bypass working with the evitaDB internal
+model and stick to your own - domain specific - model. When modeling your read/write contracts, we recommend to stick
+to the [sealed/open principle](../connectors/java.md#data-modeling-recommendations).
+
+Your write contract will likely extend read contracts using annotations described in
+the [schema API](schema-api.md#schema-controlling-annotations) and/or [query data API](query-data.md#custom-contracts).
+If you follow the Java Beans naming convention, you don't need to use annotations on write methods, but if you want to
+use different names or clarify your write contract, just use the [query data annotations](query-data.md#custom-contracts)
+on write methods. In some cases, you may want to use the following additional annotations:
+
+<dl>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/CreateWhenMissing.java</SourceClass></dt>
+    <dd>
+        Annotation can be used on methods accepting [Consumer](/https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/function/Consumer.html)
+         type or methods that return/accept your custom contract. When the method is called, the automatic
+         implementation logic will create a new instance of this contract for you to work with. The new instance is
+         persisted along with the entity that was responsible for creating it (see details in the following paragraphs).
+    </dd>
+    <dt><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/RemoveWhenExists.java</SourceClass></dt>
+    <dd>
+        Annotation can be used on methods and will trigger the removal of the specific entity data - attribute,
+         associated data, parent reference, entity reference, or price. The removal only affects the entity itself,
+         never the target entity. Physical removal is only performed when the entity itself is upserted to the database.
+    </dd>
+</dl>
+
+Write methods can return several types (in some cases the supported list is even longer - but these cases are described
+in the appropriate sections):
+
+- `void` - the method performs the modification and returns no value
+- `selfType` - the method executes the modification and returns the reference to the contract itself, which allows
+  to chain multiple write calls together ([builder pattern](https://blogs.oracle.com/javamagazine/post/exploring-joshua-blochs-builder-design-pattern-in-java))
+
+In the following sections, we'll describe the behavior of the automatic implementation logic in detail and with
+examples:
+
+<Note type="info">
+
+The examples contain only interface/class definitions since the Java record is read-only. Examples describe
+a read/write contract in the same class, which is the simpler approach, but not entirely safe in terms of parallel
+access to the data. If you want to follow the recommended [sealed/open principle](../connectors/java.md#data-modeling-recommendations)
+you should declare `extends SealedEntity<MyEntity, MyEntityEditor>` in the read interface contract
+and `extends InstanceEditor<MyEntity>` in the write interface contract.
+
+</Note>
+
+<Note type="warning">
+
+When you create new (non-existing) entities using methods annotated with `@CreateWhenMissing`, these entities are held
+in local memory and their persistence is delayed until the entity that created them is persisted using
+the `upsertDeeply` method. If you don't call this method, or call the simple `upsert` method, the created entities and
+references to them will be lost. You may also want to persist them separately or before the main entity that created
+them. In this case you can call the `upsert` method on them directly.
+
+The API allows you to create an infinite depth chain of dependent entities and the `upsertDeeply` / `upsert` logic will
+work correctly at all levels. If you create entity `A` in which you created a reference to entity `B` in which you
+created another reference to entity `C`, the `upsertDeeply` method called on entity `A` will persist all three entities
+in the correct order (`C`, `B`, `A`). If you call the `upsertDeeply` method on entity `B`, it will only persist
+the sub-entities in the correct order (`C`, `B`). You can also manually call the `upsert` method on entity `C`, then `B`
+and finally `A`. However, if you persist entity `A` without first persisting entities `B` and `C`, the reference between
+`A` and `B` will be dropped. You can still call `upsertDeeply` on entity `B`, which will keep the reference between `B`
+and `C`.
+
+</Note>
+
+### Primary key
+
+The primary key might be assigned by evitaDB, but can be set also from the outside. To allow setting the primary key you
+need to declare method accepting number data type (usually
+[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the `@PrimaryKey`
+or `@PrimaryKeyRef` annotation:
+
+<SourceAlternativeTabs requires="documentation/user/en/use/api/example/primary-key-read-interface.java" variants="interface|class">
+
+[Example interface with primary key modifier](/documentation/user/en/use/api/example/primary-key-write-interface.java)
+
+</SourceAlternativeTabs>
+
+### Attributes
+
+To set the entity or reference attribute, you must use the appropriate data type and annotate it with the
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AttributeRef.java</SourceClass>
+annotation or have a corresponding getter (or field) with this annotation in the same class.
+
+If the attribute represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)) or pass it as simple array of values. The rules apply to both for entity and reference attributes:
+
+<SourceAlternativeTabs requires="documentation/user/en/use/api/example/attribute-read-interface.java" variants="interface|class">
+
+[Example interface with attribute modifier](/documentation/user/en/use/api/example/attribute-write-interface.java)
+
+</SourceAlternativeTabs>
+
+<Note type="info">
+
+Java enum data types are automatically converted to evitaDB string data type using the `name()` method and vice versa
+using the `valueOf()` method.
+
+</Note>
+
+### Associated Data
+
+To set the entity associated data, you must use the appropriate data type and annotate it with the
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedDataRef.java</SourceClass>
+annotation or have a corresponding getter (or field) with this annotation in the same class.
+
+If the associated date represents a multi-value type (array), you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)) or pass it as simple array of values.
+
+<SourceAlternativeTabs requires="documentation/user/en/use/api/example/associated-data-read-interface.java" variants="interface|class">
+
+[Example interface with associated data modifier](/documentation/user/en/use/api/example/associated-data-write-interface.java)
+
+</SourceAlternativeTabs>
+
+If the method accepts ["non-supported data type"](../data-types.md#simple-data-types) evitaDB automatically converts the data
+to ["complex data type"](../data-types.md#complex-data-types) using [documented deserialization rules](../data-types.md#deserialization).
+
+### Prices
+
+To set the entity prices, you could work with
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> data type or
+pass all necessary dat in method parameters and annotate the methods with
+the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Price.java</SourceClass>
+annotation. You can set (create or update) a single price by its business key, which consists of:
+
+- **`priceId`** - number datatype with external price identifier
+- **`currency`** - [Currency](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) or [string](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) datatype accepting 3-letter currency ISO code
+- **`priceList`** - [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) data type with price list name
+
+or you can set all prices using the method that takes the array, [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html), [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html) or
+[Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html) parameter with all entity prices.
+
+<SourceAlternativeTabs requires="documentation/user/en/use/api/example/price-read-interface.java" variants="interface|class">
+
+[Example interface with price modifier](/documentation/user/en/use/api/example/price-write-interface.java)
+
+</SourceAlternativeTabs>
+
+### Hierarchy
+
+To set the hierarchy placement information of the entity (i.e., its parent), you must use either the numeric data
+type, your own custom interface type, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass>
+data type and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ParentEntity.java</SourceClass>
+annotation or have a corresponding getter (or field) with this annotation in the same class.
+
+<SourceAlternativeTabs requires="documentation/user/en/use/api/example/parent-read-interface.java" variants="interface|class">
+
+[Example interface with parent modifier](/documentation/user/en/use/api/example/parent-write-interface.java)
+
+</SourceAlternativeTabs>
+
+If you set the value to `NULL`, the entity becomes a root entity.
+
+### References
+
+To set the entity references, you must use either the numeric data type, your own custom interface type,
+<SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/ReferenceContract.java</SourceClass>
+data type and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Reference.java</SourceClass>
+or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/ReferenceRef.java</SourceClass>
+annotation or have a corresponding getter (or field) with this annotation in the same class.
+
+If the reference has `ZERO_OR_MORE` or `ONE_OR_MORE` cardinality, you can also wrap it in [Collection](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collection.html)
+(or its specializations [List](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/List.html)
+or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Set.html)), or pass it as a simple array
+to rewrite all the values at once. If the reference has `ZERO_OR_ONE` cardinality and you pass a `NULL` value,
+the reference is automatically removed.
+
+<SourceAlternativeTabs requires="documentation/user/en/use/api/example/reference-read-interface.java" variants="interface|class">
+
+[Example interface with reference modifier](/documentation/user/en/use/api/example/reference-write-interface.java)
+
+</SourceAlternativeTabs>
 
 </LanguageSpecific>

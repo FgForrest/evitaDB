@@ -219,7 +219,7 @@ you can still use the `enrichEntity` method on the
 will be fully fetched again. However, we plan to optimize this scenario in the future.
 </Note>
 
-### Custom contracts
+## Custom contracts
 
 Data retrieved from evitaDB is represented by the internal evitaDB data structures, which use the domain names
 associated with the evitaDB representation. You may want to use your own domain names and data structures in your
@@ -296,7 +296,7 @@ returned as a result of reference getter calls, where you don't need the full-fl
 
 Methods annotated with these annotations must follow the expected method signature conventions:
 
-#### Primary key
+### Primary key
 
 In order to access the primary key of the entity, you must use number data type (usually
 [int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)) and annotate it with the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/PrimaryKey.java</SourceClass>
@@ -308,7 +308,7 @@ or <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/anno
 
 </SourceAlternativeTabs>
 
-#### Attributes
+### Attributes
 
 To access the entity or reference attribute, you must use the appropriate data type and annotate it with the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/Attribute.java</SourceClass>
@@ -342,7 +342,7 @@ call may fail with a `NullPointerException` if the data wasn't fetched even thou
 
 </Note>
 
-#### Associated data
+### Associated data
 
 To access the entity or reference associated data, you must use the appropriate data type and annotate it with
 the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/annotation/AssociatedData.java</SourceClass>
@@ -364,7 +364,7 @@ or [Set](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/
 If the method returns ["non-supported data type"](../data-types.md#simple-data-types) evitaDB automatically converts the data
 from ["complex data type"](../data-types.md#complex-data-types) using [documented deserialization rules](../data-types.md#deserialization).
 
-#### Prices
+### Prices
 
 To access the entity prices, you must always work with
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceContract.java</SourceClass> data type
@@ -388,7 +388,7 @@ If the method can return multiple prices, you need to wrap it in [Collection](ht
 The method may return null if the entity is a root entity. Therefore, it's not recommended to use primitive data types,
 because the method call may fail with a `NullPointerException` in such a case.
 
-#### Hierarchy
+### Hierarchy
 
 To access the hierarchy placement information of the entity (i.e., its parent), you must use either the numeric data
 type, your own custom interface type, <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
@@ -408,7 +408,7 @@ or [OptionalLong](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/j
 The method may return null if the entity is a root entity. Therefore, it's not recommended to use primitive data types,
 because the method call may fail with a `NullPointerException` in such a case.
 
-#### References
+### References
 
 To access the references of the entity, you must use either the numeric data type, your own custom interface type,
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
@@ -441,7 +441,7 @@ Methods annotated with this annotation should respect the cardinality of the ref
 `EXACTLY_ONE` or `ZERO_OR_ONE`, the method should directly return the entity or the reference to it. If the cardinality
 is `ZERO_OR_MORE` or `ONE_OR_MORE`, the method should return a collection or array of entities or references to them.
 
-#### Access to evitaDB data structures
+### Access to evitaDB data structures
 
 Your read contract can implement the following interfaces to access the underlying evitaDB data structures:
 
