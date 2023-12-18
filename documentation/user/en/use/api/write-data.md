@@ -93,7 +93,7 @@ the primary data store. One of the more interesting recent developments in this 
 indexes fairly easily.
 
 There might be multiple clients reading & writing data to the same catalog when it is in <LanguageSpecific to="java">`ALIVE`</LanguageSpecific>
-<LanguageSpecific to="cshapr">`Alive`</LanguageSpecific> state. Each catalog
+<LanguageSpecific to="csharp">`Alive`</LanguageSpecific> state. Each catalog
 update is wrapped into a *transaction* that meets
 [the snapshot isolation level](https://en.wikipedia.org/wiki/Snapshot_isolation). More details about transaction
 handling is in [separate chapter](../../deep-dive/transactions.md).
