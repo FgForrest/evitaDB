@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.rest.api.catalog.resolver.endpoint;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
@@ -44,6 +45,7 @@ import java.util.Map;
  */
 public class CatalogRestHandlingContext extends RestHandlingContext {
 
+	@Nonnull protected final CatalogContract catalog;
 	@Nonnull @Getter protected final CatalogSchemaContract catalogSchema;
 
 	public CatalogRestHandlingContext(@Nonnull ObjectMapper objectMapper,
@@ -54,6 +56,7 @@ public class CatalogRestHandlingContext extends RestHandlingContext {
 	                                  @Nonnull Operation endpointOperation,
 	                                  boolean localized) {
 		super(objectMapper, evita, openApi, enumMapping, endpointOperation, localized);
+		this.catalog = evita.getCatalogInstanceOrThrowException(catalogSchema.getName());
 		this.catalogSchema = catalogSchema;
 	}
 
@@ -62,8 +65,7 @@ public class CatalogRestHandlingContext extends RestHandlingContext {
 	 */
 	@Nonnull
 	public EntitySchemaContract getEntitySchema(@Nonnull String entityName) {
-		return evita.getCatalogInstanceOrThrowException(catalogSchema.getName())
-			.getEntitySchema(entityName)
+		return catalog.getEntitySchema(entityName)
 			.orElseThrow(() -> new RestInternalError("No schema found for entity: " + entityName + " in catalog: " + catalogSchema.getName()));
 	}
 }

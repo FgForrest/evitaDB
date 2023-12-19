@@ -38,10 +38,10 @@ import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.StringUtils;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.LocalDate;
@@ -257,7 +257,7 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         return parse(
             ctx,
             String.class,
-            () -> ctx.getText().substring(1, ctx.getText().length() - 1)
+            () -> StringUtils.translateEscapes(ctx.getText().substring(1, ctx.getText().length() - 1))
         );
     }
 
@@ -473,10 +473,5 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
         } else {
             return new Value(List.of(argument));
         }
-    }
-
-    protected  <T extends Comparable<? super T> & Serializable> T asComparableAndSerializable(Serializable value) {
-        //noinspection unchecked
-        return (T) value;
     }
 }

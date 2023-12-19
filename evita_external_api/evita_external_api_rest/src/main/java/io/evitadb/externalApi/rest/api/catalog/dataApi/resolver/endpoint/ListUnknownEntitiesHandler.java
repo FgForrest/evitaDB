@@ -57,7 +57,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 
 	public ListUnknownEntitiesHandler(@Nonnull CatalogRestHandlingContext restHandlingContext) {
 		super(restHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 	}
 
 	@Override
@@ -66,7 +66,7 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restApiHandlingContext.getCatalogSchema()),
+			FilterByConstraintFromRequestQueryBuilder.buildFilterByForUnknownEntityList(parametersFromRequest, restHandlingContext.getCatalogSchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
@@ -96,6 +96,6 @@ public class ListUnknownEntitiesHandler extends JsonRestHandler<CatalogRestHandl
 			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")
 		);
 		//noinspection unchecked
-		return entityJsonSerializer.serialize((List<EntityClassifier>) entities);
+		return entityJsonSerializer.serialize((List<EntityClassifier>) entities, restHandlingContext.getCatalogSchema());
 	}
 }
