@@ -65,8 +65,8 @@ public class GuiHandler extends ResourceHandler {
 	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
 
-	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
-	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
+	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-]+/)*[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
+	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("(/logo)?/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
 
 	@Nonnull private final LabConfig labConfig;
 	@Nonnull private final String serverName;

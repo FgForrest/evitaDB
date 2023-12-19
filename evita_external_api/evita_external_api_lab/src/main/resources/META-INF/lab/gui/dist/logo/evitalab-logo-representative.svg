@@ -1,0 +1,39 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+	<g clip-path="url(#clip0_250_1952)">
+		<path fill-rule="evenodd" clip-rule="evenodd" d="M80 0C124 0 160 36 160 80C160 124 124 160 80 160C36 160 0 124 0 80C0 36 36 0 80 0Z" fill="url(#paint0_linear_250_1952)"/>
+		<path fill-rule="evenodd" clip-rule="evenodd" d="M80 0C124 0 160 36 160 80C160 124 124 160 80 160C36 160 0 124 0 80C0 36 36 0 80 0Z" fill="url(#paint1_linear_250_1952)"/>
+		<path d="M119.333 99.9999L95.333 58.6666V53.9999C97.9997 52.6666 99.9997 50.6666 99.9997 47.3333V42.6666C99.9997 36.6666 94.6664 31.3333 88.6664 31.3333H71.333C65.333 31.3333 59.9997 36.6666 59.9997 42.6666V47.3333C59.9997 49.9999 61.9997 52.6666 64.6664 53.9999V59.3333L40.6664 99.9999C38.6664 102.667 37.9997 105.333 37.9997 108.667C37.9997 117.333 45.333 124 53.333 124H106C114.666 124 121.333 116.667 121.333 108.667C122 105.333 121.333 102.667 119.333 99.9999ZM108 107.333C108 107.333 108.666 108 108.666 108.667C108.666 110 108 110.667 106.666 110.667H53.9997C52.6664 110.667 51.9997 110 51.9997 108.667C51.9997 108 51.9997 108 52.6664 107.333L78.6664 62.6666V45.3333H82.6664V62.6666L108 107.333Z" fill="white"/>
+		<path d="M84.6663 95.3333L89.9997 89.3333L98.6663 104H61.333L72.6663 84L84.6663 95.3333Z" fill="url(#paint2_linear_250_1952)"/>
+		<path d="M82 82C83.1046 82 84 81.1046 84 80C84 78.8954 83.1046 78 82 78C80.8954 78 80 78.8954 80 80C80 81.1046 80.8954 82 82 82Z" fill="white"/>
+
+		<circle cx="80" cy="80" r="5" stroke="#f1f3f5" stroke-width="2" fill="transparent">
+			<animateTransform attributeName="transform" type="translate" from="0 0" to="-5 -60" dur="3s" begin="0s" repeatCount="indefinite" />
+			<animate attributeName="opacity" from="1" to="0" begin=".5s" dur="3s" repeatCount="indefinite" />
+		</circle>
+		<circle cx="85" cy="90" r="6" stroke="#ffffff" stroke-width="1.75" fill="transparent">
+			<animateTransform attributeName="transform" type="translate" from="0 0" to="10 -75" dur="4s" begin="0s" repeatCount="indefinite" />
+			<animate attributeName="opacity" from="1" to="0" begin="1s" dur="4s" repeatCount="indefinite" />
+		</circle>
+		<circle cx="75" cy="75" r="4" stroke="#ffffff" stroke-width="1" fill="transparent">
+			<animateTransform attributeName="transform" type="translate" from="0 0" to="3 -65" dur="5s" begin="0s" repeatCount="indefinite" />
+			<animate attributeName="opacity" from="1" to="0" begin="1s" dur="5s" repeatCount="indefinite" />
+		</circle>
+	</g>
+	<defs>
+		<linearGradient id="paint0_linear_250_1952" x1="23.4303" y1="136.577" x2="136.717" y2="23.2909" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#22BEE4"/>
+			<stop offset="1" stop-color="#8533C3"/>
+		</linearGradient>
+		<linearGradient id="paint1_linear_250_1952" x1="23.4303" y1="136.577" x2="136.717" y2="23.2909" gradientUnits="userSpaceOnUse">
+			<stop stop-color="#22BEE4"/>
+			<stop offset="1" stop-color="#8533C3"/>
+		</linearGradient>
+		<linearGradient id="paint2_linear_250_1952" x1="61.2777" y1="94.198" x2="98.7217" y2="94.198" gradientUnits="userSpaceOnUse">
+			<stop offset="0.05" stop-color="white" stop-opacity="0"/>
+			<stop offset="0.95" stop-color="white"/>
+		</linearGradient>
+		<clipPath id="clip0_250_1952">
+			<rect width="160" height="160" fill="white"/>
+		</clipPath>
+	</defs>
+</svg>
