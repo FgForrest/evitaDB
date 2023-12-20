@@ -57,7 +57,7 @@ public class ListCatalogsHandler extends JsonRestHandler<LabApiHandlingContext> 
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		final Collection<CatalogContract> catalogs = restApiHandlingContext.getEvita().getCatalogs();
+		final Collection<CatalogContract> catalogs = restHandlingContext.getEvita().getCatalogs();
 		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, catalogs));
 	}
 

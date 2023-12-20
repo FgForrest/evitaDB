@@ -71,14 +71,14 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	@Nonnull private final GenericEntityJsonSerializer entityJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
-	public QueryEntitiesHandler(@Nonnull LabApiHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
+	public QueryEntitiesHandler(@Nonnull LabApiHandlingContext restHandlingContext) {
+		super(restHandlingContext);
 		this.queryParser = new DefaultQueryParser();
-		this.entityJsonSerializer = new GenericEntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new GenericEntityJsonSerializer(restHandlingContext.getObjectMapper());
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
-			restApiHandlingContext,
 			this.entityJsonSerializer,
-			StringUtils::toCamelCase
+			StringUtils::toCamelCase,
+			this.restHandlingContext.getObjectMapper()
 		);
 	}
 
@@ -87,10 +87,10 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final CatalogContract catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
+		final CatalogContract catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName)
 			.orElseThrow(() -> new RestInternalError("Catalog `" + catalogName + "` does not exist."));
 
-		return Optional.of(restApiHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
+		return Optional.of(restHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
 	}
 
 	@Nonnull
@@ -139,15 +139,14 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 		//noinspection unchecked
 		final EvitaResponse<EntityClassifier> evitaResponse = (EvitaResponse<EntityClassifier>) result;
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
-			.recordPage(serializeRecordPage(evitaResponse));
+			.recordPage(serializeRecordPage(exchange, evitaResponse));
 		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
 				.extraResults(
 					extraResultsJsonSerializer.serialize(
 						evitaResponse.getExtraResults(),
-						exchange.session()
-							.getEntitySchema(evitaResponse.getSourceQuery().getCollection().getEntityType())
-							.orElseThrow(() -> new RestInternalError("No entity schema found for entity type `" + evitaResponse.getSourceQuery().getCollection().getEntityType() + "`."))
+						exchange.session().getEntitySchemaOrThrow(evitaResponse.getSourceQuery().getCollection().getEntityType()),
+						exchange.session().getCatalogSchema()
 					)
 				);
 		}
@@ -155,18 +154,18 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 	}
 
 	@Nonnull
-	private DataChunkDto serializeRecordPage(@Nonnull EvitaResponse<EntityClassifier> response) {
+	private DataChunkDto serializeRecordPage(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
 		final DataChunk<EntityClassifier> recordPage = response.getRecordPage();
 
 		if (recordPage instanceof PaginatedList<EntityClassifier> paginatedList) {
 			return new PaginatedListDto(
 				paginatedList,
-				entityJsonSerializer.serialize(paginatedList.getData())
+				entityJsonSerializer.serialize(paginatedList.getData(), exchange.session().getCatalogSchema())
 			);
 		} else if (recordPage instanceof StripList<EntityClassifier> stripList) {
 			return new StripListDto(
 				stripList,
-				entityJsonSerializer.serialize(stripList.getData())
+				entityJsonSerializer.serialize(stripList.getData(), exchange.session().getCatalogSchema())
 			);
 		} else {
 			throw new RestInternalError("Unsupported data chunk type `" + recordPage.getClass().getName() + "`.");

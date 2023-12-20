@@ -118,7 +118,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 			.orElse(null);
 
 		return query(
-			collection(restApiHandlingContext.getEntityType()),
+			collection(restHandlingContext.getEntityType()),
 			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
 			orderBy,
 			require
@@ -127,7 +127,7 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 
 	@Nonnull
 	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull EndpointExchange exchange, @Nullable FilterBy filterBy) {
-		if (restApiHandlingContext.isLocalized()) {
+		if (restHandlingContext.isLocalized()) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {

@@ -54,7 +54,7 @@ public class OpenApiSpecificationHandler<C extends RestHandlingContext> extends 
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse(restApiHandlingContext.getOpenApi());
+		return new SuccessEndpointResponse(restHandlingContext.getOpenApi());
 	}
 
 	@Nonnull

@@ -317,10 +317,18 @@ public class JavaDocCopy implements EvitaTestSupport {
 			} else {
 				constraintName = StringUtils.uncapitalize(constraintClass.getName());
 			}
+			final String type = switch (constraintClass.getPackageName()) {
+				case "io.evitadb.api.query.head" -> "HEAD";
+				case "io.evitadb.api.query.filter" -> "FILTER";
+				case "io.evitadb.api.query.order" -> "ORDER";
+				case "io.evitadb.api.query.require" -> "REQUIRE";
+				default -> throw new EvitaInternalError("Unknown package name: " + constraintClass.getPackageName());
+			};
 			final String shortDescription = ((String) constraintDefinition.get().getNamedParameter("shortDescription")).replace("\"", "");
 			final String userDocsLink = "https://evitadb.io" + ((String) constraintDefinition.get().getNamedParameter("userDocsLink")).replace("\"", "");
 
 			final ObjectNode exportedConstraintDefinition = objectMapper.createObjectNode();
+			exportedConstraintDefinition.put("type", type);
 			exportedConstraintDefinition.put("shortDescription", shortDescription);
 			exportedConstraintDefinition.put("userDocsLink", userDocsLink);
 			export.putIfAbsent(constraintName, exportedConstraintDefinition);
