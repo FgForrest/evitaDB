@@ -36,6 +36,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * This interface extends the public interface and adds a few methods that are targeted for internal use of EvitaDB
@@ -44,6 +45,15 @@ import java.util.Optional;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface EvitaInternalSessionContract extends EvitaSessionContract {
+
+	/**
+	 * Opens a new transaction. This method returns a UUID
+	 * that represents the identification of the opened transaction.
+	 *
+	 * @return The UUID of the opened transaction.
+	 */
+	@Nonnull
+	UUID openTransaction();
 
 	/**
 	 * Method executes query on {@link CatalogContract} data and returns zero or exactly one entity result. Method

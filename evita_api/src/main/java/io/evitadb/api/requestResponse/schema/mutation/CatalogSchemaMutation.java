@@ -45,7 +45,7 @@ public interface CatalogSchemaMutation extends SchemaMutation {
 	 * as its return value. The create operation works with NULL input value and produces non-NULL result, the remove
 	 * operation produces the opposite. Modification operations always accept and produce non-NULL values.
 	 *
-	 * TODO JNO WRITE TESTS THAT GENERATE ENTITY SCHEMA MUTATIONS AS IMPACT
+	 * TODO JNO WRITE TESTS THAT GENERATE ENTITY SCHEMA MUTATIONS AS IMPACT (GLOBAL ATTRIBUTE UPDATE)
 	 *
 	 * @param catalogSchema current version of the schema as an input to mutate
 	 */

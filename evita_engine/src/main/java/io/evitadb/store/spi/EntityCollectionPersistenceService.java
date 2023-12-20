@@ -61,7 +61,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
+public non-sealed interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor

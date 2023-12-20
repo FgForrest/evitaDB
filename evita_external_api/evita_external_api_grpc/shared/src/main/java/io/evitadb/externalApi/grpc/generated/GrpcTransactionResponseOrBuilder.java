@@ -26,19 +26,19 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcOpenTransactionResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)
+public interface GrpcTransactionResponseOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <pre>
-   * True, if the transaction was opened before corresponding request.
+   * The current version of the catalog the transaction is bound to.
    * </pre>
    *
-   * <code>bool alreadyOpenedBefore = 1;</code>
-   * @return The alreadyOpenedBefore.
+   * <code>int64 catalogVersion = 1;</code>
+   * @return The catalogVersion.
    */
-  boolean getAlreadyOpenedBefore();
+  long getCatalogVersion();
 
   /**
    * <pre>

@@ -55,7 +55,6 @@ public class ArtificialTransactionalWriteState extends AbstractArtificialState {
 	@Setup(Level.Invocation)
 	public void prepareCall(ArtificialTransactionalWriteBenchmarkState benchmarkState) {
 		final EvitaSessionContract session = benchmarkState.getSession();
-		session.openTransaction();
 		// there is 50% on update instead of insert
 		if (benchmarkState.getRandom().nextBoolean()) {
 			final SealedEntity existingEntity = session.getEntity(

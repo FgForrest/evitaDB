@@ -53,7 +53,7 @@ import java.util.Map;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface CatalogPersistenceService extends PersistenceService<CatalogIndexKey, CatalogIndex> {
+public non-sealed interface CatalogPersistenceService extends PersistenceService<CatalogIndexKey, CatalogIndex> {
 	String HEADER_FILE_SUFFIX = ".header";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";

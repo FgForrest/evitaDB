@@ -30,7 +30,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityClassInvalidException;
@@ -1210,43 +1209,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Override
-	@Nonnull
-	public UUID openTransaction() {
-		assertActive();
-		assertTransactionIsNotOpened();
-		//noinspection resource
-		final EvitaClientTransaction transaction = createAndInitTransaction();
-		return transaction.getTransactionId();
-	}
-
-	@Override
 	public long getCatalogVersion() {
-		/* TODO JNO - Implement me */
-		throw new UnsupportedOperationException("Not implemented yet!");
-	}
-
-	@Override
-	public <T> T executeInTransaction(@Nonnull Function<EvitaSessionContract, T> lambda, @Nonnull CommitBehaviour behaviour) {
-		/* TODO JNO - Implement me */
-		throw new UnsupportedOperationException("Not implemented yet!");
-	}
-
-	@Override
-	public void executeInTransaction(@Nonnull Consumer<EvitaSessionContract> lambda, @Nonnull CommitBehaviour behaviour) {
-		/* TODO JNO - Implement me */
-		throw new UnsupportedOperationException("Not implemented yet!");
-	}
-
-	@Override
-	public <T> ResultWithCatalogVersion<T> executeInTransactionAndReturnCatalogVersion(@Nonnull Function<EvitaSessionContract, T> lambda, @Nonnull CommitBehaviour behaviour) {
-		/* TODO JNO - Implement me */
-		throw new UnsupportedOperationException("Not implemented yet!");
-	}
-
-	@Override
-	public long executeInTransactionAndReturnCatalogVersion(@Nonnull Consumer<EvitaSessionContract> lambda, @Nonnull CommitBehaviour behaviour) {
-		/* TODO JNO - Implement me */
-		throw new UnsupportedOperationException("Not implemented yet!");
+		assertActive();
+		return ofNullable(transactionAccessor.get())
+			.filter(EvitaClientTransaction::isClosed)
+			.map(EvitaClientTransaction::getCatalogVersion)
+			.orElse(1L);
 	}
 
 	@Nonnull
@@ -1747,15 +1715,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
-	 * Verifies this instance is still active.
-	 */
-	private void assertTransactionIsNotOpened() {
-		if (transactionAccessor.get() != null) {
-			throw new UnexpectedTransactionStateException("Transaction has been already opened. Evita doesn't support nested transactions!");
-		}
-	}
-
-	/**
 	 * Initializes transaction reference.
 	 */
 	@Nonnull
@@ -1767,11 +1726,15 @@ public class EvitaClientSession implements EvitaSessionContract {
 			throw new TransactionNotSupportedException("Catalog " + getCatalogName() + " doesn't support transactions yet. Call `goLiveAndClose()` method first!");
 		}
 
-		final GrpcOpenTransactionResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
-			evitaSessionService.openTransaction(Empty.newBuilder().build())
+		final GrpcTransactionResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
+			evitaSessionService.getTransactionId(Empty.newBuilder().build())
 		);
 
-		final EvitaClientTransaction tx = new EvitaClientTransaction(this, toUuid(grpcResponse.getTransactionId()));
+		final EvitaClientTransaction tx = new EvitaClientTransaction(
+			this,
+			toUuid(grpcResponse.getTransactionId()),
+			grpcResponse.getCatalogVersion()
+		);
 		transactionAccessor.getAndUpdate(transaction -> {
 			Assert.isPremiseValid(transaction == null, "Transaction unexpectedly found!");
 			if (sessionTraits.isDryRun()) {

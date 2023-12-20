@@ -38,7 +38,8 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * TODO JNO - document me
+ * This implementation of {@link StoragePartPersistenceService} stores the parts into {@link OffsetIndex}, that is
+ * mapped to a single file on disk.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */

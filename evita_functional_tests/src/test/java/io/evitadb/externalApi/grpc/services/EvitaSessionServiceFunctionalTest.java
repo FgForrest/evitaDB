@@ -2455,38 +2455,6 @@ class EvitaSessionServiceFunctionalTest {
 
 	@Test
 	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should throw exception when trying to open transaction when one is already open")
-	void shouldThrowWhenOpeningTransactionWhenAnotherAlreadyOpen(Evita evita, ManagedChannel channel) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
-
-		final Executable openTransactionExecutable = () -> evitaSessionBlockingStub.openTransaction(Empty.getDefaultInstance());
-
-		assertDoesNotThrow(openTransactionExecutable);
-		assertThrows(StatusRuntimeException.class, openTransactionExecutable);
-	}
-
-	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should throw exception when trying to close transaction when none is open")
-	void shouldThrowWhenClosingTransactionWhenNoneOpen(Evita evita, ManagedChannel channel) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE);
-
-		evitaSessionBlockingStub.openTransaction(Empty.getDefaultInstance());
-
-		final Executable closeTransactionExecutable = () -> evitaSessionBlockingStub.closeTransaction(
-			GrpcCloseTransactionRequest.newBuilder()
-				.setRollback(false)
-				.build()
-		);
-
-		assertDoesNotThrow(closeTransactionExecutable);
-		assertThrows(StatusRuntimeException.class, closeTransactionExecutable);
-	}
-
-	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
 	@DisplayName("Should write changes to database only after transaction is closed")
 	void shouldWriteChangesToDatabaseAfterCloseTransaction(Evita evita, ManagedChannel channel) {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
@@ -2498,7 +2466,8 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionContract evitaSession = evita.createReadOnlySession(TEST_CATALOG);
 		assertNull(evitaSession.getEntity(entityType, primaryKey).orElse(null));
 
-		evitaSessionBlockingStub.openTransaction(Empty.getDefaultInstance());
+		final GrpcTransactionResponse transactionId = evitaSessionBlockingStub.getTransactionId(Empty.getDefaultInstance());
+		assertTrue(transactionId.hasTransactionId());
 
 		evitaSessionBlockingStub.upsertEntity(
 			GrpcUpsertEntityRequest.newBuilder()
@@ -2524,6 +2493,11 @@ class EvitaSessionServiceFunctionalTest {
 		assertNull(evitaSession.getEntity(entityType, primaryKey).orElse(null));
 
 		evitaSessionBlockingStub.closeTransaction(GrpcCloseTransactionRequest.newBuilder().build());
+
+		/* new transaction should immediately start */
+
+		final GrpcTransactionResponse newTransactionId = evitaSessionBlockingStub.getTransactionId(Empty.getDefaultInstance());
+		assertTrue(newTransactionId.hasTransactionId());
 
 		assertNotNull(evitaSession.getEntity(entityType, primaryKey));
 

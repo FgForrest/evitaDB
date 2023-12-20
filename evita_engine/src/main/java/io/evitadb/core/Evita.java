@@ -738,24 +738,31 @@ public final class Evita implements EvitaContract {
 			isTrue(!sessionTraits.isReadWrite() || sessionTraits.isDryRun(), ReadOnlyException::new);
 		}
 
+		final boolean supportsTransactionInTheBeginning = catalog.supportsTransaction();
 		final EvitaSessionTerminationCallback terminationCallback = session -> {
 			sessionRegistry.removeSession(session);
 
 			if (sessionTraits.isReadWrite()) {
+				if (supportsTransactionInTheBeginning) {
+					session.closeTransaction();
+				}
 				catalog.decreaseReadWriteSessionCount();
 				ofNullable(nonTransactionalCatalogDescriptor)
 					.ifPresent(NonTransactionalCatalogDescriptor::notifyStructuralChangeObservers);
 			}
 		};
 
-		final EvitaSessionContract newSession = sessionRegistry.addSession(
-			catalog.supportsTransaction(),
+		final EvitaInternalSessionContract newSession = sessionRegistry.addSession(
+			supportsTransactionInTheBeginning,
 			() -> sessionTraits.isReadWrite() ?
 				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, this::replaceCatalogReference, sessionTraits) :
 				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, sessionTraits)
 		);
 
 		if (sessionTraits.isReadWrite()) {
+			if (supportsTransactionInTheBeginning) {
+				newSession.openTransaction();
+			}
 			catalog.increaseReadWriteSessionCount();
 		}
 

@@ -274,7 +274,6 @@ class EvitaGenerationalTest implements EvitaTestSupport, TimeBoundedTestSupport 
 
 				String operation = null;
 				try (final EvitaSessionContract session = this.evita.createReadWriteSession(TEST_CATALOG)) {
-					session.openTransaction();
 					final int iterations = random.nextInt(500);
 					for (int i = 0; i < iterations; i++) {
 						int primaryKey;

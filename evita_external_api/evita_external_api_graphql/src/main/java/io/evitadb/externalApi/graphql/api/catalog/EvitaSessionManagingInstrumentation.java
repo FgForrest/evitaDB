@@ -30,12 +30,9 @@ import graphql.execution.instrumentation.InstrumentationState;
 import graphql.execution.instrumentation.SimplePerformantInstrumentation;
 import graphql.execution.instrumentation.parameters.InstrumentationExecutionParameters;
 import graphql.language.OperationDefinition;
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.externalApi.graphql.exception.GraphQLSchemaBuildingError;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -72,11 +69,6 @@ public class EvitaSessionManagingInstrumentation extends SimplePerformantInstrum
             evitaSession = evita.createReadOnlySession(catalogName);
         } else if (operation == OperationDefinition.Operation.MUTATION) {
             evitaSession = evita.createReadWriteSession(catalogName);
-            final CatalogContract catalog = evita.getCatalogInstance(catalogName)
-                .orElseThrow(() -> new GraphQLInternalError("Catalog `" + catalogName + "` could not be found."));
-            if (catalog.supportsTransaction()) {
-                evitaSession.openTransaction();
-            }
         } else {
             throw new GraphQLInternalError("Operation `" + operation + "` is currently not supported by evitaDB GraphQL API.");
         }

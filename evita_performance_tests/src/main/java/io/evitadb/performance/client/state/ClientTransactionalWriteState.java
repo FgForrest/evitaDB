@@ -167,7 +167,6 @@ public abstract class ClientTransactionalWriteState extends ClientDataState {
 	 */
 	@Setup(Level.Invocation)
 	public void prepareCall() {
-		this.session.openTransaction();
 		// there is 50% on update instead of insert
 		if (random.nextBoolean()) {
 			final List<Integer> existingProductIds = generatedEntities.get(PRODUCT_ENTITY_TYPE);

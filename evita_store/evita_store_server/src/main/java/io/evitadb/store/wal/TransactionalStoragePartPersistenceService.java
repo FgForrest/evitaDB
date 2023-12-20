@@ -24,6 +24,8 @@
 package io.evitadb.store.wal;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.EntityCollection;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
@@ -52,8 +54,16 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - document me
- * In January 2024:
+ * This implementation of {@link StoragePartPersistenceService} wraps inner delegate of {@link StoragePartPersistenceService}
+ * and adds a temporary layer of {@link OffsetIndex} that is used to store all the mutations that are performed in the
+ * transaction. The layer is primarily backed by off-heap memory and is converted to file only when the transaction gets
+ * too big or there is not enough memory to store all the mutations and changes in memory. The storage parts are binary
+ * chunks that are not used for filtering or sorting entities and just contain the data that needs to be fetched when
+ * the entity is found - but these data are natively directly written to a file and therefore this implementation allows
+ * to imitate the original behavior of {@link StoragePartPersistenceService} that is used in {@link Catalog} and
+ * {@link EntityCollection} persistence services.
+ *
+ * TODO In January 2024:
  * - rewire EntityCollection + Catalog to use this StoragePartPersistenceService in their persistence services inside transaction
  * - contents of this storage part layer will be always completely removed on transaction commit / rollback
  * - separately there will be a WAL which will record all the mutations in its own offset index and that will copy

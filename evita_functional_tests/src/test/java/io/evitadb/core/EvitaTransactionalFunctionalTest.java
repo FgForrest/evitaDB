@@ -26,7 +26,6 @@ package io.evitadb.core;
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.EvitaSessionContract.ResultWithCatalogVersion;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.function.TriFunction;
@@ -161,30 +160,25 @@ public class EvitaTransactionalFunctionalTest {
 								TEST_CATALOG,
 								session -> {
 									final long currentCatalogVersion = session.getCatalogVersion();
-									final ResultWithCatalogVersion<EntityReference> transactionResult = session.executeInTransactionAndReturnCatalogVersion(
-										theSession -> {
-											final EntityReference entityReference = theSession.upsertEntity(it);
+									final EntityReference entityReference = session.upsertEntity(it);
 
-											// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
-											for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
-												if (existingPk.catalogVersion <= currentCatalogVersion) {
-													assertNotNull(
-														theSession.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null),
-														"Entity with catalogVersion " + existingPk.catalogVersion + " is missing in catalog version `" + currentCatalogVersion + "`!"
-													);
-												} else {
-													assertNull(
-														theSession.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null),
-														"Entity with catalogVersion `" + existingPk.catalogVersion + "` is present in catalog version `" + currentCatalogVersion + "`!"
-													);
-												}
-											}
-
-											return entityReference;
-										});
+									// verify that no entity with older transaction id is visible - i.e. SNAPSHOT isolation level
+									for (PkWithCatalogVersion existingPk : primaryKeysWithTxIds) {
+										if (existingPk.catalogVersion <= currentCatalogVersion) {
+											assertNotNull(
+												session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null),
+												"Entity with catalogVersion " + existingPk.catalogVersion + " is missing in catalog version `" + currentCatalogVersion + "`!"
+											);
+										} else {
+											assertNull(
+												session.getEntity(existingPk.getType(), existingPk.getPrimaryKey()).orElse(null),
+												"Entity with catalogVersion `" + existingPk.catalogVersion + "` is present in catalog version `" + currentCatalogVersion + "`!"
+											);
+										}
+									}
 
 									final PkWithCatalogVersion pkWithCatalogVersion = new PkWithCatalogVersion(
-										transactionResult.result(), transactionResult.catalogVersion()
+										entityReference, session.getCatalogVersion()
 									);
 									primaryKeysWithTxIds.add(pkWithCatalogVersion);
 									return pkWithCatalogVersion;

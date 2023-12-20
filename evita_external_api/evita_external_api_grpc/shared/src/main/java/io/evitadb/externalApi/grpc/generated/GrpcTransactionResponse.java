@@ -31,25 +31,25 @@ package io.evitadb.externalApi.grpc.generated;
  * Request for opening a transaction.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse}
  */
-public final class GrpcOpenTransactionResponse extends
+public final class GrpcTransactionResponse extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)
-    GrpcOpenTransactionResponseOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)
+    GrpcTransactionResponseOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcOpenTransactionResponse.newBuilder() to construct.
-  private GrpcOpenTransactionResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcTransactionResponse.newBuilder() to construct.
+  private GrpcTransactionResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcOpenTransactionResponse() {
+  private GrpcTransactionResponse() {
   }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcOpenTransactionResponse();
+    return new GrpcTransactionResponse();
   }
 
   @java.lang.Override
@@ -57,7 +57,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcOpenTransactionResponse(
+  private GrpcTransactionResponse(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -77,7 +77,7 @@ private static final long serialVersionUID = 0L;
             break;
           case 8: {
 
-            alreadyOpenedBefore_ = input.readBool();
+            catalogVersion_ = input.readInt64();
             break;
           }
           case 18: {
@@ -114,30 +114,30 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcOpenTransactionResponse_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTransactionResponse_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcOpenTransactionResponse_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTransactionResponse_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.class, io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.class, io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.Builder.class);
   }
 
-  public static final int ALREADYOPENEDBEFORE_FIELD_NUMBER = 1;
-  private boolean alreadyOpenedBefore_;
+  public static final int CATALOGVERSION_FIELD_NUMBER = 1;
+  private long catalogVersion_;
   /**
    * <pre>
-   * True, if the transaction was opened before corresponding request.
+   * The current version of the catalog the transaction is bound to.
    * </pre>
    *
-   * <code>bool alreadyOpenedBefore = 1;</code>
-   * @return The alreadyOpenedBefore.
+   * <code>int64 catalogVersion = 1;</code>
+   * @return The catalogVersion.
    */
   @java.lang.Override
-  public boolean getAlreadyOpenedBefore() {
-    return alreadyOpenedBefore_;
+  public long getCatalogVersion() {
+    return catalogVersion_;
   }
 
   public static final int TRANSACTIONID_FIELD_NUMBER = 2;
@@ -192,8 +192,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (alreadyOpenedBefore_ != false) {
-      output.writeBool(1, alreadyOpenedBefore_);
+    if (catalogVersion_ != 0L) {
+      output.writeInt64(1, catalogVersion_);
     }
     if (transactionId_ != null) {
       output.writeMessage(2, getTransactionId());
@@ -207,9 +207,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (alreadyOpenedBefore_ != false) {
+    if (catalogVersion_ != 0L) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(1, alreadyOpenedBefore_);
+        .computeInt64Size(1, catalogVersion_);
     }
     if (transactionId_ != null) {
       size += com.google.protobuf.CodedOutputStream
@@ -225,13 +225,13 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse other = (io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse other = (io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse) obj;
 
-    if (getAlreadyOpenedBefore()
-        != other.getAlreadyOpenedBefore()) return false;
+    if (getCatalogVersion()
+        != other.getCatalogVersion()) return false;
     if (hasTransactionId() != other.hasTransactionId()) return false;
     if (hasTransactionId()) {
       if (!getTransactionId()
@@ -248,9 +248,9 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + ALREADYOPENEDBEFORE_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getAlreadyOpenedBefore());
+    hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+        getCatalogVersion());
     if (hasTransactionId()) {
       hash = (37 * hash) + TRANSACTIONID_FIELD_NUMBER;
       hash = (53 * hash) + getTransactionId().hashCode();
@@ -260,69 +260,69 @@ private static final long serialVersionUID = 0L;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -335,7 +335,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -355,26 +355,26 @@ private static final long serialVersionUID = 0L;
    * Request for opening a transaction.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)
-      io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponseOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionResponseOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcOpenTransactionResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTransactionResponse_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcOpenTransactionResponse_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTransactionResponse_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.class, io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.class, io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -392,7 +392,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      alreadyOpenedBefore_ = false;
+      catalogVersion_ = 0L;
 
       if (transactionIdBuilder_ == null) {
         transactionId_ = null;
@@ -406,17 +406,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcOpenTransactionResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcTransactionResponse_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse build() {
-      io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse build() {
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -424,9 +424,9 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse result = new io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse(this);
-      result.alreadyOpenedBefore_ = alreadyOpenedBefore_;
+    public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse result = new io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse(this);
+      result.catalogVersion_ = catalogVersion_;
       if (transactionIdBuilder_ == null) {
         result.transactionId_ = transactionId_;
       } else {
@@ -470,18 +470,18 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse.getDefaultInstance()) return this;
-      if (other.getAlreadyOpenedBefore() != false) {
-        setAlreadyOpenedBefore(other.getAlreadyOpenedBefore());
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse.getDefaultInstance()) return this;
+      if (other.getCatalogVersion() != 0L) {
+        setCatalogVersion(other.getCatalogVersion());
       }
       if (other.hasTransactionId()) {
         mergeTransactionId(other.getTransactionId());
@@ -501,11 +501,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -515,45 +515,45 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private boolean alreadyOpenedBefore_ ;
+    private long catalogVersion_ ;
     /**
      * <pre>
-     * True, if the transaction was opened before corresponding request.
+     * The current version of the catalog the transaction is bound to.
      * </pre>
      *
-     * <code>bool alreadyOpenedBefore = 1;</code>
-     * @return The alreadyOpenedBefore.
+     * <code>int64 catalogVersion = 1;</code>
+     * @return The catalogVersion.
      */
     @java.lang.Override
-    public boolean getAlreadyOpenedBefore() {
-      return alreadyOpenedBefore_;
+    public long getCatalogVersion() {
+      return catalogVersion_;
     }
     /**
      * <pre>
-     * True, if the transaction was opened before corresponding request.
+     * The current version of the catalog the transaction is bound to.
      * </pre>
      *
-     * <code>bool alreadyOpenedBefore = 1;</code>
-     * @param value The alreadyOpenedBefore to set.
+     * <code>int64 catalogVersion = 1;</code>
+     * @param value The catalogVersion to set.
      * @return This builder for chaining.
      */
-    public Builder setAlreadyOpenedBefore(boolean value) {
+    public Builder setCatalogVersion(long value) {
       
-      alreadyOpenedBefore_ = value;
+      catalogVersion_ = value;
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * True, if the transaction was opened before corresponding request.
+     * The current version of the catalog the transaction is bound to.
      * </pre>
      *
-     * <code>bool alreadyOpenedBefore = 1;</code>
+     * <code>int64 catalogVersion = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearAlreadyOpenedBefore() {
+    public Builder clearCatalogVersion() {
       
-      alreadyOpenedBefore_ = false;
+      catalogVersion_ = 0L;
       onChanged();
       return this;
     }
@@ -725,41 +725,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcOpenTransactionResponse>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcOpenTransactionResponse>() {
+  private static final com.google.protobuf.Parser<GrpcTransactionResponse>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcTransactionResponse>() {
     @java.lang.Override
-    public GrpcOpenTransactionResponse parsePartialFrom(
+    public GrpcTransactionResponse parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcOpenTransactionResponse(input, extensionRegistry);
+      return new GrpcTransactionResponse(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcOpenTransactionResponse> parser() {
+  public static com.google.protobuf.Parser<GrpcTransactionResponse> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcOpenTransactionResponse> getParserForType() {
+  public com.google.protobuf.Parser<GrpcTransactionResponse> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcOpenTransactionResponse getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcTransactionResponse getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

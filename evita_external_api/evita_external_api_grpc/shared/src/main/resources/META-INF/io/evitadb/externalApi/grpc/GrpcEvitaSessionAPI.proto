@@ -333,9 +333,9 @@ message GrpcDeleteEntitiesResponse {
 }
 
 // Request for opening a transaction.
-message GrpcOpenTransactionResponse {
-  // True, if the transaction was opened before corresponding request.
-  bool alreadyOpenedBefore = 1;
+message GrpcTransactionResponse {
+  // The current version of the catalog the transaction is bound to.
+  int64 catalogVersion = 1;
   // The id of the opened transaction.
   GrpcUuid transactionId = 2;
 }
@@ -493,7 +493,7 @@ service EvitaSessionService {
   rpc DeleteEntities(GrpcDeleteEntitiesRequest) returns (GrpcDeleteEntitiesResponse);
 
   // Procedure that opens a transaction.
-  rpc OpenTransaction(google.protobuf.Empty) returns (GrpcOpenTransactionResponse);
+  rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
   // Procedure that closes a transaction.
   rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
 }

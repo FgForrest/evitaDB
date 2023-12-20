@@ -47,6 +47,10 @@ public class EvitaClientTransaction implements TransactionContract {
 	 */
 	@Getter private final UUID transactionId;
 	/**
+	 * Contains the catalog version the transaction is opened within.
+	 */
+	@Getter private final long catalogVersion;
+	/**
 	 * Rollback only flag.
 	 */
 	@Getter private boolean rollbackOnly;

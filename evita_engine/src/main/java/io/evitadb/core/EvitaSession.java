@@ -31,7 +31,6 @@ import io.evitadb.api.EvitaSessionTerminationCallback;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.InstanceTerminatedException;
@@ -971,8 +970,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		});
 	}
 
-	@Override
 	@Nonnull
+	@Override
 	public UUID openTransaction() {
 		assertTransactionIsNotOpened();
 		final Transaction transaction = createAndInitTransaction();
@@ -989,65 +988,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Override
-	public <T> T executeInTransaction(
-		@Nonnull Function<EvitaSessionContract, T> lambda,
-		@Nonnull CommitBehaviour behaviour
-	) {
-		assertTransactionIsNotOpened();
-		try (final Transaction transaction = createAndInitTransaction()) {
-			/* TODO JNO - Implement commit behaviour */
-			this.transactionAccessor.set(transaction);
-			return lambda.apply(this);
-		}
-	}
-
-	@Override
-	public void executeInTransaction(
-		@Nonnull Consumer<EvitaSessionContract> lambda,
-		@Nonnull CommitBehaviour behaviour
-	) {
-		assertTransactionIsNotOpened();
-		try (final Transaction transaction = createAndInitTransaction()) {
-			/* TODO JNO - Implement commit behaviour */
-			this.transactionAccessor.set(transaction);
-			lambda.accept(this);
-		}
-	}
-
-	@Override
-	public <T> ResultWithCatalogVersion<T> executeInTransactionAndReturnCatalogVersion(
-		@Nonnull Function<EvitaSessionContract, T> lambda,
-		@Nonnull CommitBehaviour behaviour
-	) {
-		assertTransactionIsNotOpened();
-		try (final Transaction transaction = createAndInitTransaction()) {
-			/* TODO JNO - Implement commit behaviour */
-			this.transactionAccessor.set(transaction);
-			return new ResultWithCatalogVersion<>(lambda.apply(this), catalog.get().getVersion());
-		}
-	}
-
-	@Override
-	public long executeInTransactionAndReturnCatalogVersion(
-		@Nonnull Consumer<EvitaSessionContract> lambda,
-		@Nonnull CommitBehaviour behaviour
-	) {
-		assertTransactionIsNotOpened();
-		try (final Transaction transaction = createAndInitTransaction()) {
-			/* TODO JNO - Implement commit behaviour */
-			this.transactionAccessor.set(transaction);
-			lambda.accept(this);
-			return catalog.get().getVersion();
-		}
-	}
-
-	@Override
 	public void closeTransaction() {
 		transactionAccessor.getAndUpdate(transaction -> {
 			Assert.isPremiseValid(transaction != null, "Transaction unexpectedly not present!");
 			transaction.close();
 			return null;
 		});
+		// immediately open a new transaction for additional updates in the session
+		openTransaction();
 	}
 
 	@Override

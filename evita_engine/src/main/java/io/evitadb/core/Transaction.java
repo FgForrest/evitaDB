@@ -66,9 +66,6 @@ import java.util.function.Supplier;
 import static java.util.Optional.ofNullable;
 
 /**
- * TODO JNO - when catalog is transactional each updateCatalog must be implicitly a transaction - maybe get rid of
- * openTransaction / executeInTransaction methods at all?
- *
  * {@inheritDoc TransactionContract}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -375,7 +372,7 @@ public final class Transaction implements TransactionContract {
 			} else {
 				transactionalMemory.commit();
 				newCatalog = updatedCatalog.get();
-				/* TODO JNO - toto bude vyžadovat přemyšlení */
+				/* TODO JNO - resolve with transaction finalization */
 				/*Assert.isPremiseValid(
 					transactionId == 0L || newCatalog != null,
 					"New version of catalog was not created as expected!"

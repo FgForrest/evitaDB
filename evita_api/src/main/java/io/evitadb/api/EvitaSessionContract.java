@@ -23,7 +23,6 @@
 
 package io.evitadb.api;
 
-import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityClassInvalidException;
@@ -999,78 +998,6 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	}
 
 	/**
-	 * Opens a new transaction.
-	 *
-	 * @return transaction id
-	 */
-	@Nonnull
-	UUID openTransaction();
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	default <T> T executeInTransaction(@Nonnull Function<EvitaSessionContract, T> lambda) {
-		return executeInTransaction(lambda, CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	<T> T executeInTransaction(@Nonnull Function<EvitaSessionContract, T> lambda, @Nonnull CommitBehaviour behaviour);
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	default void executeInTransaction(@Nonnull Consumer<EvitaSessionContract> lambda) {
-		executeInTransaction(lambda, CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	void executeInTransaction(@Nonnull Consumer<EvitaSessionContract> lambda, @Nonnull CommitBehaviour behaviour);
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	default <T> ResultWithCatalogVersion<T> executeInTransactionAndReturnCatalogVersion(@Nonnull Function<EvitaSessionContract, T> lambda) {
-		return executeInTransactionAndReturnCatalogVersion(lambda, CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	<T> ResultWithCatalogVersion<T> executeInTransactionAndReturnCatalogVersion(@Nonnull Function<EvitaSessionContract, T> lambda, @Nonnull CommitBehaviour behaviour);
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	default long executeInTransactionAndReturnCatalogVersion(@Nonnull Consumer<EvitaSessionContract> lambda) {
-		return executeInTransactionAndReturnCatalogVersion(lambda, CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE);
-	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param lambda
-	 * @return
-	 */
-	long executeInTransactionAndReturnCatalogVersion(@Nonnull Consumer<EvitaSessionContract> lambda, @Nonnull CommitBehaviour behaviour);
-
-	/**
 	 * Returns {@link TransactionContract#getTransactionId()} of the currently opened transaction in this session. Returns empty
 	 * value if no transaction is present.
 	 */
@@ -1178,16 +1105,5 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	default Optional<String> getRequestId() {
 		return getEvita().getRequestId();
 	}
-
-	/**
-	 * TODO JNO - document me
-	 * @param result
-	 * @param catalogVersion
-	 * @param <T>
-	 */
-	record ResultWithCatalogVersion<T>(
-		T result,
-		long catalogVersion
-	) {}
 
 }

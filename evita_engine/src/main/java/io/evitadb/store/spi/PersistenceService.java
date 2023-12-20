@@ -35,11 +35,13 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * TODO JNO - document me
+ * This interface defines shared methods for permited set of persistence services.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-interface PersistenceService<IK extends IndexKey, I extends Index<IK>> extends Closeable {
+sealed interface PersistenceService<IK extends IndexKey, I extends Index<IK>>
+	extends Closeable
+	permits CatalogPersistenceService, EntityCollectionPersistenceService {
 
 	/**
 	 * Returns true if underlying file was not yet created.

@@ -76,7 +76,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
@@ -764,21 +763,24 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Opens a transaction on the current session. Each changes performed since will be visible only for the current session until {@link #closeTransaction(GrpcCloseTransactionRequest, StreamObserver)}  is called.
+	 * Returns is of an opened transaction on the current session. Each changes performed since will be visible only for
+	 * the current session until {@link #closeTransaction(GrpcCloseTransactionRequest, StreamObserver)}  is called.
 	 *
 	 * @param request          empty request
 	 * @param responseObserver observer on which errors might be thrown and result returned
-	 * @see EvitaSessionContract#openTransaction()
+	 * @see EvitaSessionContract#getOpenedTransactionId()
 	 */
 	@Override
-	public void openTransaction(@Nonnull Empty request, @Nonnull StreamObserver<GrpcOpenTransactionResponse> responseObserver) {
+	public void getTransactionId(Empty request, StreamObserver<GrpcTransactionResponse> responseObserver) {
 		executeWithClientContext(session -> {
-			final UUID txId = session.openTransaction();
+			final GrpcTransactionResponse.Builder builder = GrpcTransactionResponse
+				.newBuilder();
+			session.getOpenedTransactionId().ifPresent(txId ->
+				builder.setTransactionId(toGrpcUuid(txId))
+			);
 			responseObserver.onNext(
-				GrpcOpenTransactionResponse
-					.newBuilder()
-					.setAlreadyOpenedBefore(false)
-					.setTransactionId(toGrpcUuid(txId))
+				builder
+					.setCatalogVersion(session.getCatalogVersion())
 					.build()
 			);
 			responseObserver.onCompleted();
