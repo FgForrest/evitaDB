@@ -7,7 +7,7 @@ perex: |
   semantics and language conventions.
 date: '10.11.2023'
 author: 'Ing. Tomáš Pozler'
-preferredLang: 'csharp'
+preferredLang: 'cs'
 ---
 
 <LanguageSpecific to="evitaql,java,graphql,rest">
@@ -21,11 +21,13 @@ and <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.jav
 where on the C# side, there has been only an adaptation without the need of these specific interfaces - classes were used instead.
 
 **Supported versions of .NET**
+
 Since it's a relatively new project which in the implementation uses many of the newer language features, the C# driver
-will not be backward compatible with older versions of .NET that .NET 7.
+will not be backward compatible with older versions of .NET that .NET 8.
 
 **How to install**
-As mentioned previously, to use this client is necessary to have at least .NET 7 installed.
+
+As mentioned previously, to use this client is necessary to have at least .NET 8 installed.
 To install the client, you can use the NuGet package manager or the dotnet CLI. For alternative ways of installation,
 please refer to the [nuget repository](https://www.nuget.org/packages/EvitaDB.Client).
 

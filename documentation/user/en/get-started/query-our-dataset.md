@@ -169,6 +169,21 @@ Open your .NET IDE and create an instance of <SourceClass>EvitaDB.Client/EvitaCl
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.cs)
 </SourceCodeTabs>
 
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Why is EvitaClient initialized with static async method instead of constructor?
+
+</NoteTitle>
+
+In the initialization process, the client needs to get `server-name` from evitaDB's *system* endpoint and in case of 
+usage of generated self-signed certificates, it needs to get the certificate from the server. Since both of these operations 
+are asynchronous in .NET, we decided to make the initialization process asynchronous as well. These asynchronous calls
+cannot be done  in the constructor (without blocking the main application thread, which could cause serious problems in
+your application), so we decided to use static async method instead.
+</Note>
+
 After that you can create a new session and try any of the evitaQL queries described in
 [the reference documentation](../query/basics.md):
 
