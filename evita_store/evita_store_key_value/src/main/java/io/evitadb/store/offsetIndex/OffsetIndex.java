@@ -395,7 +395,14 @@ public class OffsetIndex {
 			primaryKey
 		);
 
-		return ofNullable(keyToLocations.get(key)).isPresent();
+		final NonFlushedValue nonFlushedValue = nonFlushedValues.nonFlushedValueIndex.get(key);
+		if (nonFlushedValue == null) {
+			return ofNullable(keyToLocations.get(key)).isPresent();
+		} else if (nonFlushedValue.isRemoval()) {
+			return false;
+		} else {
+			return true;
+		}
 	}
 
 	/**
@@ -426,7 +433,7 @@ public class OffsetIndex {
 	 * Removes existing record with passed primary key in OffsetIndex. True is returned if particular record is found and
 	 * removed.
 	 *
-	 * TOBEDONE JNO - shouldn't we also track catalogVersion as in put method?!
+	 * TODO JNO - shouldn't we also track catalogVersion as in put method?!
 	 *
 	 * @param primaryKey primary key of the record that is removed
 	 * @param recordType type of the container that is connected with the passed id

@@ -42,7 +42,6 @@ import java.nio.BufferOverflowException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -114,13 +113,12 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	}
 
 	public WriteOnlyOffHeapWithFileBackupHandle(
-		@Nonnull Path targetFolder,
-		@Nonnull UUID transactionId,
+		@Nonnull Path targetFile,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager
 	) {
 		this.offHeapMemoryManager = offHeapMemoryManager;
-		this.targetFile = targetFolder.resolve(transactionId + ".tmp");
+		this.targetFile = targetFile;
 		this.observableOutputKeeper = observableOutputKeeper;
 	}
 

@@ -111,6 +111,7 @@ import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.DeferredStorageOperation;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.store.spi.model.storageParts.accessor.ReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.store.spi.operation.PutStoragePartOperation;
@@ -171,7 +172,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	/**
 	 * EntityIndex factory implementation.
 	 */
-	private final EntityIndexMaintainerImpl entityIndexCreator = new EntityIndexMaintainerImpl();
+	private final EntityIndexMaintainer entityIndexCreator = new EntityIndexMaintainer();
 	/**
 	 * Contains schema of the entity type that is used for formal verification of the data consistency and indexing
 	 * prescription.
@@ -255,10 +256,11 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		this.catalogAccessor = new AtomicReference<>(catalog);
 
 		// initialize container buffer
-		this.dataStoreBuffer = new DataStoreTxMemoryBuffer<>(this, this.persistenceService);
+		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
+		this.dataStoreBuffer = new DataStoreTxMemoryBuffer<>(this, storagePartPersistenceService);
 		// initialize schema - still in constructor
 		this.schema = new TransactionalReference<>(
-			ofNullable(this.persistenceService.getStoragePart(1, EntitySchemaStoragePart.class))
+			ofNullable(storagePartPersistenceService.getStoragePart(1, EntitySchemaStoragePart.class))
 				.map(EntitySchemaStoragePart::entitySchema)
 				.map(it -> new EntitySchemaDecorator(() -> getCatalog().getSchema(), it))
 				.orElseGet(() -> {
@@ -313,7 +315,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		this.catalogPersistenceService = catalogPersistenceService;
 		this.persistenceService = persistenceService;
 		this.indexPkSequence = indexPkSequence;
-		this.dataStoreBuffer = new DataStoreTxMemoryBuffer<>(this, persistenceService);
+		this.dataStoreBuffer = new DataStoreTxMemoryBuffer<>(this, persistenceService.getStoragePartPersistenceService());
 		this.indexes = new TransactionalMap<>(indexes, it -> (EntityIndex) it);
 		for (EntityIndex entityIndex : this.indexes.values()) {
 			entityIndex.updateReferencesTo(this);
@@ -1427,7 +1429,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		if (this.persistenceService.isClosed()) {
 			// if the service was closed in the meantime - just recreate it
 			this.persistenceService = this.catalogPersistenceService.createEntityCollectionPersistenceService(getEntityType(), getEntityTypePrimaryKey());
-			this.dataStoreBuffer.setPersistenceService(persistenceService);
+			this.dataStoreBuffer.setPersistenceService(this.persistenceService.getStoragePartPersistenceService());
 		}
 		return lambda.get();
 	}
@@ -1492,7 +1494,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 	/**
 	 * This implementation just manipulates with the set of EntityIndex in entity collection.
 	 */
-	private class EntityIndexMaintainerImpl implements IndexMaintainer<EntityIndexKey, EntityIndex> {
+	private class EntityIndexMaintainer implements IndexMaintainer<EntityIndexKey, EntityIndex> {
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.

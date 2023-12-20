@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.TransactionContract;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.exception.UnexpectedRollbackException;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.exception.CatalogCorruptedException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerConsumer;
@@ -38,7 +39,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.DeferredStorageOperation;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
-import io.evitadb.store.spi.PersistenceService;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.UUIDUtil;
 import lombok.Getter;
@@ -65,6 +66,9 @@ import java.util.function.Supplier;
 import static java.util.Optional.ofNullable;
 
 /**
+ * TODO JNO - when catalog is transactional each updateCatalog must be implicitly a transaction - maybe get rid of
+ * openTransaction / executeInTransaction methods at all?
+ *
  * {@inheritDoc TransactionContract}
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -387,12 +391,22 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
+	 * All mutation operations that occur within the transaction must be registered here in order they get recorded
+	 * in the WAL and participate in conflict resolution logic.
+	 *
+	 * @param mutation mutation to be registered
+	 */
+	public void register(@Nonnull Mutation mutation) {
+		// toto implement writing into the WAL
+	}
+
+	/**
 	 * Registers deferred I/O related catalog operation that should be performed when the transaction is committed.
 	 */
 	public void register(@Nonnull DeferredStorageOperation<?> deferredStorageOperation) {
 		Assert.isPremiseValid(
 			CatalogPersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()) ||
-			PersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()),
+			StoragePartPersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()),
 			() -> new EvitaInternalError("It's not allowed to register deferred operation for catalog that targets entity collection!")
 		);
 		this.updateInstructions.register(deferredStorageOperation);
@@ -404,7 +418,7 @@ public final class Transaction implements TransactionContract {
 	public void register(@Nonnull String entityType, @Nonnull DeferredStorageOperation<?> deferredStorageOperation) {
 		Assert.isPremiseValid(
 			EntityCollectionPersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()) ||
-				PersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()),
+				StoragePartPersistenceService.class.equals(deferredStorageOperation.getRequiredPersistenceServiceType()),
 			() -> new EvitaInternalError("It's not allowed to register deferred operation for entity collection that targets catalog!")
 		);
 		this.updateInstructions.register(entityType, deferredStorageOperation);

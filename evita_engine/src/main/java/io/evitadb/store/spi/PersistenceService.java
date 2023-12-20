@@ -23,87 +23,86 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.core.buffer.BufferedChangeSet;
+import io.evitadb.index.Index;
+import io.evitadb.index.IndexKey;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
- * Persistent service defines shared contract for services that allow to work with persistent data storage based on
- * file offset index object. There is usually single file for one key EvitaDB object (catalog, entity-collection).
+ * TODO JNO - document me
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface PersistenceService extends Closeable {
+interface PersistenceService<IK extends IndexKey, I extends Index<IK>> extends Closeable {
 
 	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
+	 * Returns true if underlying file was not yet created.
 	 */
-	@Nullable
-	<T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType);
+	boolean isNew();
 
 	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
-	 */
-	@Nullable
-	<T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType);
-
-	/**
-	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
-	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
-	 *
-	 * @return already or newly assigned {@link StoragePart#getStoragePartPK()} - primary key of the storage part
-	 */
-	<T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container);
-
-	/**
-	 * Removes container from the transactional memory. This method should be used only for container, that has
-	 * no uniqueId assigned so far (e.g. they haven't been stored yet).
-	 */
-	<T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType);
-
-	/**
-	 * Returns true if persistent storage contains non-removed storage part of particular primary key and container
-	 * type.
-	 */
-	<T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType);
-
-	/**
-	 * Method applies all deferredOperations from the passed list on current data storage.
-	 */
-	default void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
-		for (final DeferredStorageOperation<?> deferredOperation : deferredOperations) {
-			Assert.isPremiseValid(
-				deferredOperation.getRequiredPersistenceServiceType().isInstance(this),
-				() -> new EvitaInternalError("Incompatible deferred operation!")
-			);
-			//noinspection unchecked,rawtypes
-			((DeferredStorageOperation)deferredOperation).execute(owner, storagePartPk, this);
-		}
-	}
-
-	/**
-	 * Returns a key compressor that contains indexes of keys assigned to a key comparable objects that are expensive
-	 * to be stored duplicated during serialization.
+	 * Returns underlying {@link StoragePartPersistenceService} which this instance uses for {@link StoragePart}
+	 * persistence.
+	 * @return underlying {@link StoragePartPersistenceService}
 	 */
 	@Nonnull
-	KeyCompressor getReadOnlyKeyCompressor();
+	StoragePartPersistenceService getStoragePartPersistenceService();
 
 	/**
-	 * Returns true if the persistence service was closed.
+	 * Method initializes intermediate memory buffers keeper that are required when contents of the catalog are persisted.
+	 * These buffers are not necessary when there are no updates to the catalog / collection, so it's wise to get rid
+	 * of them if there is no actual need.
+	 *
+	 * The need is determined by the number of opened read write {@link EvitaSessionContract} to the catalog.
+	 * If there is at least one opened read-write session we need to keep those outputs around. When there are only read
+	 * sessions we don't need the outputs.
+	 *
+	 * The opening logic is responsible for calling {@link #release()} method that drops these buffers to the GC.
+	 * TODO JNO - these methods will be moved to QueueWriter
+	 *
+	 * @see #release()
+	 */
+	void prepare();
+
+	/**
+	 * Method releases all intermediate (and large) write buffers and let the GC discard them.
+	 * TODO JNO - these methods will be moved to QueueWriter
+	 *
+	 * @see #prepare()
+	 */
+	void release();
+
+	/**
+	 * Method combines {@link #prepare()} and {@link #release()} in a safe manner.
+	 * If the write session is opened the prepare and release is not called.
+	 * TODO JNO - these methods will be moved to QueueWriter
+	 */
+	<T> T executeWriteSafely(@Nonnull Supplier<T> lambda);
+
+	/**
+	 * Applies the given deferred operations to the persistence service.
+	 *
+	 * @param owner                the owner of the deferred operations
+	 * @param storagePartPk        the storage part primary key
+	 * @param deferredOperations   the deferred operations to apply
+	 */
+	void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations);
+
+	/**
+	 * Flushes all trapped memory data to the persistent storage.
+	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
+	 */
+	void flushTrappedUpdates(@Nonnull BufferedChangeSet<IK, I> bufferedChangeSet);
+
+	/**
+	 * Returns true if the persistence service is closed.
+	 * @return true if the persistence service is closed
 	 */
 	boolean isClosed();
-
-	/**
-	 * Closes the entity collection persistent storage.
-	 */
-	@Override
-	void close();
 }

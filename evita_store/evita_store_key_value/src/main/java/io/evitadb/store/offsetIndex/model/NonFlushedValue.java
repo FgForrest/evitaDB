@@ -28,7 +28,6 @@ import io.evitadb.store.offsetIndex.OffsetIndex;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * This DTO allows to keep the object that was written to the {@link OffsetIndex} but its location
@@ -54,11 +53,17 @@ public record NonFlushedValue(long primaryKey, byte recordType, FileLocation fil
 		if (this == o) return true;
 		if (o == null || getClass() != o.getClass()) return false;
 		NonFlushedValue that = (NonFlushedValue) o;
-		return primaryKey == that.primaryKey && Math.abs(recordType) == Math.abs(that.recordType) && fileLocation.equals(that.fileLocation);
+		return primaryKey == that.primaryKey &&
+			Math.abs(recordType) == Math.abs(that.recordType) &&
+			fileLocation.equals(that.fileLocation);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(primaryKey, Math.abs(recordType), fileLocation);
+		int result = 1;
+		result = 31 * result + Long.hashCode(primaryKey);
+		result = 31 * result + Byte.hashCode(recordType < 0 ? (byte)(recordType * -1) : recordType);
+		result = 31 * result + (fileLocation == null ? 0 : fileLocation.hashCode());
+		return result;
 	}
 }

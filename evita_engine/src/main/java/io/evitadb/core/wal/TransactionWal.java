@@ -21,24 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi.exception;
-
-import io.evitadb.exception.EvitaInternalError;
-import io.evitadb.store.spi.StoragePartPersistenceService;
-
-import java.io.Serial;
+package io.evitadb.core.wal;
 
 /**
- * Exception is thrown when the {@link StoragePartPersistenceService} is called but it was previously
- * {@link StoragePartPersistenceService#close() closed}.
+ * TODO JNO - document me
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public class PersistenceServiceClosed extends EvitaInternalError {
-	@Serial private static final long serialVersionUID = -7895102315008153201L;
-
-	public PersistenceServiceClosed() {
-		super("The persistence service was already closed!");
-	}
-
+public class TransactionWal {
 }

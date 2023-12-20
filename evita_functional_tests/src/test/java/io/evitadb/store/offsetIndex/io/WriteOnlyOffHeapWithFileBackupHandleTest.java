@@ -59,7 +59,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory, UUIDUtil.randomUUID(), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
 		) {
 			writeHandle.checkAndExecuteAndSync(
@@ -85,7 +85,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory, UUIDUtil.randomUUID(), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
 		) {
 			for (int i = 0; i < 5; i++) {
@@ -116,7 +116,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle writeHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory, UUIDUtil.randomUUID(), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
 		) {
 			for (int i = 0; i < 5; i++) {
@@ -151,7 +151,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 		try (
 			final OffHeapMemoryManager memoryManager = new OffHeapMemoryManager(32, 1);
 			final WriteOnlyOffHeapWithFileBackupHandle realMemoryHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-				targetDirectory, UUIDUtil.randomUUID(), outputKeeper, memoryManager
+				targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 			)
 		) {
 			// we need to write at least one byte to the real memory handle to force the memory manager
@@ -164,7 +164,7 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 			// because there is only one region available - this will force the handle to use the file backup immediately
 			try (
 				final WriteOnlyOffHeapWithFileBackupHandle forcedFileHandle = new WriteOnlyOffHeapWithFileBackupHandle(
-					targetDirectory, UUIDUtil.randomUUID(), outputKeeper, memoryManager
+					targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp"), outputKeeper, memoryManager
 				)
 			) {
 				for (int i = 0; i < 5; i++) {

@@ -35,27 +35,31 @@ import java.util.Optional;
 /**
  * Configuration options related to the key-value storage.
  *
- * @param storageDirectory     Directory on local disk where Evita files are stored.
- *                             By default, temporary directory is used - but it is highly recommended setting your own
- *                             directory if you don't want to lose the data.
- * @param lockTimeoutSeconds   This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
- *                             Locks are used to get handle to open file. Set of open handles is limited to
- *                             {@link #maxOpenedReadHandles} for read operations and single write handle for write
- *                             operations (only single thread is expected to append to a file).
- * @param waitOnCloseSeconds   This timeout represents a time that will file offset index wait for processes to release their
- *                             read handles to file. After this timeout files will be closed by force and processes may
- *                             experience an exception.
- * @param outputBufferSize     The output buffer size determines how large a buffer is kept in memory for output
- *                             purposes. The size of the buffer limits the maximum size of an individual record in the
- *                             key/value data store.
- * @param maxOpenedReadHandles Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
- * @param computeCRC32C        Contains setting that determined whether CRC32C checksums will be computed for written
- *                             records and also whether the CRC32C checksum will be checked on record read.
+ * @param storageDirectory            Directory on local disk where Evita files are stored.
+ *                                    By default, temporary directory is used - but it is highly recommended setting your own
+ *                                    directory if you don't want to lose the data.
+ * @param transactionWorkDirectory Directory on local disk where Evita creates temporary folders and files for
+ *                                    transactional storage. By default, temporary directory is used - but it is
+ *                                    recommended setting your own directory with dedicated disk space.
+ * @param lockTimeoutSeconds          This timeout represents a time in seconds that is tolerated to wait for lock acquiring.
+ *                                    Locks are used to get handle to open file. Set of open handles is limited to
+ *                                    {@link #maxOpenedReadHandles} for read operations and single write handle for write
+ *                                    operations (only single thread is expected to append to a file).
+ * @param waitOnCloseSeconds          This timeout represents a time that will file offset index wait for processes to release their
+ *                                    read handles to file. After this timeout files will be closed by force and processes may
+ *                                    experience an exception.
+ * @param outputBufferSize            The output buffer size determines how large a buffer is kept in memory for output
+ *                                    purposes. The size of the buffer limits the maximum size of an individual record in the
+ *                                    key/value data store.
+ * @param maxOpenedReadHandles        Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
+ * @param computeCRC32C               Contains setting that determined whether CRC32C checksums will be computed for written
+ *                                    records and also whether the CRC32C checksum will be checked on record read.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Builder
 public record StorageOptions(
 	@Nullable Path storageDirectory,
+	@Nullable Path transactionWorkDirectory,
 	long lockTimeoutSeconds,
 	long waitOnCloseSeconds,
 	int outputBufferSize,
@@ -65,6 +69,7 @@ public record StorageOptions(
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
 	public static final Path DEFAULT_DIRECTORY = Paths.get("").resolve("data");
+	public static final Path DEFAULT_TX_DIRECTORY = Paths.get("").resolve("transactions");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
@@ -75,7 +80,8 @@ public record StorageOptions(
 	 */
 	public static StorageOptions temporary() {
 		return new StorageOptions(
-			Path.of(System.getProperty("java.io.tmpdir"), "evita"),
+			Path.of(System.getProperty("java.io.tmpdir"), "evita/data"),
+			Path.of(System.getProperty("java.io.tmpdir"), "evita/transactions"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
 			true
@@ -99,6 +105,7 @@ public record StorageOptions(
 	public StorageOptions() {
 		this(
 			DEFAULT_DIRECTORY,
+			DEFAULT_TX_DIRECTORY,
 			DEFAULT_LOCK_TIMEOUT_SECONDS,
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
@@ -107,8 +114,17 @@ public record StorageOptions(
 		);
 	}
 
-	public StorageOptions(@Nullable Path storageDirectory, long lockTimeoutSeconds, long waitOnCloseSeconds, int outputBufferSize, int maxOpenedReadHandles, boolean computeCRC32C) {
+	public StorageOptions(
+		@Nullable Path storageDirectory,
+		@Nullable Path transactionWorkDirectory,
+		long lockTimeoutSeconds,
+		long waitOnCloseSeconds,
+		int outputBufferSize,
+		int maxOpenedReadHandles,
+		boolean computeCRC32C
+	) {
 		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DIRECTORY);
+		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
 		this.lockTimeoutSeconds = lockTimeoutSeconds;
 		this.waitOnCloseSeconds = waitOnCloseSeconds;
 		this.outputBufferSize = outputBufferSize;
@@ -131,6 +147,7 @@ public record StorageOptions(
 	@ToString
 	public static class Builder {
 		private Path storageDirectory = DEFAULT_DIRECTORY;
+		private Path transactionWorkDirectory = DEFAULT_TX_DIRECTORY;
 		private long lockTimeoutSeconds = DEFAULT_LOCK_TIMEOUT_SECONDS;
 		private long waitOnCloseSeconds = DEFAULT_WAIT_ON_CLOSE_SECONDS;
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
@@ -142,6 +159,7 @@ public record StorageOptions(
 
 		Builder(@Nonnull StorageOptions storageOptions) {
 			this.storageDirectory = storageOptions.storageDirectory;
+			this.transactionWorkDirectory = storageOptions.transactionWorkDirectory;
 			this.lockTimeoutSeconds = storageOptions.lockTimeoutSeconds;
 			this.waitOnCloseSeconds = storageOptions.waitOnCloseSeconds;
 			this.outputBufferSize = storageOptions.outputBufferSize;
@@ -149,8 +167,13 @@ public record StorageOptions(
 			this.computeCRC32C = storageOptions.computeCRC32C;
 		}
 
-		public Builder storageDirectory(Path storageDirectory) {
+		public Builder storageDirectory(@Nonnull Path storageDirectory) {
 			this.storageDirectory = storageDirectory;
+			return this;
+		}
+
+		public Builder transactionWorkDirectory(@Nonnull Path transactionWorkDirectory) {
+			this.transactionWorkDirectory = transactionWorkDirectory;
 			return this;
 		}
 
@@ -182,6 +205,7 @@ public record StorageOptions(
 		public StorageOptions build() {
 			return new StorageOptions(
 				storageDirectory,
+				transactionWorkDirectory,
 				lockTimeoutSeconds,
 				waitOnCloseSeconds,
 				outputBufferSize,

@@ -96,6 +96,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	public static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE);
 	private static final SealedCatalogSchema SEALED_CATALOG_SCHEMA = new CatalogSchemaDecorator(CATALOG_SCHEMA);
 	public static final String DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "defaultCatalogPersistenceServiceTest";
+	public static final String TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST = "txDefaultCatalogPersistenceServiceTest";
 
 	private final DataGenerator dataGenerator = new DataGenerator();
 	private final SequenceService sequenceService = new SequenceService();
@@ -103,7 +104,9 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	@Nonnull
 	private StorageOptions getStorageOptions() {
 		return new StorageOptions(
-			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST), 60, 60,
+			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
+			getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
+			60, 60,
 			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1, true
 		);
 	}
@@ -127,7 +130,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 		ioService.prepare();
 
-		ioService.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+		ioService.getStoragePartPersistenceService()
+			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 
 		final EvitaSession mockSession = mock(EvitaSession.class);
 		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);
@@ -171,7 +175,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		);
 		ioService.prepare();
 
-		ioService.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+		ioService.getStoragePartPersistenceService()
+			.putStoragePart(0L, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
 
 		final EvitaSession mockSession = mock(EvitaSession.class);
 		when(mockSession.getCatalogSchema()).thenReturn(SEALED_CATALOG_SCHEMA);

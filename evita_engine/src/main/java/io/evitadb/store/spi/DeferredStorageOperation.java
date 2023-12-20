@@ -33,10 +33,10 @@ import javax.annotation.Nonnull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface DeferredStorageOperation<T extends PersistenceService> {
+public interface DeferredStorageOperation<T> {
 
 	/**
-	 * Returns the type of the {@link PersistenceService} this deferred operation requires.
+	 * Returns the type of the {@link StoragePartPersistenceService} this deferred operation requires.
 	 */
 	@Nonnull
 	Class<T> getRequiredPersistenceServiceType();

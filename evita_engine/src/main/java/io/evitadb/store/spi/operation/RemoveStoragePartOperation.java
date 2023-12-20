@@ -26,7 +26,7 @@ package io.evitadb.store.spi.operation;
 import io.evitadb.store.model.PersistedStoragePartKey;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.DeferredStorageOperation;
-import io.evitadb.store.spi.PersistenceService;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -37,7 +37,7 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @RequiredArgsConstructor
-public class RemoveStoragePartOperation implements DeferredStorageOperation<PersistenceService> {
+public class RemoveStoragePartOperation implements DeferredStorageOperation<StoragePartPersistenceService> {
 	/**
 	 * Contains {@link PersistedStoragePartKey} identifying {@link StoragePart} that should be removed from
 	 * persistent storage.
@@ -47,12 +47,12 @@ public class RemoveStoragePartOperation implements DeferredStorageOperation<Pers
 
 	@Nonnull
 	@Override
-	public Class<PersistenceService> getRequiredPersistenceServiceType() {
-		return PersistenceService.class;
+	public Class<StoragePartPersistenceService> getRequiredPersistenceServiceType() {
+		return StoragePartPersistenceService.class;
 	}
 
 	@Override
-	public void execute(@Nonnull String owner, long transactionId, @Nonnull PersistenceService persistenceService) {
+	public void execute(@Nonnull String owner, long transactionId, @Nonnull StoragePartPersistenceService persistenceService) {
 		persistenceService.removeStoragePart(removalKey.primaryKey(), removalKey.containerClass());
 	}
 

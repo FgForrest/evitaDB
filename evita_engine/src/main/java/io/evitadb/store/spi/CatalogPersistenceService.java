@@ -26,7 +26,6 @@ package io.evitadb.store.spi;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.core.Catalog;
@@ -46,7 +45,6 @@ import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * This interface represents a link between {@link CatalogContract} and its persistent storage.
@@ -55,7 +53,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface CatalogPersistenceService extends PersistenceService {
+public interface CatalogPersistenceService extends PersistenceService<CatalogIndexKey, CatalogIndex> {
 	String HEADER_FILE_SUFFIX = ".header";
 	String CATALOG_FILE_SUFFIX = ".catalog";
 	String ENTITY_COLLECTION_FILE_SUFFIX = ".collection";
@@ -125,37 +123,6 @@ public interface CatalogPersistenceService extends PersistenceService {
 	);
 
 	/**
-	 * Method initializes intermediate memory buffers keeper that are required when contents of the catalog are persisted.
-	 * These buffers are not necessary when there are no updates to the catalog / collection, so it's wise to get rid
-	 * of them if there is no actual need.
-	 *
-	 * The need is determined by the number of opened read write {@link EvitaSessionContract} to the catalog.
-	 * If there is at least one opened read-write session we need to keep those outputs around. When there are only read
-	 * sessions we don't need the outputs.
-	 *
-	 * The opening logic is responsible for calling {@link #release()} method that drops these buffers to the GC.
-	 * TOBEDONE JNO - these methods will be moved to QueueWriter
-	 *
-	 * @see #release()
-	 */
-	void prepare();
-
-	/**
-	 * Method releases all intermediate (and large) write buffers and let the GC discard them.
-	 * TOBEDONE JNO - these methods will be moved to QueueWriter
-	 *
-	 * @see #prepare()
-	 */
-	void release();
-
-	/**
-	 * Method combines {@link #prepare()} and {@link #release()} in a safe manner.
-	 * If the write session is opened the prepare and release is not called.
-	 * TOBEDONE JNO - these methods will be moved to QueueWriter
-	 */
-	<T> T executeWriteSafely(@Nonnull Supplier<T> lambda);
-
-	/**
 	 * Method deletes entire catalog persistent storage.
 	 */
 	void delete();
@@ -187,20 +154,6 @@ public interface CatalogPersistenceService extends PersistenceService {
 	 */
 	void deleteEntityCollection(@Nonnull String entityType);
 
-	@Override
-	default void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
-		executeWriteSafely(() -> {
-			PersistenceService.super.applyUpdates(owner, storagePartPk, deferredOperations);
-			return null;
-		});
-	}
-
-	/**
-	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
-	 */
-	void flushTrappedUpdates(@Nonnull BufferedChangeSet<CatalogIndexKey, CatalogIndex> bufferedChangeSet);
-
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created
 	 * via. {@link #createEntityCollectionPersistenceService(String, int)}.
@@ -210,4 +163,5 @@ public interface CatalogPersistenceService extends PersistenceService {
 	 */
 	@Override
 	void close();
+
 }

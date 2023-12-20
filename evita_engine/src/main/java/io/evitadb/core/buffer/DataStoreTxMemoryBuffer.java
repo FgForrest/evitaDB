@@ -36,7 +36,7 @@ import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
-import io.evitadb.store.spi.PersistenceService;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,13 +66,16 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
-	@Nonnull private PersistenceService persistenceService;
+	@Nonnull private StoragePartPersistenceService persistenceService;
 	/**
 	 * DTO contains all trapped changes in this {@link DataStoreTxMemoryBuffer}.
 	 */
 	@Nonnull private BufferedChangeSet<IK, I> bufferedChangeSet = new BufferedChangeSet<>();
 
-	public DataStoreTxMemoryBuffer(@Nonnull TransactionalLayerCreator<DSC> transactionalMemoryDataSource, @Nonnull PersistenceService persistenceService) {
+	public DataStoreTxMemoryBuffer(
+		@Nonnull TransactionalLayerCreator<DSC> transactionalMemoryDataSource,
+		@Nonnull StoragePartPersistenceService persistenceService
+	) {
 		this.transactionalMemoryDataSource = transactionalMemoryDataSource;
 		this.persistenceService = persistenceService;
 	}
@@ -80,7 +83,7 @@ public class DataStoreTxMemoryBuffer<IK extends IndexKey, I extends Index<IK>, D
 	/**
 	 * Method allows to refresh the I/O service.
 	 */
-	public void setPersistenceService(@Nonnull PersistenceService persistenceService) {
+	public void setPersistenceService(@Nonnull StoragePartPersistenceService persistenceService) {
 		this.persistenceService = persistenceService;
 	}
 

@@ -98,8 +98,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo(),
-				false
+				createKryo()
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -253,8 +252,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo(),
-				false
+				createKryo()
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -283,8 +281,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo(),
-				false
+				createKryo()
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,
@@ -400,8 +397,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndex fileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
 				new EntityCollectionHeader(ENTITY_TYPE, 1),
-				createKryo(),
-				false
+				createKryo()
 			),
 			options,
 			fileOffsetIndexRecordTypeRegistry,

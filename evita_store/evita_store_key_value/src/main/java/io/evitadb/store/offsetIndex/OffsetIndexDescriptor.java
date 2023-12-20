@@ -87,13 +87,16 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	 */
 	@Nonnull private final Function<Long, VersionedKryo> readKryoFactory;
 
-	public OffsetIndexDescriptor(@Nonnull PersistentStorageDescriptor fileOffsetIndexHeader, @Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory, boolean transactional) {
+	public OffsetIndexDescriptor(
+		@Nonnull PersistentStorageDescriptor offsetIndexHeader,
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
+	) {
 		this.version = 1L;
-		this.fileLocation = fileOffsetIndexHeader.getFileLocation();
+		this.fileLocation = offsetIndexHeader.getFileLocation();
 		this.kryoFactory = kryoFactory;
 		// create writable instances
-		this.writeKeyCompressor = new ReadWriteKeyCompressor(fileOffsetIndexHeader.getCompressedKeys());
-		this.readOnlyKeyCompressor = transactional ? new ReadOnlyKeyCompressor(fileOffsetIndexHeader.getCompressedKeys()) : this.writeKeyCompressor;
+		this.writeKeyCompressor = new ReadWriteKeyCompressor(offsetIndexHeader.getCompressedKeys());
+		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(offsetIndexHeader.getCompressedKeys());
 		this.writeKryo = kryoFactory.apply(new VersionedKryoKeyInputs(writeKeyCompressor, 1));
 		// create read only instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
@@ -101,7 +104,10 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		);
 	}
 
-	public OffsetIndexDescriptor(@Nonnull FileLocation fileLocation, @Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor) {
+	public OffsetIndexDescriptor(
+		@Nullable FileLocation fileLocation,
+		@Nonnull OffsetIndexDescriptor fileOffsetIndexDescriptor
+	) {
 		this.version = fileOffsetIndexDescriptor.version + 1;
 		this.fileLocation = fileLocation;
 		this.kryoFactory = fileOffsetIndexDescriptor.kryoFactory;

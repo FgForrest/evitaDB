@@ -54,19 +54,19 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
-import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
-import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.service.SerializationService;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.DeferredStorageOperation;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
-import io.evitadb.store.spi.PersistenceService;
+import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
 import io.evitadb.store.spi.exception.HeaderFileNotFound;
 import io.evitadb.store.spi.model.CatalogBootstrap;
@@ -84,7 +84,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -94,6 +93,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -114,14 +114,14 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
-public class DefaultCatalogPersistenceService implements CatalogPersistenceService, PersistenceService {
+public class DefaultCatalogPersistenceService implements CatalogPersistenceService {
 
 	/**
 	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
 	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
 	 * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
 	 */
-	final ObservableOutputKeeper observableOutputKeeper;
+	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
 	 * The name of the catalog that maps to {@link EntitySchema#getName()}.
 	 */
@@ -138,9 +138,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private final OffsetIndexRecordTypeRegistry recordTypeRegistry;
 	/**
-	 * Memory key-value store for indexes and schema.
+	 * The storage part persistence service implementation.
 	 */
-	private final OffsetIndex fileOffsetIndex;
+	@Nonnull @Getter
+	private final StoragePartPersistenceService storagePartPersistenceService;
 	/**
 	 * Contains information about storage configuration options.
 	 */
@@ -187,15 +188,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final Path targetFile = this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName));
-		this.fileOffsetIndex = new OffsetIndex(
-			new OffsetIndexDescriptor(
-				this.catalogBootstrap.getCatalogHeader(),
-				this.createTypeKryoInstance(),
-				false
-			),
-			storageOptions,
-			recordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+			new OffsetIndex(
+				new OffsetIndexDescriptor(
+					this.catalogBootstrap.getCatalogHeader(),
+					this.createTypeKryoInstance()
+				),
+				storageOptions,
+				recordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+			)
 		);
 	}
 
@@ -217,15 +219,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
 		final Path targetFile = this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName));
-		this.fileOffsetIndex = new OffsetIndex(
-			new OffsetIndexDescriptor(
-				this.catalogBootstrap.getCatalogHeader(),
-				this.createTypeKryoInstance(),
-				this.catalogBootstrap.getCatalogState() == CatalogState.ALIVE
-			),
-			storageOptions,
-			recordTypeRegistry,
-			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+			new OffsetIndex(
+				new OffsetIndexDescriptor(
+					this.catalogBootstrap.getCatalogHeader(),
+					this.createTypeKryoInstance()
+				),
+				storageOptions,
+				recordTypeRegistry,
+				new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+			)
 		);
 	}
 
@@ -234,7 +237,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull OffsetIndex fileOffsetIndex,
+		@Nonnull StoragePartPersistenceService storagePartPersistenceService,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ConcurrentHashMap<String, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices,
 		@Nonnull CatalogBootstrap catalogBootstrap
@@ -243,10 +246,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.observableOutputKeeper = observableOutputKeeper;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.fileOffsetIndex = fileOffsetIndex;
+		this.storagePartPersistenceService = storagePartPersistenceService;
 		this.storageOptions = storageOptions;
 		this.entityCollectionPersistenceServices = entityCollectionPersistenceServices;
 		this.catalogBootstrap = catalogBootstrap;
+	}
+
+	@Override
+	public boolean isNew() {
+		return this.storagePartPersistenceService.isNew();
 	}
 
 	/**
@@ -289,15 +297,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public CatalogIndex readCatalogIndex(@Nonnull Catalog catalog) {
-		final CatalogIndexStoragePart catalogIndexStoragePart = this.fileOffsetIndex.get(1, CatalogIndexStoragePart.class);
+		final CatalogIndexStoragePart catalogIndexStoragePart = this.storagePartPersistenceService.getStoragePart(1, CatalogIndexStoragePart.class);
 		if (catalogIndexStoragePart == null) {
 			return new CatalogIndex(catalog);
 		} else {
 			final Set<AttributeKey> sharedAttributeUniqueIndexes = catalogIndexStoragePart.getSharedAttributeUniqueIndexes();
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
 			for (AttributeKey attributeKey : sharedAttributeUniqueIndexes) {
-				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, getReadOnlyKeyCompressor());
-				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.fileOffsetIndex.get(partId, GlobalUniqueIndexStoragePart.class);
+				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, this.storagePartPersistenceService.getReadOnlyKeyCompressor());
+				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.storagePartPersistenceService.getStoragePart(partId, GlobalUniqueIndexStoragePart.class);
 				Assert.isPremiseValid(
 					sharedUniqueIndexStoragePart != null,
 					"Shared unique index not found for attribute `" + attributeKey + "`!"
@@ -331,8 +339,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				.orElseGet(() -> new EntityCollectionHeader(eType, entityTypePrimaryKey)),
 			storageOptions,
 			observableOutputKeeper,
-			recordTypeRegistry,
-			catalogBootstrap.supportsTransaction()
+			recordTypeRegistry
 		));
 	}
 
@@ -379,7 +386,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogNameToBeReplaced,
 			catalogNameVariationsToBeReplaced,
 			() -> {
-				putStoragePart(transactionId, new CatalogSchemaStoragePart(catalogSchema));
+				this.storagePartPersistenceService.putStoragePart(transactionId, new CatalogSchemaStoragePart(catalogSchema));
 				return null;
 			}
 		);
@@ -447,15 +454,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				this.observableOutputKeeper,
 				catalogNameToBeReplaced,
 				newPath,
-				new OffsetIndex(
-					new OffsetIndexDescriptor(
-						this.catalogBootstrap.getCatalogHeader(),
-						this.createTypeKryoInstance(),
-						this.catalogBootstrap.getCatalogState() == CatalogState.ALIVE
-					),
-					storageOptions,
-					recordTypeRegistry,
-					new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+				new OffsetIndexStoragePartPersistenceService(
+					new OffsetIndex(
+						new OffsetIndexDescriptor(
+							this.catalogBootstrap.getCatalogHeader(),
+							this.createTypeKryoInstance()
+						),
+						storageOptions,
+						recordTypeRegistry,
+						new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+					)
 				),
 				this.storageOptions,
 				this.entityCollectionPersistenceServices,
@@ -537,8 +545,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					it,
 					storageOptions,
 					observableOutputKeeper,
-					recordTypeRegistry,
-					catalogBootstrap.supportsTransaction()
+					recordTypeRegistry
 				)
 			));
 			if (ex instanceof RuntimeException runtimeException) {
@@ -561,15 +568,44 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
+	public void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
+		executeWriteSafely(() -> {
+			final LinkedList<DeferredStorageOperation<?>> accumulator = new LinkedList<>();
+			for (DeferredStorageOperation<?> deferredOperation : deferredOperations) {
+				if (deferredOperation.getRequiredPersistenceServiceType().isInstance(this)) {
+					//noinspection unchecked,rawtypes
+					((DeferredStorageOperation) deferredOperation).execute(owner, storagePartPk, this);
+				} else if (deferredOperation.getRequiredPersistenceServiceType().isInstance(this.storagePartPersistenceService)) {
+					if (!accumulator.isEmpty()) {
+						this.storagePartPersistenceService.applyUpdates(owner, storagePartPk, accumulator);
+						accumulator.clear();
+					}
+					accumulator.add(deferredOperation);
+				} else {
+					throw new EvitaInternalError(
+						"Incompatible deferred operation: " + deferredOperation,
+						"Incompatible deferred operation!"
+					);
+				}
+			}
+			if (!accumulator.isEmpty()) {
+				this.storagePartPersistenceService.applyUpdates(owner, storagePartPk, accumulator);
+			}
+			return null;
+		});
+	}
+
+	@Override
 	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<CatalogIndexKey, CatalogIndex> bufferedChangeSet) {
 		// now store all entity trapped updates
 		bufferedChangeSet.getTrappedUpdates()
-			.forEach(it -> fileOffsetIndex.put(0L, it));
+			.forEach(it -> this.storagePartPersistenceService.putStoragePart(0L, it));
 	}
 
-	/*
-		PERSISTENCE SERVICE METHODS
-	 */
+	@Override
+	public boolean isClosed() {
+		return this.storagePartPersistenceService.isClosed();
+	}
 
 	@Override
 	public void close() {
@@ -579,51 +615,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		}
 		this.entityCollectionPersistenceServices.clear();
 		// close current file offset index
-		if (this.fileOffsetIndex.isOperative()) {
-			this.fileOffsetIndex.close();
-		}
-	}
-
-	@Override
-	public boolean isClosed() {
-		return !this.fileOffsetIndex.isOperative();
-	}
-
-	@Override
-	public <T extends StoragePart> T getStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
-		return this.fileOffsetIndex.get(storagePartPk, containerType);
-	}
-
-	@Nullable
-	@Override
-	public <T extends StoragePart> byte[] getStoragePartAsBinary(long storagePartPk, @Nonnull Class<T> containerType) {
-		return this.fileOffsetIndex.getBinary(storagePartPk, containerType);
-	}
-
-	@Override
-	public <T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container) {
-		return this.fileOffsetIndex.put(storagePartPk, container);
-	}
-
-	@Override
-	public <T extends StoragePart> boolean removeStoragePart(long storagePartPk, @Nonnull Class<T> containerType) {
-		return fileOffsetIndex.remove(storagePartPk, containerType);
-	}
-
-	@Override
-	public <T extends StoragePart> boolean containsStoragePart(long primaryKey, @Nonnull Class<T> containerType) {
-		return fileOffsetIndex.contains(primaryKey, containerType);
+		this.storagePartPersistenceService.close();
 	}
 
 	/*
 		PRIVATE METHODS
 	 */
-
-	@Nonnull
-	@Override
-	public KeyCompressor getReadOnlyKeyCompressor() {
-		return this.fileOffsetIndex.getReadOnlyKeyCompressor();
-	}
 
 	/**
 	 * Method writes header into the mem table.
@@ -632,14 +629,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String theCatalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogState catalogState,
-		long transactionId,
+		long catalogVersion,
 		int lastEntityCollectionPrimaryKey,
 		@Nonnull Collection<EntityCollectionHeader> entityHeaders
 	) {
 		final long start = System.nanoTime();
 
-		final long previousVersion = this.fileOffsetIndex.getVersion();
-		final OffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
+		final long previousVersion = this.storagePartPersistenceService.getVersion();
+		final PersistentStorageDescriptor newDescriptor = this.storagePartPersistenceService.flush(catalogVersion);
 		final CatalogHeader catalogHeader;
 		// when versions are equal - nothing has changed, and we can reuse old header
 		if (newDescriptor.getVersion() > previousVersion || !Objects.equals(catalogName, theCatalogName)) {
@@ -659,7 +656,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 			final CatalogBootstrap catalogBootstrap = new CatalogBootstrap(
 				catalogState,
-				transactionId,
+				catalogVersion,
 				catalogHeader,
 				entityHeaders
 			);

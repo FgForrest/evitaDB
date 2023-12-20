@@ -61,12 +61,7 @@ import java.util.function.Supplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface EntityCollectionPersistenceService extends PersistenceService {
-
-	/**
-	 * Returns true if underlying file was not yet created.
-	 */
-	boolean isNew();
+public interface EntityCollectionPersistenceService extends PersistenceService<EntityIndexKey, EntityIndex> {
 
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
@@ -178,12 +173,6 @@ public interface EntityCollectionPersistenceService extends PersistenceService {
 		long transactionId,
 		@Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory
 	);
-
-	/**
-	 * Flushes all trapped memory data to the persistent storage.
-	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.
-	 */
-	void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet);
 
 	/**
 	 * Method deletes entire entity collection persistent storage.
