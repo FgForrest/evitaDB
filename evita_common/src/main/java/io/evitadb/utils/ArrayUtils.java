@@ -975,6 +975,67 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Compares two objects for equality.
+	 * This method checks if the specified objects are both arrays (regardles of whether of primitive types or objects)
+	 * and whether they're equal or not.
+	 *
+	 * @param a the first object to be compared
+	 * @param a2 the second object to be compared
+	 * @return true if the objects are equal, false otherwise
+	 */
+	public static boolean equals(@Nullable Object a, @Nullable Object a2) {
+		if (a==a2) {
+			return true;
+		}
+		if (a==null || a2==null) {
+			return false;
+		}
+
+		if (!a.getClass().isArray() || !a2.getClass().isArray()) {
+			return false;
+		}
+
+		int length = Array.getLength(a);
+		if (Array.getLength(a2) != length) {
+			return false;
+		}
+
+		for (int i=0; i<length; i++) {
+			if (!Objects.equals(Array.get(a, i), Array.get(a2, i))) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Computes the hash code for the specified object. This method handles both arrays and non-array objects.
+	 *
+	 * @param a the object for which to compute the hash code
+	 * @return the hash code value for the specified object
+	 */
+	public static int hashCode(@Nullable Object a) {
+		if (a == null) {
+			return 0;
+		}
+
+		int result = 1;
+
+		if (a.getClass().isArray()) {
+			final int length = Array.getLength(a);
+			for (int i = 0; i < length; i++) {
+				final Object element = Array.get(a, i);
+				result = 31 * result + (element == null ? 0 : element.hashCode());
+			}
+
+			return result;
+		} else {
+			return a.hashCode();
+		}
+	}
+
+	/**
 	 * Simple DTO object for passing information about the record lookup in the ordered array.
 	 *
 	 * @param position       Position where the looked up object:

@@ -47,6 +47,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
@@ -1314,8 +1315,13 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSo
 		@Nonnull SealedEntitySchema currentSchema
 	) throws InvalidMutationException {
 		if (currentSchema.isWithGeneratedPrimaryKey()) {
-			if (entityMutation.getEntityPrimaryKey() == null) {
-				entityMutation.setEntityPrimaryKey(getNextPrimaryKey());
+			if (entityMutation instanceof EntityUpsertMutation && entityMutation.getEntityPrimaryKey() == null) {
+				entityMutation = new EntityUpsertMutation(
+					entityMutation.getEntityType(),
+					getNextPrimaryKey(),
+					entityMutation.expects(),
+					entityMutation.getLocalMutations()
+				);
 			} else if (entityMutation.expects() == EntityExistence.MUST_NOT_EXIST) {
 				throw new InvalidMutationException(
 					"Entity of type " + currentSchema.getName() +

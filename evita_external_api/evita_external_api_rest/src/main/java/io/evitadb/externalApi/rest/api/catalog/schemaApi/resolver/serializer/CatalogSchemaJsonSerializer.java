@@ -75,7 +75,7 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	                          @Nonnull Set<String> entityTypes) {
 		final ObjectNode rootNode = objectJsonSerializer.objectNode();
 
-		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.getVersion());
+		rootNode.put(VersionedDescriptor.VERSION.name(), catalogSchema.version());
 		rootNode.put(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName());
 		rootNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(catalogSchema.getNameVariants()));
 		rootNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), catalogSchema.getDescription());

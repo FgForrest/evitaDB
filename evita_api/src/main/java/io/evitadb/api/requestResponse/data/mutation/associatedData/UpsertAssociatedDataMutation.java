@@ -26,7 +26,7 @@ package io.evitadb.api.requestResponse.data.mutation.associatedData;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import lombok.EqualsAndHashCode;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -40,7 +40,6 @@ import java.util.Objects;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@EqualsAndHashCode(callSuper = true)
 public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMutation {
 	@Serial private static final long serialVersionUID = 2106367735845445016L;
 	/**
@@ -86,6 +85,26 @@ public class UpsertAssociatedDataMutation extends AssociatedDataSchemaEvolvingMu
 		} else {
 			return existingValue;
 		}
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		if (!super.equals(o)) return false;
+
+		UpsertAssociatedDataMutation that = (UpsertAssociatedDataMutation) o;
+
+		return value.getClass().isArray() ?
+			that.value.getClass().isArray() && ArrayUtils.equals(value, that.value) : value.equals(that.value);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = super.hashCode();
+		result = 31 * result +
+			(value.getClass().isArray() ? ArrayUtils.hashCode(value) : value.hashCode());
+		return result;
 	}
 
 	@Override

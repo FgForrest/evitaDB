@@ -61,8 +61,6 @@ import java.io.Serializable;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe

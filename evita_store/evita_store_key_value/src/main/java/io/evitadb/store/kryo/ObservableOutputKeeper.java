@@ -24,8 +24,11 @@
 package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.utils.Assert;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.FileOutputStream;
@@ -41,24 +44,38 @@ import static java.util.Optional.ofNullable;
  * {@link ObservableOutput#getBuffer()} to use them for serialization. These buffers are not necessary when there are
  * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
  *
- * The need is determined by the number of opened read write {@link io.evitadb.api.EvitaSessionContract} to the catalog. If there
+ * The need is determined by the number of opened read write {@link EvitaSessionContract} to the catalog. If there
  * is at least one opened read-write session we need to keep those outputs around. When there are only read sessions we
  * don't need the outputs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class ObservableOutputKeeper {
-	private final StorageOptions options;
+	/**
+	 * The configuration options for the key-value storage.
+	 */
+	@Getter private final StorageOptions options;
+	/**
+	 * The mutex variable is a private final ReentrantLock object. It is used for locking and synchronization purposes.
+	 * It ensures that only one thread can access the critical section of code at a time, preventing concurrent access
+	 * and potential data races.
+	 */
 	private final ReentrantLock mutex = new ReentrantLock();
+	/**
+	 * Cache containing the cached outputs for target files.
+	 * The cached outputs are stored as a ConcurrentHashMap with the target file path as the key and the corresponding
+	 * ObservableOutput as the value. This cache is used to store and retrieve ObservableOutputs for target files to
+	 * improve performance by avoiding repeated creation and closing of streams.
+	 */
 	private ConcurrentHashMap<Path, ObservableOutput<FileOutputStream>> cachedOutputs;
 
-	public ObservableOutputKeeper(StorageOptions options) {
+	public ObservableOutputKeeper(@Nonnull StorageOptions options) {
 		this.options = options;
 	}
 
 	/**
 	 * Method allowing to access {@link StorageOptions} internal settings so that we can pass only {@link ObservableOutputKeeper}
-	 * in the {@link io.evitadb.store.fileOffsetIndex.WriteOnlyFileHandle} class.
+	 * in the {@link WriteOnlyFileHandle} class.
 	 */
 	public long getLockTimeoutSeconds() {
 		return options.lockTimeoutSeconds();

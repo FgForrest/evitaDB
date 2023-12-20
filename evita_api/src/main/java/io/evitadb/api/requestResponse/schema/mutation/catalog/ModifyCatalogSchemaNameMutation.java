@@ -72,7 +72,7 @@ public class ModifyCatalogSchemaNameMutation implements TopLevelCatalogSchemaMut
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					newCatalogName,
 					NamingConvention.generate(newCatalogName),
 					catalogSchema.getDescription(),

@@ -92,7 +92,7 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 		);
 
 		final MapBuilder catalogSchemaDto = map()
-			.e(VersionedDescriptor.VERSION.name(), catalogSchema.getVersion())
+			.e(VersionedDescriptor.VERSION.name(), catalogSchema.version())
 			.e(NamedSchemaDescriptor.NAME.name(), catalogSchema.getName())
 			.e(NamedSchemaDescriptor.NAME_VARIANTS.name(), map()
 				.e(NameVariantsDescriptor.CAMEL_CASE.name(), catalogSchema.getNameVariant(NamingConvention.CAMEL_CASE))

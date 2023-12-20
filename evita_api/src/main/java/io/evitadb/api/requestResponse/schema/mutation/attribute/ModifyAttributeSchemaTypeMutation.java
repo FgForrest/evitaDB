@@ -63,8 +63,6 @@ import static java.util.Optional.ofNullable;
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -114,7 +112,12 @@ public class ModifyAttributeSchemaTypeMutation
 		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && name.equals(theExistingMutation.getName())) {
 			if (existingMutation instanceof ModifyAttributeSchemaTypeMutation) {
 				return new MutationCombinationResult<>(null, this);
-			} else if (existingMutation instanceof SetAttributeSchemaFilterableMutation || existingMutation instanceof SetAttributeSchemaSortableMutation) {
+			} else if (
+				existingMutation instanceof SetAttributeSchemaFilterableMutation ||
+					existingMutation instanceof SetAttributeSchemaSortableMutation ||
+					existingMutation instanceof SetAttributeSchemaUniqueMutation ||
+					existingMutation instanceof SetAttributeSchemaRepresentativeMutation
+			) {
 				// swap operations
 				return new MutationCombinationResult<>(this, existingMutation);
 			} else {

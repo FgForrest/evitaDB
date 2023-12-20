@@ -637,7 +637,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		return catalogSchemaBuilder.toMutation()
 			.map(ModifyCatalogSchemaMutation::getSchemaMutations)
 			.map(this::updateCatalogSchema)
-			.orElseGet(() -> getCatalogSchema().getVersion());
+			.orElseGet(() -> getCatalogSchema().version());
 	}
 
 	/**

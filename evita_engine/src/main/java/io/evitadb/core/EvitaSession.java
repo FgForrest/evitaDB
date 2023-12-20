@@ -611,7 +611,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 		return executeInTransactionIfPossible(session -> {
 			getCatalog().updateSchema(session, schemaMutation);
-			return getCatalogSchema().getVersion();
+			return getCatalogSchema().version();
 		});
 	}
 

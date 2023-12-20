@@ -72,7 +72,7 @@ public class AllowEvolutionModeInCatalogSchemaMutation implements LocalCatalogSc
 		} else {
 			return new CatalogSchemaWithImpactOnEntitySchemas(
 				CatalogSchema._internalBuild(
-					catalogSchema.getVersion() + 1,
+					catalogSchema.version() + 1,
 					catalogSchema.getName(),
 					catalogSchema.getNameVariants(),
 					catalogSchema.getDescription(),

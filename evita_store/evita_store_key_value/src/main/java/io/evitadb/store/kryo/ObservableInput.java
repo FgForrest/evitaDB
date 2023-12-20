@@ -25,12 +25,14 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Input;
-import io.evitadb.store.fileOffsetIndex.exception.CorruptedRecordException;
-import io.evitadb.store.fileOffsetIndex.exception.KryoSerializationException;
-import io.evitadb.store.fileOffsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
+import io.evitadb.store.offsetIndex.stream.AbstractRandomAccessInputStream;
+import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import lombok.Getter;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.InputStream;
 import java.util.function.Consumer;
@@ -507,7 +509,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
-	 * Method requires {@link RandomAccessFileInputStream} as an inner stream of this instance. If different stream
+	 * Method requires {@link AbstractRandomAccessInputStream} as an inner stream of this instance. If different stream
 	 * is present ClassCastException is thrown.
 	 *
 	 * Method will position location in the file to the desired location, resets all internal flags and settings to
@@ -517,9 +519,8 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 *
 	 * @throws ClassCastException when internal stream is not {@link RandomAccessFileInputStream}
 	 */
-	public void seek(FileLocation location) {
-		/* TOBEDONE JNO - this should support also fetching bigger chunks for multiple file locations that will be read in the same moment?! Needs perf test if it provides better results */
-		((RandomAccessFileInputStream) this.inputStream).seek(location.startingPosition());
+	public void seek(@Nonnull FileLocation location) throws ClassCastException {
+		((AbstractRandomAccessInputStream) this.inputStream).seek(location.startingPosition());
 		this.limit = 0;
 		this.actualLimit = -1;
 		this.position = 0;
@@ -536,14 +537,14 @@ public class ObservableInput<T extends InputStream> extends Input {
 	}
 
 	/**
-	 * Method requires {@link RandomAccessFileInputStream} as an inner stream of this instance. If different stream
+	 * Method requires {@link AbstractRandomAccessInputStream} as an inner stream of this instance. If different stream
 	 * is present ClassCastException is thrown.
 	 *
 	 * Method will position location in the file to the desired location, resets all internal flags and settings to
 	 * the initial state.
 	 */
 	public void resetToPosition(long location) {
-		((RandomAccessFileInputStream) this.inputStream).seek(location);
+		((AbstractRandomAccessInputStream) this.inputStream).seek(location);
 		this.limit = 0;
 		this.reset();
 	}

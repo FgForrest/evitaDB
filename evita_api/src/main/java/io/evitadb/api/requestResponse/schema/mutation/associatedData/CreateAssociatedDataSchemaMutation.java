@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -61,8 +62,6 @@ import java.util.stream.Stream;
  * Mutation can be used for altering also the existing {@link AssociatedDataSchemaContract} alone.
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveAssociatedDataSchemaMutation} mutation (if such is found in mutation pipeline).
- *
- * TOBEDONE JNO - write tests
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -119,7 +118,7 @@ public class CreateAssociatedDataSchemaMutation
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							it -> it.getDeprecationNotice(),
+							NamedSchemaWithDeprecationContract::getDeprecationNotice,
 							newValue -> new ModifyAssociatedDataSchemaDeprecationNoticeMutation(name, newValue)
 						),
 						makeMutationIfDifferent(

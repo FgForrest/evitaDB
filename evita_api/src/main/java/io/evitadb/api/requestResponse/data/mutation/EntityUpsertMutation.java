@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithGeneratedPrimaryKeyMutation;
 import io.evitadb.utils.Assert;
-import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -41,6 +40,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -55,7 +55,6 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@EqualsAndHashCode
 public class EntityUpsertMutation implements EntityMutation {
 	@Serial private static final long serialVersionUID = -2012245398443357781L;
 
@@ -63,7 +62,7 @@ public class EntityUpsertMutation implements EntityMutation {
 	 * The existing entity {@link Entity#getPrimaryKey()} allowing identification of the entity to modify.
 	 */
 	@Nullable
-	private Integer entityPrimaryKey;
+	private final Integer entityPrimaryKey;
 	/**
 	 * The {@link EntitySchemaContract#getName()} of the entity type.
 	 */
@@ -116,11 +115,6 @@ public class EntityUpsertMutation implements EntityMutation {
 	@Override
 	public Integer getEntityPrimaryKey() {
 		return entityPrimaryKey;
-	}
-
-	@Override
-	public void setEntityPrimaryKey(@Nonnull Integer primaryKey) {
-		this.entityPrimaryKey = primaryKey;
 	}
 
 	@Nonnull
@@ -189,5 +183,38 @@ public class EntityUpsertMutation implements EntityMutation {
 			Objects.requireNonNullElseGet(entity, () -> new Entity(entityType, entityPrimaryKey)),
 			localMutations
 		);
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		EntityUpsertMutation that = (EntityUpsertMutation) o;
+
+		if (!Objects.equals(entityPrimaryKey, that.entityPrimaryKey))
+			return false;
+		if (!entityType.equals(that.entityType)) return false;
+		if (entityExistence != that.entityExistence) return false;
+		if (localMutations.size() != that.localMutations.size()) return false;
+		final Iterator<? extends LocalMutation<?, ?>> thisIt = localMutations.iterator();
+		final Iterator<? extends LocalMutation<?, ?>> thatIt = that.localMutations.iterator();
+		while (thisIt.hasNext()) {
+			final LocalMutation<?, ?> thisMutation = thisIt.next();
+			final LocalMutation<?, ?> thatMutation = thatIt.next();
+			if (!thisMutation.equals(thatMutation)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = entityPrimaryKey != null ? entityPrimaryKey.hashCode() : 0;
+		result = 31 * result + entityType.hashCode();
+		result = 31 * result + entityExistence.hashCode();
+		result = 31 * result + localMutations.hashCode();
+		return result;
 	}
 }

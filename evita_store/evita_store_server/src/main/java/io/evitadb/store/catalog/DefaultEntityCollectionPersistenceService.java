@@ -83,9 +83,6 @@ import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.entity.PricesStoragePart;
 import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.serializer.EntitySchemaContext;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndexDescriptor;
-import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -93,6 +90,10 @@ import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
+import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
+import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.service.SharedClassesConfigurer;
@@ -138,7 +139,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	/**
 	 * Memory key-value store for entities.
 	 */
-	private final FileOffsetIndex fileOffsetIndex;
+	private final OffsetIndex fileOffsetIndex;
+	/**
+	 * Contains reference to the target file where the entity collection is stored.
+	 */
+	private final Path entityCollectionFile;
 	/**
 	 * Contains reference to the catalog entity header collecting all crucial information about single entity collection.
 	 * The catalog entity header is loaded in constructor and because it's immutable it needs to be replaced with each
@@ -152,20 +157,20 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull EntityCollectionHeader entityHeader,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
+		@Nonnull OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		boolean supportsTransactions
 	) {
 		this.catalogEntityHeader = entityHeader;
-		this.fileOffsetIndex = new FileOffsetIndex(
-			entityCollectionFile,
-			new FileOffsetIndexDescriptor(
+		this.entityCollectionFile = entityCollectionFile;
+		this.fileOffsetIndex = new OffsetIndex(
+			new OffsetIndexDescriptor(
 				entityHeader,
 				this.createTypeKryoInstance(),
 				supportsTransactions
 			),
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
-			observableOutputKeeper
+			new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
 		);
 	}
 
@@ -173,20 +178,20 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull DefaultEntityCollectionPersistenceService previous,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
+		@Nonnull OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		boolean supportsTransactions
 	) {
 		this.catalogEntityHeader = previous.catalogEntityHeader;
-		this.fileOffsetIndex = new FileOffsetIndex(
-			previous.fileOffsetIndex.getTargetFile(),
-			new FileOffsetIndexDescriptor(
+		this.entityCollectionFile = previous.entityCollectionFile;
+		this.fileOffsetIndex = new OffsetIndex(
+			new OffsetIndexDescriptor(
 				previous.catalogEntityHeader,
 				this.createTypeKryoInstance(),
 				supportsTransactions
 			),
 			storageOptions,
 			fileOffsetIndexRecordTypeRegistry,
-			observableOutputKeeper
+			new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
 		);
 	}
 
@@ -443,7 +448,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Returns count of entities of certain type in the target storage.
 	 *
 	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * {@link FileOffsetIndex} and doesn't take transactional memory into an account.
+	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
 	 */
 	@Override
 	public <T extends StoragePart> int count(@Nonnull Class<T> containerClass) {
@@ -458,7 +463,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * Returns iterator that goes through all containers of certain type in the target storage.
 	 *
 	 * <strong>Note:</strong> the list may not be accurate - it only goes through already persisted containers to the
-	 * {@link FileOffsetIndex} and doesn't take transactional memory into an account.
+	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
 	 */
 	@Override
 	public @Nonnull Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
@@ -492,7 +497,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public EntityCollectionHeader flush(long transactionId, @Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory) {
 		if (fileOffsetIndex.isOperative()) {
 			final long previousVersion = this.fileOffsetIndex.getVersion();
-			final FileOffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
+			final OffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
 			// when versions are equal - nothing has changed, and we can reuse old header
 			if (newDescriptor.getVersion() > previousVersion) {
 				this.catalogEntityHeader = catalogEntityHeaderFactory.apply(newDescriptor);
@@ -519,9 +524,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	public void delete() {
 		if (fileOffsetIndex.isOperative()) {
 			this.fileOffsetIndex.close();
-			if (!this.fileOffsetIndex.getTargetFile().toFile().delete()) {
+			if (!this.entityCollectionFile.toFile().delete()) {
 				throw new UnexpectedIOException(
-					"Failed to delete file: " + this.fileOffsetIndex.getTargetFile(),
+					"Failed to delete file: " + this.entityCollectionFile,
 					"Failed to delete file!"
 				);
 			}
@@ -803,10 +808,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link io.evitadb.index.facet.FacetIndex} from the {@link FileOffsetIndex} and returns it.
+	 * Fetches {@link io.evitadb.index.facet.FacetIndex} from the {@link OffsetIndex} and returns it.
 	 */
 	@Nonnull
-	private static FacetIndex fetchFacetIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull EntityIndexStoragePart entityIndexCnt) {
+	private static FacetIndex fetchFacetIndex(int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final FacetIndex facetIndex;
 		final Set<String> facetIndexes = entityIndexCnt.getFacetIndexes();
 		if (facetIndexes.isEmpty()) {
@@ -828,10 +833,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link HierarchyIndex} from the {@link FileOffsetIndex} and returns it.
+	 * Fetches {@link HierarchyIndex} from the {@link OffsetIndex} and returns it.
 	 */
 	@Nonnull
-	private static HierarchyIndex fetchHierarchyIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull EntityIndexStoragePart entityIndexCnt) {
+	private static HierarchyIndex fetchHierarchyIndex(int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull EntityIndexStoragePart entityIndexCnt) {
 		final HierarchyIndex hierarchyIndex;
 		if (entityIndexCnt.isHierarchyIndex()) {
 			final HierarchyIndexStoragePart hierarchyIndexStoragePart = fileOffsetIndex.get(entityIndexId, HierarchyIndexStoragePart.class);
@@ -852,9 +857,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link SortIndex} from the {@link FileOffsetIndex} and puts it into the `sortIndexes` key-value index.
+	 * Fetches {@link SortIndex} from the {@link OffsetIndex} and puts it into the `sortIndexes` key-value index.
 	 */
-	private static void fetchSortIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, SortIndex> sortIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchSortIndex(int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, SortIndex> sortIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.SORT, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
 		final SortIndexStoragePart sortIndexCnt = fileOffsetIndex.get(primaryKey, SortIndexStoragePart.class);
 		isPremiseValid(
@@ -875,9 +880,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link ChainIndex} from the {@link FileOffsetIndex} and puts it into the `chainIndexes` key-value index.
+	 * Fetches {@link ChainIndex} from the {@link OffsetIndex} and puts it into the `chainIndexes` key-value index.
 	 */
-	private static void fetchChainIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, ChainIndex> chainIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchChainIndex(int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, ChainIndex> chainIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CHAIN, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
 		final ChainIndexStoragePart chainIndexCnt = fileOffsetIndex.get(primaryKey, ChainIndexStoragePart.class);
 		isPremiseValid(
@@ -896,9 +901,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link CardinalityIndex} from the {@link FileOffsetIndex} and puts it into the `cardinalityIndexes` key-value index.
+	 * Fetches {@link CardinalityIndex} from the {@link OffsetIndex} and puts it into the `cardinalityIndexes` key-value index.
 	 */
-	private static void fetchCardinalityIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchCardinalityIndex(int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, CardinalityIndex> cardinalityIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.CARDINALITY, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
 		final CardinalityIndexStoragePart cardinalityIndexCnt = fileOffsetIndex.get(primaryKey, CardinalityIndexStoragePart.class);
 		isPremiseValid(
@@ -913,9 +918,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link FilterIndex} from the {@link FileOffsetIndex} and puts it into the `filterIndexes` key-value index.
+	 * Fetches {@link FilterIndex} from the {@link OffsetIndex} and puts it into the `filterIndexes` key-value index.
 	 */
-	private static void fetchFilterIndex(int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, FilterIndex> filterIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchFilterIndex(int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, FilterIndex> filterIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.FILTER, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
 		final FilterIndexStoragePart filterIndexCnt = fileOffsetIndex.get(primaryKey, FilterIndexStoragePart.class);
 		isPremiseValid(
@@ -934,9 +939,9 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link UniqueIndex} from the {@link FileOffsetIndex} and puts it into the `uniqueIndexes` key-value index.
+	 * Fetches {@link UniqueIndex} from the {@link OffsetIndex} and puts it into the `uniqueIndexes` key-value index.
 	 */
-	private static void fetchUniqueIndex(@Nonnull String entityType, int entityIndexId, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
+	private static void fetchUniqueIndex(@Nonnull String entityType, int entityIndexId, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull Map<AttributeKey, UniqueIndex> uniqueIndexes, @Nonnull AttributeIndexStorageKey attributeIndexKey) {
 		final long primaryKey = AttributeIndexStoragePart.computeUniquePartId(entityIndexId, AttributeIndexType.UNIQUE, attributeIndexKey.attribute(), fileOffsetIndex.getReadOnlyKeyCompressor());
 		final UniqueIndexStoragePart uniqueIndexCnt = fileOffsetIndex.get(primaryKey, UniqueIndexStoragePart.class);
 		isPremiseValid(
@@ -956,10 +961,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link PriceListAndCurrencyPriceSuperIndex price indexes} from the {@link FileOffsetIndex} and returns key-value
+	 * Fetches {@link PriceListAndCurrencyPriceSuperIndex price indexes} from the {@link OffsetIndex} and returns key-value
 	 * index of them.
 	 */
-	private static Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull FileOffsetIndex fileOffsetIndex) {
+	private static Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> fetchPriceSuperIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull OffsetIndex fileOffsetIndex) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceSuperIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
 			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, fileOffsetIndex.getReadOnlyKeyCompressor());
@@ -981,10 +986,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches {@link PriceListAndCurrencyPriceRefIndex price indexes} from the {@link FileOffsetIndex} and returns key-value
+	 * Fetches {@link PriceListAndCurrencyPriceRefIndex price indexes} from the {@link OffsetIndex} and returns key-value
 	 * index of them.
 	 */
-	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull FileOffsetIndex fileOffsetIndex, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+	private static Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> fetchPriceRefIndexes(int entityIndexId, @Nonnull Set<PriceIndexKey> priceIndexes, @Nonnull OffsetIndex fileOffsetIndex, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
 		final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceRefIndexes = CollectionUtils.createHashMap(priceIndexes.size());
 		for (PriceIndexKey priceIndexKey : priceIndexes) {
 			final long primaryKey = computeUniquePartId(entityIndexId, priceIndexKey, fileOffsetIndex.getReadOnlyKeyCompressor());
@@ -1007,7 +1012,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches reference container from FileOffsetIndex if it hasn't been already loaded before.
+	 * Fetches reference container from OffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nullable
 	private static <T> T fetchReferences(
@@ -1025,7 +1030,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches prices container from FileOffsetIndex if it hasn't been already loaded before.
+	 * Fetches prices container from OffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nullable
 	private static <T> T fetchPrices(
@@ -1042,7 +1047,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches attributes container from FileOffsetIndex if it hasn't been already loaded before.
+	 * Fetches attributes container from OffsetIndex if it hasn't been already loaded before.
 	 */
 	@Nonnull
 	private static <T> List<T> fetchAttributes(
@@ -1087,7 +1092,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	}
 
 	/**
-	 * Fetches associated data container(s) from FileOffsetIndex if it hasn't (they haven't) been already loaded before.
+	 * Fetches associated data container(s) from OffsetIndex if it hasn't (they haven't) been already loaded before.
 	 */
 	@Nonnull
 	private static <T> List<T> fetchAssociatedData(

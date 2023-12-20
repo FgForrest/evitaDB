@@ -26,7 +26,7 @@ package io.evitadb.store.kryo;
 import com.esotericsoftware.kryo.ClassResolver;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.ReferenceResolver;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex.FileOffsetIndexKryoPool;
+import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexKryoPool;
 import lombok.Getter;
 
 /**

@@ -4,10 +4,11 @@
 module evita.store.key.value {
 
 	exports io.evitadb.store.kryo;
-	exports io.evitadb.store.fileOffsetIndex;
-	exports io.evitadb.store.fileOffsetIndex.stream;
-	exports io.evitadb.store.fileOffsetIndex.exception;
-	exports io.evitadb.store.fileOffsetIndex.model;
+	exports io.evitadb.store.offsetIndex;
+	exports io.evitadb.store.offsetIndex.stream;
+	exports io.evitadb.store.offsetIndex.exception;
+	exports io.evitadb.store.offsetIndex.model;
+	exports io.evitadb.store.offsetIndex.io;
 
 	uses io.evitadb.store.service.StoragePartRegistry;
 

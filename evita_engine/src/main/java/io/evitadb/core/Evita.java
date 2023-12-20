@@ -689,7 +689,7 @@ public final class Evita implements EvitaContract {
 	 */
 	private void notifyStructuralChangeObservers(@Nonnull CatalogContract newCatalog, @Nonnull CatalogContract currentCatalog) {
 		final String catalogName = newCatalog.getName();
-		if (currentCatalog.getSchema().getVersion() != newCatalog.getSchema().getVersion()) {
+		if (currentCatalog.getSchema().version() != newCatalog.getSchema().version()) {
 			structuralChangeObservers.forEach(it -> it.onCatalogSchemaUpdate(catalogName));
 		}
 		// and examine catalog entity collection changes
@@ -800,7 +800,7 @@ public final class Evita implements EvitaContract {
 		NonTransactionalCatalogDescriptor(@Nonnull CatalogContract catalog, @Nonnull Collection<CatalogStructuralChangeObserver> structuralChangeObservers) {
 			this.theCatalog = catalog;
 			this.structuralChangeObservers = structuralChangeObservers;
-			this.catalogSchemaVersion = catalog.getSchema().getVersion();
+			this.catalogSchemaVersion = catalog.getSchema().version();
 			final Set<String> entityTypes = catalog.getEntityTypes();
 			this.entityCollectionSchemaVersions = CollectionUtils.createHashMap(entityTypes.size());
 			for (String entityType : entityTypes) {
@@ -840,7 +840,7 @@ public final class Evita implements EvitaContract {
 		 * Returns true if passed catalog schema version differs from version originally observed.
 		 */
 		private boolean isCatalogSchemaModified(@Nonnull CatalogContract catalog) {
-			return this.catalogSchemaVersion != catalog.getSchema().getVersion();
+			return this.catalogSchemaVersion != catalog.getSchema().version();
 		}
 
 		/**

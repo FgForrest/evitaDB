@@ -462,14 +462,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogSchemaContract nextSchema = updatedSchema;
 		Assert.isPremiseValid(updatedSchema != null, "Catalog cannot be dropped by updating schema!");
 		Assert.isPremiseValid(updatedSchema instanceof CatalogSchema, "Mutation is expected to produce CatalogSchema instance!");
-		if (updatedSchema.getVersion() > currentSchema.getVersion()) {
+		if (updatedSchema.version() > currentSchema.version()) {
 			final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
 			final CatalogSchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
 				this.schema.get(),
 				new CatalogSchemaDecorator(updatedInternalSchema)
 			);
 			Assert.isTrue(
-				originalSchemaBeforeExchange.getVersion() == currentSchema.getVersion(),
+				originalSchemaBeforeExchange.version() == currentSchema.version(),
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 			this.dataStoreBuffer.update(new CatalogSchemaStoragePart(updatedInternalSchema));
@@ -577,7 +577,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogSchemaContract updatedSchema = updateSchema(
 			session, new RemoveEntitySchemaMutation(entityType)
 		);
-		return updatedSchema.getVersion() > originalSchema.getVersion();
+		return updatedSchema.version() > originalSchema.version();
 	}
 
 	@Override
@@ -586,7 +586,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final CatalogSchemaContract updatedSchema = updateSchema(
 			session, new ModifyEntitySchemaNameMutation(entityType, newName, false)
 		);
-		return updatedSchema.getVersion() > originalSchema.getVersion();
+		return updatedSchema.version() > originalSchema.version();
 	}
 
 	@Override
@@ -596,7 +596,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			session,
 			new ModifyEntitySchemaNameMutation(entityTypeToBeReplacedWith, entityTypeToBeReplaced, true)
 		);
-		return updatedSchema.getVersion() > originalSchema.getVersion();
+		return updatedSchema.version() > originalSchema.version();
 	}
 
 	@Override
@@ -828,7 +828,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			);
 
 			if (transaction != null) {
-				if (newSchema.getVersion() != storedSchema.catalogSchema().getVersion()) {
+				if (newSchema.version() != storedSchema.catalogSchema().version()) {
 					final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
 					this.ioService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
 				}

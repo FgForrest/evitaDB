@@ -48,10 +48,6 @@ import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndex;
-import io.evitadb.store.fileOffsetIndex.FileOffsetIndexDescriptor;
-import io.evitadb.store.fileOffsetIndex.exception.UnexpectedCatalogContentsException;
-import io.evitadb.store.fileOffsetIndex.model.FileOffsetIndexRecordTypeRegistry;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -59,6 +55,11 @@ import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.StoragePart;
+import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
+import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
+import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
+import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.service.SerializationService;
@@ -135,11 +136,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * Contains configuration of record types that could be stored into the mem-table.
 	 */
-	private final FileOffsetIndexRecordTypeRegistry recordTypeRegistry;
+	private final OffsetIndexRecordTypeRegistry recordTypeRegistry;
 	/**
 	 * Memory key-value store for indexes and schema.
 	 */
-	private final FileOffsetIndex fileOffsetIndex;
+	private final OffsetIndex fileOffsetIndex;
 	/**
 	 * Contains information about storage configuration options.
 	 */
@@ -184,17 +185,17 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
-		this.recordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
-		this.fileOffsetIndex = new FileOffsetIndex(
-			this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName)),
-			new FileOffsetIndexDescriptor(
+		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
+		final Path targetFile = this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName));
+		this.fileOffsetIndex = new OffsetIndex(
+			new OffsetIndexDescriptor(
 				this.catalogBootstrap.getCatalogHeader(),
 				this.createTypeKryoInstance(),
 				false
 			),
 			storageOptions,
 			recordTypeRegistry,
-			observableOutputKeeper
+			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
 		);
 	}
 
@@ -214,26 +215,26 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			ofNullable(this.catalogBootstrap).map(it -> it.getCollectionHeaders().size()).orElse(16)
 		);
-		this.recordTypeRegistry = new FileOffsetIndexRecordTypeRegistry();
-		this.fileOffsetIndex = new FileOffsetIndex(
-			this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName)),
-			new FileOffsetIndexDescriptor(
+		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
+		final Path targetFile = this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName));
+		this.fileOffsetIndex = new OffsetIndex(
+			new OffsetIndexDescriptor(
 				this.catalogBootstrap.getCatalogHeader(),
 				this.createTypeKryoInstance(),
 				this.catalogBootstrap.getCatalogState() == CatalogState.ALIVE
 			),
 			storageOptions,
 			recordTypeRegistry,
-			observableOutputKeeper
+			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
 		);
 	}
 
 	private DefaultCatalogPersistenceService(
-		@Nonnull FileOffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
+		@Nonnull OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull FileOffsetIndex fileOffsetIndex,
+		@Nonnull OffsetIndex fileOffsetIndex,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull ConcurrentHashMap<String, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices,
 		@Nonnull CatalogBootstrap catalogBootstrap
@@ -440,21 +441,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			ofNullable(temporaryOriginal)
 				.ifPresent(FileUtils::deleteDirectory);
 
+			final Path targetFile = newPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogNameToBeReplaced));
 			return new DefaultCatalogPersistenceService(
 				this.recordTypeRegistry,
 				this.observableOutputKeeper,
 				catalogNameToBeReplaced,
 				newPath,
-				new FileOffsetIndex(
-					newPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogNameToBeReplaced)),
-					new FileOffsetIndexDescriptor(
+				new OffsetIndex(
+					new OffsetIndexDescriptor(
 						this.catalogBootstrap.getCatalogHeader(),
 						this.createTypeKryoInstance(),
 						this.catalogBootstrap.getCatalogState() == CatalogState.ALIVE
 					),
 					storageOptions,
 					recordTypeRegistry,
-					observableOutputKeeper
+					new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
 				),
 				this.storageOptions,
 				this.entityCollectionPersistenceServices,
@@ -638,7 +639,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		final long start = System.nanoTime();
 
 		final long previousVersion = this.fileOffsetIndex.getVersion();
-		final FileOffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
+		final OffsetIndexDescriptor newDescriptor = this.fileOffsetIndex.flush(transactionId);
 		final CatalogHeader catalogHeader;
 		// when versions are equal - nothing has changed, and we can reuse old header
 		if (newDescriptor.getVersion() > previousVersion || !Objects.equals(catalogName, theCatalogName)) {

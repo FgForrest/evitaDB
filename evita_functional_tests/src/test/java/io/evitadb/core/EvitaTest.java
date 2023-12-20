@@ -809,7 +809,7 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
-	void shouldUpdateEntitySchemaAttributeDefinitionsReferingToGlobalOnes() {
+	void shouldUpdateEntitySchemaAttributeDefinitionsReferringToGlobalOnes() {
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -825,7 +825,7 @@ class EvitaTest implements EvitaTestSupport {
 					.updateVia(session);
 
 				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
-				assertTrue(firstAttribute instanceof GlobalAttributeSchemaContract);
+				assertInstanceOf(GlobalAttributeSchemaContract.class, firstAttribute);
 				assertTrue(firstAttribute.isLocalized());
 				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract)firstAttribute).getGlobalUniquenessType());
 
@@ -839,7 +839,7 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, catalogSchema.getAttribute(ATTRIBUTE_URL).orElseThrow().getGlobalUniquenessType());
 
 				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
-				assertTrue(secondAttribute instanceof GlobalAttributeSchemaContract);
+				assertInstanceOf(GlobalAttributeSchemaContract.class, secondAttribute);
 				assertTrue(secondAttribute.isLocalized());
 				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract)secondAttribute).getGlobalUniquenessType());
 			}
@@ -1573,14 +1573,14 @@ class EvitaTest implements EvitaTestSupport {
 		final AtomicInteger versionBeforeRename = new AtomicInteger();
 		if (catalogState == CatalogState.ALIVE) {
 			evita.updateCatalog(TEST_CATALOG, session -> {
-				versionBeforeRename.set(session.getCatalogSchema().getVersion());
+				versionBeforeRename.set(session.getCatalogSchema().version());
 				session.goLiveAndClose();
 			});
 		} else {
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					versionBeforeRename.set(session.getCatalogSchema().getVersion());
+					versionBeforeRename.set(session.getCatalogSchema().version());
 				}
 			);
 		}
@@ -1595,7 +1595,7 @@ class EvitaTest implements EvitaTestSupport {
 			session -> {
 				assertEquals(renamedCatalogName, session.getCatalogSchema().getName());
 				assertEquals(2, session.getEntityCollectionSize(Entities.BRAND));
-				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().getVersion());
+				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().version());
 				return null;
 			}
 		);
@@ -1646,14 +1646,14 @@ class EvitaTest implements EvitaTestSupport {
 		final AtomicInteger versionBeforeRename = new AtomicInteger();
 		if (catalogState == CatalogState.ALIVE) {
 			evita.updateCatalog(temporaryCatalogName, session -> {
-				versionBeforeRename.set(session.getCatalogSchema().getVersion());
+				versionBeforeRename.set(session.getCatalogSchema().version());
 				session.goLiveAndClose();
 			});
 		} else {
 			evita.queryCatalog(
 				temporaryCatalogName,
 				session -> {
-					versionBeforeRename.set(session.getCatalogSchema().getVersion());
+					versionBeforeRename.set(session.getCatalogSchema().version());
 				}
 			);
 		}
@@ -1669,7 +1669,7 @@ class EvitaTest implements EvitaTestSupport {
 				assertEquals(TEST_CATALOG, session.getCatalogSchema().getName());
 				assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.BRAND));
 				assertEquals(2, session.getEntityCollectionSize(Entities.PRODUCT));
-				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().getVersion());
+				assertEquals(versionBeforeRename.get() + 1, session.getCatalogSchema().version());
 				return null;
 			}
 		);
