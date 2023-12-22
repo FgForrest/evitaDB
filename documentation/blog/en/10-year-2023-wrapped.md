@@ -165,10 +165,10 @@ Merry Christmas and a Happy New Year from the evitaDB team!
     </Thead>
     <Tbody>
         <Tr>
-            <Td><img src="assets/images/jno_comics.png"/></Td>
-            <Td><img src="assets/images/lho_comics.png"/></Td>
-            <Td><img src="assets/images/tpz_comics.png"/></Td>
-            <Td><img src="assets/images/mal_comics.png"/></Td>
+            <Td>![Honza Novotný](assets/images/jno_comics.png)</Td>
+            <Td>![Lukáš Hornych](assets/images/lho_comics.png)</Td>
+            <Td>![Tomáš Pozler](assets/images/tpz_comics.png)</Td>
+            <Td>![Miroslav Alt](assets/images/mal_comics.png)</Td>
         </Tr>
     </Tbody>
 </Table>
