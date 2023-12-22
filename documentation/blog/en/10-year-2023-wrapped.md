@@ -26,7 +26,7 @@ automatically converts to the fully open source Apache 2.0 license after 4 years
 ## Documentation portal
 
 This year we also finished most of our documentation portal and wrote most of the documentation - the whole query 
-language is now documented with special focus on the different behavior of the language in different languages. We 
+language is now documented with special focus on the different behavior of the query in different languages. We 
 estimate that the documentation has more than 250 pages of content and could be a book in itself. There is also a series 
 on our blog that documents the obstacles and decisions behind our documentation portal:
 
@@ -43,7 +43,7 @@ on our blog that documents the obstacles and decisions behind our documentation 
 It is **over 1100**! And we keep adding more. Each example is automatically translated into other languages, so you as 
 a developer only need to write the example in one language and have other languages generated for you. Each of these 
 examples is also automatically tested by our CI/CD pipeline against our demo server at least once a week and after each
-change to the documentation. This way we are sure that the examples are always up-to-date and work.
+change to the documentation. This way we are sure that the examples are always up-to-date and working.
 
 If you don't believe us, check out the results of our [documentation pipeline](https://github.com/FgForrest/evitaDB/actions/workflows/ci-dev-documentation.yml).
 
@@ -106,7 +106,7 @@ documentation example tests).
 
 Currently there are more than [4.6 thousand automated tests](https://github.com/FgForrest/evitaDB/actions/runs/7248057725/job/19743529706) 
 that run about in a minute on our 6-CPU developer machines, but we'll reach 5 thousand tests soon. Another 1.1 thousand 
-tests are in our documentation suite and another thousand tests are part of the C# client.
+tests are in our documentation suite and another tests are part of the C# client.
 
 </Note>
 
