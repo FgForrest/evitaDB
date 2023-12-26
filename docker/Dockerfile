@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
+FROM index.docker.io/azul/zulu-openjdk-alpine:17-jre-latest
 
 ## not supposed to be overriden in container
 ENV EVITA_HOME="/evita"
@@ -10,7 +10,7 @@ USER root
 RUN set -ex \
     && mkdir "$EVITA_HOME" "$EVITA_HOME/bin" "$EVITA_HOME/conf" "$EVITA_HOME/data" "$EVITA_HOME/certificates" \
     && : ## end
-COPY entrypoint.sh /
+COPY "entrypoint.sh" "/"
 COPY "$EVITA_JAR_NAME" "$EVITA_HOME/bin"
 COPY "evita-configuration.yaml" "$EVITA_HOME/conf"
 
