@@ -42,12 +42,12 @@ jobs:
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}
 
       - name: Build and push
-        uses: docker/build-push-action@v3
         env:
           RELEASE_IMAGE: "evitadb:canary"
           EVITA_JAR_NAME: evita-server.jar
+        uses: docker/build-push-action@v3
         with:
-          context: {{defaultContext}}:docker
+          context: ./docker
           file: ./docker/Dockerfile
           pull: true
           push: true
