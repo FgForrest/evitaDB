@@ -53,3 +53,5 @@ jobs:
           push: true
           tags: ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
           platforms: linux/amd64,linux/arm64/v8
+          build-args: |
+            EVITA_JAR_NAME=${{ env.EVITA_JAR_NAME }}
