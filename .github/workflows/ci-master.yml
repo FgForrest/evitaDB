@@ -27,6 +27,8 @@ jobs:
     outputs:
       release_id: ${{ steps.create_release.outputs.id }}
       released_version: ${{ steps.release_version.outputs.version }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     runs-on: ubuntu-latest
 
@@ -61,7 +63,7 @@ jobs:
         export CURRENT_VERSION="${{ steps.release_version.outputs.version }}"
         export NEW_VERSION="$( echo ${CURRENT_VERSION} | sed 's/^v//')"
         mvn versions:set -DnewVersion=$NEW_VERSION
-        mvn -T 1C -B -P release-sign-artifacts deploy -Dmaven.test.skip=true --file pom.xml
+        mvn -T 1C -B -P release-sign-artifacts -Dmaven.test.skip=true deploy --file pom.xml
       env:
         EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
@@ -98,6 +100,7 @@ jobs:
 
     - name: Upload dist.zip to release
       uses: actions/upload-release-asset@v1
+      if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist.zip
@@ -106,6 +109,7 @@ jobs:
 
     - name: Upload dist.tar.gz to release
       uses: actions/upload-release-asset@v1
+      if: success()
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./dist.tar.gz
