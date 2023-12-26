@@ -47,16 +47,9 @@ else
 fi
 
 echo "Tagging as: $IMAGE"
-docker build . \
+docker buildx . \
     --pull \
     --platform linux/amd64 \
-    -t "$IMAGE" \
-    \
-    --build-arg "EVITA_JAR_NAME=$EVITA_JAR_NAME"
-
-docker build . \
-    --pull \
-    --platform linux/arm64/v8 \
     -t "$IMAGE" \
     \
     --build-arg "EVITA_JAR_NAME=$EVITA_JAR_NAME"

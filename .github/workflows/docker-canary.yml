@@ -1,6 +1,6 @@
 # This job builds and deploys Docker image to DockerHub
 
-name: DockerHub-deploy
+name: DockerHub-deploy-canary
 
 on:
   workflow_run:
@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - uses: actions/checkout@v3        # checkout from Git
+      - name: Checkout
+        uses: actions/checkout@v4        # checkout from Git
 
       - name: Download a single artifact # download `evita-server.jar` artifact if the workflow we react to was successful
         uses: dawidd6/action-download-artifact@v2
@@ -21,6 +22,17 @@ jobs:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
           name: evita-server.jar
+
+      - name: Set up QEMU
+        # Add support for more platforms with QEMU (optional)
+        # https://github.com/docker/setup-qemu-action
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+          platforms: linux/amd64,linux/arm64/v8
 
       - name: Build the Docker image    # now build the Docker image, login to DockerHub and push it, then clean everything
         env:
@@ -34,9 +46,12 @@ jobs:
         run: |
           echo "Evita JAR name: $EVITA_JAR_NAME"
           echo "Build root: $BUILD_ROOT"        
-          mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"    
-          ls -la $BUILD_ROOT        
-          $BUILD_ROOT/build.sh        
+          mv -v "$EVITA_JAR_NAME" "$BUILD_ROOT/$EVITA_JAR_NAME"        
+          cd $BUILD_ROOT
+          ls -la .        
+          EVITA_JAR_NAME="$EVITA_JAR_NAME"
+          echo "Tagging as: $CI_REGISTRY_USER/$RELEASE_IMAGE"
+          docker buildx . --pull -t "$CI_REGISTRY_USER/$RELEASE_IMAGE" --build-arg "EVITA_JAR_NAME=$EVITA_JAR_NAME"          
           echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
           echo "Pushing image: $CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"        
           docker push "$CI_REGISTRY_IMAGE/$CI_REGISTRY_USER/$RELEASE_IMAGE"      
