@@ -32,6 +32,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3    # checkout sources
+      with:
+        ref: ${{ github.head_ref }}
+        fetch-depth: 0
 
     - name: Resolve new release version
       id: release_version
