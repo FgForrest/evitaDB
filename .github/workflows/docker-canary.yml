@@ -47,8 +47,9 @@ jobs:
           RELEASE_IMAGE: "evitadb:canary"
           EVITA_JAR_NAME: evita-server.jar
         with:
-          context: ./docker/context
+          context: {{defaultContext}}:docker
           file: ./docker/Dockerfile
+          pull: true
           push: true
           tags: ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
           platforms: linux/amd64,linux/arm64/v8
