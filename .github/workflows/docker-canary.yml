@@ -41,7 +41,7 @@ jobs:
           username: ${{ vars.CI_REGISTRY_USER }}
           password: ${{ secrets.CI_REGISTRY_PASSWORD }}
 
-      - name: Build and push
+      - name: Build and push Docker image
         env:
           RELEASE_IMAGE: "evitadb:canary"
           EVITA_JAR_NAME: evita-server.jar
