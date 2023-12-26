@@ -18,10 +18,28 @@ concurrency:
 
 jobs:
   build:
+    permissions:
+      # write permission is required to create a github release
+      contents: write
+      # write permission is required for autolabeler
+      # otherwise, read permission is required at least
+      pull-requests: write
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      released_version: ${{ steps.release_version.outputs.version }}
+
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3    # checkout sources
+
+    - name: Resolve new release version
+      id: release_version
+      uses: codacy/git-version@2.7.1
+      with:
+        prefix: 'v'
+        minor-identifier: 'feat'
+        major-identifier: '(breaking)' # this should be placed somewhere in the commit message like "feat: (breaking) some message"
 
     - name: Setup Java JDK
       uses: actions/setup-java@v3  # setup JDK 17 for building
@@ -36,11 +54,58 @@ jobs:
          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Build with Maven       # run Maven without tests (tests must pass in dev branch)
-      run: mvn -T 1C -B deploy -Dmaven.test.skip=true --file pom.xml
+      run: |      
+        mvn versions:set -DnewVersion=${{ steps.release_version.outputs.version }}
+        mvn -T 1C -B deploy -Dmaven.test.skip=true --file pom.xml
       env:
+        EVITA_BUILD_VERSION: ${{ steps.release_version.outputs.version }}
         MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
         MAVEN_CENTRAL_TOKEN: ${{ secrets.MAVEN_CENTRAL_TOKEN }}
         MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+
+    - name: Create distribution directory
+      run: |
+        mkdir -p ./dist
+        cp LICENSE ./dist
+        cp 'evita_server/target/evita-server.jar' ./dist
+        cp 'docker/entrypoint.sh' './dist/run.sh'
+
+    - name: Create .zip of dist
+      uses: thedoctor0/zip-release@0.7.1
+      with:
+        type: 'zip'
+        filename: 'dist.zip'
+        path: './dist'
+
+    - name: Create .tar.gz of dist
+      uses: thedoctor0/zip-release@0.7.1
+      with:
+        type: 'tar'
+        filename: 'dist.tar.gz'
+        path: './dist'
+
+    - name: Create release
+      id: create_release
+      uses: release-drafter/release-drafter@v5
+      with:
+        version: ${{ steps.release_version.outputs.version }}
+        publish: true
+
+    - name: Upload dist.zip to release
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist.zip
+        asset_name: Dist (zip)
+        asset_content_type: application/zip
+
+    - name: Upload dist.tar.gz to release
+      uses: actions/upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist.tar.gz
+        asset_name: Dist (tar.gz)
+        asset_content_type: application/gzip
 
     - name: Upload evitaDB server artifact   # upload `evita-server.jar` for `docker-latest.yml` to deploy to DockerHub
       uses: actions/upload-artifact@v2

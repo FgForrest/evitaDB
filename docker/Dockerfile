@@ -10,7 +10,7 @@ USER root
 RUN set -ex \
     && mkdir "$EVITA_HOME" "$EVITA_HOME/bin" "$EVITA_HOME/conf" "$EVITA_HOME/data" "$EVITA_HOME/certificates" \
     && : ## end
-COPY "entrypoint.sh" "/"
+COPY "entrypoint.sh" "$EVITA_HOME"
 COPY "$EVITA_JAR_NAME" "$EVITA_HOME/bin"
 COPY "evita-configuration.yaml" "$EVITA_HOME/conf"
 
@@ -23,5 +23,5 @@ ENV EVITA_JAVA_OPTS=""
 ENV EVITA_ARGS=""
 
 WORKDIR "$EVITA_HOME"
-ENTRYPOINT [ "/entrypoint.sh" ]
+ENTRYPOINT [ "/$EVITA_HOME/entrypoint.sh" ]
 CMD []
