@@ -22,6 +22,7 @@ jobs:
           workflow: ${{ github.event.workflow_run.workflow_id }}
           workflow_conclusion: success
           name: evita-server.jar
+          path: docker
 
       - name: Set up QEMU
         # Add support for more platforms with QEMU (optional)
@@ -42,9 +43,12 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v3
+        env:
+          RELEASE_IMAGE: "evitadb:canary"
+          EVITA_JAR_NAME: evita-server.jar
         with:
-          context: ./docker/
+          context: ./docker/context
           file: ./docker/Dockerfile
           push: true
-          tags: ${{ vars.CI_REGISTRY_USER }}/evitadb:canary
+          tags: ${{ vars.CI_REGISTRY_USER }}/${{ env.RELEASE_IMAGE }}
           platforms: linux/amd64,linux/arm64/v8
