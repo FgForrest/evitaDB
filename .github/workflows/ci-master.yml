@@ -1,4 +1,4 @@
-# Main build pipeline, operates on `master` branch which is our integration branch
+# Main build pipeline, operates on `master` branch which is our integration branch and creates release
 
 name: CI Master branch
 
