@@ -28,17 +28,17 @@ set -ex
 cd "$(dirname "$0")"
 
 
-if [ "$1" = "local" ]; then
+if [ "$1" = "performance" ]; then
     cp -f ../evita_server/target/evita-server.jar .
     IMAGE="evita-performance:benchmark"
     EVITA_JAR_NAME="evita-server.jar"
-elif [ "$1" = "dev" ]; then
+elif [ "$1" = "local" ]; then
     cp -f ../evita_server/target/evita-server.jar .
     IMAGE="evitadb:local"
     EVITA_JAR_NAME="evita-server.jar"
 else
     if [ "$CI_REGISTRY" = "" ]; then
-      echo "Usage: $0 local"
+      echo "Usage: $0 local/performance"
       exit 1
     fi
 
@@ -49,10 +49,18 @@ fi
 echo "Tagging as: $IMAGE"
 docker build . \
     --pull \
+    --platform linux/amd64 \
     -t "$IMAGE" \
     \
     --build-arg "EVITA_JAR_NAME=$EVITA_JAR_NAME"
 
-if [ "$1" = "local" ]; then
+docker build . \
+    --pull \
+    --platform linux/arm64/v8 \
+    -t "$IMAGE" \
+    \
+    --build-arg "EVITA_JAR_NAME=$EVITA_JAR_NAME"
+
+if [ "$1" = "local" ] || [ "$1" = "performance" ]; then
     rm evita-server.jar
 fi

@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/openjdk-17-runtime:latest
+FROM index.docker.io/azul/zulu-openjdk-alpine:17-jre-latest
 
 ## not supposed to be overriden in container
 ENV EVITA_HOME="/evita"
