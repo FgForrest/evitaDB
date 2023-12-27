@@ -47,8 +47,6 @@ import java.util.stream.Collectors;
  * Mutation is responsible for adding one or more evolution modes to
  * a {@link CatalogSchemaContract#getCatalogEvolutionMode()} in {@link CatalogSchemaContract}.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
