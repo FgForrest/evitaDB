@@ -10,6 +10,11 @@ author: 'Lukáš Hornych'
 preferredLang: 'graphql'
 ---
 
+<LanguageSpecific to="evitaql,java,csharp,rest">
+This chapter describes the GraphQL protocol for evitaDB and doesn't make sense for other languages. If you're interested 
+in the details of the GraphQL implementation, please change your preferred language in the upper right corner.
+</LanguageSpecific>
+<LanguageSpecific to="graphql">
 The [GraphQL](https://graphql.org/) API has been developed to allow users to easily query domain-specific data from
 evitaDB with a high degree of customisation of the queries and the self-documentation that GraphQL APIs provide.
 
@@ -190,3 +195,4 @@ Altair has, like many others, has a code-completion in its editor based on the r
 You can find all the available libraries on the [official GraphQL website](https://graphql.org/code/#language-support) for you to
 choose from for your own client language. Some can even generate classes/types based on the API schema for you to use in
 your codebase.
+</LanguageSpecific>

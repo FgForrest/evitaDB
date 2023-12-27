@@ -10,6 +10,11 @@ author: 'Ing. Jan Novotný'
 preferredLang: 'java'
 ---
 
+<LanguageSpecific to="evitaql,csharp,graphql,rest">
+This chapter describes the Java driver for evitaDB and doesn't make sense for other languages. If you're interested 
+in the details of the Java driver implementation, please change your preferred language in the upper right corner.
+</LanguageSpecific>
+<LanguageSpecific to="java">
 Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
 Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
 The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
@@ -328,3 +333,4 @@ Now we can use the interfaces described above in the following way:
 The sealed/open principle is a bit more complex than the naive approach of using a single interface for both reading and 
 writing data, but it clearly separates the read and write scenarios, allowing you to maintain control over mutations and 
 their visibility in a multi-threaded environment.
+</LanguageSpecific>

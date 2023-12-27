@@ -1,4 +1,4 @@
-var evita = new EvitaClient(
+var evita = await EvitaClient.Create(
 	EvitaClientConfiguration.Builder()
 		.Host("demo.evitadb.io")
 		.Port(5556)

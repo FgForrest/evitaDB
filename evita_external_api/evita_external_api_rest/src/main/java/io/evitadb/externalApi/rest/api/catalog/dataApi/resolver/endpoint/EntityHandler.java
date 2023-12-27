@@ -48,7 +48,7 @@ public abstract class EntityHandler<CTX extends CatalogRestHandlingContext> exte
 
 	protected EntityHandler(@Nonnull CTX restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 	}
 
 	@Nonnull
@@ -64,6 +64,6 @@ public abstract class EntityHandler<CTX extends CatalogRestHandlingContext> exte
 			deletedEntity instanceof EntityClassifier,
 			() -> new RestInternalError("Entity must be instance of EntityClassifier, but got `" + deletedEntity.getClass().getName() + "`.")
 		);
-		return entityJsonSerializer.serialize((EntityClassifier) deletedEntity);
+		return entityJsonSerializer.serialize((EntityClassifier) deletedEntity, restHandlingContext.getCatalogSchema());
 	}
 }

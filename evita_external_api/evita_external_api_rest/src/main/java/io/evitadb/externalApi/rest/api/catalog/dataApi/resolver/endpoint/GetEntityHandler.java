@@ -58,12 +58,12 @@ public class GetEntityHandler extends EntityHandler<CollectionRestHandlingContex
 		final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 
 		final Query query = Query.query(
-			collection(restApiHandlingContext.getEntityType()),
-			FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(parametersFromRequest, restApiHandlingContext.getEntitySchema()),
+			collection(restHandlingContext.getEntityType()),
+			FilterByConstraintFromRequestQueryBuilder.buildFilterByForSingleEntity(parametersFromRequest, restHandlingContext.getEntitySchema()),
 			RequireConstraintFromRequestQueryBuilder.buildRequire(parametersFromRequest)
 		);
 
-		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
+		log.debug("Generated evitaDB query for single entity fetch of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
 		return exchange.session()
 			.queryOne(query, EntityClassifier.class)

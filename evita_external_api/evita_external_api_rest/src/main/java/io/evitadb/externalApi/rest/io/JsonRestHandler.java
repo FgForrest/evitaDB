@@ -61,7 +61,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 		);
 
 		try {
-			return restApiHandlingContext.getObjectMapper().readValue(content, dataClass);
+			return restHandlingContext.getObjectMapper().readValue(content, dataClass);
 		} catch (JsonProcessingException e) {
 			throw new RestInternalError("Could not parse request body: ", e);
 		}
@@ -70,7 +70,7 @@ public abstract class JsonRestHandler<CTX extends RestHandlingContext> extends R
 	@Override
 	protected void writeResult(@Nonnull RestEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object result) {
 		try {
-			restApiHandlingContext.getObjectMapper().writeValue(outputStream, result);
+			restHandlingContext.getObjectMapper().writeValue(outputStream, result);
 		} catch (IOException e) {
 			throw new OpenApiInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),

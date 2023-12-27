@@ -63,15 +63,15 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
 
     @Nonnull
-    protected final CTX restApiHandlingContext;
+    protected final CTX restHandlingContext;
     @Nonnull
     protected final DataDeserializer dataDeserializer;
 
-    protected RestEndpointHandler(@Nonnull CTX restApiHandlingContext) {
-        this.restApiHandlingContext = restApiHandlingContext;
+    protected RestEndpointHandler(@Nonnull CTX restHandlingContext) {
+        this.restHandlingContext = restHandlingContext;
         this.dataDeserializer = new DataDeserializer(
-            this.restApiHandlingContext.getOpenApi(),
-            this.restApiHandlingContext.getEnumMapping()
+            this.restHandlingContext.getOpenApi(),
+            this.restHandlingContext.getEnumMapping()
         );
     }
 
@@ -87,7 +87,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         final String clientId = serverExchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
         final String requestId = serverExchange.getRequestHeaders().getFirst(REQUEST_ID_HEADER);
 
-        restApiHandlingContext.getClientContext().executeWithClientAndRequestId(
+        restHandlingContext.getClientContext().executeWithClientAndRequestId(
             serverExchange.getSourceAddress(),
             clientId,
             requestId,
@@ -126,12 +126,12 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
      */
     @Nullable
     protected Optional<EvitaSessionContract> createSession(@Nonnull RestEndpointExchange exchange) {
-        if (!(restApiHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
+        if (!(restHandlingContext instanceof CatalogRestHandlingContext catalogRestHandlingContext)) {
             // we don't have any catalog to create session on
             return Optional.empty();
         }
 
-        final Evita evita = restApiHandlingContext.getEvita();
+        final Evita evita = restHandlingContext.getEvita();
         final String catalogName = catalogRestHandlingContext.getCatalogSchema().getName();
         if (modifiesData()) {
             return Optional.of(evita.createReadWriteSession(catalogName));
@@ -173,7 +173,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
         //create copy of parameters
         final Map<String, Deque<String>> parameters = new HashMap<>(exchange.serverExchange().getQueryParameters());
 
-        final Operation operation = restApiHandlingContext.getEndpointOperation();
+        final Operation operation = restHandlingContext.getEndpointOperation();
         final HashMap<String, Object> parameterData = createHashMap(operation.getParameters().size());
         if(operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
@@ -210,7 +210,7 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     @Nonnull
     @SuppressWarnings("rawtypes")
     protected Schema getParameterSchema(@Nonnull Parameter parameter) {
-        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restApiHandlingContext.getOpenApi());
+        return SchemaUtils.getTargetSchemaFromRefOrOneOf(parameter.getSchema(), restHandlingContext.getOpenApi());
     }
 
 }

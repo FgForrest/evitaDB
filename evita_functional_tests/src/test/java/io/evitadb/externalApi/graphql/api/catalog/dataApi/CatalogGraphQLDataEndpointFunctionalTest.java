@@ -26,19 +26,16 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
-import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.api.catalog.dataApi.model.AssociatedDataDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.ReferenceDescriptor;
-import io.evitadb.externalApi.graphql.GraphQLProvider;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GraphQLEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.testSuite.GraphQLEndpointFunctionalTest;
 import io.evitadb.test.Entities;
-import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.builder.MapBuilder;
-import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.utils.StringUtils;
 
@@ -49,10 +46,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.builder.MapBuilder.map;
@@ -223,6 +222,22 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 	}
 
 	@Nonnull
+	protected Map<String, Object> createEntityDtoWithPrices(@Nonnull SealedEntity entity) {
+		return map()
+			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
+			.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
+			.e(EntityDescriptor.PRICES.name(), List.of(
+				map()
+					.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
+					.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
+					.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
+					.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
+					.build()
+			))
+			.build();
+	}
+
+	@Nonnull
 	protected Map<String, Object> createEntityDtoWithAssociatedData(@Nonnull SealedEntity entity) {
 		return map()
 			.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
@@ -285,6 +300,31 @@ public abstract class CatalogGraphQLDataEndpointFunctionalTest extends GraphQLEn
 						.build();
 				})
 				.toList())
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createTargetEntityDto(@Nonnull Map<String, Object> entityDto) {
+		return map()
+			.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), entityDto)
+			.build();
+	}
+
+	@Nonnull
+	protected Map<String, Object> createTargetEntityDto(@Nonnull Map<String, Object> entityDto, boolean extractCommonFields) {
+		if (!extractCommonFields) {
+			return createTargetEntityDto(entityDto);
+		}
+		final MapBuilder newEntityDto = map();
+
+		final Map<String, Object> newTargetEntityDto = new HashMap<>(entityDto);
+		Optional.ofNullable(newTargetEntityDto.remove(EntityDescriptor.PRIMARY_KEY.name()))
+			.ifPresent(it -> newEntityDto.e(EntityDescriptor.PRIMARY_KEY.name(), it));
+		Optional.ofNullable(newTargetEntityDto.remove(EntityDescriptor.TYPE.name()))
+			.ifPresent(it -> newEntityDto.e(EntityDescriptor.TYPE.name(), it));
+
+		return newEntityDto
+			.e(GlobalEntityDescriptor.TARGET_ENTITY.name(), newTargetEntityDto)
 			.build();
 	}
 }

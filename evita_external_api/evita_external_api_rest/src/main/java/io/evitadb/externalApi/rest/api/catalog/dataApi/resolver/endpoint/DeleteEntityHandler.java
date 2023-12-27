@@ -24,7 +24,6 @@
 package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 
 import io.evitadb.api.query.require.EntityContentRequire;
-import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -71,7 +70,7 @@ public class DeleteEntityHandler extends EntityHandler<CollectionRestHandlingCon
 
 		return exchange.session()
 			.deleteEntity(
-				restApiHandlingContext.getEntityType(),
+				restHandlingContext.getEntityType(),
 				(Integer) parametersFromRequest.get(DeleteEntityEndpointHeaderDescriptor.PRIMARY_KEY.name()),
 				entityContentRequires
 			)

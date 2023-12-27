@@ -1,32 +1,33 @@
 ---
 title: C#
-perex: 
+perex: |
+  Main goal behind the C# driver of evitaDB was to create as similar API as possible to the Java one for the sake of
+  consistency and to make it easier for developers to switch between languages. However, there are some minor differences
+  between the two languages, so the C# API is not 100% identical to the Java one. Many of mentioned differences are mostly
+  semantics and language conventions.
 date: '10.11.2023'
 author: 'Ing. Tomáš Pozler'
+preferredLang: 'cs'
 ---
 
-**Work in progress**
-
-This article will contain description of C#, mainly the ideas behind its design from the API consumer perspective
-(not from the perspective of the C# API developer). It should also contain recommendations and hint how to use
-API correctly.
-
-Main goal behind the C# driver of evitaDB was to create as similar API as possible to the Java one for the sake of
-consistency and to make it easier for developers to switch between languages. However, there are some minor differences
-between the two languages, so the C# API is not 100% identical to the Java one. Many of mentioned differences are mostly 
-semantics and language conventions.
-
+<LanguageSpecific to="evitaql,java,graphql,rest">
+This chapter describes the C# driver for evitaDB and doesn't make sense for other languages. If you're interested in 
+the details of the C# implementation, please change your preferred language in the upper right corner.
+</LanguageSpecific>
+<LanguageSpecific to="csharp">
 This API unification was possible thanks to the common [gRPC](grpc.md) protocol and protobuf data format used by both clients.
 It is built on top of the same interfaces (especially <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> 
 and <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>) for the client and the database itself,
 where on the C# side, there has been only an adaptation without the need of these specific interfaces - classes were used instead.
 
 **Supported versions of .NET**
+
 Since it's a relatively new project which in the implementation uses many of the newer language features, the C# driver
-will not be backward compatible with older versions of .NET that .NET 7.
+will not be backward compatible with older versions of .NET that .NET 8.
 
 **How to install**
-As mentioned previously, to use this client is necessary to have at least .NET 7 installed.
+
+As mentioned previously, to use this client is necessary to have at least .NET 8 installed.
 To install the client, you can use the NuGet package manager or the dotnet CLI. For alternative ways of installation,
 please refer to the [nuget repository](https://www.nuget.org/packages/EvitaDB.Client).
 
@@ -124,3 +125,4 @@ The above intervals are not currently configurable because we believe they are o
 to change them, please contact us with your specific use case and we will consider adding the configuration option.
 
 </Note>
+</LanguageSpecific>

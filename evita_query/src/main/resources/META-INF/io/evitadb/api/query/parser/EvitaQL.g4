@@ -393,8 +393,32 @@ POSITIONAL_PARAMETER : '?' ;
 NAMED_PARAMETER : '@' [a-z] [a-zA-Z0-9]* ;
 
 STRING
-    : '\'' .*? '\''
-    | '"' .*? '"'
+    : '"' (STRING_DOUBLE_QUOTATION_ESC | STRING_DOUBLE_QUOTATION_SAFECODEPOINT)* '"'
+    | '\'' (STRING_SINGLE_QUOTATION_ESC | STRING_SINGLE_QUOTATION_SAFECODEPOINT)* '\''
+    ;
+
+fragment STRING_DOUBLE_QUOTATION_ESC
+    : '\\' (["\\/bfnrt] | STRING_UNICODE)
+    ;
+
+fragment STRING_SINGLE_QUOTATION_ESC
+    : '\\' (['\\/bfnrt] | STRING_UNICODE)
+    ;
+
+fragment STRING_UNICODE
+    : 'u' STRING_HEX STRING_HEX STRING_HEX STRING_HEX
+    ;
+
+fragment STRING_HEX
+    : [0-9a-fA-F]
+    ;
+
+fragment STRING_DOUBLE_QUOTATION_SAFECODEPOINT
+    : ~ ["\\\u0000-\u001F]
+    ;
+
+fragment STRING_SINGLE_QUOTATION_SAFECODEPOINT
+    : ~ ['\\\u0000-\u001F]
     ;
 
 INT : '-'? [0-9]+ ;
