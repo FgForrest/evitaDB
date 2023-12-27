@@ -75,7 +75,9 @@ jobs:
         mkdir -p ./dist
         cp LICENSE ./dist
         cp 'evita_server/target/evita-server.jar' ./dist
-        cp 'docker/entrypoint.sh' './dist/run.sh'
+        cp 'evita_server/dist/run.sh' './dist'
+        cp 'evita_server/dist/logback.xml' './dist'
+        cp 'docker/evita-configuration.yaml' './dist'
 
     - name: Create .zip of dist
       uses: thedoctor0/zip-release@0.7.1
