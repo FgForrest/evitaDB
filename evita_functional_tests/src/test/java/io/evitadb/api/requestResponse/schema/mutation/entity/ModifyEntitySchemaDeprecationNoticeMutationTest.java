@@ -36,28 +36,28 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * This test verifies {@link ModifyEntitySchemaDescriptionMutation} class.
+ * This test verifies {@link ModifyEntitySchemaDeprecationNoticeMutation} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class ModifyEntitySchemaDescriptionMutationTest {
+public class ModifyEntitySchemaDeprecationNoticeMutationTest {
 
 	@Test
-	void shouldOverrideDescriptionOfPreviousMutationIfNamesMatch() {
-		ModifyEntitySchemaDescriptionMutation mutation = new ModifyEntitySchemaDescriptionMutation("newDescription");
-		ModifyEntitySchemaDescriptionMutation existingMutation = new ModifyEntitySchemaDescriptionMutation("oldDescription");
+	void shouldOverrideDeprecationNoticeOfPreviousMutationIfNamesMatch() {
+		ModifyEntitySchemaDeprecationNoticeMutation mutation = new ModifyEntitySchemaDeprecationNoticeMutation("newDeprecationNotice");
+		ModifyEntitySchemaDeprecationNoticeMutation existingMutation = new ModifyEntitySchemaDeprecationNoticeMutation("oldDeprecationNotice");
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
-		assertInstanceOf(ModifyEntitySchemaDescriptionMutation.class, result.current()[0]);
-		assertEquals("newDescription", ((ModifyEntitySchemaDescriptionMutation) result.current()[0]).getDescription());
+		assertInstanceOf(ModifyEntitySchemaDeprecationNoticeMutation.class, result.current()[0]);
+		assertEquals("newDeprecationNotice", ((ModifyEntitySchemaDeprecationNoticeMutation) result.current()[0]).getDeprecationNotice());
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
-		ModifyEntitySchemaDescriptionMutation mutation = new ModifyEntitySchemaDescriptionMutation("newDescription");
+		ModifyEntitySchemaDeprecationNoticeMutation mutation = new ModifyEntitySchemaDeprecationNoticeMutation("newDeprecationNotice");
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(
@@ -65,7 +65,7 @@ class ModifyEntitySchemaDescriptionMutationTest {
 			entitySchema
 		);
 		assertEquals(2, newEntitySchema.version());
-		assertEquals("newDescription", newEntitySchema.getDescription());
+		assertEquals("newDeprecationNotice", newEntitySchema.getDeprecationNotice());
 	}
 
 }

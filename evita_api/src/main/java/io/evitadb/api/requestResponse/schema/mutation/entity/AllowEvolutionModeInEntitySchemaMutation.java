@@ -51,8 +51,6 @@ import java.util.stream.Stream;
  * or negative mutation {@link AllowEvolutionModeInEntitySchemaMutation} if those mutation are present in the mutation pipeline
  * multiple times.
  *
- * TOBEDONE JNO - write tests
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 @ThreadSafe
@@ -91,8 +89,8 @@ public class AllowEvolutionModeInEntitySchemaMutation implements CombinableEntit
 				.toArray(EvolutionMode[]::new);
 
 			return new MutationCombinationResult<>(
-				modesToRemove.length == 0 ? null : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove),
-				modesToAdd.length == evolutionModes.length ? existingMutation : (modesToAdd.length == 0 ? null : new AllowEvolutionModeInEntitySchemaMutation(modesToAdd))
+				modesToRemove.length == 0 ? null : (modesToRemove.length == ((DisallowEvolutionModeInEntitySchemaMutation) existingMutation).getEvolutionModes().size() ? existingMutation : new DisallowEvolutionModeInEntitySchemaMutation(modesToRemove)),
+				modesToAdd.length == evolutionModes.length ? this : (modesToAdd.length == 0 ? null : new AllowEvolutionModeInEntitySchemaMutation(modesToAdd))
 			);
 		} else {
 			return null;

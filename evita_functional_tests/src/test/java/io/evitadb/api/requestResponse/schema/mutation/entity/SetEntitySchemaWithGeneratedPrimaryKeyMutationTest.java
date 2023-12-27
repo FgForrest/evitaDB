@@ -30,34 +30,31 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies {@link ModifyEntitySchemaDescriptionMutation} class.
+ * This test verifies {@link SetEntitySchemaWithGeneratedPrimaryKeyMutation} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class ModifyEntitySchemaDescriptionMutationTest {
+public class SetEntitySchemaWithGeneratedPrimaryKeyMutationTest {
 
 	@Test
-	void shouldOverrideDescriptionOfPreviousMutationIfNamesMatch() {
-		ModifyEntitySchemaDescriptionMutation mutation = new ModifyEntitySchemaDescriptionMutation("newDescription");
-		ModifyEntitySchemaDescriptionMutation existingMutation = new ModifyEntitySchemaDescriptionMutation("oldDescription");
+	void shouldOverridePrimaryKeySettingsOfPreviousMutationIfNamesMatch() {
+		SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation = new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
+		SetEntitySchemaWithGeneratedPrimaryKeyMutation existingMutation = new SetEntitySchemaWithGeneratedPrimaryKeyMutation(false);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
-		assertInstanceOf(ModifyEntitySchemaDescriptionMutation.class, result.current()[0]);
-		assertEquals("newDescription", ((ModifyEntitySchemaDescriptionMutation) result.current()[0]).getDescription());
+		assertInstanceOf(SetEntitySchemaWithGeneratedPrimaryKeyMutation.class, result.current()[0]);
+		assertTrue(((SetEntitySchemaWithGeneratedPrimaryKeyMutation) result.current()[0]).isWithGeneratedPrimaryKey());
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
-		ModifyEntitySchemaDescriptionMutation mutation = new ModifyEntitySchemaDescriptionMutation("newDescription");
+		SetEntitySchemaWithGeneratedPrimaryKeyMutation mutation = new SetEntitySchemaWithGeneratedPrimaryKeyMutation(true);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(
@@ -65,7 +62,7 @@ class ModifyEntitySchemaDescriptionMutationTest {
 			entitySchema
 		);
 		assertEquals(2, newEntitySchema.version());
-		assertEquals("newDescription", newEntitySchema.getDescription());
+		assertTrue(newEntitySchema.isWithGeneratedPrimaryKey());
 	}
 
 }

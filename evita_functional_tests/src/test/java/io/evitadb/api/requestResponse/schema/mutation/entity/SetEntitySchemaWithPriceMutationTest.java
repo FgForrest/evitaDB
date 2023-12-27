@@ -30,34 +30,32 @@ import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies {@link ModifyEntitySchemaDescriptionMutation} class.
+ * This test verifies {@link SetEntitySchemaWithPriceMutation} class.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-class ModifyEntitySchemaDescriptionMutationTest {
+public class SetEntitySchemaWithPriceMutationTest {
 
 	@Test
-	void shouldOverrideDescriptionOfPreviousMutationIfNamesMatch() {
-		ModifyEntitySchemaDescriptionMutation mutation = new ModifyEntitySchemaDescriptionMutation("newDescription");
-		ModifyEntitySchemaDescriptionMutation existingMutation = new ModifyEntitySchemaDescriptionMutation("oldDescription");
+	void shouldOverridePriceSettingsOfPreviousMutationIfNamesMatch() {
+		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, 2);
+		SetEntitySchemaWithPriceMutation existingMutation = new SetEntitySchemaWithPriceMutation(false, 0);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		final MutationCombinationResult<EntitySchemaMutation> result = mutation.combineWith(Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation);
 		assertNotNull(result);
 		assertNull(result.origin());
 		assertNotNull(result.current());
-		assertInstanceOf(ModifyEntitySchemaDescriptionMutation.class, result.current()[0]);
-		assertEquals("newDescription", ((ModifyEntitySchemaDescriptionMutation) result.current()[0]).getDescription());
+		assertInstanceOf(SetEntitySchemaWithPriceMutation.class, result.current()[0]);
+		assertTrue(((SetEntitySchemaWithPriceMutation) result.current()[0]).isWithPrice());
+		assertEquals(2, ((SetEntitySchemaWithPriceMutation) result.current()[0]).getIndexedPricePlaces());
 	}
 
 	@Test
 	void shouldMutateEntitySchema() {
-		ModifyEntitySchemaDescriptionMutation mutation = new ModifyEntitySchemaDescriptionMutation("newDescription");
+		SetEntitySchemaWithPriceMutation mutation = new SetEntitySchemaWithPriceMutation(true, 2);
 		final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
 		Mockito.when(entitySchema.version()).thenReturn(1);
 		final EntitySchemaContract newEntitySchema = mutation.mutate(
@@ -65,7 +63,8 @@ class ModifyEntitySchemaDescriptionMutationTest {
 			entitySchema
 		);
 		assertEquals(2, newEntitySchema.version());
-		assertEquals("newDescription", newEntitySchema.getDescription());
+		assertTrue(newEntitySchema.isWithPrice());
+		assertEquals(2, newEntitySchema.getIndexedPricePlaces());
 	}
 
 }
