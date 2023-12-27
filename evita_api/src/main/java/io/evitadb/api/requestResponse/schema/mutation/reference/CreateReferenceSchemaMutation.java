@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMuta
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -61,8 +62,6 @@ import java.util.stream.Stream;
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
  * Mutation implements {@link CombinableEntitySchemaMutation} allowing to resolve conflicts with
  * {@link RemoveReferenceSchemaMutation} mutation (if such is found in mutation pipeline).
- *
- * TOBEDONE JNO - write tests
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -94,7 +93,8 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		boolean indexed,
 		boolean faceted
 	) {
-		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, referencedEntityType);
+		ClassifierUtils.validateClassifierFormat(ClassifierType.REFERENCE, name);
+		ClassifierUtils.validateClassifierFormat(ClassifierType.ENTITY, referencedEntityType);
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
@@ -119,7 +119,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 
 			return new MutationCombinationResult<>(
 				null,
-				Stream.concat(
+				Stream.of(
 						Stream.of(
 							makeMutationIfDifferent(
 								createdVersion, existingVersion,
@@ -160,8 +160,13 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 						existingVersion.getAttributes()
 							.values()
 							.stream()
-							.map(attribute -> new ModifyReferenceAttributeSchemaMutation(name, new RemoveAttributeSchemaMutation(attribute.getName())))
+							.map(attribute -> new ModifyReferenceAttributeSchemaMutation(name, new RemoveAttributeSchemaMutation(attribute.getName()))),
+						existingVersion.getSortableAttributeCompounds()
+							.values()
+							.stream()
+							.map(attribute -> new ModifyReferenceSortableAttributeCompoundSchemaMutation(name, new RemoveSortableAttributeCompoundSchemaMutation(attribute.getName())))
 					)
+					.flatMap(Function.identity())
 					.filter(Objects::nonNull)
 					.toArray(EntitySchemaMutation[]::new)
 			);
