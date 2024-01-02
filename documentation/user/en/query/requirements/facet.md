@@ -739,8 +739,6 @@ As you can see, this is a fairly complex scenario that uses all the key features
 </LS>
 </Note>
 
-</LanguageSpecific>
-
 <LS to="r">
 
 ### Filtering facet summary
