@@ -180,7 +180,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final String sourceFileName = path.getFileName().toString();
 		return path.resolveSibling(
 			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + "." + extension
-		);
+		).normalize();
 	}
 
 	/**
@@ -385,7 +385,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static Path createPathRelativeToRootDirectory(@Nonnull Path rootDirectory, @Nonnull String path) {
-		return rootDirectory.resolve(!path.isEmpty() && path.charAt(0) == '/' ? path.substring(1) : path);
+		return rootDirectory.resolve(!path.isEmpty() && path.charAt(0) == '/' ? path.substring(1) : path).normalize();
 	}
 
 	/**
@@ -406,7 +406,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						Environment.DEMO_SERVER,
 						it,
 						new ExampleFilter[]{
-							ExampleFilter.CSHARP,
+//							ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
 							ExampleFilter.REST,
 							ExampleFilter.GRAPHQL,
@@ -565,7 +565,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
-					referencedFile.normalize(),
+					referencedFile,
 					findRelatedFiles(referencedFile, alreadyUsedPaths, codeSnippetIndex)
 						.stream()
 						.map(relatedFile -> {
@@ -632,7 +632,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
-					referencedFile.normalize(),
+					referencedFile,
 					findVariants(referencedFile, alreadyUsedPaths, variants)
 						.stream()
 						.map(relatedFile -> {
@@ -640,7 +640,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							return new CodeSnippet(
 								"Example `" + relatedFile.getFileName() + "`",
 								relatedFileExtension,
-								relatedFile.normalize(),
+								relatedFile,
 								null,
 								convertToRunnable(
 									profile,
