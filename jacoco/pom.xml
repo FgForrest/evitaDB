@@ -30,7 +30,8 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_root</artifactId>
-		<version>0.10-SNAPSHOT</version>
+		<!-- fixed parent version -->
+		<version>10.1-SNAPSHOT</version>
 	</parent>
 	<dependencies>
 		<dependency>

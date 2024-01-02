@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -447,12 +447,15 @@ public class EvitaClientSession implements EvitaSessionContract {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
 		final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
-			.orElse(null);
+			.orElseGet(() -> ofNullable(query.getCollection())
+				.map(io.evitadb.api.query.head.Collection::getEntityType)
+				.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
 
 		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.query(
 				GrpcQueryRequest.newBuilder()
+					.setCollection(entityTypeByExpectedType)
 					.setQuery(stringWithParameters.query())
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
@@ -1399,11 +1402,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
+		final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
+			.orElseGet(() -> ofNullable(query.getCollection())
+				.map(io.evitadb.api.query.head.Collection::getEntityType)
+				.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
 
 		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryListResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.queryList(
 				GrpcQueryRequest.newBuilder()
+					.setCollection(entityTypeByExpectedType)
 					.setQuery(stringWithParameters.query())
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
@@ -1508,11 +1516,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 	) {
 		assertActive();
 		assertRequestMakesSense(query, expectedType);
+		final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
+			.orElseGet(() -> ofNullable(query.getCollection())
+				.map(io.evitadb.api.query.head.Collection::getEntityType)
+				.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
 
 		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
 		final GrpcQueryOneResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.queryOne(
 				GrpcQueryRequest.newBuilder()
+					.setCollection(entityTypeByExpectedType)
 					.setQuery(stringWithParameters.query())
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
