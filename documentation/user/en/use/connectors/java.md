@@ -223,7 +223,7 @@ needs to be added as dependency:
 <dependency>
   <groupId>one.edee.oss</groupId>
   <artifactId>proxycian_bytebuddy</artifactId>
-  <version>1.3.7</version>
+  <version>1.3.10</version>
 </dependency>
 ```
 
