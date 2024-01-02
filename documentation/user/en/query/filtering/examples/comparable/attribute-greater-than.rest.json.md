@@ -11,7 +11,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "45.00000",
+            "batteryLife": "45.00000",
             "code": "amazfit-bip"
           }
         }
@@ -25,7 +25,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "365.00000",
+            "batteryLife": "365.00000",
             "code": "garmin-vivofit-jr-3"
           }
         }

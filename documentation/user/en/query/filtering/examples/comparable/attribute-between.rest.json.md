@@ -11,7 +11,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "125.00000",
+            "batteryCapacity": "125.00000",
             "code": "amazfit-band-5"
           }
         }
@@ -25,7 +25,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "160.00000",
+            "batteryCapacity": "160.00000",
             "code": "amazfit-neo"
           }
         }
@@ -39,7 +39,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "148.00000",
+            "batteryCapacity": "148.00000",
             "code": "fitbit-inspire-2"
           }
         }

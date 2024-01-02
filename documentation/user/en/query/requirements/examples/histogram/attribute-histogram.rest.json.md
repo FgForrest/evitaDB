@@ -34,8 +34,8 @@
         "requested": false
       }
     ],
-    "min": "15.90",
-    "overallCount": 3911
+    "overallCount": 3911,
+    "min": "15.90"
   },
   "height": {
     "max": "310.00",
@@ -71,8 +71,8 @@
         "requested": false
       }
     ],
-    "min": "25.00",
-    "overallCount": 1697
+    "overallCount": 1697,
+    "min": "25.00"
   }
 }
 ```

@@ -11,7 +11,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "120.00000",
+            "batteryCapacity": "120.00000",
             "code": "huawei-talkband-b6"
           }
         }
@@ -25,7 +25,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "120.00000",
+            "batteryCapacity": "120.00000",
             "code": "huawei-watch-3"
           }
         }
@@ -39,7 +39,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-capacity": "125.00000",
+            "batteryCapacity": "125.00000",
             "code": "amazfit-band-5"
           }
         }
