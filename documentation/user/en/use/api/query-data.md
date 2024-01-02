@@ -763,7 +763,7 @@ The query will then return a target entity object based on the resolved entity t
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[REST get entity query example](/documentation/user/en/use/api/example/rest-get-entity-query-example.graphql)
+[REST get entity query example](/documentation/user/en/use/api/example/rest-get-entity-query-example.rest)
 </SourceCodeTabs>
 
 ### `list` queries
@@ -790,7 +790,7 @@ The query will then return a list of target entity objects based on the resolved
 
 <SourceCodeTabs langSpecificTabOnly>
 
-[REST list entity query example](/documentation/user/en/use/api/example/rest-list-entity-query-example.graphql)
+[REST list entity query example](/documentation/user/en/use/api/example/rest-list-entity-query-example.rest)
 </SourceCodeTabs>
 
 ### `query` queries
