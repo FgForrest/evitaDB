@@ -338,7 +338,7 @@ the example to fetch the facet summary along with the codes of the facets and th
 
 </LanguageSpecific>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -347,7 +347,7 @@ the example to fetch the facet summary along with the codes of the facets and th
 </SourceCodeTabs>
 
 </LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+<LanguageSpecific to="graphql">
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -380,14 +380,14 @@ of the facets and their respective groups:
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-bodies.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category including the referenced entity bodies](/documentation/user/en/query/requirements/examples/facet/facet-summary-bodies.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 If you add the desired locale to the query and also list localized names, you'll get a result that's very close to
 the version you want to see in the user interface:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -396,7 +396,7 @@ the version you want to see in the user interface:
 </SourceCodeTabs>
 
 </LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+<LanguageSpecific to="graphql">
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -418,11 +418,13 @@ the version you want to see in the user interface:
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-localized-bodies.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary with localized names for products in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-localized-bodies.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
 </Note>
+
+<LS to="e,j,g,c">
 
 ### Filtering facet summary
 
@@ -468,7 +470,7 @@ a bit artificial. Let's say we want to display only the facet options whose *cod
 </SourceCodeTabs>
 
 </LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+<LanguageSpecific to="graphql">
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -498,20 +500,17 @@ We don't limit the search to a specific hierarchy because the filter is quite se
 <MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.graphql.json.md)</MDInclude>
 
 </LanguageSpecific>
-<LanguageSpecific to="rest">
-
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.rest.json.md)</MDInclude>
-
-</LanguageSpecific>
 
 </Note>
 
+</LS>
+
+<LS to="e,j,g,c">
+
 ### Ordering facet summary
 
-Typically, the facet summary is ordered in some way to present the most relevant facet options first. The same is true
-for ordering facet groups. To sort the facet summary items the way you like, you can use
-the [`orderBy`](../basics.md#order-by) and `orderGroupBy` (which is the same as `orderBy` but it sorts the facet groups
-instead of the individual facets) constraints.
+<MDInclude>[Ordering facet summary](/documentation/user/en/query/requirements/assets/ordering-facet-summary.md)</MDInclude>
+
 <LanguageSpecific to="graphql">
 The `orderGroupBy` can be specified on each reference field returning facet groups. The `orderBy` can be specified
 deeper in the facet summary structure, specifically inside the group definition on `facetStatistics` field returning actual
@@ -529,11 +528,7 @@ requirements with specific ordering constraints for each reference type.
 
 </LanguageSpecific>
 
-The ordering constraints can only target properties on the target entity and cannot target reference attributes in
-the source entity that are specific to a relationship with the target entity. Even though it is technically possible to
-order by attributes of references themself, because we don't have direct relation
-with specific entity here, it would be too difficult to wrap a mind around this concept. That's why we don't support this
-approach and you can order directly referenced entities only.
+<MDInclude>[Behaviour of ordering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-order-note.md)</MDInclude>
 
 </Note>
 
@@ -585,6 +580,8 @@ You can see that the facet summary is now sorted where appropriate:
 </LanguageSpecific>
 
 </Note>
+
+</LS>
 
 <LanguageSpecific to="evitaql,java,rest,csharp">
 
@@ -698,6 +695,90 @@ As you can see, this is a fairly complex scenario that uses all the key features
 </Note>
 
 </LanguageSpecific>
+
+<LS to="r">
+
+### Filtering facet summary
+
+The facet summary sometimes gets very big, and besides the fact that it is not very useful to show all facet options in
+the user interface, it also takes a lot of time to calculate it.
+To limit the facet summary, you can use
+the [`filterBy`](../basics.md#filter-by) and `filterGroupBy` (which is the same as `filterBy`, but it filters the entire
+facet group instead of individual facets) constraints.
+
+<Note type="warning">
+
+You can only filter using `facetSummaryOfReference` because a filter container is specific to specific entity collection
+which is not known beforehand in the generic `facetSummary`.
+
+<MDInclude>[Behaviour of filtering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
+
+</Note>
+
+It's hard to find a good example for filtering a generic facet summary even for our demo dataset, so the example will be
+a bit artificial. Let's say we want to display only the facet options whose *code* attribute contains the substring
+*ar*, and only those that are within groups with *code* starting with the letter *o*:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Filtering facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary filtering
+
+</NoteTitle>
+
+We don't limit the search to a specific hierarchy because the filter is quite selective, as you can see in the result:
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary filtering](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-filtering.rest.json.md)</MDInclude>
+
+</Note>
+
+</LS>
+
+<LS to="r">
+
+### Ordering facet summary
+
+<MDInclude>[Ordering facet summary](/documentation/user/en/query/requirements/assets/ordering-facet-summary.md)</MDInclude>
+
+<Note type="warning">
+
+You can only sort using `facetSummaryOfReference` because a filter container is specific to specific entity collection
+which is not known beforehand in the generic `facetSummary`.
+
+<MDInclude>[Behaviour of ordering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-order-note.md)</MDInclude>
+
+</Note>
+
+Let's sort both facet groups and facets alphabetically by their English names:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[Sort facet summary options](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.evitaql)
+
+</SourceCodeTabs>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of facet summary sorting
+
+</NoteTitle>
+
+You can see that the facet summary is now sorted where appropriate:
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summary sorting](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-ordering.rest.json.md)</MDInclude>
+
+</Note>
+
+</LS>
 
 ## Entity group fetch
 
