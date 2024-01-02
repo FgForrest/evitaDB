@@ -58,34 +58,83 @@ The visualization is organized in the same way as the facet summary itself:
 
 ## Facet summary
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
-<MDInclude>[Syntax of constraint facetSummary](/documentation/user/en/query/requirements/assets/facet-summary-syntax.md)</MDInclude>
+```evitaql-syntax
+facetSummary(
+    argument:enum(COUNTS|IMPACT),
+    filterConstraint:filterBy,
+    filterConstraint:filterGroupBy,
+    orderConstraint:orderBy,
+    orderConstraint:orderGroupBy,
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
 
-The request triggers the calculation of the <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LanguageSpecific>
-containing the facet summary calculation. The calculated facet summary will contain all entity references marked as 
-`faceted` in the [entity schema](../../use/schema.md). The facet summary can be further modified by the 
-[facet summary of reference](#facet-summary-of-reference) constraint, which allows you to override the general facet 
-summary behavior specified in the generic facet summary require constraint.
+<dl>
+    <dt>argument:enum(COUNTS|IMPACT)</dt>
+    <dd>
+        <p>**Default:** `COUNTS`</p>
+
+        <p>optional argument of type <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass></LanguageSpecific>
+            that allows you to specify the computation depth of the facet summary:</p>
+
+        <p>
+        - **COUNTS**: each facet contains the number of results that match the facet option only
+        - **IMPACT**: each non-selected facet contains the prediction of the number of results that would be returned
+            if the facet option were selected (the impact analysis), this calculation is affected by the required
+            constraints that change the default facet calculation behavior: [conjunction](#facet-groups-conjunction),
+            [disjunction](#facet-groups-disjunction), [negation](#facet-groups-negation).
+        </p>
+
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        optional filter constraint that limits the facets displayed and calculated in the summary to those that match
+        the specified filter constraint.
+    </dd>
+    <dt>filterConstraint:filterGroupBy</dt>
+    <dd>
+        optional filter constraint that restricts the entire facet group whose facets are displayed and calculated in
+        the summary to those that belong to the facet group matching the filter constraint.
+    </dd>
+    <dt>orderConstraint:orderBy</dt>
+    <dd>
+        optional order constraint that specifies the order of the facet options within each facet group
+    </dd>
+    <dt>orderConstraint:orderGroupBy</dt>
+    <dd>
+        optional order constraint that specifies the order of the facet groups
+    </dd>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
 
 </LanguageSpecific>
+
+<LanguageSpecific to="evitaql,java,rest,csharp">
+
+The request triggers the calculation of the <LanguageSpecific to="java,evitaql,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LanguageSpecific>
+containing the facet summary calculation. The calculated facet summary will contain all entity references marked as
+`faceted` in the [entity schema](../../use/schema.md). The facet summary can be further modified by the
+[facet summary of reference](#facet-summary-of-reference) constraint, which allows you to override the general facet
+summary behavior specified in the generic facet summary require constraint.
+
 <LanguageSpecific to="graphql">
 
 The facet summary can be requested with the `facetSummary` field within extra results. This request triggers the calculation
 of the facet summary object, which contains the facet summary calculation.
 The calculated facet summary can contain all entity references marked as
-`faceted` in the [entity schema](../../use/schema.md). The facet summary calculation is requested separately for each reference, so
-each reference can have its own behaviour defined.
-
-</LanguageSpecific>
-<LanguageSpecific to="rest">
-
-<MDInclude>[Syntax of constraint facetSummaryOfReference](/documentation/user/en/query/requirements/assets/facet-summary-of-reference-syntax.md)</MDInclude>
-
-The <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummaryOfReference.java</SourceClass>
-requirement triggers the calculation of the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass>
-for a specific reference.
-The facet summary can be requested for all entity references marked as
 `faceted` in the [entity schema](../../use/schema.md). The facet summary calculation is requested separately for each reference, so
 each reference can have its own behaviour defined.
 
@@ -192,7 +241,9 @@ calculation, which can contains the following data:
   </dd>
 </dl>
 
-The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetSummary.cs</SourceClass></LanguageSpecific> requirement 
+<LS to="e,j,r,c">
+
+The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetSummary.cs</SourceClass></LanguageSpecific> requirement
 triggers the calculation of the <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LanguageSpecific>
 extra result. The facet summary is always computed as a side result of the main entity query and respects any filtering
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
@@ -204,15 +255,8 @@ example:
 
 </SourceCodeTabs>
 
-<LanguageSpecific to="rest">
+</LS>
 
-The `facetSummary` requirement
-triggers the calculation of the `FacetSummary`
-extra result. The facet summary is always computed as a side result of the main entity query, and respects any filter
-constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
-example:
-
-</LanguageSpecific>
 <LanguageSpecific to="graphql">
 
 When the `facetSummary` field is specified with specific references within the `extraResults` field is specified, it triggers the calculation
@@ -220,9 +264,6 @@ of the facet summary extra result.
 The facet summary is always computed as a side result of the main entity query, and respects any filter
 constraints placed on the queried entities. To demonstrate the facet summary calculation, we will use the following
 example:
-
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -255,7 +296,7 @@ includes the facet summary calculation:
 </LanguageSpecific>
 <LanguageSpecific to="rest">
 
-<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference-simple.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of the facet summarization in the "e-readers" category](/documentation/user/en/query/requirements/examples/facet/facet-summary.rest.json.md)</MDInclude>
 
 </LanguageSpecific>
 
@@ -545,14 +586,77 @@ You can see that the facet summary is now sorted where appropriate:
 
 </Note>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LanguageSpecific to="evitaql,java,rest,csharp">
 
 ## Facet summary of reference
 
-<MDInclude>[Syntax of constraint facetSummaryOfReference](/documentation/user/en/query/requirements/assets/facet-summary-of-reference-syntax.md)</MDInclude>
+```evitaql-syntax
+facetSummaryOfReference(
+    argument:string!,
+    argument:enum(COUNTS|IMPACT),
+    filterConstraint:filterBy,
+    filterConstraint:filterGroupBy,
+    orderConstraint:orderBy,
+    orderConstraint:orderGroupBy,
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
 
-The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummaryOfReference.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetSummaryOfReference.cs</SourceClass></LanguageSpecific>
-requirement triggers the calculation of the <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LanguageSpecific> 
+<dl>
+    <dt>argument:string!</dt>
+    <dd>
+      mandatory argument specifying the name of the [reference](../../use/schema.md#reference) that is requested by this
+      constraint, the reference must be marked as `faceted` in the [entity schema](../../use/schema.md)
+    </dd>
+    <dt>argument:enum(COUNTS|IMPACT)</dt>
+    <dd>
+        <p>**Default:** `COUNTS`</p>
+
+        <p>optional argument of type <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass></LS>
+            that allows you to specify the computation depth of the facet summary:</p>
+
+        <p>
+        - **COUNTS**: each facet contains the number of results that match the facet option only
+        - **IMPACT**: each non-selected facet contains the prediction of the number of results that would be returned
+            if the facet option were selected (the impact analysis), this calculation is affected by the required
+            constraints that change the default facet calculation behavior: [conjunction](#facet-groups-conjunction),
+            [disjunction](#facet-groups-disjunction), [negation](#facet-groups-negation).
+        </p>
+    </dd>
+    <dt>filterConstraint:filterBy</dt>
+    <dd>
+        optional filter constraint that limits the facets displayed and calculated in the summary to those that match
+        the specified filter constraint.
+    </dd>
+    <dt>filterConstraint:filterGroupBy</dt>
+    <dd>
+        optional filter constraint that restricts the entire facet group whose facets are displayed and calculated in
+        the summary to those that belong to the facet group matching the filter constraint.
+    </dd>
+    <dt>orderConstraint:orderBy</dt>
+    <dd>
+        optional order constraint that specifies the order of the facet options within each facet group
+    </dd>
+    <dt>orderConstraint:orderGroupBy</dt>
+    <dd>
+        optional order constraint that specifies the order of the facet groups
+    </dd>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+The <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetSummaryOfReference.java</SourceClass></LS><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetSummaryOfReference.cs</SourceClass></LanguageSpecific>
+requirement triggers the calculation of the <LanguageSpecific to="java,evitaql,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LanguageSpecific>
 for a specific reference. When a generic [`facetSummary`](#facet-summary) requirement is specified, this require constraint
 overrides the default constraints from the generic requirement to constraints specific to this particular reference.
 By combining the generic [`facetSummary`](#facet-summary) and `facetSummaryOfReference`, you define common requirements
@@ -581,8 +685,16 @@ with `isVisible` attribute equal to `TRUE` should be calculated for the summary:
 
 As you can see, this is a fairly complex scenario that uses all the key features of the facet summary calculation:
 
+<LS to="e,j,c">
+
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet summarization of named references](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.evitaql.string.md)</MDInclude>
 
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.facetSummary">[The result of facet summarization of named references](/documentation/user/en/query/requirements/examples/facet/facet-summary-of-reference.rest.json.md)</MDInclude>
+
+</LS>
 </Note>
 
 </LanguageSpecific>
@@ -652,8 +764,8 @@ facetGroupsConjunction(
 </dl>
 
 The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetGroupsConjunction.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/FacetGroupsConjunction.cs</SourceClass></LanguageSpecific>
-changes the default behavior of the facet summary calculation for the facet groups specified in the `filterBy` 
-constraint. Instead of logical disjunction (logical OR), the facet options in the facet groups are combined with logical 
+changes the default behavior of the facet summary calculation for the facet groups specified in the `filterBy`
+constraint. Instead of logical disjunction (logical OR), the facet options in the facet groups are combined with logical
 conjunction (logical AND).
 
 <Note type="warning">

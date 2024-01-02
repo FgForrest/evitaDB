@@ -439,7 +439,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/use/connectors/java.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
 			ExampleFilter.values()
 		).stream();
 	}
@@ -456,9 +456,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/use/api/query-data.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
 			ExampleFilter.values(),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
+			CreateSnippets.MARKDOWN, /*CreateSnippets.JAVA, CreateSnippets.GRAPHQL, */CreateSnippets.REST/*, CreateSnippets.CSHARP*/
 		).stream();
 	}
 
