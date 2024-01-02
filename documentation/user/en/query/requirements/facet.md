@@ -58,7 +58,7 @@ The visualization is organized in the same way as the facet summary itself:
 
 ## Facet summary
 
-<LanguageSpecific to="evitaql,java,rest,csharp">
+<LanguageSpecific to="evitaql,java,csharp">
 
 ```evitaql-syntax
 facetSummary(
@@ -107,6 +107,7 @@ facetSummary(
     <dd>
         optional order constraint that specifies the order of the facet groups
     </dd>
+	<dt>requireConstraint:entityFetch</dt>
     <dd>
         optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
         constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
@@ -121,8 +122,50 @@ facetSummary(
 </dl>
 
 </LanguageSpecific>
+<LS to="r">
 
-<LanguageSpecific to="evitaql,java,rest,csharp">
+```evitaql-syntax
+facetSummary(
+    argument:enum(COUNTS|IMPACT),
+    requireConstraint:entityFetch,
+    requireConstraint:entityGroupFetch
+)
+```
+
+<dl>
+    <dt>argument:enum(COUNTS|IMPACT)</dt>
+    <dd>
+        <p>**Default:** `COUNTS`</p>
+
+        <p>optional argument of type <SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass>
+            that allows you to specify the computation depth of the facet summary:</p>
+
+        <p>
+        - **COUNTS**: each facet contains the number of results that match the facet option only
+        - **IMPACT**: each non-selected facet contains the prediction of the number of results that would be returned
+            if the facet option were selected (the impact analysis), this calculation is affected by the required
+            constraints that change the default facet calculation behavior: [conjunction](#facet-groups-conjunction),
+            [disjunction](#facet-groups-disjunction), [negation](#facet-groups-negation).
+        </p>
+
+    </dd>
+	<dt>requireConstraint:entityFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity body; the `entityFetch`
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+    <dt>requireConstraint:entityGroupFetch</dt>
+    <dd>
+        optional requirement constraint that allows you to fetch the referenced entity group body; the `entityGroupFetch`
+        constraint can contain nested `referenceContent` with an additional `entityFetch` / `entityGroupFetch`
+        constraints that allows you to fetch the entities in a graph-like manner to an "infinite" depth
+    </dd>
+</dl>
+
+</LS>
+
+<LS to="e,j,r,c">
 
 The request triggers the calculation of the <LanguageSpecific to="java,evitaql,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/extraResult/FacetSummary.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/ExtraResults/FacetSummary.cs</SourceClass></LanguageSpecific>
 containing the facet summary calculation. The calculated facet summary will contain all entity references marked as
@@ -130,7 +173,9 @@ containing the facet summary calculation. The calculated facet summary will cont
 [facet summary of reference](#facet-summary-of-reference) constraint, which allows you to override the general facet
 summary behavior specified in the generic facet summary require constraint.
 
-<LanguageSpecific to="graphql">
+</LS>
+
+<LS to="g">
 
 The facet summary can be requested with the `facetSummary` field within extra results. This request triggers the calculation
 of the facet summary object, which contains the facet summary calculation.
@@ -138,7 +183,7 @@ The calculated facet summary can contain all entity references marked as
 `faceted` in the [entity schema](../../use/schema.md). The facet summary calculation is requested separately for each reference, so
 each reference can have its own behaviour defined.
 
-</LanguageSpecific>
+</LS>
 
 <Note type="warning">
 
@@ -708,8 +753,8 @@ facet group instead of individual facets) constraints.
 
 <Note type="warning">
 
-You can only filter using `facetSummaryOfReference` because a filter container is specific to specific entity collection
-which is not known beforehand in the generic `facetSummary`.
+You can only filter facets and groups using `facetSummaryOfReference` because a filter container is specific to specific
+entity collection which is not known beforehand in the generic `facetSummary`.
 
 <MDInclude>[Behaviour of filtering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
 
@@ -749,8 +794,8 @@ We don't limit the search to a specific hierarchy because the filter is quite se
 
 <Note type="warning">
 
-You can only sort using `facetSummaryOfReference` because a filter container is specific to specific entity collection
-which is not known beforehand in the generic `facetSummary`.
+You can only sort facets and groups using `facetSummaryOfReference` because a filter container is specific to specific
+entity collection which is not known beforehand in the generic `facetSummary`.
 
 <MDInclude>[Behaviour of ordering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-order-note.md)</MDInclude>
 
