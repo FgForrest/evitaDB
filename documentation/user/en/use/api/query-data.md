@@ -658,10 +658,10 @@ as they provide quick access to entities.
 
 #### `getEntity` query
 
-There is also a special variant of the `get` queries with fixed `entity` classifier in the name -> `getEntity`. This query
-is meant to be used when you need to fetch an entity but you only have a globally unique identifier and you don't know
-target entity collection.
-The query then returns a generic entity object containing only data shared across all entity collections:
+There is also a special variant of the `get` queries with a fixed `entity` classifier in the name -> `getEntity`. This query
+is meant to be used when you need to fetch an entity, but you only have a globally unique identifier and you don't know
+the target entity collection.
+The query will then return a generic entity object that contain only data common to all entity collections:
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -692,12 +692,12 @@ requirements are needed.
 
 #### `listEntity` query
 
-There is also a special variant of the `list` queries with fixed `entity` classifier in the name -> `listEntity`. This query
+There is also a special variant of the `list` queries with a fixed `entity` classifier in the name -> `listEntity`. This query
 is essentially an extension of the [`getEntity`](#get-entity-query) that accepts multiple identifiers and is meant to be
-used when you need to fetch one or more entities but you only have a globally unique identifiers and you don't know target
+used when you need to fetch one or more entities, but you only have globally unique identifiers and you don't know the target
 entity collection. Also, because the `listEntity` query accepts multiple identifiers, each returned entity can be from
 a different entity collection.
-The query then returns a list of generic entity objects containing only data shared across all entity collections:
+The query will then return a list of generic entity objects that contain only data common to all entity collections:
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -756,10 +756,10 @@ as they provide quick access to entities.
 
 #### `/entity/get` query
 
-There is also a special variant of the `get` queries with fixed `entity` classifier -> `/entity/get`. This query
-is meant to be used when you need to fetch an entity but you only have a globally unique identifier and you don't know
-target entity collection.
-The query then returns a target entity object based on resolved entity type of a particular entity:
+There is also a special variant of the `get` queries with a fixed `entity` classifier -> `/entity/get`. This query
+is meant to be used when you need to fetch an entity, but you only have a globally unique identifier and you don't know
+the target entity collection.
+The query will then return a target entity object based on the resolved entity type of a returned entity:
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -781,12 +781,12 @@ requirements are needed.
 
 #### `/entity/list` query
 
-There is also a special variant of the `list` queries with fixed `entity` classifier -> `/entity/list`. This query
+There is also a special variant of the `list` queries with a fixed `entity` classifier -> `/entity/list`. This query
 is essentially an extension of the [`/entity/get`](#entity-get-query) that accepts multiple identifiers and is meant to
-be used when you need to fetch one or more entities but you only have a globally unique identifiers and you don't know target
+be used when you need to fetch one or more entities, but you only have globally unique identifiers and you don't know the target
 entity collection. Also, because the `/entity/list` query accepts multiple identifiers, each returned entity can be from
 a different entity collection.
-The query then returns a list of target entity objects based on resolved entity type of individual entities:
+The query will then return a list of target entity objects based on the resolved entity type of each entity:
 
 <SourceCodeTabs langSpecificTabOnly>
 
