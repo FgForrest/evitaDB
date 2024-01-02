@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,10 +32,30 @@ public interface GrpcQueryRequestOrBuilder extends
 
   /**
    * <pre>
+   * The entity type that is queried.
+   * </pre>
+   *
+   * <code>string collection = 1;</code>
+   * @return The collection.
+   */
+  java.lang.String getCollection();
+  /**
+   * <pre>
+   * The entity type that is queried.
+   * </pre>
+   *
+   * <code>string collection = 1;</code>
+   * @return The bytes for collection.
+   */
+  com.google.protobuf.ByteString
+      getCollectionBytes();
+
+  /**
+   * <pre>
    * The string part of the parametrised query.
    * </pre>
    *
-   * <code>string query = 1;</code>
+   * <code>string query = 2;</code>
    * @return The query.
    */
   java.lang.String getQuery();
@@ -44,7 +64,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The string part of the parametrised query.
    * </pre>
    *
-   * <code>string query = 1;</code>
+   * <code>string query = 2;</code>
    * @return The bytes for query.
    */
   com.google.protobuf.ByteString
@@ -55,7 +75,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   java.util.List<io.evitadb.externalApi.grpc.generated.GrpcQueryParam> 
       getPositionalQueryParamsList();
@@ -64,7 +84,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryParam getPositionalQueryParams(int index);
   /**
@@ -72,7 +92,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   int getPositionalQueryParamsCount();
   /**
@@ -80,7 +100,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder> 
       getPositionalQueryParamsOrBuilderList();
@@ -89,7 +109,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The positional query parameters.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 2;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcQueryParam positionalQueryParams = 3;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryParamOrBuilder getPositionalQueryParamsOrBuilder(
       int index);
@@ -99,7 +119,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
   int getNamedQueryParamsCount();
   /**
@@ -107,7 +127,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
   boolean containsNamedQueryParams(
       java.lang.String key);
@@ -122,7 +142,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
   java.util.Map<java.lang.String, io.evitadb.externalApi.grpc.generated.GrpcQueryParam>
   getNamedQueryParamsMap();
@@ -131,7 +151,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrDefault(
@@ -142,7 +162,7 @@ public interface GrpcQueryRequestOrBuilder extends
    * The named query parameters.
    * </pre>
    *
-   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 3;</code>
+   * <code>map&lt;string, .io.evitadb.externalApi.grpc.generated.GrpcQueryParam&gt; namedQueryParams = 4;</code>
    */
 
   io.evitadb.externalApi.grpc.generated.GrpcQueryParam getNamedQueryParamsOrThrow(

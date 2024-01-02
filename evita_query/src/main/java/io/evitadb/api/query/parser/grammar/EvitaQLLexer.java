@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,14 +25,16 @@
 
 package io.evitadb.api.query.parser.grammar;
 
-import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
-import org.antlr.v4.runtime.Token;
-import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.atn.*;
+import org.antlr.v4.runtime.Lexer;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.LexerATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.misc.*;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class EvitaQLLexer extends Lexer {
@@ -82,12 +84,12 @@ public class EvitaQLLexer extends Lexer {
 			"T__73", "T__74", "T__75", "T__76", "T__77", "T__78", "T__79", "T__80", 
 			"T__81", "T__82", "T__83", "T__84", "T__85", "T__86", "T__87", "T__88", 
 			"T__89", "T__90", "T__91", "T__92", "T__93", "T__94", "T__95", "POSITIONAL_PARAMETER", 
-			"NAMED_PARAMETER", "STRING", "DOUBLE_QUOTATION_ESC", "SINGLE_QUOTATION_ESC", 
-			"UNICODE", "HEX", "DOUBLE_QUOTATION_SAFECODEPOINT", "SINGLE_QUOTATION_SAFECODEPOINT", 
-			"INT", "FLOAT", "BOOLEAN", "DATE", "TIME", "DATE_TIME", "OFFSET_DATE_TIME", 
-			"FLOAT_NUMBER_RANGE", "INT_NUMBER_RANGE", "DATE_TIME_RANGE", "UUID", 
-			"ENUM", "ARGS_OPENING", "ARGS_CLOSING", "ARGS_DELIMITER", "COMMENT", 
-			"WHITESPACE", "UNEXPECTED_CHAR"
+			"NAMED_PARAMETER", "STRING", "STRING_DOUBLE_QUOTATION_ESC", "STRING_SINGLE_QUOTATION_ESC", 
+			"STRING_UNICODE", "STRING_HEX", "STRING_DOUBLE_QUOTATION_SAFECODEPOINT", 
+			"STRING_SINGLE_QUOTATION_SAFECODEPOINT", "INT", "FLOAT", "BOOLEAN", "DATE", 
+			"TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE", "INT_NUMBER_RANGE", 
+			"DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING", "ARGS_CLOSING", "ARGS_DELIMITER", 
+			"COMMENT", "WHITESPACE", "UNEXPECTED_CHAR"
 		};
 	}
 	public static final String[] ruleNames = makeRuleNames();
