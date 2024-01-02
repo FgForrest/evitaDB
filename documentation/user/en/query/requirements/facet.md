@@ -751,8 +751,8 @@ facet group instead of individual facets) constraints.
 
 <Note type="warning">
 
-You can only filter facets and groups using `facetSummaryOfReference` because a filter container is specific to specific
-entity collection which is not known beforehand in the generic `facetSummary`.
+You can only filter facets and groups using `facetSummaryOfReference` because a filter container is specific to a particular
+entity collection, which is not known in advance in the generic `facetSummary`.
 
 <MDInclude>[Behaviour of filtering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-filter-note.md)</MDInclude>
 
@@ -792,8 +792,8 @@ We don't limit the search to a specific hierarchy because the filter is quite se
 
 <Note type="warning">
 
-You can only sort facets and groups using `facetSummaryOfReference` because a filter container is specific to specific
-entity collection which is not known beforehand in the generic `facetSummary`.
+You can only sort facets and groups using `facetSummaryOfReference` because a filter container is specific to a particular
+entity collection, which is not known in advance in the generic `facetSummary`.
 
 <MDInclude>[Behaviour of ordering on referenced entities in facet summary constraint](/documentation/user/en/query/requirements/assets/referenced-order-note.md)</MDInclude>
 
