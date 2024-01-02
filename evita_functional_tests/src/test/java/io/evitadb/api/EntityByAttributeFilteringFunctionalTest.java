@@ -2844,6 +2844,75 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities from different collections by equals to global localized attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesFromDifferentCollectionsByEqualsToGlobalLocalizedAttribute(Evita evita) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String productUrl = product.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String categoryUrl = category.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						filterBy(
+							attributeInSet(ATTRIBUTE_URL, productUrl, categoryUrl),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				assertEquals(2, result.getRecordData().size());
+				assertEquals(productUrl, result.getRecordData().get(0).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				assertEquals(categoryUrl, result.getRecordData().get(1).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should not return entities by equals to global localized attribute when locale doesn't match (String)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
