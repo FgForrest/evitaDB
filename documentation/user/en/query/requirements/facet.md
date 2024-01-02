@@ -780,6 +780,8 @@ You can see that the facet summary is now sorted where appropriate:
 
 </LS>
 
+</LanguageSpecific>
+
 ## Entity group fetch
 
 <LanguageSpecific to="evitaql,java,csharp,rest">
