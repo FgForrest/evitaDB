@@ -92,7 +92,7 @@ class SystemRestEndpointFunctionalTest extends RestEndpointFunctionalTest {
 				"",
 				equalTo(
 					map()
-						.e(LivenessDescriptor.ALIVE.name(), true)
+						.e(LivenessDescriptor.LIVENESS.name(), true)
 						.build()
 				)
 			);

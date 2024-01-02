@@ -41,7 +41,6 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.LabApiTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.utils.NamingConvention;
-import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -106,7 +105,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 				"",
 				equalTo(
 					map()
-						.e(LivenessDescriptor.ALIVE.name(), true)
+						.e(LivenessDescriptor.LIVENESS.name(), true)
 						.build()
 				)
 			);
