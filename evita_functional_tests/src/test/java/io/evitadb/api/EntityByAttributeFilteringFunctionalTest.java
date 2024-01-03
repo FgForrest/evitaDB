@@ -2858,7 +2858,8 @@ public class EntityByAttributeFilteringFunctionalTest {
 						require(
 							page(1, 1),
 							entityFetch(
-								attributeContent(ATTRIBUTE_URL)
+								attributeContent(ATTRIBUTE_URL),
+								dataInLocales(Locale.ENGLISH)
 							)
 						)
 					)
