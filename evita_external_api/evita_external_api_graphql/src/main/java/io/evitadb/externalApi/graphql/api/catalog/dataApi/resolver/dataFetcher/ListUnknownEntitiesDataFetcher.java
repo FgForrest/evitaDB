@@ -150,7 +150,6 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
         log.debug("Generated evitaDB query for single unknown entity fetch `{}`.", query);
 
         final EvitaSessionContract evitaSession = environment.getGraphQlContext().get(GraphQLContextKey.EVITA_SESSION);
-        final List<EntityClassifier> entities = evitaSession.queryList(query, EntityClassifier.class);
 
         final List<SealedEntity> entityReferences = evitaSession.queryList(query, SealedEntity.class);
         final List<SealedEntity> loadedEntities;
@@ -174,7 +173,7 @@ public class ListUnknownEntitiesDataFetcher implements DataFetcher<DataFetcherRe
 
         final DataFetcherResult.Builder<List<SealedEntity>> resultBuilder = DataFetcherResult.<List<SealedEntity>>newResult()
             .data(loadedEntities);
-        if (!entities.isEmpty()) {
+        if (!loadedEntities.isEmpty()) {
             resultBuilder.localContext(buildResultContext(arguments));
         }
 

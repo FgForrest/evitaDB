@@ -105,7 +105,7 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 		@Nonnull String attributeName,
 		@Nonnull String textToSearch
 	) {
-		final ProcessingScope processingScope = filterByVisitor.getProcessingScope();
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return new AttributeBitmapFilter(
 			attributeName,
 			processingScope.getRequirements(),
@@ -121,7 +121,7 @@ public class AttributeContainsTranslator implements FilteringConstraintTranslato
 	static void assertStringType(@Nonnull AttributeSchemaContract attributeDefinition) {
 		Assert.isTrue(
 			String.class.equals(attributeDefinition.getType()),
-			"StartsWith query can be used only on String attributes - " + attributeDefinition.getName() + " is " + attributeDefinition.getType() + "!"
+			"StartsWith constraint can be used only on String attributes - `" + attributeDefinition.getName() + "` is `" + attributeDefinition.getType() + "`!"
 		);
 	}
 

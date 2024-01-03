@@ -656,6 +656,27 @@ as they provide quick access to entities.
 [GraphQL get query example](/documentation/user/en/use/api/example/graphql-get-query-example.graphql)
 </SourceCodeTabs>
 
+#### `getEntity` query
+
+There is also a special variant of the `get` queries with a fixed `entity` classifier in the name -> `getEntity`. This query
+is meant to be used when you need to fetch an entity, but you only have a globally unique identifier and you don't know
+the target entity collection.
+The query will then return a generic entity object that contain only data common to all entity collections:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[GraphQL get entity query example](/documentation/user/en/use/api/example/graphql-get-entity-query-example.graphql)
+</SourceCodeTabs>
+
+However, you can use the `targetEntity` field to get to the actual entity object (specific to resolved entity collection),
+although it comes with a caveat. You need to use [inline fragments](https://graphql.org/learn/queries/#inline-fragments)
+to specify field structure for every entity target object you want to support to get actual data:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[GraphQL get entity with target entity query example](/documentation/user/en/use/api/example/graphql-get-entity-with-target-entity-query-example.graphql)
+</SourceCodeTabs>
+
 ### `list` queries
 
 The `listCollectionName` queries support full filter and order parts of an evitaDB query as a query arguments and fetching
@@ -667,6 +688,29 @@ requirements are needed.
 <SourceCodeTabs langSpecificTabOnly>
 
 [GraphQL list query example](/documentation/user/en/use/api/example/graphql-list-query-example.graphql)
+</SourceCodeTabs>
+
+#### `listEntity` query
+
+There is also a special variant of the `list` queries with a fixed `entity` classifier in the name -> `listEntity`. This query
+is essentially an extension of the [`getEntity`](#get-entity-query) that accepts multiple identifiers and is meant to be
+used when you need to fetch one or more entities, but you only have globally unique identifiers and you don't know the target
+entity collection. Also, because the `listEntity` query accepts multiple identifiers, each returned entity can be from
+a different entity collection.
+The query will then return a list of generic entity objects that contain only data common to all entity collections:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[GraphQL list entity query example](/documentation/user/en/use/api/example/graphql-list-entity-query-example.graphql)
+</SourceCodeTabs>
+
+However, you can use the `targetEntity` field to get to the actual entity object (specific to resolved entity collection),
+although it comes with a caveat. You need to use [inline fragments](https://graphql.org/learn/queries/#inline-fragments)
+to specify field structure for every entity target object you want to support to get actual data:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[GraphQL list entity with target entity query example](/documentation/user/en/use/api/example/graphql-list-entity-with-target-entity-query-example.graphql)
 </SourceCodeTabs>
 
 ### `query` queries
@@ -710,6 +754,18 @@ as they provide quick access to entities.
 [REST get query example](/documentation/user/en/use/api/example/rest-get-query-example.rest)
 </SourceCodeTabs>
 
+#### `/entity/get` query
+
+There is also a special variant of the `get` queries with a fixed `entity` classifier -> `/entity/get`. This query
+is meant to be used when you need to fetch an entity, but you only have a globally unique identifier and you don't know
+the target entity collection.
+The query will then return a target entity object based on the resolved entity type of a returned entity:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[REST get entity query example](/documentation/user/en/use/api/example/rest-get-entity-query-example.rest)
+</SourceCodeTabs>
+
 ### `list` queries
 
 The `/list` endpoints support full filter and order parts of an evitaDB query, but the requirement part is limited only
@@ -721,6 +777,20 @@ requirements are needed.
 <SourceCodeTabs langSpecificTabOnly>
 
 [REST list query example](/documentation/user/en/use/api/example/rest-list-query-example.rest)
+</SourceCodeTabs>
+
+#### `/entity/list` query
+
+There is also a special variant of the `list` queries with a fixed `entity` classifier -> `/entity/list`. This query
+is essentially an extension of the [`/entity/get`](#entity-get-query) that accepts multiple identifiers and is meant to
+be used when you need to fetch one or more entities, but you only have globally unique identifiers and you don't know the target
+entity collection. Also, because the `/entity/list` query accepts multiple identifiers, each returned entity can be from
+a different entity collection.
+The query will then return a list of target entity objects based on the resolved entity type of each entity:
+
+<SourceCodeTabs langSpecificTabOnly>
+
+[REST list entity query example](/documentation/user/en/use/api/example/rest-list-entity-query-example.rest)
 </SourceCodeTabs>
 
 ### `query` queries

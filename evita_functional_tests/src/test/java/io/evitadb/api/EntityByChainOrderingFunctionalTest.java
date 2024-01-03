@@ -56,7 +56,7 @@ import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.core.query.algebra.prefetch.SelectionFormula.doWithCustomPrefetchCostEstimator;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
@@ -100,7 +100,7 @@ public class EntityByChainOrderingFunctionalTest {
 			);
 
 			final DataGenerator dataGenerator = new DataGenerator();
-			AtomicInteger index = new AtomicInteger();
+			final AtomicInteger index = new AtomicInteger();
 
 			dataGenerator.registerValueGenerator(
 				Entities.PRODUCT, ATTRIBUTE_ORDER,

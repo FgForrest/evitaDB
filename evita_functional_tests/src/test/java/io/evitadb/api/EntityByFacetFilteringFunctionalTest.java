@@ -59,6 +59,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Predecessor;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.annotation.DataSet;
@@ -84,6 +85,7 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -126,6 +128,19 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_TRANSIENT = "transient";
 	private static final int SEED = 40;
 	private static final String EMPTY_COLLECTION_ENTITY = "someCollectionWithoutEntities";
+	public static final String ATTRIBUTE_ORDER = "order";
+
+	private final static int[] STORE_ORDER;
+	private static final int STORE_COUNT = 12;
+
+	static {
+		STORE_ORDER = new int[STORE_COUNT];
+		for (int i = 1; i <= STORE_COUNT; i++) {
+			STORE_ORDER[i - 1] = i;
+		}
+
+		ArrayUtils.shuffleArray(new Random(SEED), STORE_ORDER, STORE_COUNT);
+	}
 	private final DataGenerator dataGenerator = new DataGenerator();
 
 	/**
@@ -452,6 +467,17 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				final int primaryKey = entityCount == 0 ? 0 : faker.random().nextInt(1, entityCount);
 				return primaryKey == 0 ? null : primaryKey;
 			};
+
+			final AtomicInteger index = new AtomicInteger();
+			dataGenerator.registerValueGenerator(
+				Entities.STORE, ATTRIBUTE_ORDER,
+				faker -> {
+					final int ix = index.incrementAndGet();
+					final int position = ArrayUtils.indexOf(ix, STORE_ORDER);
+					return position == 0 ? Predecessor.HEAD : new Predecessor(STORE_ORDER[position - 1]);
+				}
+			);
+
 			dataGenerator.generateEntities(
 					dataGenerator.getSampleBrandSchema(session),
 					randomEntityPicker,
@@ -477,11 +503,21 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				.forEach(session::upsertEntity);
 
 			dataGenerator.generateEntities(
-					dataGenerator.getSampleStoreSchema(session),
+					dataGenerator.getSampleStoreSchema(
+						session,
+						schemaBuilder -> {
+							schemaBuilder
+								.withAttribute(
+									ATTRIBUTE_ORDER, Predecessor.class,
+									AttributeSchemaEditor::sortable
+								).updateVia(session);
+							return schemaBuilder.toInstance();
+						}
+					),
 					randomEntityPicker,
 					SEED
 				)
-				.limit(12)
+				.limit(STORE_COUNT)
 				.forEach(session::upsertEntity);
 
 			final List<EntityReference> storedParameterGroups = dataGenerator.generateEntities(
@@ -580,7 +616,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should throw exception when accessing localized attributes on fetched entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntities(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntities(Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -611,7 +647,7 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 	@DisplayName("Should throw exception when accessing localized attributes on fetched entities")
 	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
 	@Test
-	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReference(Evita evita, List<SealedEntity> originalProductEntities) {
+	void shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesOnExplicitReference(Evita evita) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1106,6 +1142,73 @@ public class EntityByFacetFilteringFunctionalTest implements EvitaTestSupport {
 				);
 
 				assertFacetSummary(expectedSummary, actualFacetSummary);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return sorted facet statistics by predecessor attribute")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldReturnSortedFacetStatisticsByPredecessorAttribute(Evita evita, EntitySchemaContract productSchema, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Query query = query(
+					collection(Entities.PRODUCT),
+					filterBy(
+						entityLocaleEquals(Locale.ENGLISH)
+					),
+					require(
+						page(1, Integer.MAX_VALUE),
+						facetSummaryOfReference(
+							Entities.STORE,
+							FacetStatisticsDepth.COUNTS,
+							orderBy(
+								attributeNatural(ATTRIBUTE_ORDER, OrderDirection.ASC)
+							),
+							entityFetch(
+								attributeContentAll()
+							)
+						),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					)
+				);
+
+				final EvitaResponse<EntityReference> result = session.query(
+					query,
+					EntityReference.class
+				);
+
+				final FacetSummary actualFacetSummary = result.getExtraResult(FacetSummary.class);
+				final FacetSummaryWithResultCount expectedSummary = computeFacetSummary(
+					session,
+					productSchema,
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getLocales().contains(Locale.ENGLISH),
+					null,
+					refName -> {
+						if (Entities.STORE.equals(refName)) {
+							return Comparator.comparingInt(o -> ArrayUtils.indexOf(o.getFacetEntity().getPrimaryKey(), STORE_ORDER));
+						} else {
+							return null;
+						}
+					},
+					null,
+					query,
+					() -> Set.of(Entities.STORE),
+					__ -> FacetStatisticsDepth.COUNTS,
+					refName -> entityFetch(attributeContentAll()),
+					null,
+					Collections.emptyMap(),
+					null
+				);
+
+				assertFacetSummary(
+					expectedSummary,
+					actualFacetSummary
+				);
+
 				return null;
 			}
 		);

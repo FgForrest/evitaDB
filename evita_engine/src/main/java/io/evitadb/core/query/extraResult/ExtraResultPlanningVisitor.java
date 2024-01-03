@@ -381,7 +381,7 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				new EntityIndex[] {entityIndex},
 				entityType,
 				locale,
-				new AttributeSchemaAccessor(queryContext),
+				new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
 				EntityAttributeExtractor.INSTANCE,
 				() -> {
 					for (OrderConstraint innerConstraint : orderBy.getChildren()) {

@@ -24,6 +24,7 @@
 package io.evitadb.core.query.algebra.prefetch;
 
 import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.query.QueryContext;
@@ -34,7 +35,7 @@ import javax.annotation.Nullable;
 /**
  * Implementations of this interface signalize that the entities needs to be prefetched with particular {@link StoragePart}
  * loaded in order they can operate correctly. The storage parts loading is triggered by placing respective
- * {@link CombinableEntityContentRequire} in {@link QueryContext#fetchEntities(int[], EntityContentRequire...) fetch method}.
+ * {@link EntityContentRequire} in {@link QueryContext#fetchEntities(String, int[], EntityFetchRequire)} fetch method}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
