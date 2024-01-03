@@ -177,7 +177,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 
 	@Override
 	public String toString() {
-		return "GlobalAttributeSchema{" +
+		return "EntityAttributeSchema{" +
 			"name='" + getName() + '\'' +
 			", unique=" + getUniquenessType() +
 			", filterable=" + isFilterable() +
