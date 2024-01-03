@@ -67,28 +67,32 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 		final List<? extends Serializable> valueStream = Arrays.stream(comparedValues)
 			.map(it -> EvitaDataTypes.toTargetType(it, attributeDefinition.getPlainType()))
 			.map(it -> it instanceof Comparable<?> comparable ? comparable : String.valueOf(it))
-			.map(it -> (Serializable)it)
+			.map(it -> (Serializable) it)
 			.toList();
 
 		if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
 			globalAttributeSchema.isUniqueGlobally()) {
 			// when entity type is not known and attribute is unique globally - access catalog index instead
-			return filterByVisitor.applyOnGlobalUniqueIndex(
-				globalAttributeSchema,
-				index -> {
-					final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
-						.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))
-						.filter(Objects::nonNull)
-						.toArray(EntityReferenceContract[]::new);
+			return new AttributeFormula(
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+				filterByVisitor.applyOnGlobalUniqueIndex(
+					globalAttributeSchema,
+					index -> {
+						final EntityReferenceContract[] filteredEntityMaskedIds = valueStream.stream()
+							.map(it -> index.getEntityReferenceByUniqueValue(it, filterByVisitor.getLocale()))
+							.filter(Objects::nonNull)
+							.toArray(EntityReferenceContract[]::new);
 
-					return ArrayUtils.isEmpty(filteredEntityMaskedIds) ?
-						EmptyFormula.INSTANCE :
-						new MultipleEntityFormula(
-							new BaseBitmap(
-								filterByVisitor.translateEntityReference(filteredEntityMaskedIds)
-							)
-						);
-				}
+						return ArrayUtils.isEmpty(filteredEntityMaskedIds) ?
+							EmptyFormula.INSTANCE :
+							new MultipleEntityFormula(
+								new BaseBitmap(
+									filterByVisitor.translateEntityReference(filteredEntityMaskedIds)
+								)
+							);
+					}
+				)
 			);
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram

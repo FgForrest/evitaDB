@@ -28,7 +28,6 @@ import io.evitadb.core.query.QueryContext;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVisitor;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;

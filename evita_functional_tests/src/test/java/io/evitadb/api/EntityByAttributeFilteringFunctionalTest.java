@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Evita;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -80,6 +79,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -2897,7 +2897,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						),
 						require(
 							page(1, Integer.MAX_VALUE),
-							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							//debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
 							entityFetch(
 								attributeContent(ATTRIBUTE_URL)
 							)
@@ -3490,7 +3490,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.toArray(String[]::new);
 				ArrayUtils.shuffleArray(random, randomCodes);
 
-				final EvitaResponse<SealedEntity> products = SelectionFormula.doWithCustomPrefetchCostEstimator(
+				final EvitaResponse<SealedEntity> products = doWithCustomPrefetchCostEstimator(
 					() -> session.querySealedEntity(
 						query(
 							collection(Entities.PRODUCT),
