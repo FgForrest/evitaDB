@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Evita;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -80,6 +79,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -2844,6 +2844,76 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities from different collections by equals to global localized attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesFromDifferentCollectionsByEqualsToGlobalLocalizedAttribute(Evita evita) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL),
+								dataInLocales(Locale.ENGLISH)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String productUrl = product.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String categoryUrl = category.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						filterBy(
+							attributeInSet(ATTRIBUTE_URL, productUrl, categoryUrl),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							//debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				assertEquals(2, result.getRecordData().size());
+				assertEquals(productUrl, result.getRecordData().get(0).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				assertEquals(categoryUrl, result.getRecordData().get(1).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should not return entities by equals to global localized attribute when locale doesn't match (String)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3421,7 +3491,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.toArray(String[]::new);
 				ArrayUtils.shuffleArray(random, randomCodes);
 
-				final EvitaResponse<SealedEntity> products = SelectionFormula.doWithCustomPrefetchCostEstimator(
+				final EvitaResponse<SealedEntity> products = doWithCustomPrefetchCostEstimator(
 					() -> session.querySealedEntity(
 						query(
 							collection(Entities.PRODUCT),

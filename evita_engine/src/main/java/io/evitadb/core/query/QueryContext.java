@@ -1246,18 +1246,14 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 			}
 
 			// init collection
-			final boolean collectionChanged;
+			final String entityTypeChangedTo;
 			if (prefetchedEntity == null && !Objects.equals(lastEntityType, entityType)) {
 				Assert.isTrue(entityType != null, () -> new EntityCollectionRequiredException("fetch entity"));
-				entityCollection.set(getEntityCollectionOrThrowException(entityType, "fetch entity"));
-				lastEntityType = entityType;
-				collectionChanged = true;
+				entityTypeChangedTo = entityType;
 			} else if (prefetchedEntity != null && !Objects.equals(lastEntityType, prefetchedEntity.getType())) {
-				entityCollection.set(getEntityCollectionOrThrowException(prefetchedEntity.getType(), "fetch entity"));
-				lastEntityType = prefetchedEntity.getType();
-				collectionChanged = true;
+				entityTypeChangedTo = prefetchedEntity.getType();
 			} else {
-				collectionChanged = false;
+				entityTypeChangedTo = null;
 			}
 
 			// resolve the request that should be used for fetching
@@ -1271,8 +1267,14 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 				// that will use such implicit locale as if it would have been part of the original request
 				lastImplicitLocale = implicitLocale;
 				requestToUse.set(new EvitaRequest(evitaRequest, implicitLocale));
-			} else if (collectionChanged) {
+			} else if (entityTypeChangedTo != null) {
 				dataCollector.run();
+			}
+
+			// now change the collection if necessary
+			if (entityTypeChangedTo != null) {
+				entityCollection.set(getEntityCollectionOrThrowException(entityTypeChangedTo, "fetch entity"));
+				lastEntityType = entityTypeChangedTo;
 			}
 
 			// now apply collector to fetch the entity in requested form using potentially enriched request

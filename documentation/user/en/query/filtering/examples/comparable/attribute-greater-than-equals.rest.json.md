@@ -11,7 +11,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "40.00000",
+            "batteryLife": "40.00000",
             "code": "amazfit-bip-s"
           }
         }
@@ -25,7 +25,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "40.00000",
+            "batteryLife": "40.00000",
             "code": "amazfit-bip-s-1"
           }
         }
@@ -39,7 +39,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "40.00000",
+            "batteryLife": "40.00000",
             "code": "amazfit-bip-s-2"
           }
         }
@@ -53,7 +53,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "40.00000",
+            "batteryLife": "40.00000",
             "code": "amazfit-bip-s-3"
           }
         }
@@ -67,7 +67,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "40.00000",
+            "batteryLife": "40.00000",
             "code": "amazfit-bip-s-4"
           }
         }
@@ -81,7 +81,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "45.00000",
+            "batteryLife": "45.00000",
             "code": "amazfit-bip"
           }
         }
@@ -95,7 +95,7 @@
         ],
         "attributes": {
           "global": {
-            "battery-life": "365.00000",
+            "batteryLife": "365.00000",
             "code": "garmin-vivofit-jr-3"
           }
         }

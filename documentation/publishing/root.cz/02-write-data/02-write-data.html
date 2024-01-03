@@ -28,19 +28,849 @@
 	<title>evitaDB – spuštění, definice schématu a naplnění daty</title>
 </head>
 <body>
-	<header>
-		<h1>evitaDB – spuštění, definice schématu a naplnění daty</h1>
-		<time datetime="2024-01-14">14. ledna 2024</time>
-		<p>
-			V tomto dílu si představíme, jak jsou data v evitaDB organizována, vysvětlíme si základní pojmy jako jsou
-			katalog, typ entity a schéma. Vyzkoušíme si založit nový katalog a související schémata v databázi a naplnit
-			ji základními daty.
-		</p>
-	</header>
-	<article>
+<header>
+	<h1>evitaDB – spuštění, definice schématu a naplnění daty</h1>
+	<time datetime="2024-01-14">14. ledna 2024</time>
+	<p>
+		V tomto dílu si představíme, jak jsou data v evitaDB organizována, vysvětlíme si základní pojmy jako jsou
+		katalog, typ entity a schéma. Vyzkoušíme si založit nový katalog a související schémata v databázi a naplnit
+		ji základními daty.
+	</p>
+</header>
+<article>
 
+	<p>
+		Pojďme si na úvod ukázat, jaké možnosti provozování evitaDB nabízí. Databáze je
+		běžná Java aplikace (JAR), kterou je možné zabalit a provozovat v rámci jiné
+		Java aplikace (tzv. embedded režim) nebo je možné ji spustit jako samostatný
+		proces, který lze následně používat z libovolné jiné aplikace (a jazykové
+		platformy). Pro zjednodušení instalace je připravený Docker image, který
+		obsahuje jak databázový program, tak i správnou verzi virtuálního stroje Java a
+		podkladový operační systém. V tomto článku budeme používat pouze variantu
+		spuštění evitaDB jako Docker kontejneru –⁠ ostatní způsoby jsou popsány v <a
+			href="https://evitadb.io/documentation/get-started/run-evitadb?codelang=evitaql">dokumentaci</a>.
+	</p>
+	<h2>Zprovoznění Docker kontejneru</h2>
+	<p>
+		Ke spuštění databáze tedy budete potřebovat mít na svém lokálním vývojovém
+		prostředí nainstalovaný <a
+			href="https://docs.docker.com/engine/install/">Docker</a>. Následně stačí
+		spustit tento příkaz:
+	</p>
 
+	<pre>docker run --name evitadb -i --rm --net=host \
+       -e "api.exposedOn=localhost" \
+       index.docker.io/evitadb/evitadb:latest
+	</pre>
 
-	</article>
+	<p>
+		Tím si stáhnete aktuální verzi databáze, vytvoříte si lokálně kontejner s názvem
+		„evitadb“ a nasdílíte mu lokální síť vašeho počítače. Kontejner se spustí v
+		interaktivním režimu, takže uvidíte výstup jeho konzole a bude jej moci zastavit
+		pomocí kombinace kláves Ctrl+C. Pokud databázi pouštíte na jiném operačním
+		systému jak Linux, budete potřebovat poněkud složitější variantu spuštění s
+		manuálním mapováním portů (alespoň do té doby než Docker vyřeší <a
+			href="https://github.com/docker/roadmap/issues/238">issue #238</a>):
+	</p>
+
+	<pre>docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
+       -e "api.exposedOn=localhost" \
+       index.docker.io/evitadb/evitadb:latest
+	</pre>
+
+	<p>
+		Po nastartování uvidíte výstup na konzoli podobný tomuto:
+	</p>
+
+	<pre>            _ _        ____  ____
+  _____   _(_) |_ __ _|  _ \| __ )
+ / _ \ \ / / | __/ _` | | | |  _ \
+|  __/\ V /| | || (_| | |_| | |_) |
+ \___| \_/ |_|\__\__,_|____/|____/
+
+alpha build 10.1.2 (keep calm and report bugs 😉)
+Visit us at: https://evitadb.io
+
+Log config used: META-INF/logback.xml (original file `/evita/logback.xml` doesn't exist)
+Server name: evitaDB-b493e0c4c8d06865
+17:37:54.253 INFO  i.e.e.g.GraphQLManager - Built GraphQL API in 0.000000151s
+17:37:54.305 INFO  i.e.e.r.RestManager - Built REST API in 0.000000048s
+17:37:54.924 INFO  i.e.e.l.LabManager - Built Lab in 0.000000062s
+Root CA Certificate fingerprint:        C2:62:C6:B7:97:B1:B6:82:08:D0:C6:5F:2F:0B:A1:EA:F7:A2:01:08:C3:7C:20:60:CC:02:7C:1E:5F:F1:57:B3
+API `graphQL` listening on              https://localhost:5555/gql/, https://d651d19eee1a:5555/gql/
+API `rest` listening on                 https://localhost:5555/rest/, https://d651d19eee1a:5555/rest/
+API `gRPC` listening on                 https://localhost:5556/, https://d651d19eee1a:5556/
+API `system` listening on               http://localhost:5557/system/, http://d651d19eee1a:5557/system/
+   - server name served at:             http://localhost:5557/system/server-name, http://d651d19eee1a:5557/system/server-name
+   - CA certificate served at:          http://localhost:5557/system/evitaDB-CA-selfSigned.crt, http://d651d19eee1a:5557/system/evitaDB-CA-selfSigned.crt
+   - server certificate served at:      http://localhost:5557/system/server.crt, http://d651d19eee1a:5557/system/server.crt
+   - client certificate served at:      http://localhost:5557/system/client.crt, http://d651d19eee1a:5557/system/client.crt
+   - client private key served at:      http://localhost:5557/system/client.key, http://d651d19eee1a:5557/system/client.key
+
+************************* WARNING!!! *************************
+You use mTLS with automatically generated client certificate.
+This is not safe for production environments!
+Supply the certificate for production manually and set `useGeneratedCertificate` to false.
+************************* WARNING!!! *************************
+
+API `lab` listening on                  https://localhost:5555/lab/, https://d651d19eee1a:5555/lab/
+</pre>
+
+	<p>
+		Z výpisu je patrné, že evitaDB nastartovala několik síťových rozhraní, které
+		máte nyní na svém počítači dostupné:
+	</p>
+
+	<ul>
+		<li>rozhraní s GraphQL protokolem,
+		<li>rozhraní s REST protokolem,
+		<li>rozhraní s gRPC protokolem,
+		<li>systémové rozhraní, jehož účel v tomto seriálu rozebírat nebudeme,
+		<li>a uživatelské rozhraní pro přístup k datům (laboratoř)
+		</li>
+	</ul>
+
+	<p>
+		Jak je vidno, rozhraní nastartovala jsou dostupná vždy na dvou adresách – jedné
+		s náhodně generovaným názvem hostname, která je dostupná pouze zevnitř Docker
+		kontejneru a druhá s názvem “localhost”, která bude fungovat z vašeho lokálního
+		prostředí. Jejich funkčnost si můžete ověřit jednoduchým způsobem:
+	</p>
+
+	<p>
+		<strong>GraphQL:</strong>
+	</p>
+
+	<pre>curl -k -X POST "https://localhost:5555/gql/system" \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"{alive}"}'
+	</pre>
+
+	<p>
+		<strong>REST:</strong>
+	</p>
+
+	<pre>curl -k "https://localhost:5555/rest/system/liveness" \
+  -H 'Content-Type: application/json'
+	</pre>
+
+	<p>
+		Případně můžete samozřejmě rozkliknout odkaz `lab` rozhraní a po odkliknutí
+		varování o nedůvěryhodném (self-signed) certifikátu a nechat si zobrazit úvodní
+		obrazovku naší laboratoře.
+	</p>
+
+	<h2>Práce s databází z Java klienta</h2>
+
+	<p>
+		V našem seriálu budeme popisovat především práci s databází z Java prostředí. To
+		však neznamená, že to je cesta jediná možná. Kromě Java klienta je k dispozici i
+		klientská knihovna pro C# a na ostatních platformách je možné začít s
+		vygenerovaným kódem na základě publikovaných webových schémat (GraphQL, Open
+		API, gRPC schéma). Plnohodnotná klientská knihovna však přináší lepší komfort
+		především při vytváření databázových schémat a aktualizaci dat v databázi.
+		Všechny současné klientské knihovny staví na protokolu gRPC a věříme, že časem
+		vzniknou porty pro další programovací jazyky (např. PHP či Node.js).
+	</p>
+
+	<p>
+		Pro napojení na evitaDB z Java aplikace, je potřeba si nejdříve nalinkovat
+		klientskou knihovnu. V buildovacím prostředí Maven stačí přidat tuto závislost:
+	</p>
+
+	<pre>&lt;dependency&gt;
+    &lt;groupId>io.evitadb&lt;/groupId&gt;
+    &lt;artifactId>evita_db&lt;/artifactId&gt;
+    &lt;version>10.1.1&lt;/version&gt;
+    &lt;type>pom&lt;/type&gt;
+&lt;/dependency&gt;
+	</pre>
+
+	<p>
+		V Java aplikaci pak stačí už jen inicializovat klienta:
+	</p>
+
+	<pre>
+EvitaContract evita = new EvitaClient(
+   EvitaClientConfiguration.builder()
+                           .host("localhost")
+                           .port(5556)
+                           .build()
+);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.01-connect-evitadb">https://github.com/FgForrest/evitaDB-tutorial/tree/01.01-connect-evitadb</a>
+		</em>
+	</p>
+
+	<p>
+		Při práci s evitaDB je vhodné používat obecná rozhraní, které mají příponu
+		`Contract` – v tomto případě tedy `EvitaContract`. Umožní vám to jednoduše
+		přepínat mezi provozem databáze embedovaně (tj. součástí vaší aplikace) a
+		vzdáleně. To oceníte především při psaní automatizovaných integračních testů.
+	</p>
+
+	<h3>Katalog a jeho založení</h3>
+
+	<p>
+		Protože se evitaDB specializuje na katalogová řešení, je základním stavebním
+		blokem tzv. katalog. Smyslem katalogu je zapouzdřit všechna data spojená s
+		jednou „aplikací“ či „<a
+			href="https://en.wikipedia.org/wiki/Multitenancy">tenantem</a>“ a izolovat je od
+		ostatních katalogů.
+	</p>
+
+	<p>
+		Nový katalog založíme následujícím příkazem:
+	</p>
+
+	<pre>
+evita.defineCatalog("evita-tutorial");
+	</pre>
+
+	<p>
+		Pokud chceme katalogu rovnou nastavit nějaký popis, tedy aktualizovat jeho
+		schéma, bude náš kód o něco delší:
+	</p>
+
+	<pre>
+evita.defineCatalog("evita-tutorial")
+     .withDescription("This is a tutorial catalog.")
+     .updateViaNewSession(evita);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.02-setup-new-catalog">https://github.com/FgForrest/evitaDB-tutorial/tree/01.02-setup-new-catalog</a>
+		</em>
+	</p>
+
+	<h3>Kolekce entit a jejich schéma</h3>
+
+	<p>
+		Katalog obsahuje jeden nebo více typů entit organizovaných v kolekcích. Typ
+		entity odpovídá v pojetí relační databáze sadě tabulek, které mají logickou
+		souvislost. V dokumentových databázích je analogií kolekce (např. MongoDB) nebo
+		index (např. Elasticsearch).
+	</p>
+
+	<p>
+		Každá entita je unikátně identifikovaná svým primárním klíčem, který může
+		přidělovat buď sama databáze, nebo může být dodaný při vkládání dat aplikací.
+		Primárním klíčem je datový typ 32-bitový integer, ale aplikace může pro své
+		byznysové klíče používat typ UUID a ten používat jako hlavní identifikátor
+		entity. Důvody pro použití datového typu pro primární klíč jsou podrobněji
+		popsány v <a
+			href="https://evitadb.io/documentation/use/data-model?codelang=graphql#primary-key">dokumentaci</a>.
+	</p>
+
+	<p>
+		Entita může dále obsahovat tyto základní bloky dat:
+	</p>
+
+	<ul>
+		<li><strong>Atributy:</strong> sada kombinací klíč/údaj, kde klíčem je název
+			atributu (`String`) a údajem je jedna nebo více (pole) hodnot <a
+					href="https://evitadb.io/documentation/use/data-types?codelang=evitaql">povolených
+				datových typů</a>; atributy se ukládají a načítají v rámci jednoho společného
+			datového bloku a měly by být využívány k ukládání dat, ke kterým se v
+			souvislosti s entitou velmi často přistupuje nebo které slouží k filtrování či
+			třídění
+		<li><strong>Asociovaná data:</strong> sada kombinací klíč/údaj, kde klíčem je
+			řetězec názvu (`String`) a údajem je jedna nebo více (pole) hodnot <a
+					href="https://evitadb.io/documentation/use/data-types?codelang=evitaql">povolených
+				datových typů</a>, či komplexní objektová struktura (analogie k JSON typu);
+			asociovaná data by měla být využívána pro všechna data, která se využívají jen
+			zřídka a jsou ukládána každá v samostatném datovém bloku (načítají se
+			jednotlivě).
+		<li><strong>Ceny:</strong> pevně daná struktura cen obsahující především:
+			<ul>
+				<li>cenu bez a s daní, procento daně,
+				<li>název ceníku (`String`),
+				<li>vlastní identifikátor pro účely synchronizace s externími systémy,
+				<li>časovou platnost,
+				<li>příznak, zda se jedná o prodejní cenu (indexovanou pro vyhledávání)
+				</li>
+			</ul>
+		<li><strong>Hierarchie:</strong> primární klíč nadřízené entity ve stromové
+			struktuře stejného typu entity. Entity potom tvoří acyklický orientovaný graf s
+			„virtuálním kořenem“, ke kterému se vztahují entity, které nemají definovaný
+			svůj nadřízený uzel.
+		<li><strong>Reference:</strong> sada ukazatelů na jiné entity stejného nebo
+			jiného typu; ukazatel může směřovat i na entitu, která není součástí katalogu
+			evitaDB (může se jednat o entitu v externím systému, kterou není vhodné
+			duplikovat do evitaDB, ale chceme ji zapojit do výpočtů, které evitaDB s
+			referencemi umožňuje) – o možných výpočtech se dozvíte v dalších kapitolách
+			tohoto seriálu.
+			<ul>
+				<li><strong>Skupina:</strong> volitelný ukazatel na jinou entitu, který umožňuje
+					seskupovat reference do logických bloků, pro který platí stejná pravidla jako
+					pro referenci samotnou (výsledky výpočtů nad referencemi budou vždy respektovat
+					rozložení dle této skupiny).
+				<li><strong>Atributy referencí:</strong> sada kombinací klíč/údaj, kde klíčem je
+					název atributu (`String`) a údajem je jedna nebo více (pole) hodnot <a
+							href="https://evitadb.io/documentation/use/data-types?codelang=evitaql">povolených
+						datových typů</a>; atributy se ukládají a načítají v rámci společného datového
+					bloku s referencemi a cílí na informace, které dávají smysl pouze v souvislosti
+					s touto referencí (obdoba sloupců na vazební tabulce v relační databázi).
+				</li>
+			</ul>
+		</li>
+	</ul>
+	<p>
+		Popis struktury entity je zjednodušený. Řadu dalších detailů a důvodů pro
+		existenci těchto základních bloků se dočtete v <a
+			href="https://evitadb.io/documentation/use/data-model?codelang=evitaql">dokumentaci</a>.
+	</p>
+	<p>
+		Entitu popisuje její schéma. Schéma je databázi vždy striktně kontrolováno, ale
+		může vznikat dynamicky na základě prvních dat v dané kolekci. Pojďme si tedy
+		velmi rychle naprototypovat nějaký základní model pro jednoduchý e-commerce
+		katalog:
+	</p>
+
+	<pre>// vytvoříme nové schéma tím, že rovnou zadáme ukázková data
+evita.updateCatalog(
+        "evita-tutorial",
+        session -> {
+            // nejdřív vytvoříme značku Lenovo
+            session.createNewEntity("Brand", 1)
+                    .setAttribute("name", Locale.ENGLISH, "Lenovo")
+                    .upsertVia(session);
+
+            // pak několik kategorií navzájem spojených do stromu
+            session.createNewEntity("Category", 10)
+                    .setAttribute("name", Locale.ENGLISH, "Electronics")
+                    .upsertVia(session);
+
+            session.createNewEntity("Category", 11)
+                    .setAttribute("name", Locale.ENGLISH, "Laptops")
+                    // laptopy budou podřízenou kategorií elektroniky
+                    .setParent(10)
+                    .upsertVia(session);
+
+            // a nakonec vytvoříme produkt
+            session.createNewEntity("Product")
+                    // s několika atributy
+                    .setAttribute("name", Locale.ENGLISH, "ThinkPad P15 Gen 1")
+                    .setAttribute("cores", 8)
+                    .setAttribute("graphics", "NVIDIA Quadro RTX 4000 with Max-Q Design")
+                    // a prodejní cenou
+                    .setPrice(
+                            1, "basic",
+                            Currency.getInstance("USD"),
+                            new BigDecimal("1420"), new BigDecimal("20"), new BigDecimal("1704"),
+                            true
+                    )
+                    // spojíme jej s výrobcem
+                    .setReference(
+                            "brand", "Brand",
+                            Cardinality.EXACTLY_ONE,
+                            1
+                    )
+                    // a zařadíme do kategorie
+                    .setReference(
+                            "categories", "Category",
+                            Cardinality.ZERO_OR_MORE,
+                            11
+                    )
+                    .upsertVia(session);
+        }
+);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.03-define-schema-on-the-fly">https://github.com/FgForrest/evitaDB-tutorial/tree/01.03-define-schema-on-the-fly</a></em>
+	</p>
+
+	<p>
+		Vytváření nových entit používá tzv. „<a
+			href="https://en.wikipedia.org/wiki/Builder_pattern">builder pattern</a>“, který
+		shromažďuje všechny změny na dané entitě a v závěrečném volání metody
+		`upsertVia(session)` vytvoří seznam potřebných mutací, které prostřednictvím
+		předaného sezení pošle na server, kde se založí odpovídající datové struktury
+		(pro lepší představu o tom, co se děje pod kapotou vyzkoušejte místo této
+		metody: `toInstance()` či `toMutations()`).
+	</p>
+
+	<p>
+		Pokud chcete mít rychle vizuální zpětnou vazbu, co jste v databázi právě
+		provedli, použijte nástroj <a href="https://demo.evitadb.io">evitaLab</a>, který
+		vám nastartuje společně s databází (pokud jej nezakážete v konfiguraci). Odkaz
+		na verzi, která běží společně s vaší databází, se zobrazí po startu Docker
+		kontejneru v konzoli a automaticky vám umožní přístup k lokálním datům v
+		databázi.
+	</p>
+
+	<p>
+		Stejně tak můžete nad vaším modelem okamžitě vyzkoušet všechna podporovaná API:
+		<a href="https://evitadb.io/documentation/use/connectors/grpc">gRPC</a>, <a
+			href="https://evitadb.io/documentation/use/connectors/graphql">GraphQL</a> nebo
+		<a href="https://evitadb.io/documentation/use/connectors/rest">REST</a>. Nebo si
+		podle vypublikovaných schémat (pro REST jsme zvolili cestu Open API) vygenerovat
+		kostru (stub) klientského kódu, který bude s daty pracovat. O těchto webových
+		API si ale povíme v některém z dalších dílů seriálu.
+	</p>
+
+	<h4><em>Nechce se vám přepisovat kód z článku do svého IDE?</em></h4>
+	<p>
+		<em>Všechny příklady, které budeme popisovat v této sérii článků najdete v <a
+				href="https://github.com/FgForrest/evitaDB-tutorial">ukázkovém GitHub
+			repository</a>, kde jsou zdrojové kódy pro jednotlivé články v sérii dostupné v
+			samostatných větvích. Stačí, když si provedete `checkout` odpovídající větve a
+			najdete si tu správnou metodu v testovací sadě. Následně už můžete
+			experimentovat dle své libosti.</em>
+	</p>
+
+	<p>
+		Ačkoliv je tento přístup lákavý pro rychlé prototypování, pro seriózní vývoj se
+		příliš nehodí. evitaDB striktně vyžaduje, aby všechna data, podle kterých je
+		možné filtrovat nebo třídit, byla ve schématu explicitně označena a existoval k
+		nim odpovídající index. Jinými slovy, evitaDB nemá implementovaný tzv. <a
+			href="https://en.wikipedia.org/wiki/Full_table_scan">full-scan</a>, který je
+		rizikem pro každé produkční prostředí s většími daty a u řady databází je někdy
+		i obtížně predikovatelný. Všechny indexy drží evitaDB v paměti aplikace, což na
+		jednu stranu zaručuje mnohem vyšší rychlost než hledání v indexu na pevném
+		disku, ale zároveň přináší omezení na množství dat ve vyhledávacích indexech.
+	</p>
+
+	<p>
+		Pokud vytváří evitaDB schéma za chodu, nemůže vědět, jestli se podle vytvořených
+		dat bude vyhledávat či třídit, a proto preventivně pro každý vytvořený atribut /
+		referenci vytváří jak vyhledávací, tak třídící index, a tím pádem dochází k
+		velkému plýtvání zdrojů. U prototypů nám to asi příliš nevadí, ale u produkčního
+		kódu si to nemůžeme dovolit. Proto je vhodnější schéma založit následujícím
+		způsobem:
+	</p>
+
+	<pre>// vytvoříme schéma nového katalogu
+evita.defineCatalog("evita-tutorial")
+.withDescription("This is a tutorial catalog.")
+// specifikujeme schéma značky
+.withEntitySchema(
+        "Brand",
+        whichIs -> whichIs.withDescription("A manufacturer of products.")
+                .withAttribute(
+                        "name", String.class,
+                        thatIs -> thatIs.localized().filterable().sortable()
+                )
+)
+// specifikujeme schéma kategorie
+.withEntitySchema(
+        "Category",
+        whichIs -> whichIs.withDescription("A category of products.")
+                .withAttribute(
+                        "name", String.class,
+                        thatIs -> thatIs.localized().filterable().sortable()
+                )
+                .withHierarchy()
+)
+// a nakonec i produktu
+.withEntitySchema(
+        "Product",
+        whichIs -> whichIs.withDescription("A product in inventory.")
+                .withAttribute(
+                        "name", String.class,
+                        thatIs -> thatIs.localized().filterable().sortable()
+                )
+                .withAttribute(
+                        "cores", Integer.class,
+                        thatIs -> thatIs.withDescription("Number of CPU cores.")
+                                .filterable()
+                )
+                .withAttribute(
+                        "graphics", String.class,
+                        thatIs -> thatIs.withDescription("Graphics card.")
+                                .filterable()
+                )
+                .withPrice()
+                .withReferenceToEntity(
+                        "brand", "Brand", Cardinality.EXACTLY_ONE,
+                        thatIs -> thatIs.indexed()
+                )
+                .withReferenceToEntity(
+                        "categories", "Category", Cardinality.ZERO_OR_MORE,
+                        thatIs -> thatIs.indexed()
+                )
+)
+// teď zapíšeme všechny definice na server pomocí sady mutací
+.updateViaNewSession(evita);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.04-define-schema-upfront">https://github.com/FgForrest/evitaDB-tutorial/tree/01.04-define-schema-upfront</a>
+		</em>
+	</p>
+
+	<p>
+		Striktní a dynamický přístup k tvorbě schématu lze kombinovat pomocí tzv. <a
+			href="https://evitadb.io/documentation/use/schema#evolution">evolučních
+		režimů</a>, které máte pod kontrolou jak na úrovni schéma katalogu, tak i
+		jednotlivých typů entit.
+	</p>
+
+	<h3>Přípravný a transakční režim databáze</h3>
+
+	<p>
+		Smyslem evitaDB je stát se sekundárním úložištěm katalogových dat
+		optimalizovaným pro rychlé čtení. Výjimkou je iniciální naplnění dat z
+		primárního úložiště, které by mělo být v rámci možností co nejrychlejší. Proto
+		rozlišujeme dvě fáze života každého katalogu – přípravný a transakční. Ve fázi
+		přípravy může s katalogem pracovat pouze jediný klient paralelně (to nijak
+		neomezuje práci jiných klientů s dalšími katalogy spravovanými databází) a
+		katalog v tomto režimu nepodporuje transakce. Díky tomu však může být plnění dat
+		mnohem rychlejší, protože databáze nemusí řešit žádnou režii spojenou s
+		vícevláknovým přístupem a řízením transakcí. V této fázi neexistuje <a
+			href="https://en.wikipedia.org/wiki/Write-ahead_logging">write-ahead-log</a> a
+		data se zapisují rovnou na disk a do indexů v paměti. Pokud však dojde k nějaké
+		chybě, není zaručena konzistence dat a je nutné tvorbu katalogu zahájit od
+		začátku.
+	</p>
+
+	<p>
+		Jakmile je úvodní plnění katalogu dokončeno, je možné katalog přepnout do
+		transakčního režimu tímto voláním:
+	</p>
+
+	<pre>
+evita.updateCatalog(
+   "evita-tutorial",
+   session -> { session.goLiveAndClose(); }
+);
+	</pre>
+
+	<p>
+		V tu chvíli se stává katalog transakčním a je možné nad ním otevírat více
+		paralelních sezení jak pro čtení, tak i pro zápis dat. Úpravy dat v katalogu
+		probíhají transakčně a dokud není transakce potvrzena (commitnuta), vidí úpravy
+		pouze to sezení, které v dané transakci pracuje. Zápisy v transakci se buď
+		promítnou do nové verze katalogu úplně, nebo vůbec (<a
+			href="https://en.wikipedia.org/wiki/Atomicity_(database_systems)">atomicity</a>).
+		Zároveň je možné kdykoliv provést tzv. rollback a všechny změny v transakci
+		zrušit. Změny provedené transakcí A jsou vidět pouze v transakcích zahájených po
+		potvrzení transakce A (tzv. <a
+			href="https://en.wikipedia.org/wiki/Snapshot_isolation">snapshot úroveň
+		izolace</a>). Řízení transakcí samozřejmě vyžaduje svoji režii, a proto je zápis
+		dat v tomto režimu pomalejší než v přípravném režimu. Na druhou stranu databáze
+		v tomto režimu garantuje požadované <a
+			href="https://en.wikipedia.org/wiki/ACID">ACID</a> vlastnosti, které vývojářům
+		jednoznačně zjednodušují práci.
+	</p>
+
+	<h2>Objektově relační mapování</h2>
+
+	<p>
+		Java vývojáři (a nejen ti) mají pro práci s daty radši vlastní doménově
+		specifická rozhraní než generická rozhraní externích knihoven. A mají pravdu.
+		Následující kód je pro čtenáře mnohem stravitelnější:
+	</p>
+
+	<pre>Product product = evitaSession.query(...);
+assertEquals("Vidlička na chobotnici", product.getName());
+assertEquals("Steelworks", product.getBrand().getName());
+assertEquals("345.50", product.getVipPrice().toString());
+</pre>
+
+	<p>
+		... než tento:
+	</p>
+
+	<pre>Product product = evitaSession.query(...);
+assertEquals("Vidlička na chobotnici", product.getAttribute("name"));
+assertEquals("Steelworks", product.getReference("brand").getReferencedEntity().getAttribute("name"));
+assertEquals("345.50", product.getPrice("vip").toString());
+	</pre>
+
+	<p>
+		Proto má Java klient (tato funkcionalita nemá bohužel prozatím ekvivalent v klientech pro
+		evitaDB na ostatních platformách) zabudovanou základní podporu pro interakci s
+		aplikačním kódem v podobě rozhraní, která jsou dodaná a popsaná vývojářem.
+	</p>
+
+	<p>
+		Pojďme si ukázat rozhraní, které popisuje podobné schéma, jako v předchozí
+		kapitole:
+	</p>
+
+	<pre>@Entity(
+    name = "Product",
+    description = "A product in inventory."
+)
+public interface Product {
+
+    @Attribute(
+            name = "name",
+            description = "Name of the product.",
+            localized = true,
+            filterable = true,
+            sortable = true
+    )
+    @Nonnull
+    String getName();
+
+    @Attribute(
+            name = "cores",
+            description = "Number of CPU cores.",
+            filterable = true
+    )
+    @Nonnull
+    Integer getCores();
+
+    @Attribute(
+            name = "graphics",
+            description = "Graphics card.",
+            filterable = true
+    )
+    @Nonnull
+    String getGraphics();
+
+    @Nonnull
+    PriceContract getPriceForSale();
+
+    @Reference(
+            name = "brand",
+            description = "Brand of the product.",
+            entity = Brand.ENTITY_NAME,
+            allowEmpty = false,
+            indexed = true
+    )
+    @Nonnull
+    Brand getBrand();
+
+    @Reference(
+            name = "categories",
+            description = "Categories the product belongs to.",
+            entity = Category.ENTITY_NAME,
+            indexed = true
+    )
+    @Nonnull
+    List&lt;Category> getCategories();
+
+}
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.05-define-schema-by-java-contract">https://github.com/FgForrest/evitaDB-tutorial/tree/01.05-define-schema-by-java-contract</a>
+		</em>
+	</p>
+
+	<p>
+		Deklarace třídy je zkrácena a okolní třídy jsou vynechány úplně, ale můžete si
+		je snadno dohledat v našem ukázkovém repozitáři. Jakmile máme připravený
+		doménový model, můžeme podle něj vytvořit schéma v katalogu databáze:
+	</p>
+
+	<pre>evita.updateCatalog(
+        "evita-tutorial",
+        session -> {
+            session.defineEntitySchemaFromModelClass(Brand.class);
+            session.defineEntitySchemaFromModelClass(Category.class);
+            session.defineEntitySchemaFromModelClass(Product.class);
+        }
+);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.05-define-schema-by-java-contract">https://github.com/FgForrest/evitaDB-tutorial/tree/01.05-define-schema-by-java-contract</a>
+		</em>
+	</p>
+
+	<p>
+		Ve chvíli, kdy kdy máme vytvořené schéma, můžeme ta stejná rozhraní použít i pro
+		přístup k datům v něm (a to jak pro zápis, tak i pro čtení). Implementace můžete
+		samozřejmě dodat vlastním aplikačním kódem, nebo je umí dynamicky generovat
+		přímo evitaDB. Pomocí knihoven <a href="https://bytebuddy.net/">ByteBuddy</a> a
+		<a href="https://github.com/FgForrest/Proxycian">Proxycian</a> vytvoří
+		automaticky generované proxy třídy implementující kontrakt entit. Tyto třídy
+		nebudou tak rychlé jako ručně psané implementace, ale tento přístup nám ušetří
+		spoustu ruční práce.
+	</p>
+
+	<p>
+		Pojďme si tedy ukázat, jak s použitím doménově specifických rozhraní vytvoříme
+		novou entitu v katalogu:
+	</p>
+
+	<pre>final int productId = evita.updateCatalog(
+        "evita-tutorial",
+        session -> {
+            // založíme novou značku skrze naše vlastní zápisové rozhraní
+            final EntityReference appleBrandRef = session.createNewEntity(BrandEditor.class)
+                    .setName("Apple", Locale.ENGLISH)
+                    .upsertVia(session);
+
+            // založíme novou kategorii skrze naše vlastní zápisové rozhraní
+            final EntityReference cellPhonesRef = session.createNewEntity(CategoryEditor.class)
+                    .setName("Cell phones", Locale.ENGLISH)
+                    .upsertVia(session);
+
+            // a na závěr založíme produkt, který se bude na výše vytvořenou
+            // značku a kategorii odkazovat
+            final EntityReference productRef = session.createNewEntity(ProductEditor.class)
+                    .setName("iPhone 12", Locale.ENGLISH)
+                    .setCores(6)
+                    .setGraphics("A14 Bionic")
+                    .setBrandId(appleBrandRef.getPrimaryKey())
+                    .addCategoryId(cellPhonesRef.getPrimaryKey())
+                    .upsertVia(session);
+        }
+
+        return productRef.getPrimaryKey();
+
+);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.06-write-and-read-data-using-custom-interfaces">https://github.com/FgForrest/evitaDB-tutorial/tree/01.06-write-and-read-data-using-custom-interfaces</a>
+		</em>
+	</p>
+
+	<p>
+		Založený produkt si můžeme na jiném místě pomocí našich vlastních rozhraní
+		načíst a vypsat do konzole:
+	</p>
+
+	<pre>evita.queryCatalog(
+        "evita-tutorial",
+        session -> {
+            // načteme si produkt podle primárního klíče
+            final Product product = session.queryOne(
+                            query(
+                                    filterBy(
+                                            entityPrimaryKeyInSet(productId),
+                                            entityLocaleEquals(Locale.ENGLISH)
+                                    ),
+                                    require(
+                                            // řekneme si o tělo produktu
+                                            entityFetch(
+                                                    attributeContentAll(),
+                                                    // a také tělo odkazované značky
+                                                    referenceContent(
+                                                            Product.REFERENCE_BRAND,
+                                                            entityFetch(attributeContentAll())
+                                                    ),
+                                                    // a těla všech kategorií produktu
+                                                    referenceContent(
+                                                            Product.REFERENCE_CATEGORIES,
+                                                            entityFetch(attributeContentAll())
+                                                    )
+                                            )
+                                    )
+
+                            ),
+                            Product.class
+                    )
+                    .orElseThrow(
+                            () -> new IllegalStateException("Product with id " + productId + " not found.")
+                    );
+
+            // a jeho data vypíšeme do konzole
+            System.out.println("Product name: " + product.getName());
+            System.out.println("Product cores: " + product.getCores());
+            System.out.println("Product graphics: " + product.getGraphics());
+            System.out.println("Product brand: " + product.getBrand().getName());
+            System.out.println(
+                    "Product categories: " +
+                            product.getCategories()
+                                    .stream()
+                                    .map(Category::getName)
+                                    .reduce((a, b) -> a + ", " + b)
+                                    .orElse("&lt;none>")
+            );
+        }
+);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.06-write-and-read-data-using-custom-interfaces">https://github.com/FgForrest/evitaDB-tutorial/tree/01.06-write-and-read-data-using-custom-interfaces</a>
+		</em>
+	</p>
+
+	<p>
+		A na závěr si ukážeme, jak tento produkt upravit a změny uložit zpět do
+		databáze.
+	</p>
+
+	<pre>evita.updateCatalog(
+        "evita-tutorial",
+        session -> {
+            // produkt si získáme stejně jako při běžném čtení
+            session.getEntity(
+                            Product.class, productId, entityFetchAllContent()
+                    )
+                    .orElseThrow()
+                    // a vytvoříme si jeho novou oddělenou "zápisovou" instanci
+                    .openForWrite()
+                    // upravíme potřebná data
+                    .setName("iPhone 12 Pro", Locale.ENGLISH)
+                    .setCores(8)
+                    // a změny zapíšeme zpět na databázový server
+                    .upsertVia(session);
+        }
+);
+	</pre>
+
+	<p>
+		<em>Kompletní příklad: <a
+				href="https://github.com/FgForrest/evitaDB-tutorial/tree/01.06-write-and-read-data-using-custom-interfaces">https://github.com/FgForrest/evitaDB-tutorial/tree/01.06-write-and-read-data-using-custom-interfaces</a>
+		</em>
+	</p>
+
+	<p>
+		Na příkladu je vidět, že pro čtení a zápis máme oddělená rozhraní (např. `Brand`
+		a `BrandEditor`). Ačkoliv se zdá tento přístup komplikovanější než mít všechny
+		(tj. zápisové i čtecí) metody na společném rozhraní, má jednu zásadní výhodu.
+		Umožňuje odlišit instance modelové třídy na vláknově bezpečnou imutabilní
+		instanci, kterou můžeme bezpečně udržovat třeba v lokální cache a používat ji
+		současně z více vláken, a oddělenou instanci otevřenou pro zápis, která už
+		vláknově bezpečná není. Kromě toho jsou obě rozhraní mnohem čitelnější, než když
+		jsou čtecí a zápisové metody na jedné velké hromadě - což oceníte především u
+		rozsáhlejších modelových rozhraní.
+	</p>
+
+	<p>
+		Povšimněte si, že aby automatické generování implementací fungovalo, je nutné k
+		Java klientovi přilinkovat další knihovnu:
+	</p>
+
+	<pre>&lt;dependency&gt;
+   &lt;groupId>one.edee.oss&lt;/groupId&gt;
+   &lt;artifactId>proxycian_bytebuddy&lt;/artifactId&gt;
+   &lt;version>1.3.10&lt;/version&gt;
+&lt;/dependency&gt;
+	</pre>
+
+	<p>
+		Možnosti práce s daty pomocí vlastních rozhraní jsou samozřejmě mnohem širší,
+		než nám dovoluje záběr tohoto článku, proto si dovolím čtenáře odkázat na
+		detailnější popis v naší <a
+			href="https://evitadb.io/documentation/use/connectors/java?lang=java#custom-contracts">dokumentaci</a>.
+		K tématu se ještě vrátíme v některém z dalších dílů seriálu.
+	</p>
+
+	<h2>Kam se podíváme příště?</h2>
+
+	<p>
+		V příštím díle si ukážeme to nejdůležitější – základní možnosti dotazovacího
+		jazyka, na kterém si uděláte představu, v čem vám může být evitaDB užitečná.
+		Díky specializaci na úzký segment katalogových řešení je jazyk designován od
+		začátku tak, aby vám umožnil rychle vybudovat základ uživatelského rozhraní pro
+		váš e-commerce katalog.
+	</p>
+
+	<p>
+		Dotazy k článku můžete, kromě diskuze zde na Root.cz, pokládat i na našem
+		<a href="https://discord.gg/VsNBWxgmSw">Discord serveru</a>.
+	</p>
+
+</article>
 </body>
 </html>

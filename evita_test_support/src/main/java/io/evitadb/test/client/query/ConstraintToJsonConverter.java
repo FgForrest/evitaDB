@@ -233,11 +233,14 @@ public abstract class ConstraintToJsonConverter {
 
 	@Nonnull
 	private Optional<JsonConstraint> convertChildParameter(@Nonnull ConstraintToJsonConvertContext convertContext,
-	                                                 @Nonnull Constraint<?> constraint,
-	                                                 @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                                 @Nonnull ChildParameterDescriptor parameterDescriptor) {
-		final DataLocator childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
-		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator);
+	                                                       @Nonnull Constraint<?> constraint,
+	                                                       @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                       @Nonnull ChildParameterDescriptor parameterDescriptor) {
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
+		if (childDataLocator.isEmpty()) {
+			return Optional.empty();
+		}
+		final ConstraintToJsonConvertContext childConvertContext = convertContext.switchToChildContext(childDataLocator.get());
 		final Class<?> childParameterType = parameterDescriptor.type();
 
 		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
@@ -269,7 +272,7 @@ public abstract class ConstraintToJsonConverter {
 				// any wrapping container, thus we need to extract child constraints from the wrapping container
 				final ObjectNode wrapperContainer = jsonNodeFactory.objectNode();
 				children.forEach(child -> {
-					convert(childDataLocator, child)
+					convert(childDataLocator.get(), child)
 						.ifPresent(jsonConstraint -> wrapperContainer.putIfAbsent(jsonConstraint.key(), jsonConstraint.value()));
 				});
 
@@ -282,7 +285,7 @@ public abstract class ConstraintToJsonConverter {
 				final ArrayNode jsonChildren = jsonNodeFactory.arrayNode();
 
 				final List<JsonConstraint> convertedChildren = children
-					.map(it -> convert(childDataLocator, it))
+					.map(it -> convert(childDataLocator.get(), it))
 					.filter(Optional::isPresent)
 					.map(Optional::get)
 					.toList();
@@ -322,7 +325,7 @@ public abstract class ConstraintToJsonConverter {
 			final Constraint<?> child = (Constraint<?>) parameterValue.get();
 
 			final ObjectNode wrapperContainer = jsonNodeFactory.objectNode();
-			convert(childDataLocator, child)
+			convert(childDataLocator.get(), child)
 				.ifPresent(jsonConstraint -> wrapperContainer.putIfAbsent(jsonConstraint.key(), jsonConstraint.value()));
 			return Optional.of(new JsonConstraint(parameterDescriptor.name(), wrapperContainer));
 		}
@@ -333,7 +336,10 @@ public abstract class ConstraintToJsonConverter {
 	                                                                 @Nonnull Constraint<?> constraint,
 	                                                                 @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
 	                                                                 @Nonnull AdditionalChildParameterDescriptor parameterDescriptor) {
-		final DataLocator childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
+		final Optional<DataLocator> childDataLocator = resolveChildDataLocator(convertContext, parsedConstraintDescriptor, parameterDescriptor.domain());
+		if (childDataLocator.isEmpty()) {
+			return Optional.empty();
+		}
 
 		final AtomicReference<? extends ConstraintToJsonConverter> converter = additionalConverters.get(parameterDescriptor.constraintType());
 		final Optional<?> parameterValue = parameterValueResolver.resolveParameterValue(constraint, parameterDescriptor);
@@ -345,7 +351,7 @@ public abstract class ConstraintToJsonConverter {
 			return Optional.empty();
 		}
 
-		return parameterValue.flatMap(it -> converter.get().convert(childDataLocator, (Constraint<?>) it));
+		return parameterValue.flatMap(it -> converter.get().convert(childDataLocator.get(), (Constraint<?>) it));
 	}
 
 	@Nonnull
@@ -415,14 +421,13 @@ public abstract class ConstraintToJsonConverter {
 	 * @param desiredChildDomain desired domain for child constraints
 	 */
 	@Nonnull
-	private DataLocator resolveChildDataLocator(@Nonnull ConstraintToJsonConvertContext convertContext,
-	                                            @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
-	                                            @Nonnull ConstraintDomain desiredChildDomain) {
+	private Optional<DataLocator> resolveChildDataLocator(@Nonnull ConstraintToJsonConvertContext convertContext,
+	                                                      @Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor,
+	                                                      @Nonnull ConstraintDomain desiredChildDomain) {
 		final ConstraintDescriptor constraintDescriptor = parsedConstraintDescriptor.constraintDescriptor();
 		if (constraintDescriptor.constraintClass().equals(getDefaultRootConstraintContainerDescriptor().constraintClass())) {
-			return convertContext.dataLocator();
+			return Optional.of(convertContext.dataLocator());
 		}
-		return dataLocatorResolver.resolveChildParameterDataLocator(convertContext.dataLocator(), desiredChildDomain)
-			.orElseThrow(() -> new EvitaInternalError("There are no data for `" + constraintDescriptor.constraintClass().getSimpleName() + "`, seems like invalid input query."));
+		return dataLocatorResolver.resolveChildParameterDataLocator(convertContext.dataLocator(), desiredChildDomain);
 	}
 }

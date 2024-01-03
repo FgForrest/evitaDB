@@ -1,0 +1,1 @@
+GET /rest/evita/entity/list?url=/en/macbook-pro-13-2022&url=/en/cell-phones&locale=en

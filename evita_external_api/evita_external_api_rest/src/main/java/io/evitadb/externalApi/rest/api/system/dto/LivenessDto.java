@@ -28,5 +28,5 @@ package io.evitadb.externalApi.rest.api.system.dto;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public record LivenessDto(boolean alive) {
+public record LivenessDto(boolean liveness) {
 }
