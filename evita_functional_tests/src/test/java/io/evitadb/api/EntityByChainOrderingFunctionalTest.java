@@ -100,7 +100,7 @@ public class EntityByChainOrderingFunctionalTest {
 			);
 
 			final DataGenerator dataGenerator = new DataGenerator();
-			AtomicInteger index = new AtomicInteger();
+			final AtomicInteger index = new AtomicInteger();
 
 			dataGenerator.registerValueGenerator(
 				Entities.PRODUCT, ATTRIBUTE_ORDER,
