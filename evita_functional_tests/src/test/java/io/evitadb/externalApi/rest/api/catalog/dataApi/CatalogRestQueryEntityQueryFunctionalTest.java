@@ -1156,7 +1156,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().stream().toArray(Integer[]::new)),
+					entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
 					entityLocaleEquals(CZECH_LOCALE)
 				),
 				require(

@@ -234,7 +234,7 @@ public class AndFormula extends AbstractCacheableFormula {
 				() -> {
 					final List<Formula> formulasFromEasiestToHardest = Arrays.stream(getInnerFormulas())
 						.sorted(Comparator.comparingLong(TransactionalDataRelatedStructure::getEstimatedCost))
-						.collect(Collectors.toList());
+						.toList();
 					final RoaringBitmap[] theBitmaps = new RoaringBitmap[formulasFromEasiestToHardest.size()];
 					// go from the cheapest formula to the more expensive and compute one by one
 					for (int i = 0; i < formulasFromEasiestToHardest.size(); i++) {
