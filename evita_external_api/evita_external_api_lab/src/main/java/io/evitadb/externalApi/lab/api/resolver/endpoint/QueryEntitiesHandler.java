@@ -77,7 +77,6 @@ public class QueryEntitiesHandler extends JsonRestHandler<LabApiHandlingContext>
 		this.entityJsonSerializer = new GenericEntityJsonSerializer(restHandlingContext.getObjectMapper());
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			this.entityJsonSerializer,
-			StringUtils::toCamelCase,
 			this.restHandlingContext.getObjectMapper()
 		);
 	}
