@@ -67,12 +67,8 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 		super(restHandlingContext);
 		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 
-		final Map<String, String> referenceNameToFieldName = this.restHandlingContext.getEntitySchema().getReferences().values().stream()
-			.map(referenceSchema -> new SimpleEntry<>(referenceSchema.getName(), referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION)))
-			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
 			this.entityJsonSerializer,
-			referenceNameToFieldName::get,
 			this.restHandlingContext.getObjectMapper()
 		);
 	}
