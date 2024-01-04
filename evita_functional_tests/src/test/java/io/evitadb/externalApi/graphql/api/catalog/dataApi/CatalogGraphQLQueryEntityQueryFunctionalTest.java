@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -2711,6 +2711,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                __typename
 		                                min
 		                                max
+		                                requestedBucketCount
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
@@ -2797,6 +2798,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                __typename
 		                                min
 		                                max
+		                                requestedBucketCount
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
@@ -2876,6 +2878,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                __typename
 		                                min
 		                                max
+		                                requestedBucketCount
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
@@ -2893,6 +2896,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                __typename
 		                                min
 		                                max
+		                                requestedBucketCount
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
@@ -2967,6 +2971,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                __typename
 		                                min
 		                                max
+		                                requestedBucketCount
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
@@ -2980,6 +2985,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                __typename
 		                                min
 		                                max
+		                                requestedBucketCount
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
@@ -5237,6 +5243,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(TYPENAME_FIELD, HistogramDescriptor.THIS.name())
 			.e(HistogramDescriptor.MIN.name(), histogram.getMin().toString())
 			.e(HistogramDescriptor.MAX.name(), histogram.getMax().toString())
+			.e(HistogramDescriptor.REQUESTED_BUCKET_COUNT.name(), histogram.getRequestedBucketCount())
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), histogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
