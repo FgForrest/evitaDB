@@ -52,6 +52,7 @@ import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryP
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
 import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -83,10 +84,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	/**
 	 * Creates a predicate for filtering facet groups.
 	 *
-	 * @param filterGroupBy the filter group to apply
+	 * @param filterGroupBy      the filter group to apply
 	 * @param extraResultPlanner the extra result planning visitor
-	 * @param referenceSchema the reference schema contract
-	 * @param required indicates if the facet groups are required
+	 * @param referenceSchema    the reference schema contract
+	 * @param required           indicates if the facet groups are required
 	 * @return the predicate for filtering facet groups, or null if not required
 	 */
 	@Nullable
@@ -116,10 +117,10 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	/**
 	 * Creates a predicate for filtering facets.
 	 *
-	 * @param filterBy The filter criteria.
+	 * @param filterBy           The filter criteria.
 	 * @param extraResultPlanner The visitor for planning extra result queries.
-	 * @param referenceSchema The schema of the referenced entity.
-	 * @param required Indicates if the facet is required.
+	 * @param referenceSchema    The schema of the referenced entity.
+	 * @param required           Indicates if the facet is required.
 	 * @return The created facet predicate.
 	 */
 	@Nullable
@@ -150,11 +151,11 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 	/**
 	 * Creates a facet sorter based on the provided parameters.
 	 *
-	 * @param orderBy the ordering criteria for the facet
-	 * @param locale the locale used for sorting
+	 * @param orderBy            the ordering criteria for the facet
+	 * @param locale             the locale used for sorting
 	 * @param extraResultPlanner the extra result planning visitor
-	 * @param referenceSchema the reference schema contract
-	 * @param required indicates whether sorting is required or optional
+	 * @param referenceSchema    the reference schema contract
+	 * @param required           indicates whether sorting is required or optional
 	 * @return the created facet sorter, or null if the reference schema is not managed and sorting is not required
 	 */
 	@Nullable
@@ -174,22 +175,26 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
 			return null;
 		}
-		return extraResultPlanner.createSorter(
-			orderBy,
-			locale, extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedEntityType()),
-			referenceSchema.getReferencedEntityType(),
-			() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
-		);
+		return extraResultPlanner.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
+			.map(ix -> extraResultPlanner.createSorter(
+					orderBy,
+					locale,
+					ix,
+					referenceSchema.getReferencedEntityType(),
+					() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
+				)
+			)
+			.orElse(NoSorter.INSTANCE);
 	}
 
 	/**
 	 * Creates a sorter for facet group ordering.
 	 *
-	 * @param orderBy              The order by criteria for the facet groups.
-	 * @param locale               The locale used for sorting.
-	 * @param extraResultPlanner   The extra result planner used for sorting.
-	 * @param referenceSchema      The reference schema for the facet groups.
-	 * @param required             Indicates if sorting is required.
+	 * @param orderBy            The order by criteria for the facet groups.
+	 * @param locale             The locale used for sorting.
+	 * @param extraResultPlanner The extra result planner used for sorting.
+	 * @param referenceSchema    The reference schema for the facet groups.
+	 * @param required           Indicates if sorting is required.
 	 * @return The created sorter for facet group ordering, or null if not required.
 	 */
 	@Nullable
@@ -210,13 +215,16 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			return null;
 		}
 
-		return extraResultPlanner.createSorter(
-			orderBy,
-			locale,
-			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedGroupType()),
-			referenceSchema.getReferencedGroupType(),
-			() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
-		);
+		return extraResultPlanner.getGlobalEntityIndexIfExists(referenceSchema.getReferencedGroupType())
+			.map(ix -> extraResultPlanner.createSorter(
+					orderBy,
+					locale,
+					ix,
+					referenceSchema.getReferencedGroupType(),
+					() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
+				)
+			)
+			.orElse(NoSorter.INSTANCE);
 	}
 
 	/**
