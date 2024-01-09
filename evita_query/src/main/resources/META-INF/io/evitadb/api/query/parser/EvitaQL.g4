@@ -152,7 +152,7 @@ requireConstraint
     | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
     | 'facetGroupsNegation'                 args = classifierWithOptionalFilterConstraintArgs               # facetGroupsNegationConstraint
     | 'attributeHistogram'                  args = valueWithClassifierListArgs                              # attributeHistogramConstraint
-    | 'priceHistogram'                      args = valueArgs                                                # priceHistogramConstraint
+    | 'priceHistogram'                      args = valueListArgs                                            # priceHistogramConstraint
     | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
     | 'level'                               args = valueArgs                                                # hierarchyLevelConstraint
     | 'node'                                args = filterConstraintArgs                                     # hierarchyNodeConstraint
@@ -217,7 +217,7 @@ betweenValuesArgs :                                 ARGS_OPENING valueFrom = val
 
 classifierListArgs :                                ARGS_OPENING classifiers = variadicClassifierTokens ARGS_CLOSING ;
 
-valueWithClassifierListArgs :                       ARGS_OPENING value = valueToken ARGS_DELIMITER classifiers = variadicClassifierTokens ARGS_CLOSING ;
+valueWithClassifierListArgs :                       ARGS_OPENING value = variadicValueTokens ARGS_DELIMITER classifiers = variadicClassifierTokens ARGS_CLOSING ;
 
 classifierWithFilterConstraintArgs :                ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filter = filterConstraint ARGS_CLOSING ;
 

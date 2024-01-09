@@ -62,6 +62,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
+	protected final EvitaQLValueTokenVisitor histogramBehaviorValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(HistogramBehavior.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		Byte.class,
 		Short.class,
@@ -1083,10 +1084,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
+		if (ctx.args.value.getChildCount() == 0) {
+			throw new EvitaQLInvalidQueryError(ctx, "Number of buckets is mandatory argument in attributeHistogram constraint!");
+		}
 		return parse(
 			ctx,
 			() -> new AttributeHistogram(
-				ctx.args.value.accept(intValueTokenVisitor).asInt(),
+				ctx.args.value.getChild(0).accept(intValueTokenVisitor).asInt(),
+				ctx.args.value.getChildCount() > 1 ?
+					ctx.args.value.getChild(1).accept(histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class) : null,
 				ctx.args.classifiers.accept(classifierTokenVisitor).asClassifierArray()
 			)
 		);
@@ -1094,10 +1100,15 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 
 	@Override
 	public RequireConstraint visitPriceHistogramConstraint(@Nonnull PriceHistogramConstraintContext ctx) {
+		if (ctx.args.values.getChildCount() == 0) {
+			throw new EvitaQLInvalidQueryError(ctx, "Number of buckets is mandatory argument in priceHistogram constraint!");
+		}
 		return parse(
 			ctx,
 			() -> new PriceHistogram(
-				ctx.args.value.accept(intValueTokenVisitor).asInt()
+				ctx.args.values.getChild(0).accept(intValueTokenVisitor).asInt(),
+				ctx.args.values.getChildCount() > 1 ?
+					ctx.args.values.getChild(1).accept(histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class) : null
 			)
 		);
 	}

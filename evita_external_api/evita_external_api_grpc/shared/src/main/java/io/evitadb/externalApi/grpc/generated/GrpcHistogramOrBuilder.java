@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -124,7 +124,7 @@ public interface GrpcHistogramOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> 
       getBucketsList();
   /**
    * <pre>
@@ -152,7 +152,7 @@ public interface GrpcHistogramOrBuilder extends
    *
    * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
       getBucketsOrBuilderList();
   /**
    * <pre>

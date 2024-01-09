@@ -2478,10 +2478,19 @@ public interface QueryConstraints {
 	 * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
 	 * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
 	 * 
+	 * It accepts two plus arguments:
+	 * 
+	 * 1. The number of buckets (columns) the histogram should contain.
+	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 * 3. variable number of attribute names for which the histogram should be computed.
+	 * 
 	 * Example:
 	 * 
 	 * <pre>
 	 * attributeHistogram(5, "width", "height")
+	 * attributeHistogram(5, OPTIMIZED, "width", "height")
 	 * </pre>
 	 * 
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
@@ -2495,10 +2504,49 @@ public interface QueryConstraints {
 	}
 
 	/**
+	 * The `attributeHistogram` can be computed from any filterable attribute whose type is numeric. The histogram is
+	 * computed only from the attributes of elements that match the current mandatory part of the filter. The interval
+	 * related constraints - i.e. {@link AttributeBetween} and {@link PriceBetween} in the userFilter part are excluded for
+	 * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
+	 * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
+	 * 
+	 * It accepts two plus arguments:
+	 * 
+	 * 1. The number of buckets (columns) the histogram should contain.
+	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 * 3. variable number of attribute names for which the histogram should be computed.
+	 * 
+	 * Example:
+	 * 
+	 * <pre>
+	 * attributeHistogram(5, "width", "height")
+	 * attributeHistogram(5, OPTIMIZED, "width", "height")
+	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
+	*/
+	@Nullable
+	static AttributeHistogram attributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior, @Nullable String... attributeName) {
+		if (ArrayUtils.isEmpty(attributeName)) {
+			return null;
+		}
+		return new AttributeHistogram(requestedBucketCount, behavior, attributeName);
+	}
+
+	/**
 	 * The `priceHistogram` is computed from the price for sale. The interval related constraints - i.e. {@link AttributeBetween}
 	 * and {@link PriceBetween} in the userFilter part are excluded for the sake of histogram calculation. If this weren't
 	 * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
 	 * narrower range and eventually into a dead end.
+	 * 
+	 * It accepts two arguments:
+	 * 
+	 * 1. The number of buckets (columns) the histogram should contain.
+	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
 	 * 
 	 * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
 	 * visualizes the price with tax.
@@ -2507,6 +2555,7 @@ public interface QueryConstraints {
 	 * 
 	 * <pre>
 	 * priceHistogram(20)
+	 * priceHistogram(20, OPTIMIZED)
 	 * </pre>
 	 * 
 	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
@@ -2514,6 +2563,36 @@ public interface QueryConstraints {
 	@Nonnull
 	static PriceHistogram priceHistogram(int requestedBucketCount) {
 		return new PriceHistogram(requestedBucketCount);
+	}
+
+	/**
+	 * The `priceHistogram` is computed from the price for sale. The interval related constraints - i.e. {@link AttributeBetween}
+	 * and {@link PriceBetween} in the userFilter part are excluded for the sake of histogram calculation. If this weren't
+	 * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
+	 * narrower range and eventually into a dead end.
+	 * 
+	 * It accepts two arguments:
+	 * 
+	 * 1. The number of buckets (columns) the histogram should contain.
+	 * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+	 *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+	 *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+	 * 
+	 * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
+	 * visualizes the price with tax.
+	 * 
+	 * Example:
+	 * 
+	 * <pre>
+	 * priceHistogram(20)
+	 * priceHistogram(20, OPTIMIZED)
+	 * </pre>
+	 * 
+	 * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
+	*/
+	@Nonnull
+	static PriceHistogram priceHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior) {
+		return new PriceHistogram(requestedBucketCount, behavior);
 	}
 
 	/**

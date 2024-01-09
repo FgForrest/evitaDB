@@ -31,6 +31,7 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -1484,6 +1485,12 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("buckets", 20, "attr1", "a", "attr2", "b")
 		);
 		assertEquals(attributeHistogram(20, "a", "b"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("attributeHistogram (20, OPTIMIZED, 'a' ,  'b' ,'c' )");
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("attributeHistogram (?, ?, ?, ?, ?)", 20, HistogramBehavior.OPTIMIZED, "a", "b", "c");
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint13);
 	}
 
 	@Test
@@ -1491,6 +1498,8 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(?,'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(@buckets,'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,WHATEVER,'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram()"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(1)"));
@@ -1511,6 +1520,12 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint4 = parseRequireConstraint("priceHistogram(@buckets)", Map.of("buckets", 20));
 		assertEquals(priceHistogram(20), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraintUnsafe("priceHistogram(20, OPTIMIZED)");
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("priceHistogram(?, ?)", 20, HistogramBehavior.OPTIMIZED);
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint6);
 	}
 
 	@Test
@@ -1518,6 +1533,8 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(20)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(?)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(@buckets)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,WHATEVER)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,STANDARD,WHATEVER)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram('a')"));
 	}

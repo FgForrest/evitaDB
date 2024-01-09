@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,62 +39,62 @@ public final class GrpcExtraResultsOuterClass {
   }
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_GrpcBucket_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_GrpcBucket_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetGroupStatistics_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetStatistics_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcFacetStatistics_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHierarchy_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcHierarchy_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcHierarchy_HierarchyEntry_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcHierarchy_HierarchyEntry_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLevelInfos_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLevelInfos_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcLevelInfo_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcLevelInfo_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcQueryTelemetry_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcQueryTelemetry_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_AttributeHistogramEntry_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_AttributeHistogramEntry_fieldAccessorTable;
   static final com.google.protobuf.Descriptors.Descriptor
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_descriptor;
-  static final
+  static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_io_evitadb_externalApi_grpc_generated_GrpcExtraResults_HierarchyEntry_fieldAccessorTable;
 

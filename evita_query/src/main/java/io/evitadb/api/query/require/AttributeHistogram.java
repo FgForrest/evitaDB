@@ -33,6 +33,7 @@ import io.evitadb.api.query.filter.PriceBetween;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -45,19 +46,28 @@ import java.util.Arrays;
  * the sake of histogram calculation. If this weren't the case, the user narrowing the filtered range based on
  * the histogram results would be driven into a narrower and narrower range and eventually into a dead end.
  *
+ * It accepts two plus arguments:
+ *
+ * 1. The number of buckets (columns) the histogram should contain.
+ * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+ *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+ *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+ * 3. variable number of attribute names for which the histogram should be computed.
+ *
  * Example:
  *
  * <pre>
  * attributeHistogram(5, "width", "height")
+ * attributeHistogram(5, OPTIMIZED, "width", "height")
  * </pre>
- * 
+ *
  * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "histogram",
-	shortDescription =  "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
+	shortDescription = "The constraint triggers computation of the [histogram](https://en.wikipedia.org/wiki/Histogram) of specified attributes into response.",
 	userDocsLink = "/documentation/query/requirements/histogram#attribute-histogram",
 	supportedValues = @ConstraintSupportedValues(supportedTypes = {Byte.class, Short.class, Integer.class, Long.class, BigDecimal.class})
 )
@@ -69,9 +79,28 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 	}
 
 	@Creator
-	public AttributeHistogram(int requestedBucketCount,
-	                          @Nonnull String... attributeNames) {
-		super(ArrayUtils.mergeArrays(new Serializable[]{requestedBucketCount}, attributeNames));
+	public AttributeHistogram(int requestedBucketCount, @Nullable HistogramBehavior behaviour, @Nonnull String... attributeNames) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{
+					requestedBucketCount,
+					behaviour == null ? HistogramBehavior.STANDARD : behaviour
+				},
+				attributeNames
+			)
+		);
+	}
+
+	public AttributeHistogram(int requestedBucketCount, @Nonnull String... attributeNames) {
+		super(
+			ArrayUtils.mergeArrays(
+				new Serializable[]{
+					requestedBucketCount,
+					HistogramBehavior.STANDARD
+				},
+				attributeNames
+			)
+		);
 	}
 
 	/**
@@ -85,19 +114,30 @@ public class AttributeHistogram extends AbstractRequireConstraintLeaf implements
 	}
 
 	/**
+	 * Returns the requested behavior of the histogram calculation.
+	 *
+	 * @return {@link HistogramBehavior#STANDARD} if not specified otherwise.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull
+	public HistogramBehavior getBehavior() {
+		return (HistogramBehavior) getArguments()[1];
+	}
+
+	/**
 	 * Returns names of attributes for which histogram should be computed.
 	 */
 	@Nonnull
 	public String[] getAttributeNames() {
 		return Arrays.stream(getArguments())
-			.skip(1)
+			.skip(2)
 			.map(String.class::cast)
 			.toArray(String[]::new);
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 1;
+		return isArgumentsNonNull() && getArguments().length > 2;
 	}
 
 	@Nonnull

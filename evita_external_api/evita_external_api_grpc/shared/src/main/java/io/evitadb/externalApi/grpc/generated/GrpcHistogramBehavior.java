@@ -28,97 +28,53 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * In EvitaDB we define only one-way relationship from the perspective of the entity. We stick to the ERD modelling
- * &lt;a href="https://www.gleek.io/blog/crows-foot-notation.html"&gt;standards&lt;/a&gt; here.
+ * The enum specifies whether the HistogramBehavior should produce histogram with exactly requested bucket counts
+ * or optimized one, which may have less buckets than requested, but is more compact
  * </pre>
  *
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCardinality}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior}
  */
-public enum GrpcCardinality
+public enum GrpcHistogramBehavior
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
-   * No cardinality specified.
+   * Histogram always contains the number of buckets you asked for. This is the default behaviour.
    * </pre>
    *
-   * <code>NOT_SPECIFIED = 0;</code>
+   * <code>STANDARD = 0;</code>
    */
-  NOT_SPECIFIED(0),
+  STANDARD(0),
   /**
    * <pre>
-   * Relation may be missing completely, but if it exists - there is never more than single relation of this type.
+   * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
+   * there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
+   * better user experience.
    * </pre>
    *
-   * <code>ZERO_OR_ONE = 1;</code>
+   * <code>OPTIMIZED = 1;</code>
    */
-  ZERO_OR_ONE(1),
-  /**
-   * <pre>
-   * There is always single relation of this type.
-   * </pre>
-   *
-   * <code>EXACTLY_ONE = 2;</code>
-   */
-  EXACTLY_ONE(2),
-  /**
-   * <pre>
-   * Relation may be missing completely, but there may be also one or more relations of this type.
-   * </pre>
-   *
-   * <code>ZERO_OR_MORE = 3;</code>
-   */
-  ZERO_OR_MORE(3),
-  /**
-   * <pre>
-   * There is always at least one relation of this type, but there may be also more than one.
-   * </pre>
-   *
-   * <code>ONE_OR_MORE = 4;</code>
-   */
-  ONE_OR_MORE(4),
+  OPTIMIZED(1),
   UNRECOGNIZED(-1),
   ;
 
   /**
    * <pre>
-   * No cardinality specified.
+   * Histogram always contains the number of buckets you asked for. This is the default behaviour.
    * </pre>
    *
-   * <code>NOT_SPECIFIED = 0;</code>
+   * <code>STANDARD = 0;</code>
    */
-  public static final int NOT_SPECIFIED_VALUE = 0;
+  public static final int STANDARD_VALUE = 0;
   /**
    * <pre>
-   * Relation may be missing completely, but if it exists - there is never more than single relation of this type.
+   * Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
+   * there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
+   * better user experience.
    * </pre>
    *
-   * <code>ZERO_OR_ONE = 1;</code>
+   * <code>OPTIMIZED = 1;</code>
    */
-  public static final int ZERO_OR_ONE_VALUE = 1;
-  /**
-   * <pre>
-   * There is always single relation of this type.
-   * </pre>
-   *
-   * <code>EXACTLY_ONE = 2;</code>
-   */
-  public static final int EXACTLY_ONE_VALUE = 2;
-  /**
-   * <pre>
-   * Relation may be missing completely, but there may be also one or more relations of this type.
-   * </pre>
-   *
-   * <code>ZERO_OR_MORE = 3;</code>
-   */
-  public static final int ZERO_OR_MORE_VALUE = 3;
-  /**
-   * <pre>
-   * There is always at least one relation of this type, but there may be also more than one.
-   * </pre>
-   *
-   * <code>ONE_OR_MORE = 4;</code>
-   */
-  public static final int ONE_OR_MORE_VALUE = 4;
+  public static final int OPTIMIZED_VALUE = 1;
 
 
   public final int getNumber() {
@@ -135,7 +91,7 @@ public enum GrpcCardinality
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcCardinality valueOf(int value) {
+  public static GrpcHistogramBehavior valueOf(int value) {
     return forNumber(value);
   }
 
@@ -143,26 +99,23 @@ public enum GrpcCardinality
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcCardinality forNumber(int value) {
+  public static GrpcHistogramBehavior forNumber(int value) {
     switch (value) {
-      case 0: return NOT_SPECIFIED;
-      case 1: return ZERO_OR_ONE;
-      case 2: return EXACTLY_ONE;
-      case 3: return ZERO_OR_MORE;
-      case 4: return ONE_OR_MORE;
+      case 0: return STANDARD;
+      case 1: return OPTIMIZED;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcCardinality>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcHistogramBehavior>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcCardinality> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcCardinality>() {
-          public GrpcCardinality findValueByNumber(int number) {
-            return GrpcCardinality.forNumber(number);
+      GrpcHistogramBehavior> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcHistogramBehavior>() {
+          public GrpcHistogramBehavior findValueByNumber(int number) {
+            return GrpcHistogramBehavior.forNumber(number);
           }
         };
 
@@ -180,12 +133,12 @@ public enum GrpcCardinality
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(15);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(12);
   }
 
-  private static final GrpcCardinality[] VALUES = values();
+  private static final GrpcHistogramBehavior[] VALUES = values();
 
-  public static GrpcCardinality valueOf(
+  public static GrpcHistogramBehavior valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -199,10 +152,10 @@ public enum GrpcCardinality
 
   private final int value;
 
-  private GrpcCardinality(int value) {
+  private GrpcHistogramBehavior(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcCardinality)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior)
 }
 

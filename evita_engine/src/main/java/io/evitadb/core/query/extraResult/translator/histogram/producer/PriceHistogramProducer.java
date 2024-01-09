@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.core.query.QueryContext;
@@ -67,6 +68,11 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	 * this value, but might be optimized to lower count when there are big gaps between columns.
 	 */
 	private final int bucketCount;
+	/**
+	 * Contains behavior that was requested by the user in the query.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull private final HistogramBehavior behavior;
 	/**
 	 * Reference to the query context that allows to access entity bodies.
 	 */
@@ -145,6 +151,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 			queryContext.getSchema().getName(),
 			new PriceHistogramComputer(
 				bucketCount,
+				behavior,
 				queryContext.getSchema().getIndexedPricePlaces(),
 				queryContext.getQueryPriceMode(),
 				filteringFormula,
@@ -169,7 +176,7 @@ public class PriceHistogramProducer implements CacheableExtraResultProducer {
 	@Override
 	public ExtraResultProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
 		return new PriceHistogramProducer(
-			bucketCount, queryContext, filteringFormula, filteredPriceRecordAccessors, priceRecordsLookupResult, cacheAccessor
+			bucketCount, behavior, queryContext, filteringFormula, filteredPriceRecordAccessors, priceRecordsLookupResult, cacheAccessor
 		);
 	}
 }
