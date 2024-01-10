@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -70,6 +70,11 @@ public interface HistogramContract extends Serializable {
 		}
 
 		@Override
+		public int getRequestedBucketCount() {
+			return 0;
+		}
+
+		@Override
 		public int getOverallCount() {
 			return 0;
 		}
@@ -105,6 +110,13 @@ public interface HistogramContract extends Serializable {
 	 */
 	@Nonnull
 	BigDecimal getMax();
+
+	/**
+	 * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
+	 * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
+	 * histogram.
+	 */
+	int getRequestedBucketCount();
 
 	/**
 	 * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets

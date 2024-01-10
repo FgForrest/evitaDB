@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1156,7 +1156,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			query(
 				collection(Entities.PRODUCT),
 				filterBy(
-					entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().stream().toArray(Integer[]::new)),
+					entityPrimaryKeyInSet(productsWithLotsOfStores.keySet().toArray(Integer[]::new)),
 					entityLocaleEquals(CZECH_LOCALE)
 				),
 				require(
@@ -2730,6 +2730,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 		return map()
 			.e(HistogramDescriptor.MAX.name(), histogram.getMax().toString())
+			.e(HistogramDescriptor.REQUESTED_BUCKET_COUNT.name(), histogram.getRequestedBucketCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
 					.e(BucketDescriptor.INDEX.name(), bucket.index())
@@ -2750,6 +2751,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 		return map()
 			.e(HistogramDescriptor.MIN.name(), priceHistogram.getMin().toString())
 			.e(HistogramDescriptor.MAX.name(), priceHistogram.getMax().toString())
+			.e(HistogramDescriptor.REQUESTED_BUCKET_COUNT.name(), priceHistogram.getRequestedBucketCount())
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()

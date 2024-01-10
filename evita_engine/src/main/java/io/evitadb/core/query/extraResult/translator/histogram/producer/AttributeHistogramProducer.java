@@ -137,7 +137,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 * record that is not part of the `filteringFormula` output). Empty buckets are discarded along the way.
 	 */
 	static <T extends Comparable<T>> ValueToRecordBitmap<T>[] getCombinedAndFilteredBucketArray(
-		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormula,
 		@Nonnull ValueToRecordBitmap<T>[][] histogramBitmaps
 	) {
 		if (ArrayUtils.isEmpty(histogramBitmaps)) {
@@ -146,7 +146,8 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		}
 
 		// prepare filtering bitmap
-		final RoaringBitmap filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		final RoaringBitmap filteredRecordIds = filteringFormula == null ?
+			null : RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
 		// prepare output elastic array
 		@SuppressWarnings("rawtypes") final CompositeObjectArray<ValueToRecordBitmap> finalBuckets = new CompositeObjectArray<>(ValueToRecordBitmap.class, false);
 
@@ -259,16 +260,19 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	@SuppressWarnings("rawtypes")
 	private static <T extends Comparable<T>> void addBucket(
-		@Nonnull RoaringBitmap filteredRecordIds,
+		@Nullable RoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
 		@Nonnull ValueToRecordBitmap<T> theBucket
 	) {
-		final BaseBitmap recordIds = new BaseBitmap(
-			RoaringBitmap.and(
-				filteredRecordIds,
-				RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
-			)
-		);
+		final Bitmap recordIds = filteredRecordIds == null ?
+			theBucket.getRecordIds() :
+			new BaseBitmap(
+				RoaringBitmap.and(
+					filteredRecordIds,
+					RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
+				)
+			);
+
 		if (!recordIds.isEmpty()) {
 			finalBuckets.add(
 				new ValueToRecordBitmap<>(
@@ -410,9 +414,12 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 * at least single entity primary key left?
 	 */
 	private static boolean hasSenseWithMandatoryFilter(
-		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormula,
 		@Nonnull AttributeHistogramRequest request
 	) {
+		if (filteringFormula == null) {
+			return true;
+		}
 		// collect all records from the filter indexes for this attribute
 		final Bitmap[] histogramBitmaps = request
 			.attributeIndexes()

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		final CacheableHistogramContract histogram = object.compute();
 		kryo.writeObject(output, histogram.getMax());
+		kryo.writeObject(output, histogram.getRequestedBucketCount());
 		final CacheableBucket[] buckets = histogram.getBuckets();
 		output.writeVarInt(buckets.length, true);
 		for (CacheableBucket bucket : buckets) {
@@ -65,6 +66,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final long transactionalIdHash = input.readLong();
 		final long[] bitmapIds = readBitmapIds(input);
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
+		final Integer requestedBucketCount = kryo.readObject(input, Integer.class);
 		final int bucketCount = input.readVarInt(true);
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
 		for(int i = 0; i < bucketCount; i++) {
@@ -76,7 +78,7 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		return new FlattenedHistogramComputer(
 			originalHash, transactionalIdHash, bitmapIds,
-			new CacheableHistogram(buckets, max)
+			new CacheableHistogram(buckets, max, requestedBucketCount)
 		);
 	}
 

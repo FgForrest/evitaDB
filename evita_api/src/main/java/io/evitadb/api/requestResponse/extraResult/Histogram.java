@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -44,9 +44,10 @@ import java.util.Arrays;
 public class Histogram implements HistogramContract {
 	@Serial private static final long serialVersionUID = 7702878167079284412L;
 	private final BigDecimal max;
+	private final int requestedBucketCount;
 	@Getter private final Bucket[] buckets;
 
-	public Histogram(@Nonnull Bucket[] buckets, @Nonnull BigDecimal max) {
+	public Histogram(@Nonnull Bucket[] buckets, @Nonnull BigDecimal max, int requestedBucketCount) {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
 		Bucket lastBucket = null;
@@ -59,6 +60,7 @@ public class Histogram implements HistogramContract {
 		}
 		this.buckets = buckets;
 		this.max = max;
+		this.requestedBucketCount = requestedBucketCount;
 	}
 
 	@Override
@@ -78,6 +80,11 @@ public class Histogram implements HistogramContract {
 	@Override
 	public BigDecimal getMax() {
 		return max;
+	}
+
+	@Override
+	public int getRequestedBucketCount() {
+		return requestedBucketCount;
 	}
 
 	@Override

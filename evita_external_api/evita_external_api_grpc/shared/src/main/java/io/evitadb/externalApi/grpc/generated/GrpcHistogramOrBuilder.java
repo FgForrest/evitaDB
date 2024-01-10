@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -95,11 +95,23 @@ public interface GrpcHistogramOrBuilder extends
 
   /**
    * <pre>
+   * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
+   * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
+   * histogram.
+   * </pre>
+   *
+   * <code>int32 requestedBucketCount = 3;</code>
+   * @return The requestedBucketCount.
+   */
+  int getRequestedBucketCount();
+
+  /**
+   * <pre>
    * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
    * in the histogram.
    * </pre>
    *
-   * <code>int32 overallCount = 3;</code>
+   * <code>int32 overallCount = 4;</code>
    * @return The overallCount.
    */
   int getOverallCount();
@@ -110,9 +122,9 @@ public interface GrpcHistogramOrBuilder extends
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
-  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> 
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>
       getBucketsList();
   /**
    * <pre>
@@ -120,7 +132,7 @@ public interface GrpcHistogramOrBuilder extends
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index);
   /**
@@ -129,7 +141,7 @@ public interface GrpcHistogramOrBuilder extends
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
   int getBucketsCount();
   /**
@@ -138,9 +150,9 @@ public interface GrpcHistogramOrBuilder extends
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
-  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder> 
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
       getBucketsOrBuilderList();
   /**
    * <pre>
@@ -148,7 +160,7 @@ public interface GrpcHistogramOrBuilder extends
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
       int index);

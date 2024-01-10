@@ -427,13 +427,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			assertEquals(
 				Arrays.stream(expectedAllPricesForSale)
 					.filter(it -> Objects.equals(currency, it.currency()))
-					.filter(it -> Arrays.stream(priceLists).anyMatch(priceList -> Objects.equals(priceList, it.priceList())))
-					.sorted((o1, o2) -> {
+					.filter(it -> Arrays.stream(priceLists)
+						.anyMatch(priceList -> Objects.equals(priceList, it.priceList())))
+					.min((o1, o2) -> {
 						final int ix1 = ArrayUtils.indexOf(o1.priceList(), priceLists);
 						final int ix2 = ArrayUtils.indexOf(o2.priceList(), priceLists);
 						return Integer.compare(ix1, ix2);
 					})
-					.findFirst()
 					.orElse(null),
 				product.getPriceForSale()
 			);

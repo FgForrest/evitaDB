@@ -813,15 +813,6 @@ public class QueryContext implements AutoCloseable, LocaleProvider {
 	 * Returns {@link EntityIndex} by its key and entity type.
 	 */
 	@Nonnull
-	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull String entityType) {
-		return getGlobalEntityIndexIfExists(entityType)
-			.orElseThrow(() -> new EvitaInternalError("Global index of entity " + entityType + " unexpectedly not found!"));
-	}
-
-	/**
-	 * Returns {@link EntityIndex} by its key and entity type.
-	 */
-	@Nonnull
 	public Optional<GlobalEntityIndex> getGlobalEntityIndexIfExists(@Nonnull String entityType) {
 		return ofNullable(getIndex(entityType, GLOBAL_INDEX_KEY, GlobalEntityIndex.class));
 	}
