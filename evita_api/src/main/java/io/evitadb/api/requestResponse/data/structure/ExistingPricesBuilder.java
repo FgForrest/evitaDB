@@ -444,7 +444,7 @@ public class ExistingPricesBuilder implements PricesBuilder {
 			.filter(it -> !(priceMutations.get(it.priceKey()) instanceof RemovePriceMutation))
 			.findFirst()
 			.orElse(null);
-		if (conflictingPrice != null) {
+		if (conflictingPrice != null && !removeAllNonModifiedPrices) {
 			throw new AmbiguousPriceException(conflictingPrice, price);
 		}
 		// check whether there is no conflicting update

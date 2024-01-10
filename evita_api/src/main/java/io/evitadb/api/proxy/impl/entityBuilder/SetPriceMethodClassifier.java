@@ -291,14 +291,13 @@ public class SetPriceMethodClassifier extends DirectMethodClassification<Object,
 		final boolean initialBuilder = entityBuilder instanceof InitialEntityBuilder;
 		if (initialBuilder) {
 			entityBuilder.removeAllPrices();
+		} else {
+			entityBuilder.removeAllNonTouchedPrices();
 		}
 		@SuppressWarnings("unchecked")
 		final Collection<? extends PriceContract> thePrices = (Collection<? extends PriceContract>) args[0];
 		for (PriceContract thePrice : thePrices) {
 			entityBuilder.setPrice(thePrice);
-		}
-		if (!initialBuilder) {
-			entityBuilder.removeAllNonTouchedPrices();
 		}
 	}
 
