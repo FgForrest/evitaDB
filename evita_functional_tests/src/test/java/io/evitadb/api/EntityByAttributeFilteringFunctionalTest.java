@@ -128,7 +128,6 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
 		assertNotNull(histogramPacket);
 		final HistogramContract histogram = histogramPacket.getHistogram(attributeName);
-		assertEquals(20, histogram.getRequestedBucketCount());
 		assertTrue(histogram.getBuckets().length <= 20);
 
 		assertEquals(
@@ -168,10 +167,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = histogram.getBuckets()[i];
-			if (
-				(from != null || to != null) &&
-					(from == null || from.compareTo(bucket.threshold()) <= 0) &&
-					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
 				assertTrue(bucket.requested());
 			} else {
 				assertFalse(bucket.requested());

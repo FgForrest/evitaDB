@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2023
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -58,15 +58,6 @@ public interface HistogramDescriptor {
 			""")
 		.type(nonNull(BigDecimal.class))
 		.build();
-	PropertyDescriptor REQUESTED_BUCKET_COUNT = PropertyDescriptor.builder()
-		.name("requestedBucketCount")
-		.description("""
-			Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-			may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-			histogram.
-			""")
-		.type(nonNull(Integer.class))
-		.build();
 	PropertyDescriptor OVERALL_COUNT = PropertyDescriptor.builder()
 		.name("overallCount")
 		.description("""
@@ -97,7 +88,7 @@ public interface HistogramDescriptor {
 			- buckets are defined by their lower bounds (inclusive)
 			- the upper bound is the lower bound of the next bucket
 			""")
-		.staticFields(List.of(MIN, MAX, REQUESTED_BUCKET_COUNT, OVERALL_COUNT, BUCKETS))
+		.staticFields(List.of(MIN, MAX, OVERALL_COUNT, BUCKETS))
 		.build();
 
 	/**

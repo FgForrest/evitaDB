@@ -27,13 +27,9 @@ message GrpcHistogram {
   // it represents the biggest value encountered in the returned set and represents inclusive right bound for the
   // last bucket.
   GrpcBigDecimal max = 2;
-  // Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-  // may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-  // histogram.
-  int32 requestedBucketCount = 3;
   // Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
   // in the histogram.
-  int32 overallCount = 4;
+  int32 overallCount = 3;
   // Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
   message GrpcBucket {
     // Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
@@ -49,7 +45,7 @@ message GrpcHistogram {
   }
   // Returns histogram buckets that represents a tuple of occurrence count and the minimal threshold of the bucket
   // values.
-  repeated GrpcBucket buckets = 5;
+  repeated GrpcBucket buckets = 4;
 }
 
 // This DTO contains information about single facet group and statistics of the facets that relates to it.
