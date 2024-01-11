@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -386,7 +386,8 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						return new AttributeHistogramWrapper(
 							entry.getKey(),
 							optimalHistogram.convertToHistogram(
-								ofNullable(userFilterFormulaPredicates.get(entry.getKey())).orElseGet(() -> value -> false)
+								ofNullable(userFilterFormulaPredicates.get(entry.getKey()))
+									.orElseGet(() -> value -> true)
 							)
 						);
 					}
