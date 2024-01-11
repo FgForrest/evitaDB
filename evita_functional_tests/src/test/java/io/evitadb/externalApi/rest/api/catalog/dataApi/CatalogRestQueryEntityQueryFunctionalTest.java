@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -2732,7 +2732,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.e(HistogramDescriptor.MAX.name(), histogram.getMax().toString())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
@@ -2753,7 +2752,6 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 			.e(HistogramDescriptor.OVERALL_COUNT.name(), priceHistogram.getOverallCount())
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -96,7 +96,6 @@ public class CacheableHistogram implements CacheableHistogramContract {
 			Arrays.stream(buckets)
 				.map(
 					bucket -> new Bucket(
-						bucket.index(),
 						bucket.threshold(),
 						bucket.occurrences(),
 						requestedPredicate.test(bucket.threshold())
