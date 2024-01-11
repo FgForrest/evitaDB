@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -324,13 +324,11 @@ public class EntityJsonSerializer {
 	private void serializePrices(@Nonnull ObjectNode rootNode, @Nonnull EntityContract entity) {
 		if (entity.pricesAvailable()) {
 			final Collection<PriceContract> prices = entity.getPrices();
-			if (!prices.isEmpty()) {
-				final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
-				rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
+			final ArrayNode pricesNode = objectJsonSerializer.arrayNode();
+			rootNode.putIfAbsent(RestEntityDescriptor.PRICES.name(), pricesNode);
 
-				for (PriceContract price : prices) {
-					pricesNode.add(objectJsonSerializer.serializeObject(price));
-				}
+			for (PriceContract price : prices) {
+				pricesNode.add(objectJsonSerializer.serializeObject(price));
 			}
 
 			entity.getPriceForSaleIfAvailable()
