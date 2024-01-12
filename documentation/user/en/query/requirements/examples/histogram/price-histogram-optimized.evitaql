@@ -1,6 +1,7 @@
 query(
     collection("Product"),
     filterBy(
+        attributeStartsWith("code", "alcatel"),
         priceInPriceLists("basic"),
         priceInCurrency("EUR"),
         priceValidInNow()

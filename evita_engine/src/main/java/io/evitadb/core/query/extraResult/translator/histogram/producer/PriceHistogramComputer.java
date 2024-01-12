@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -263,7 +263,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 				// use histogram data cruncher to produce the histogram
 				final HistogramDataCruncher<PriceRecordContract> resultHistogram;
 				if (behavior == HistogramBehavior.OPTIMIZED) {
-					resultHistogram = new HistogramDataCruncher<>(
+					resultHistogram = HistogramDataCruncher.createOptimalHistogram(
 						"price histogram", bucketCount, indexedPricePlaces, priceRecords,
 						priceRetriever,
 						value -> 1,
@@ -271,7 +271,7 @@ public class PriceHistogramComputer implements CacheableEvitaResponseExtraResult
 						value -> indexedPricePlaces == 0 ? value.intValueExact() : value.scaleByPowerOfTen(indexedPricePlaces).intValueExact()
 					);
 				} else {
-					resultHistogram = HistogramDataCruncher.createOptimalHistogram(
+					resultHistogram = new HistogramDataCruncher<>(
 						"price histogram", bucketCount, indexedPricePlaces, priceRecords,
 						priceRetriever,
 						value -> 1,

@@ -1,6 +1,7 @@
 {
   queryProduct(
     filterBy: {
+      attributeCodeStartsWith: "alcatel",
       priceInPriceLists: [
         "basic"
       ],

@@ -2,6 +2,7 @@ POST /rest/evita/Product/query
 
 {
   "filterBy" : {
+    "attributeCodeStartsWith" : "alcatel",
     "priceInPriceLists" : [
       "basic"
     ],

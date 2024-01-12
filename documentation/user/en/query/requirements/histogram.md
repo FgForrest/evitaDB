@@ -251,7 +251,7 @@ The simplified result looks like this:
 
 <LS to="e,j,s">
 
-<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.string.md)</MDInclude>
 
 </LS>
 <LS to="g">
