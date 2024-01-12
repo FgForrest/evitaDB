@@ -455,7 +455,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			Environment.LOCALHOST,
+			Environment.DEMO_SERVER,
 			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
 			ExampleFilter.values(),
 			CreateSnippets.MARKDOWN, /*CreateSnippets.JAVA,*/ CreateSnippets.GRAPHQL, CreateSnippets.REST/*, CreateSnippets.CSHARP*/
