@@ -135,9 +135,21 @@ To demonstrate the optimization of the histogram, we will use the following exam
 
 The simplified result looks like this:
 
+<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql.string.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The optimized result of `width` and `height` attribute histogram in JSON format
+
+</NoteTitle>
+
+The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
+
 <LS to="e,j,c">
 
-<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql.json.md)</MDInclude>
 
 </LS>
 <LS to="g">
@@ -150,6 +162,8 @@ The simplified result looks like this:
 <MDInclude sourceVariable="extraResults.attributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.rest.json.md)</MDInclude>
 
 </LS>
+
+</Note>
 
 As you can see, the number of buckets has been adjusted to fit the data, contrary to the default behavior.
 
@@ -251,9 +265,21 @@ To demonstrate the optimization of the histogram, we will use the following exam
 
 The simplified result looks like this:
 
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.string.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of optimized price histogram in JSON format
+
+The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
+
+</NoteTitle>
+
 <LS to="e,j,s">
 
-<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.string.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.json.md)</MDInclude>
 
 </LS>
 <LS to="g">
@@ -266,5 +292,7 @@ The simplified result looks like this:
 <MDInclude sourceVariable="extraResults.priceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.rest.json.md)</MDInclude>
 
 </LS>
+
+</Note>
 
 As you can see, the number of buckets has been adjusted to fit the data, contrary to the default behavior.
