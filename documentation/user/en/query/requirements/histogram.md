@@ -114,6 +114,8 @@ The histogram result in JSON format is a bit more verbose, but it's still quite 
 
 </LanguageSpecific>
 
+</Note>
+
 ### Attribute histogram contents optimization
 
 During user testing, we found that histograms with scarce data are not very useful. Besides the fact that they don't
