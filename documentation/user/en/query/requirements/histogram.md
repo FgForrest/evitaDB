@@ -29,7 +29,7 @@ The histogram data structure is optimized for frontend rendering. It contains th
   - **`index`** - the index of the bucket in the array
   - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
   - **`occurrences`** - the number of elements whose attribute value falls into the bucket
-  - **`requested`**
+  - **`requested`**:
     - contains `true` if the query didn't contain any [attributeBetween](../filtering/comparable.md#attribute-between)
       or [priceBetween](../filtering/price.md#price-between) constraints
     - contains `true` if the query contained [attributeBetween](../filtering/comparable.md#attribute-between)
