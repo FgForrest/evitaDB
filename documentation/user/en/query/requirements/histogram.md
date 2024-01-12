@@ -273,9 +273,9 @@ The simplified result looks like this:
 
 ##### The result of optimized price histogram in JSON format
 
-The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
-
 </NoteTitle>
+
+The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
 
 <LS to="e,j,s">
 
