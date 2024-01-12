@@ -13,7 +13,10 @@
         min
         max
         overallCount
-        buckets(requestedCount: 20) {
+        buckets(
+          requestedCount: 20
+          behavior: OPTIMIZED
+        ) {
           index
           threshold
           occurrences
