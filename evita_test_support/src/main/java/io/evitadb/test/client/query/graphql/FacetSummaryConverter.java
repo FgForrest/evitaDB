@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -167,9 +167,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getFilterGroupBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.FILTER_GROUP_BY,
 					offset,
+					multipleArguments,
 					convertFilterConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
 						facetSummaryOfReference.getFilterGroupBy().get()
@@ -182,9 +183,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getOrderGroupBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetGroupStatisticsHeaderDescriptor.ORDER_GROUP_BY,
 					offset,
+					multipleArguments,
 					convertOrderConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedGroupType()),
 						facetSummaryOfReference.getOrderGroupBy().get()
@@ -239,9 +241,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getFilterBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetStatisticsHeaderDescriptor.FILTER_BY,
 					offset,
+					multipleArguments,
 					convertFilterConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
 						facetSummaryOfReference.getFilterBy().get()
@@ -253,9 +256,10 @@ public class FacetSummaryConverter extends RequireConverter {
 
 		if (facetSummaryOfReference.getOrderBy().isPresent()) {
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					FacetStatisticsHeaderDescriptor.ORDER_BY,
 					offset,
+					multipleArguments,
 					convertOrderConstraint(
 						new EntityDataLocator(referenceSchema.getReferencedEntityType()),
 						facetSummaryOfReference.getOrderBy().get()

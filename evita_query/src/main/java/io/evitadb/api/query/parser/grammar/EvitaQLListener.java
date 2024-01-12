@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2024
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1811,16 +1811,6 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 */
 	void exitClassifierListArgs(EvitaQLParser.ClassifierListArgsContext ctx);
 	/**
-	 * Enter a parse tree produced by {@link EvitaQLParser#valueWithClassifierListArgs}.
-	 * @param ctx the parse tree
-	 */
-	void enterValueWithClassifierListArgs(EvitaQLParser.ValueWithClassifierListArgsContext ctx);
-	/**
-	 * Exit a parse tree produced by {@link EvitaQLParser#valueWithClassifierListArgs}.
-	 * @param ctx the parse tree
-	 */
-	void exitValueWithClassifierListArgs(EvitaQLParser.ValueWithClassifierListArgsContext ctx);
-	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#classifierWithFilterConstraintArgs}.
 	 * @param ctx the parse tree
 	 */
@@ -2240,6 +2230,26 @@ public interface EvitaQLListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#attributeHistogramArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterAttributeHistogramArgs(EvitaQLParser.AttributeHistogramArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#attributeHistogramArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitAttributeHistogramArgs(EvitaQLParser.AttributeHistogramArgsContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link EvitaQLParser#priceHistogramArgs}.
+	 * @param ctx the parse tree
+	 */
+	void enterPriceHistogramArgs(EvitaQLParser.PriceHistogramArgsContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link EvitaQLParser#priceHistogramArgs}.
+	 * @param ctx the parse tree
+	 */
+	void exitPriceHistogramArgs(EvitaQLParser.PriceHistogramArgsContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree

@@ -72,6 +72,7 @@ public class PriceHistogramTranslator implements RequireConstraintTranslator<Pri
 		// create price histogram producer that computes the result
 		return new PriceHistogramProducer(
 			priceHistogram.getRequestedBucketCount(),
+			priceHistogram.getBehavior(),
 			extraResultPlanner.getQueryContext(),
 			extraResultPlanner.getFilteringFormula(),
 			filteredPriceRecordAccessors,

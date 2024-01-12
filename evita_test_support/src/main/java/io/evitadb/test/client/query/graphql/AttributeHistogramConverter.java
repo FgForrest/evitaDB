@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ public class AttributeHistogramConverter extends HistogramConverter {
 			attributeHistogramsBuilder -> {
 				attributeHistograms.stream()
 					.flatMap(attributeHistogram -> Arrays.stream(attributeHistogram.getAttributeNames())
-						.map(attributeName -> Map.entry(attributeName, attributeHistogram.getRequestedBucketCount())))
+						.map(attributeName -> Map.entry(attributeName, new HistogramRequest(attributeHistogram.getRequestedBucketCount(), attributeHistogram.getBehavior()))))
 					.forEach(histogramRequest -> attributeHistogramsBuilder.addObjectField(
 						entitySchema.getAttribute(histogramRequest.getKey())
 							.orElseThrow()
