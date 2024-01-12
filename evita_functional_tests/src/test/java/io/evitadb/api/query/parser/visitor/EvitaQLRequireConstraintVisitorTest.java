@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1441,15 +1441,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("attributeHistogram ( 20  , 'a' ,  'b' ,'c' )");
 		assertEquals(attributeHistogram(20, "a", "b", "c"), constraint3);
 
-		final RequireConstraint constraint4 = parseRequireConstraint("attributeHistogram(?, 'a')", 20);
-		assertEquals(attributeHistogram(20, "a"), constraint4);
-
-		final RequireConstraint constraint5 = parseRequireConstraint(
-			"attributeHistogram(@buckets, 'a')",
-			Map.of("buckets", 20)
-		);
-		assertEquals(attributeHistogram(20, "a"), constraint5);
-
 		final RequireConstraint constraint6 = parseRequireConstraint("attributeHistogram(?, ?)", 20, "a");
 		assertEquals(attributeHistogram(20, "a"), constraint6);
 
@@ -1491,6 +1482,21 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint13 = parseRequireConstraint("attributeHistogram (?, ?, ?, ?, ?)", 20, HistogramBehavior.OPTIMIZED, "a", "b", "c");
 		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint13);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"attributeHistogram (@count, @beh, @attr1, @attr2, @attr3)",
+			Map.of("count", 20, "beh", HistogramBehavior.OPTIMIZED, "attr1", "a", "attr2", "b", "attr3", "c")
+		);
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint15);
+
+		final RequireConstraint constraint14 = parseRequireConstraint("attributeHistogram (?, ?, ?)", 20, HistogramBehavior.OPTIMIZED, List.of("a", "b", "c"));
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint14);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"attributeHistogram (@count, @beh, @attrs)",
+			Map.of("count", 20, "beh", HistogramBehavior.OPTIMIZED, "attrs", List.of("a", "b", "c"))
+		);
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint16);
 	}
 
 	@Test
@@ -1505,6 +1511,8 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a',1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a','b')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,'a',OPTIMIZED)"));
 	}
 
 	@Test
@@ -1526,6 +1534,12 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint6 = parseRequireConstraint("priceHistogram(?, ?)", 20, HistogramBehavior.OPTIMIZED);
 		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraint(
+			"priceHistogram(@count, @beh)",
+			Map.of("count", 20, "beh", HistogramBehavior.OPTIMIZED)
+		);
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint7);
 	}
 
 	@Test
@@ -1537,6 +1551,7 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,STANDARD,WHATEVER)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram('a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram(10,STANDARD,WHATEVER)"));
 	}
 
 	@Test

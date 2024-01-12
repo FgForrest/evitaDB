@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyRequireConstraint;
 import io.evitadb.api.query.require.HierarchyStatistics;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -1534,6 +1535,55 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 
 	@Test
 	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized attribute histogram")
+	void shouldReturnOptimizedAttributeHistogram(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					attributeIsNotNull(ATTRIBUTE_ALIAS)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					attributeHistogram(20, HistogramBehavior.OPTIMIZED, ATTRIBUTE_QUANTITY)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+					{
+						"filterBy": {
+							"attributeAliasIs": "NOT_NULL"
+						},
+						"require": {
+							"page": {
+								"number": 1,
+								"size": %d
+							},
+							"attributeHistogram": {
+								"requestedBucketCount": 20,
+								"behavior": "OPTIMIZED",
+								"attributeNames": ["%s"]
+							}
+						}
+					}
+					""",
+				Integer.MAX_VALUE,
+				ATTRIBUTE_QUANTITY)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY))
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
 	@DisplayName("Should return attribute histogram without being affected by attribute filter")
 	void shouldReturnAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, RestTester tester) {
 		final EvitaResponse<EntityClassifier> response = queryEntities(
@@ -1659,7 +1709,9 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							"number": 1,
 							"size": %d
 						},
-						"priceHistogram": 20
+						"priceHistogram": {
+							"requestedBucketCount": 20
+						}
 					}
 				}
 				""",
@@ -1707,7 +1759,60 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 							"number": 1,
 							"size": %d
 						},
-						"priceHistogram": 20
+						"priceHistogram": {
+							"requestedBucketCount": 20
+						}
+					}
+				}
+				""",
+				Integer.MAX_VALUE)
+			.executeAndThen()
+			.statusCode(200)
+			.body(
+				resultPath(ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.PRICE_HISTOGRAM),
+				equalTo(createPriceHistogramDto(response))
+			);
+	}
+
+	@Test
+	@UseDataSet(REST_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized price histogram")
+	void shouldReturnOptimizedPriceHistogram(Evita evita, RestTester tester) {
+		final EvitaResponse<EntityClassifier> response = queryEntities(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					and(
+						priceInCurrency(CURRENCY_EUR),
+						priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+					)
+				),
+				require(
+					page(1, Integer.MAX_VALUE),
+					priceHistogram(20, HistogramBehavior.OPTIMIZED)
+				)
+			)
+		);
+
+		tester.test(TEST_CATALOG)
+			.urlPathSuffix("/PRODUCT/query")
+			.httpMethod(Request.METHOD_POST)
+			.requestBody("""
+				{
+					"filterBy": {
+						"priceInCurrency": "EUR",
+						"priceInPriceLists": ["vip", "basic"]
+					},
+					"require": {
+						"page": {
+							"number": 1,
+							"size": %d
+						},
+						"priceHistogram": {
+							"requestedBucketCount": 20,
+							"behavior": "OPTIMIZED"
+						}
 					}
 				}
 				""",
@@ -1744,8 +1849,7 @@ class CatalogRestQueryEntityQueryFunctionalTest extends CatalogRestDataEndpointF
 					""",
 				Integer.MAX_VALUE)
 			.executeAndThen()
-			.statusCode(400)
-			.body("message", equalTo("Constraint `priceHistogram` requires non-null value."));
+			.statusCode(400);
 	}
 
 	@UseDataSet(REST_THOUSAND_PRODUCTS)

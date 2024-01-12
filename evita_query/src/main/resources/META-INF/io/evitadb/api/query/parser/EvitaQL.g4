@@ -151,8 +151,8 @@ requireConstraint
     | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
     | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
     | 'facetGroupsNegation'                 args = classifierWithOptionalFilterConstraintArgs               # facetGroupsNegationConstraint
-    | 'attributeHistogram'                  args = valueWithClassifierListArgs                              # attributeHistogramConstraint
-    | 'priceHistogram'                      args = valueListArgs                                            # priceHistogramConstraint
+    | 'attributeHistogram'                  args = attributeHistogramArgs                                   # attributeHistogramConstraint
+    | 'priceHistogram'                      args = priceHistogramArgs                                       # priceHistogramConstraint
     | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
     | 'level'                               args = valueArgs                                                # hierarchyLevelConstraint
     | 'node'                                args = filterConstraintArgs                                     # hierarchyNodeConstraint
@@ -216,8 +216,6 @@ valueListArgs :                                     ARGS_OPENING values = variad
 betweenValuesArgs :                                 ARGS_OPENING valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken ARGS_CLOSING ;
 
 classifierListArgs :                                ARGS_OPENING classifiers = variadicClassifierTokens ARGS_CLOSING ;
-
-valueWithClassifierListArgs :                       ARGS_OPENING value = variadicValueTokens ARGS_DELIMITER classifiers = variadicClassifierTokens ARGS_CLOSING ;
 
 classifierWithFilterConstraintArgs :                ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filter = filterConstraint ARGS_CLOSING ;
 
@@ -309,6 +307,10 @@ facetSummaryOrderArgs :                             (
                                                         (orderBy = orderConstraint) |
                                                         (orderBy = orderConstraint ARGS_DELIMITER orderGroupBy = orderConstraint)
                                                     ) ;
+
+attributeHistogramArgs :                            ARGS_OPENING requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens ARGS_CLOSING ;
+
+priceHistogramArgs :                                ARGS_OPENING requestedBucketCount = valueToken (ARGS_DELIMITER behaviour = valueToken)? ARGS_CLOSING ;
 
 hierarchyStatisticsArgs :                           ARGS_OPENING settings = variadicValueTokens ARGS_CLOSING ;
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1078,12 +1078,6 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassifierListArgs(EvitaQLParser.ClassifierListArgsContext ctx);
 	/**
-	 * Visit a parse tree produced by {@link EvitaQLParser#valueWithClassifierListArgs}.
-	 * @param ctx the parse tree
-	 * @return the visitor result
-	 */
-	T visitValueWithClassifierListArgs(EvitaQLParser.ValueWithClassifierListArgsContext ctx);
-	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithFilterConstraintArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result
@@ -1335,6 +1329,18 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitFacetSummaryOrderArgs(EvitaQLParser.FacetSummaryOrderArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#attributeHistogramArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitAttributeHistogramArgs(EvitaQLParser.AttributeHistogramArgsContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#priceHistogramArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitPriceHistogramArgs(EvitaQLParser.PriceHistogramArgsContext ctx);
 	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#hierarchyStatisticsArgs}.
 	 * @param ctx the parse tree
