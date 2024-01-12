@@ -25,13 +25,17 @@ The histogram data structure is optimized for frontend rendering. It contains th
 - **`min`** - the minimum value of the attribute in the current filter context
 - **`max`** - the maximum value of the attribute in the current filter context
 - **`overallCount`** - the number of elements whose attribute value falls into any of the buckets (it's basically a sum of all bucket occurrences)
-- **`buckets`** - an array of buckets, each of which contains the following fields:
+- **`buckets`** - an *sorted* array of buckets, each of which contains the following fields:
   - **`index`** - the index of the bucket in the array
-  - **`threshold`** - the minimum value of the attribute in the bucket
+  - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
   - **`occurrences`** - the number of elements whose attribute value falls into the bucket
-  - **`requested`** - contains `true` if the query contained [attributeBetween](../filtering/comparable.md#attribute-between)
-                      or [priceBetween](../filtering/price.md#price-between) constraint for particular attribute / price
-                      and the bucket threshold lies within the range (inclusive) of the constraint
+  - **`requested`**
+    - contains `true` if the query didn't contain any [attributeBetween](../filtering/comparable.md#attribute-between)
+      or [priceBetween](../filtering/price.md#price-between) constraints
+    - contains `true` if the query contained [attributeBetween](../filtering/comparable.md#attribute-between)
+      or [priceBetween](../filtering/price.md#price-between) constraint for particular attribute / price
+      and the bucket threshold lies within the range (inclusive) of the constraint
+    - contains `false` otherwise
 
 ## Attribute histogram
 
