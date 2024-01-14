@@ -31,7 +31,7 @@ examples of the versioning battle was the [Chrome vs. Firefox battle](https://se
 for the most significant version number. So - if the major version is more about marketing than actual API stability,
 should we even care about it?
 
-The compatibility guarantee is also a very tricky thing -- if your project is popular enough, any change in it that
+The compatibility guarantee is also a very tricky thing - if your project is popular enough, any change in it that
 somehow affects its behavior will [break someone's code](https://xkcd.com/1172/), even if the API stays the same.
 You will never be able to anticipate other people's expectations and assumptions.
 
