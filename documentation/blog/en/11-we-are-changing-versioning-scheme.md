@@ -40,7 +40,7 @@ that we considered, but in the end we decided to go with calendar versioning, sp
 for the following reasons:
 
 1. no matter how hard we try, we will never be able to guarantee backwards compatibility - unless we have a very
-    thorough test suite that covers all possible use cases, which evitaDB does not and probably never will (let's be
+    thorough test suite that covers all possible use cases, which evitaDB does not and probably never will have (let's be
     honest)
 2. we commit to trying to maintain backwards compatibility, and if it is knowingly broken, we will mark the release
     with a "breaking change" label (we already do this at the issue level), and once the project gets out of the
