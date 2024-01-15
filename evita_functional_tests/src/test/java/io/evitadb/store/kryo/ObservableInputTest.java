@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ class ObservableInputTest {
 
 		final List<Integer> sizes = new ArrayList<>(count);
 		for (int i = 0; i < count; i++) {
-			final int rndSize = random.nextInt(1000);
+			final int rndSize = random.nextInt(9999) + 1;
 			writeRandomRecord(output, rndSize);
 			sizes.add(rndSize);
 		}
@@ -186,22 +186,26 @@ class ObservableInputTest {
 	private void readAndVerifyRecord(ObservableInput<?> input, int payloadSize) {
 		input.markStart();
 		final int length = input.readInt();
+		byte controlByte = input.readByte();
 		input.markPayloadStart(length);
-		final byte[] payload = input.readBytes(length - ObservableInputTest.OVERHEAD_SIZE);
-		input.markEnd();
+		final byte[] payload = input.readBytes(length - 1 - ObservableInputTest.OVERHEAD_SIZE);
+		input.markEnd(controlByte);
 
 		assertEquals(payloadSize + ObservableInputTest.OVERHEAD_SIZE, length);
-		assertEquals(payloadSize, payload.length);
+		// first byte of payload is control byte
+		assertEquals(payloadSize, payload.length + 1);
 	}
 
 	private long writeRandomRecord(Output controlOutput, int length) {
 		final byte[] bytes = generateBytes(length);
 
 		crc32C.reset();
-		crc32C.update(bytes);
+		crc32C.update(bytes, 1, bytes.length - 1);
+		crc32C.update(bytes[0]);
 		final long startPosition = controlOutput.total();
 		controlOutput.writeInt(length + OVERHEAD_SIZE);
-		controlOutput.writeBytes(bytes);
+		controlOutput.writeByte(bytes[0]);
+		controlOutput.writeBytes(bytes, 1, bytes.length - 1);
 		controlOutput.writeLong(crc32C.getValue());
 		controlOutput.flush();
 		return startPosition;

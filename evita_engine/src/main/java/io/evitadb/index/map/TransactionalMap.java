@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.map;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
@@ -34,7 +33,6 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -82,7 +80,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	/**
 	 * Use this constructor if V implements TransactionalLayerProducer itself.
 	 * @param mapDelegate original map
-	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
+	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} into a V type
 	 */
 	public <S, T extends TransactionalLayerProducer<?, S>> TransactionalMap(
 		@Nonnull Map<K, V> mapDelegate,
@@ -102,7 +100,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 	/**
 	 * Use this constructor if V implements TransactionalLayerProducer itself.
 	 * @param mapDelegate original map
-	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} into a V type
+	 * @param transactionalLayerWrapper the function that wraps result of {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} into a V type
 	 */
 	public TransactionalMap(
 		@Nonnull Map<K, V> mapDelegate,
@@ -127,10 +125,10 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 
 	@Nonnull
 	@Override
-	public Map<K, V> createCopyWithMergedTransactionalMemory(MapChanges<K, V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Map<K, V> createCopyWithMergedTransactionalMemory(MapChanges<K, V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// iterate over inserted or updated keys
 		if (layer != null) {
-			return layer.createMergedMap(transactionalLayer, transaction);
+			return layer.createMergedMap(transactionalLayer);
 		} else {
 			// iterate original map and copy all values from it
 			List<Tuple<K, V>> modifiedEntries = null;
@@ -144,7 +142,7 @@ public class TransactionalMap<K, V> implements Map<K, V>,
 				V value = entry.getValue();
 				if (value instanceof TransactionalLayerProducer<?,?> transactionalLayerProducer) {
 					value = transactionalLayerWrapper.apply(
-						transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer, transaction)
+						transactionalLayer.getStateCopyWithCommittedChanges(transactionalLayerProducer)
 					);
 				}
 

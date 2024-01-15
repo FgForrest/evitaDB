@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,13 +23,11 @@
 
 package io.evitadb.index.transactionalMemory;
 
-import io.evitadb.core.Transaction;
-
 /**
  * This extension of {@link TransactionalLayerProducer} produces {@link Void} transactional memory diff piece. It should
  * be used in all all objects that maintain transactionally modifiable internal data fields but cannot be modified by
  * themselves. I.e. their transactional diff piece is Void (NULL), but they need to provide
- * {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} implementation
+ * {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)} implementation
  * so that the could create new instance consisting of new internal objects.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019

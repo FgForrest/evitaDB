@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,33 +29,47 @@ import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.utils.Assert;
-import lombok.Data;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * This class represents wrapper for any binary content, that needs to be stored / was already stored in file storage.
  * When this instance of this data wrapper exists it means data are present in the data store.
  *
+ * @param <T>               Type of the payload that is stored in the data store.
+ * @param transactionId     transaction id can be used to group multiple records into single transaction
+ * @param closesTransaction set to TRUE when this record is the last record of the transaction
+ * @param payload           this object represents the real payload of the record.
+ * @param fileLocation      file location is a pointer to the location in the file that is occupied by binary content of
+ *                          this record.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Data
-public class StorageRecord<T> {
+public record StorageRecord<T>(
+	long transactionId,
+	boolean closesTransaction,
+	@Nullable T payload,
+	@Nonnull FileLocation fileLocation
+) {
 	/**
 	 * CRC not covered head 5B: length(int), control (byte)
 	 *
-	 * TOBEDONE JNO - we need to cover also control byte by the CRC - what if the transaction bit is corrupted?!
+	 * jej i při čtení započítat do CRC výpočtu i když jakoby ani čtený není, protože je na začátku záznamu
 	 */
 	public static final int CRC_NOT_COVERED_HEAD = 4 + 1;
 	/**
-	 * Overhead is 22B: length(int), control (byte), nodeId (byte), transactionId (long), crc (long).
+	 * Overhead is 22B: length(int), control (byte), transactionId (long), crc (long).
 	 */
-	public static final int OVERHEAD_SIZE = CRC_NOT_COVERED_HEAD + 1 + 8 + ObservableOutput.TAIL_MANDATORY_SPACE;
+	public static final int OVERHEAD_SIZE = CRC_NOT_COVERED_HEAD + 8 + ObservableOutput.TAIL_MANDATORY_SPACE;
 	/**
 	 * First bit of control byte marks end of transaction record.
 	 */
@@ -64,27 +78,12 @@ public class StorageRecord<T> {
 	 * Second bit of control byte marks that record spans with next record.
 	 */
 	public static final byte CONTINUATION_BIT = 2;
-
 	/**
-	 * Reserved space for the source node identification (if/when we go to distributed multi-master data store).
+	 * Third bit of control byte marks that record has CRC32 calculated.
+	 *
+	 * TODO JNO - implement
 	 */
-	private final byte nodeId;
-	/**
-	 * Transaction id (monotonically increased number).
-	 */
-	private final long transactionId;
-	/**
-	 * Set to TRUE when this record closes the transaction.
-	 */
-	private final boolean closesTransaction;
-	/**
-	 * This object represents the real payload of the record.
-	 */
-	private final T payload;
-	/**
-	 * File location is a pointer to the location in the file that is occupied by binary content of this record.
-	 */
-	private final FileLocation fileLocation;
+	public static final byte CRC32_BIT = 3;
 
 	/**
 	 * Returns count of bytes that are used by infrastructure informations of the record.
@@ -114,70 +113,6 @@ public class StorageRecord<T> {
 	}
 
 	/**
-	 * Constructor that is used for WRITING the record to the passed output stream.
-	 */
-	public StorageRecord(@Nonnull Kryo kryo, @Nonnull ObservableOutput<?> output, byte nodeId, long transactionId, boolean closesTransaction, @Nonnull T payload) {
-		this.nodeId = nodeId;
-		this.closesTransaction = closesTransaction;
-		this.transactionId = transactionId;
-		this.payload = payload;
-		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
-
-		this.fileLocation = output.doWithOnBufferOverflowHandler(
-			filledOutput -> {
-				final FileLocation incompleteRecordLocation = filledOutput.markEnd(setBit((byte) 0, CONTINUATION_BIT, true));
-				// register file location of the continuous record
-				recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
-				// write storage record header for another record
-				writeHeader(output, nodeId, transactionId);
-			},
-			() -> {
-				// write storage record header
-				writeHeader(output, nodeId, transactionId);
-				// finally, write payload
-				kryo.writeObject(output, payload);
-				// compute crc32 and fill in record length
-				final FileLocation completeRecordLocation = output.markEnd(setBit((byte) 0, TRANSACTION_CLOSING_BIT, closesTransaction));
-				// return file length that possibly spans multiple records
-				return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
-			}
-		);
-	}
-
-	/**
-	 * Constructor that is used for WRITING the record to the passed output stream.
-	 */
-	public StorageRecord(@Nonnull ObservableOutput<?> output, byte nodeId, long transactionId, boolean closesTransaction, @Nonnull Function<ObservableOutput<?>, T> payloadWriter) {
-		this.nodeId = nodeId;
-		this.transactionId = transactionId;
-		this.closesTransaction = closesTransaction;
-		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
-
-		final PayloadWithFileLocation<T> result = output.doWithOnBufferOverflowHandler(
-			filledOutput -> {
-				final FileLocation incompleteRecordLocation = filledOutput.markEnd(setBit((byte) 0, CONTINUATION_BIT, true));
-				// register file location of the continuous record
-				recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
-				// write storage record header
-				writeHeader(output, nodeId, transactionId);
-			},
-			() -> {
-				// write storage record header
-				writeHeader(output, nodeId, transactionId);
-				// finally, write payload
-				final T thePayload = payloadWriter.apply(output);
-				// compute crc32 and fill in record length
-				final FileLocation theFileLocation = output.markEnd(setBit((byte) 0, TRANSACTION_CLOSING_BIT, closesTransaction));
-				// return both
-				return new PayloadWithFileLocation<>(thePayload, theFileLocation);
-			}
-		);
-
-		this.fileLocation = result.fileLocation();
-		this.payload = result.payload();
-	}
-
-	/**
 	 * Constructor that is used for READING unknown record from the input stream. Constructor should be used for sequential
 	 * reading of the data store contents when file offset index has been already read and we know locations of active
 	 * records as well as their type.
@@ -185,157 +120,142 @@ public class StorageRecord<T> {
 	 * This constructor excepts that it is possible to resolve any file location to record type. If type cannot be resolved
 	 * it is assumed record is "dead" and reading it's contents is skipped entirely.
 	 */
-	public StorageRecord(@Nonnull Kryo kryo, @Nonnull ObservableInput<?> input, @Nonnull Function<FileLocation, Class<T>> typeResolver) {
+	public static <T> StorageRecord<T> read(
+		@Nonnull Kryo kryo,
+		@Nonnull ObservableInput<?> input,
+		@Nonnull Function<FileLocation, Class<T>> typeResolver
+	) {
 		final long startPosition = input.markStart();
 		final int recordLength = input.readInt();
 		final byte control = input.readByte();
-		final ReadingContext context = new ReadingContext(
-			startPosition, recordLength, control
-		);
 
-		final FileLocation leadingRecordLocation = new FileLocation(startPosition, recordLength);
-		final Class<T> payloadType = typeResolver.apply(new FileLocation(startPosition, recordLength));
+		final FileLocation location = new FileLocation(startPosition, recordLength);
+		final Class<T> payloadType = typeResolver.apply(location);
 
 		if (payloadType == null) {
 			// record is obsolete - it cannot be mapped to any know type
 			input.skip(recordLength);
-			this.nodeId = -1;
-			this.transactionId = -1;
-			this.closesTransaction = context.isClosesTransaction();
-			this.payload = null;
-			this.fileLocation = leadingRecordLocation;
-		} else if (isBitSet(control, CONTINUATION_BIT)) {
-			// record is active load and verify contents
-			input.markPayloadStart(recordLength);
-			this.nodeId = input.readByte();
-			this.transactionId = input.readLong();
-
-			this.payload = input.doWithOnBufferOverflowHandler(
-				observableInput -> {
-					input.markEnd();
-
-					input.markStart();
-					final int continuingRecordLength = input.readInt();
-					final byte continuingControl = input.readByte();
-
-					input.markPayloadStart(continuingRecordLength);
-					final byte continuingNodeId = input.readByte();
-					final long continuingTransactionId = input.readLong();
-
-					Assert.isPremiseValid(
-						nodeId == continuingNodeId,
-						() -> new CorruptedRecordException("Node id differs in continuous record. This is not expected!", nodeId, continuingNodeId)
-					);
-					Assert.isPremiseValid(
-						transactionId == continuingTransactionId,
-						() -> new CorruptedRecordException("Transaction id differs in continuous record. This is not expected!", transactionId, continuingTransactionId)
-					);
-					context.updateWithNextRecord(continuingRecordLength, continuingControl);
-				},
-				() -> kryo.readObject(input, payloadType)
+			final boolean closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
+			return new StorageRecord<>(
+				-1L, closesTransaction, null, location
 			);
-
-			this.closesTransaction = context.isClosesTransaction();
-			this.fileLocation = new FileLocation(context.getStartPosition(), context.getRecordLength());
-		} else {
-			this.closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
-			// record is active load and verify contents
-			input.markPayloadStart(recordLength);
-			this.nodeId = input.readByte();
-			this.transactionId = input.readLong();
-			this.payload = kryo.readObject(input, payloadType);
-			this.fileLocation = leadingRecordLocation;
 		}
 
-		input.markEnd();
+		final Supplier<T> payloadReader = () -> kryo.readObject(input, payloadType);
+		return doReadStorageRecord(
+			input,
+			location,
+			control,
+			null,
+			payloadReader
+		);
 	}
 
 	/**
 	 * Constructor that is used for READING known record from the input stream on known file location. Constructor should
 	 * be used for random access reading of arbitrary records o reading lead record for the file offset index.
 	 */
-	public StorageRecord(@Nonnull ObservableInput<?> input, @Nonnull FileLocation location, @Nonnull BiFunction<ObservableInput<?>, Integer, T> reader) {
+	public static <T> StorageRecord<T> read(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		@Nonnull BiFunction<ObservableInput<?>, Integer, T> reader
+	) {
 		input.seek(location);
 		input.markStart();
 		final int recordLength = input.readInt();
 		byte control = input.readByte();
 
+		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength);
+		//noinspection StringConcatenationMissingWhitespace
+		return doReadStorageRecord(
+			input,
+			new FileLocation(location.startingPosition(), recordLength),
+			control,
+			fileLocation -> Assert.isPremiseValid(
+				location.recordLength() == fileLocation.recordLength(),
+				() -> new CorruptedRecordException(
+					"Record length differs (" + fileLocation.recordLength() + "B, " +
+						"expected " + location.recordLength() + "B) - it's probably corrupted!",
+					location.recordLength(), fileLocation.recordLength()
+				)
+			),
+			payloadReader
+		);
+	}
+
+	/**
+	 * Constructor that is used for READING known record from the input stream on known start position. Constructor
+	 * should be used for sequential access reading of arbitrary records o reading lead record for the file offset index.
+	 */
+	public static <T> StorageRecord<T> read(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull BiFunction<ObservableInput<?>, Integer, T> reader
+	) {
+		input.markStart();
+		final int recordLength = input.readInt();
+		byte control = input.readByte();
+
+		final Supplier<T> payloadReader = () -> reader.apply(input, recordLength);
+		return doReadStorageRecord(
+			input,
+			new FileLocation(input.position(), recordLength),
+			control,
+			null,
+			payloadReader
+		);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nonnull
+	private static <T> StorageRecord<T> doReadStorageRecord(
+		@Nonnull ObservableInput<?> input,
+		@Nonnull FileLocation location,
+		byte control,
+		@Nullable Consumer<FileLocation> assertion,
+		@Nonnull Supplier<T> payloadReader
+	) {
 		if (isBitSet(control, CONTINUATION_BIT)) {
 			final ReadingContext context = new ReadingContext(
-				location.startingPosition(), recordLength, control
+				location.startingPosition(), location.recordLength(), control
 			);
 
-			input.markPayloadStart(recordLength);
-			this.nodeId = input.readByte();
-			this.transactionId = input.readLong();
-			this.payload = input.doWithOnBufferOverflowHandler(
-				observableInput -> {
-					input.markEnd();
+			// record is active load and verify contents
+			input.markPayloadStart(location.recordLength());
+			final long transactionId = input.readLong();
 
-					input.markStart();
-					final int continuingRecordLength = input.readInt();
-					final byte continuingControl = input.readByte();
-
-					input.markPayloadStart(continuingRecordLength);
-					final byte continuingNodeId = input.readByte();
-					final long continuingTransactionId = input.readLong();
-
-					Assert.isPremiseValid(
-						nodeId == continuingNodeId,
-						() -> new CorruptedRecordException("Node id differs in continuous record (" + nodeId + " vs. " + continuingControl + "). This is not expected!", nodeId, continuingNodeId)
-					);
-					Assert.isPremiseValid(
-						transactionId == continuingTransactionId,
-						() -> new CorruptedRecordException("Transaction id differs in continuous record (" + transactionId + " vs. " + continuingTransactionId + "). This is not expected!", transactionId, continuingTransactionId)
-					);
-					context.updateWithNextRecord(continuingRecordLength, continuingControl);
-				},
-				() -> reader.apply(input, recordLength)
+			final T payload = input.doWithOnBufferOverflowHandler(
+				new BufferOverflowReadHandler<>(context, transactionId),
+				payloadReader
 			);
 
-			input.markEnd();
+			input.markEnd(context.getControlByte());
 
-			this.fileLocation = new FileLocation(context.getStartPosition(), context.getRecordLength());
-			this.closesTransaction = context.isClosesTransaction();
+			final FileLocation fileLocation = new FileLocation(context.getStartPosition(), context.getRecordLength());
 
-			Assert.isPremiseValid(
-				location.equals(this.fileLocation),
-				() -> new CorruptedRecordException(
-					"Record length differs (" + this.fileLocation.recordLength() + "B, " +
-						"expected " + location.recordLength() + "B) - it's probably corrupted!",
-					location.recordLength(), this.fileLocation.recordLength()
-				)
+			if (assertion != null) {
+				assertion.accept(fileLocation);
+			}
+
+			return new StorageRecord<>(
+				transactionId, context.isClosesTransaction(), payload, fileLocation
 			);
 		} else {
-			this.closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
-			this.fileLocation = location;
+			boolean closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
 			input.markPayloadStart(location.recordLength());
-			this.nodeId = input.readByte();
-			this.transactionId = input.readLong();
-			this.payload = reader.apply(input, recordLength);
-			input.markEnd();
+			final long transactionId = input.readLong();
+			final T payload = payloadReader.get();
+			input.markEnd(control);
 
+			return new StorageRecord<>(
+				transactionId, closesTransaction, payload,
+				new FileLocation(location.startingPosition(), location.recordLength())
+			);
 		}
 	}
 
-	@Override
-	public boolean equals(Object o) {
-		if (this == o) return true;
-		if (o == null || getClass() != o.getClass()) return false;
-		StorageRecord<?> that = (StorageRecord<?>) o;
-		return nodeId == that.nodeId && transactionId == that.transactionId && closesTransaction == that.closesTransaction && Objects.equals(payload, that.payload) && Objects.equals(fileLocation, that.fileLocation);
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(nodeId, transactionId, closesTransaction, payload, fileLocation);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
-
-	private void writeHeader(@Nonnull ObservableOutput<?> output, byte nodeId, long transactionId) {
+	private static void writeHeader(@Nonnull ObservableOutput<?> output, long transactionId) {
 		output.markStart();
 
 		// we don't know the record length yet
@@ -346,59 +266,178 @@ public class StorageRecord<T> {
 
 		output.markPayloadStart();
 		// write transactional information
-		output.writeByte(nodeId);
 		output.writeLong(transactionId);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 *
+	 * @param output
+	 * @param transactionId
+	 * @param closesTransaction
+	 * @param payloadWriter
+	 * @return
+	 * @param <T>
+	 * @param <OS>
+	 */
+	private static <T, OS extends OutputStream> PayloadWithFileLocation<T> writeRecord(
+		@Nonnull ObservableOutput<OS> output,
+		long transactionId,
+		boolean closesTransaction,
+		@Nonnull Function<ObservableOutput<?>, T> payloadWriter
+	) {
+		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
+		return output.doWithOnBufferOverflowHandler(
+			new OnBufferOverflowHandler<>(recordLocations, output, transactionId),
+			() -> {
+				// write storage record header
+				writeHeader(output, transactionId);
+				// finally, write payload
+				final T thePayload = payloadWriter.apply(output);
+				// compute crc32 and fill in record length
+				final FileLocation theFileLocation = output.markEnd(setBit((byte) 0, TRANSACTION_CLOSING_BIT, closesTransaction));
+				// return both
+				return new PayloadWithFileLocation<>(thePayload, theFileLocation);
+			}
+		);
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @param output
+	 * @param transactionId
+	 * @param closesTransaction
+	 * @param kryo
+	 * @param payload
+	 * @return
+	 * @param <T>
+	 * @param <OS>
+	 */
+	private static <T, OS extends OutputStream> FileLocation writeRecord(
+		@Nonnull ObservableOutput<OS> output,
+		long transactionId,
+		boolean closesTransaction,
+		@Nonnull Kryo kryo,
+		@Nonnull T payload
+	) {
+		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(FileLocationPointer.INITIAL);
+		return output.doWithOnBufferOverflowHandler(
+			new OnBufferOverflowHandler<>(recordLocations, output, transactionId),
+			() -> {
+				// write storage record header
+				writeHeader(output, transactionId);
+				// finally, write payload
+				kryo.writeObject(output, payload);
+				// compute crc32 and fill in record length
+				final byte controlByte = setBit((byte) 0, TRANSACTION_CLOSING_BIT, closesTransaction);
+				final FileLocation completeRecordLocation = output.markEnd(controlByte);
+				// return file length that possibly spans multiple records
+				return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
+			}
+		);
+	}
+
+	/**
+	 * Constructor that is used for WRITING the record to the passed output stream.
+	 */
+	public <OS extends OutputStream> StorageRecord(@Nonnull Kryo kryo, @Nonnull ObservableOutput<OS> output, long transactionId, boolean closesTransaction, @Nonnull T payload) {
+		this(
+			transactionId,
+			closesTransaction,
+			payload,
+			writeRecord(output, transactionId, closesTransaction, kryo, payload)
+		);
+	}
+
+	/**
+	 * Constructor that is used for WRITING the record to the passed output stream.
+	 */
+	public <OS extends OutputStream> StorageRecord(@Nonnull ObservableOutput<OS> output, long transactionId, boolean closesTransaction, @Nonnull Function<ObservableOutput<?>, T> payloadWriter) {
+		this(
+			transactionId,
+			closesTransaction,
+			writeRecord(output, transactionId, closesTransaction, payloadWriter)
+		);
+	}
+
+	private StorageRecord(
+		long transactionId,
+		boolean closesTransaction,
+		@Nonnull PayloadWithFileLocation<T> tPayloadWithFileLocation
+	) {
+		this(
+			transactionId, closesTransaction, tPayloadWithFileLocation.payload(), tPayloadWithFileLocation.fileLocation()
+		);
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+		StorageRecord<?> that = (StorageRecord<?>) o;
+		return transactionId == that.transactionId &&
+			closesTransaction == that.closesTransaction &&
+			Objects.equals(payload, that.payload) &&
+			Objects.equals(fileLocation, that.fileLocation);
+	}
+
+	/*
+		PRIVATE METHODS
+	 */
+
+	@Override
+	public int hashCode() {
+		int result = (int) (transactionId ^ (transactionId >>> 32));
+		result = 31 * result + (closesTransaction ? 1 : 0);
+		result = 31 * result + (payload != null ? payload.hashCode() : 0);
+		result = 31 * result + fileLocation.hashCode();
+		return result;
 	}
 
 	private record PayloadWithFileLocation<T>(T payload, FileLocation fileLocation) {
 	}
 
-	@Data
 	private static class ReadingContext {
-		private final long startPosition;
-		private int recordLength;
-		private boolean closesTransaction;
-		private boolean continuationRecord;
+		@Getter private final long startPosition;
+		@Getter private int recordLength;
+		@Getter private byte controlByte;
+		@Getter private boolean closesTransaction;
+		@Getter private boolean continuationRecord;
 
 		public ReadingContext(long startPosition, int recordLength, byte control) {
 			this.startPosition = startPosition;
 			this.recordLength = recordLength;
+			this.controlByte = control;
 			this.closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
 			this.continuationRecord = isBitSet(control, CONTINUATION_BIT);
 		}
 
 		public void updateWithNextRecord(int recordLength, byte control) {
 			this.recordLength += recordLength;
+			this.controlByte = control;
 			this.closesTransaction = isBitSet(control, TRANSACTION_CLOSING_BIT);
 			this.continuationRecord = isBitSet(control, CONTINUATION_BIT);
 		}
 
 	}
 
-	private static class FileLocationPointer {
-		public static final FileLocationPointer INITIAL = new FileLocationPointer();
-		@Getter private final FileLocationPointer previousPointer;
-		@Getter private final FileLocation fileLocation;
-
-		private FileLocationPointer() {
-			this.previousPointer = null;
-			this.fileLocation = null;
-		}
-
-		public FileLocationPointer(FileLocationPointer previousPointer, FileLocation fileLocation) {
-			this.previousPointer = previousPointer;
-			this.fileLocation = fileLocation;
-		}
+	/**
+	 * TODO JNO - DOCUMENT ME
+	 * @param previousPointer
+	 * @param fileLocation
+	 */
+	private record FileLocationPointer(
+		@Nullable FileLocationPointer previousPointer,
+		@Nullable FileLocation fileLocation
+	) {
+		public static final FileLocationPointer INITIAL = new FileLocationPointer(null, null);
 
 		public boolean isEmpty() {
 			return this.fileLocation == null;
 		}
 
-		public boolean hasPrevious() {
-			return previousPointer != null && !previousPointer.isEmpty();
-		}
-
-		public FileLocation computeOverallFileLocation(FileLocation lastRecordLocation) {
+		@Nonnull
+		public FileLocation computeOverallFileLocation(@Nonnull FileLocation lastRecordLocation) {
 			if (isEmpty()) {
 				return lastRecordLocation;
 			} else {
@@ -406,14 +445,61 @@ public class StorageRecord<T> {
 				long startingPosition = lastRecordLocation.startingPosition();
 				FileLocationPointer current = this;
 				while (!current.isEmpty()) {
-					final FileLocation currentFileLocation = current.getFileLocation();
+					final FileLocation currentFileLocation = current.fileLocation;
 					lengthAcc += currentFileLocation.recordLength();
 					startingPosition = currentFileLocation.startingPosition();
-					current = current.getPreviousPointer();
+					current = current.previousPointer;
 				}
 				return new FileLocation(startingPosition, lengthAcc);
 			}
 		}
 	}
 
+	/**
+	 * TODO JNO - document me
+	 */
+	private record BufferOverflowReadHandler<IS extends InputStream>(
+		ReadingContext context,
+		long transactionId
+	) implements Consumer<ObservableInput<IS>> {
+
+		@Override
+		public void accept(ObservableInput<IS> observableInput) {
+			observableInput.markEnd(context.getControlByte());
+
+			observableInput.markStart();
+			final int continuingRecordLength = observableInput.readInt();
+			final byte continuingControl = observableInput.readByte();
+
+			observableInput.markPayloadStart(continuingRecordLength);
+			final long continuingTransactionId = observableInput.readLong();
+
+			Assert.isPremiseValid(
+				transactionId == continuingTransactionId,
+				() -> new CorruptedRecordException("Transaction id differs in continuous record (" + transactionId + " vs. " + continuingTransactionId + "). This is not expected!", transactionId, continuingTransactionId)
+			);
+			context.updateWithNextRecord(continuingRecordLength, continuingControl);
+		}
+
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	private record OnBufferOverflowHandler<OO extends ObservableOutput<?>>(
+		AtomicReference<FileLocationPointer> recordLocations,
+		OO output,
+		long transactionId
+	) implements Consumer<OO> {
+
+		@Override
+		public void accept(OO filledOutput) {
+			final byte controlByte = setBit((byte) 0, CONTINUATION_BIT, true);
+			final FileLocation incompleteRecordLocation = filledOutput.markEnd(controlByte);
+			// register file location of the continuous record
+			recordLocations.set(new FileLocationPointer(recordLocations.get(), incompleteRecordLocation));
+			// write storage record header for another record
+			writeHeader(output, transactionId);
+		}
+	}
 }

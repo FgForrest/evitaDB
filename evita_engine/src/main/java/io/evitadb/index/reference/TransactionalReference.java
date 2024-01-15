@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.reference;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
@@ -111,7 +110,7 @@ public class TransactionalReference<T> implements TransactionalLayerProducer<Ref
 
 	@Nonnull
 	@Override
-	public Optional<T> createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Optional<T> createCopyWithMergedTransactionalMemory(@Nullable ReferenceChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return layer == null ? Optional.ofNullable(value.get()) : Optional.ofNullable(layer.get());
 	}
 

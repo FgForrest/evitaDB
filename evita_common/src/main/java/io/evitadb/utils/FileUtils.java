@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -97,6 +97,23 @@ public class FileUtils {
 					"Failed to delete directory!", ex
 				);
 			}
+		}
+	}
+
+	/**
+	 * Checks whether the directory is empty or contains any file.
+	 *
+	 * @param path Path to directory
+	 * @return True if directory is empty, false otherwise
+	 */
+	public static boolean isDirectoryEmpty(@Nonnull Path path) {
+		try (final DirectoryStream<Path> dirStream = Files.newDirectoryStream(path, entry -> entry.toFile().isFile())) {
+			return !dirStream.iterator().hasNext();
+		} catch (IOException ex) {
+			throw new UnexpectedIOException(
+				"Failed to read directory: " + path,
+				"Failed to read directory!", ex
+			);
 		}
 	}
 }

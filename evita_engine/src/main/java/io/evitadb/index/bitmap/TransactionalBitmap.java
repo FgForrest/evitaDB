@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.bitmap;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
@@ -90,7 +89,7 @@ public class TransactionalBitmap implements RoaringBitmapBackedBitmap, Transacti
 
 	@Nonnull
 	@Override
-	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public RoaringBitmapBackedBitmap createCopyWithMergedTransactionalMemory(@Nullable BitmapChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
 			return new BaseBitmap(roaringBitmap);
 		} else {

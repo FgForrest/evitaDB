@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -39,6 +39,7 @@ module evita.engine {
 	exports io.evitadb.core.query.algebra;
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.sequence;
+	exports io.evitadb.core.transaction;
 	exports io.evitadb.index;
 	exports io.evitadb.index.bool;
 	exports io.evitadb.index.cardinality;
@@ -56,9 +57,10 @@ module evita.engine {
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
 	exports io.evitadb.index.transactionalMemory;
-	exports io.evitadb.index.transactionalMemory.diff;
 	exports io.evitadb.store.spi;
 	exports io.evitadb.store.spi.model;
+	exports io.evitadb.store.spi.model.storageParts;
+	exports io.evitadb.store.spi.model.reference;
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
 	exports io.evitadb.core.query;

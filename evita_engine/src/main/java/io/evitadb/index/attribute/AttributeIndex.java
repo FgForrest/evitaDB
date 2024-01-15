@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.core.Transaction;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -584,13 +583,13 @@ public class AttributeIndex implements AttributeIndexContract,
 
 	@Nonnull
 	@Override
-	public AttributeIndex createCopyWithMergedTransactionalMemory(AttributeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public AttributeIndex createCopyWithMergedTransactionalMemory(AttributeIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final AttributeIndex attributeIndex = new AttributeIndex(
 			entityType,
-			transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(filterIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(sortIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(chainIndex, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(uniqueIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(filterIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(sortIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(chainIndex)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return attributeIndex;

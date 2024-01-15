@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
@@ -32,7 +31,6 @@ import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
@@ -87,10 +85,10 @@ public class TransactionalSet<K> implements Set<K>,
 
 	@Nonnull
 	@Override
-	public Set<K> createCopyWithMergedTransactionalMemory(SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public Set<K> createCopyWithMergedTransactionalMemory(SetChanges<K> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// iterate over inserted or updated keys
 		if (layer != null) {
-			return layer.createMergedSet(transactionalLayer, transaction);
+			return layer.createMergedSet(transactionalLayer);
 		} else {
 			// iterate original map and copy all values from it
 			List<K> modifiedEntries = null;
@@ -100,7 +98,7 @@ public class TransactionalSet<K> implements Set<K>,
 				final K transformedEntry;
 				if (entry instanceof TransactionalLayerProducer) {
 					//noinspection unchecked
-					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) entry, transaction);
+					transformedEntry = (K) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer<?, ?>) entry);
 				} else {
 					transformedEntry = entry;
 				}

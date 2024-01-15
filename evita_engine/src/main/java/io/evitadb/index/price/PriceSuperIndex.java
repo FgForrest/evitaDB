@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ package io.evitadb.index.price;
 
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
-import io.evitadb.core.Transaction;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceSuperIndex.PriceIndexChanges;
@@ -120,12 +119,12 @@ public class PriceSuperIndex extends AbstractPriceIndex<PriceListAndCurrencyPric
 
 	@Nonnull
 	@Override
-	public PriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public PriceSuperIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final PriceSuperIndex priceIndex = new PriceSuperIndex(
 			// we need to pass the atomic integer here because there may be updates pending, and we don't want to lose them
 			// the sequences don't work transactionally
 			internalPriceIdSequence,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes)
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return priceIndex;

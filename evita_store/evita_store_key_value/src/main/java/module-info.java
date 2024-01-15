@@ -20,5 +20,6 @@ module evita.store.key.value {
 	requires evita.api;
 	requires evita.common;
 	requires evita.store.core;
+	requires evita.engine;
 
 }

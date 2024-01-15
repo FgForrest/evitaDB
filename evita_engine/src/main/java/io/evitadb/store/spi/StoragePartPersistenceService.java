@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,16 +23,14 @@
 
 package io.evitadb.store.spi;
 
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.util.List;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
@@ -42,6 +40,13 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface StoragePartPersistenceService extends Closeable {
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId);
 
 	/**
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
@@ -71,12 +76,12 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * Reads container primarily from transactional memory and when the container is not present there (or transaction
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 *
-	 * @param storagePartPk primary key of the storage part
-	 * @param container     container to be stored
-	 * @param <T>           type of the storage part container
+	 * @param catalogVersion catalog version
+	 * @param container      container to be stored
+	 * @param <T>            type of the storage part container
 	 * @return already or newly assigned {@link StoragePart#getStoragePartPK()} - primary key of the storage part
 	 */
-	<T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container);
+	<T extends StoragePart> long putStoragePart(long catalogVersion, @Nonnull T container);
 
 	/**
 	 * Removes container from the transactional memory. This method should be used only for container, that has
@@ -118,20 +123,6 @@ public interface StoragePartPersistenceService extends Closeable {
 	 * @return the number of storage parts of the specified container type
 	 */
 	<T extends StoragePart> int countStorageParts(@Nonnull Class<T> containerType);
-
-	/**
-	 * Method applies all deferredOperations from the passed list on current data storage.
-	 */
-	default void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
-		for (final DeferredStorageOperation<?> deferredOperation : deferredOperations) {
-			Assert.isPremiseValid(
-				deferredOperation.getRequiredPersistenceServiceType().isInstance(this),
-				() -> new EvitaInternalError("Incompatible deferred operation!")
-			);
-			//noinspection unchecked,rawtypes
-			((DeferredStorageOperation) deferredOperation).execute(owner, storagePartPk, this);
-		}
-	}
 
 	/**
 	 * Method serializes passed {@link StoragePart} to a byte array.

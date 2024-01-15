@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaDescriptionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.RemoveSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.store.dataType.serializer.EnumNameSerializer;
 import io.evitadb.store.dataType.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.wal.data.EntityRemoveMutationSerializer;
@@ -98,8 +99,10 @@ import io.evitadb.store.wal.schema.attribute.*;
 import io.evitadb.store.wal.schema.catalog.*;
 import io.evitadb.store.wal.schema.entity.*;
 import io.evitadb.store.wal.schema.reference.*;
+import io.evitadb.store.wal.transaction.TransactionMutationSerializer;
 import io.evitadb.utils.Assert;
 
+import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
 /**
@@ -111,7 +114,7 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 	private static final int WAL_BASE = 300;
 
 	@Override
-	public void accept(Kryo kryo) {
+	public void accept(@Nonnull Kryo kryo) {
 		int index = WAL_BASE;
 
 		kryo.register(EvolutionMode.class, new EnumNameSerializer<>(), index++);
@@ -210,6 +213,8 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(SetReferenceGroupMutation.class, new SerialVersionBasedSerializer<>(new SetReferenceGroupMutationSerializer(), SetReferenceGroupMutation.class), index++);
 		kryo.register(EntityRemoveMutation.class, new SerialVersionBasedSerializer<>(new EntityRemoveMutationSerializer(), EntityRemoveMutation.class), index++);
 		kryo.register(EntityUpsertMutation.class, new SerialVersionBasedSerializer<>(new EntityUpsertMutationSerializer(), EntityUpsertMutation.class), index++);
+
+		kryo.register(TransactionMutation.class, new SerialVersionBasedSerializer<>(new TransactionMutationSerializer(), TransactionMutation.class), index++);
 
 		Assert.isPremiseValid(index < 400, "Index count overflow.");
 	}

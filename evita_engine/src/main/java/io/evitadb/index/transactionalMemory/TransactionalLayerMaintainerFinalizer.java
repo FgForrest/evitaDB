@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,11 +23,11 @@
 
 package io.evitadb.index.transactionalMemory;
 
-import io.evitadb.core.Transaction;
+import javax.annotation.Nonnull;
 
 /**
  * Interface implementation contains logic, that applies cherry-picked changes from {@link TransactionalLayerMaintainer} upon
- * immutable state and by using {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)}
+ * immutable state and by using {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
  * creates new instances respecting both initial state and the diff upon it.
  *
  * Consumers never alter original objects and always produce new ones. Consumers don't usually make deep copy of the original
@@ -36,14 +36,20 @@ import io.evitadb.core.Transaction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
-public interface TransactionalLayerConsumer {
+public interface TransactionalLayerMaintainerFinalizer {
 
 	/**
-	 * Contains logic that calls {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges(TransactionalLayerProducer, Transaction)}
-	 * which internally calls {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)}
+	 * Contains logic that calls {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges(TransactionalLayerProducer)}
+	 * which internally calls {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
 	 * and also unregisters the transactional piece with diff from the internal memory. At the end of the transaction
-	 * there must be no diff left (all must be processed/consumed by TransactionalLayerConsumer implementations.
+	 * there must be no diff left (all must be processed/consumed by TransactionalLayerMaintainerFinalizer implementations.
 	 */
-	void collectTransactionalChanges(TransactionalLayerMaintainer transactionalLayer);
+	void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer);
+
+	/**
+	 * TODO JNO - document me
+	 * @param transactionalLayer
+	 */
+	void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer);
 
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,17 +24,15 @@
 package io.evitadb.index.transactionalMemory;
 
 import com.carrotsearch.hppc.ObjectIdentityHashSet;
-import io.evitadb.core.Transaction;
+import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -58,11 +56,11 @@ import java.util.function.Function;
  *
  * All changes made with objects participating in transaction (all must implement {@link TransactionalLayerCreator} or
  * {@link TransactionalLayerProducer} interface) must be captured in change objects and must not affect original state.
- * Changes must create separate copy in {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)}
+ * Changes must create separate copy in {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
  * method.
  *
- * All copies created by {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)}
- * must be consumed by registered {@link TransactionalLayerConsumer#collectTransactionalChanges(TransactionalLayerMaintainer)} so
+ * All copies created by {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
+ * must be consumed by registered {@link TransactionalLayerMaintainerFinalizer#commit(TransactionalLayerMaintainer)} so
  * that no changes end in the void.
  *
  * Transactional memory is bound to current thread. Single thread may open multiple simultaneous transactions, but accessible
@@ -83,6 +81,14 @@ public class TransactionalMemory {
 		// execute commit - all transactional object can still access their transactional memories during
 		// entire commit phase
 		transactionalLayer.commit();
+	}
+
+	/**
+	 * Rolls back the transaction, cleans up all resources connected with them.
+	 */
+	public void rollback() {
+		// execute rollback - some transactional objects may want to react and clean-up resources
+		transactionalLayer.rollback();
 	}
 
 	/**
@@ -118,11 +124,11 @@ public class TransactionalMemory {
 	}
 
 	/**
-	 * Returns read-only list of registered transaction commit handlers.
+	 * Returns registered transaction finalizer.
 	 */
 	@Nonnull
-	public List<TransactionalLayerConsumer> getTransactionCommitHandlers() {
-		return Collections.unmodifiableList(transactionalLayer.getLayerConsumers());
+	public TransactionalLayerMaintainerFinalizer getTransactionalLayerMaintainerFinalizer() {
+		return transactionalLayer.getFinalizer();
 	}
 
 	/**
@@ -170,20 +176,12 @@ public class TransactionalMemory {
 		return this.transactionalLayer.removeTransactionalMemoryLayerIfExists(layerCreator);
 	}
 
-	public TransactionalMemory(@Nonnull UUID transactionId) {
+	public TransactionalMemory(
+		@Nonnull UUID transactionId,
+		@Nonnull TransactionHandler transactionHandler
+	) {
 		this.transactionId = transactionId;
-		this.transactionalLayer = new TransactionalLayerMaintainer();
-	}
-
-	/**
-	 * Registers transaction commit handler for current transaction. Implementation of {@link TransactionalLayerConsumer}
-	 * may withdraw multiple {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer, Transaction)} 4
-	 * and use their results to swap certain internal state atomically.
-	 *
-	 * All withdrawn objects will be considered as committed.
-	 */
-	public void addTransactionCommitHandler(@Nonnull TransactionalLayerConsumer consumer) {
-		transactionalLayer.addLayerConsumer(consumer);
+		this.transactionalLayer = new TransactionalLayerMaintainer(transactionHandler);
 	}
 
 }

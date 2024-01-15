@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,11 +31,12 @@ import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.service.KeyCompressor;
-import lombok.Data;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -49,14 +50,15 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-@Data
+@Immutable
+@ThreadSafe
 public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 
 	/**
 	 * Descriptor version is incremented with each update. Version is not stored on the disk, it serves only to distinguish
 	 * whether there is any change made in the header and whether it needs to be persisted on disk.
 	 */
-	@Getter private final long version;
+	private final long version;
 	/**
 	 * Contains location of the last OffsetIndex fragment for this version of the header / collection.
 	 */
@@ -64,39 +66,49 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	/**
 	 * Implementation of {@link KeyCompressor} that allows adding new entries during write.
 	 */
-	@Nonnull private final ReadWriteKeyCompressor writeKeyCompressor;
+	@Getter @Nonnull private final ReadWriteKeyCompressor writeKeyCompressor;
 	/**
 	 * Implementation of {@link KeyCompressor} that allows only reading existing entries.
 	 */
-	@Nonnull private final KeyCompressor readOnlyKeyCompressor;
+	@Getter @Nonnull private final KeyCompressor readOnlyKeyCompressor;
 	/**
 	 * {@link Kryo} instance used for writing data to the output stream.
 	 */
-	@Nonnull private final Kryo writeKryo;
+	@Getter @Nonnull private final Kryo writeKryo;
 	/**
 	 * Reference to the function that allows creating new {@link VersionedKryo} instances for reading {@link OffsetIndex}
 	 * contents using up-to-date configuration specified in {@link VersionedKryoKeyInputs}.
 	 *
 	 * This function is passed from outside in constructor.
 	 */
-	@Nonnull private final Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory;
+	@Getter @Nonnull private final Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory;
 	/**
 	 * Reference to the function that allows creating new {@link VersionedKryo} instances for reading {@link OffsetIndex}.
 	 * This is internal object that wraps {@link #kryoFactory} and allows only to propagate passed version that reflects
 	 * the key changes in {@link VersionedKryoKeyInputs}.
 	 */
-	@Nonnull private final Function<Long, VersionedKryo> readKryoFactory;
+	@Getter @Nonnull private final Function<Long, VersionedKryo> readKryoFactory;
 
 	public OffsetIndexDescriptor(
 		@Nonnull PersistentStorageDescriptor offsetIndexHeader,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
+		this(
+			offsetIndexHeader.fileLocation(), offsetIndexHeader.compressedKeys(), kryoFactory
+		);
+	}
+
+	public OffsetIndexDescriptor(
+		@Nullable FileLocation fileLocation,
+		@Nonnull Map<Integer, Object> compressedKeys,
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
+	) {
 		this.version = 1L;
-		this.fileLocation = offsetIndexHeader.getFileLocation();
+		this.fileLocation = fileLocation;
 		this.kryoFactory = kryoFactory;
 		// create writable instances
-		this.writeKeyCompressor = new ReadWriteKeyCompressor(offsetIndexHeader.getCompressedKeys());
-		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(offsetIndexHeader.getCompressedKeys());
+		this.writeKeyCompressor = new ReadWriteKeyCompressor(compressedKeys);
+		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(compressedKeys);
 		this.writeKryo = kryoFactory.apply(new VersionedKryoKeyInputs(writeKeyCompressor, 1));
 		// create read only instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
@@ -113,7 +125,7 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 		this.kryoFactory = fileOffsetIndexDescriptor.kryoFactory;
 		// keep all write instances
 		this.writeKeyCompressor = fileOffsetIndexDescriptor.writeKeyCompressor;
-		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(getCompressedKeys());
+		this.readOnlyKeyCompressor = new ReadOnlyKeyCompressor(this.writeKeyCompressor.getKeys());
 		this.writeKryo = fileOffsetIndexDescriptor.writeKryo;
 		// reset read only instances according to current state of write instances
 		this.readKryoFactory = updatedVersion -> kryoFactory.apply(
@@ -132,8 +144,19 @@ public class OffsetIndexDescriptor implements PersistentStorageDescriptor {
 	}
 
 	@Override
+	public long version() {
+		return version;
+	}
+
 	@Nonnull
-	public Map<Integer, Object> getCompressedKeys() {
+	@Override
+	public FileLocation fileLocation() {
+		return fileLocation;
+	}
+
+	@Override
+	@Nonnull
+	public Map<Integer, Object> compressedKeys() {
 		return writeKeyCompressor.getKeys();
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,18 +37,19 @@ import io.evitadb.api.requestResponse.data.structure.predicate.PriceContractSeri
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.BufferedChangeSet;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.price.PriceSuperIndex;
-import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.util.Iterator;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -66,7 +67,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	/**
 	 * Returns current instance of {@link EntityCollectionHeader}. The header is initialized in the instance constructor
 	 * and (because it's immutable) is exchanged with each {@link #flush(long, Function)} or
-	 * {@link #flushTrappedUpdates(BufferedChangeSet)} method call.
+	 * {@link #flushTrappedUpdates(DataStoreIndexChanges)} method call.
 	 */
 	@Nonnull
 	EntityCollectionHeader getCatalogEntityHeader();
@@ -81,7 +82,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		int entityPrimaryKey,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -95,7 +96,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -115,7 +116,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
 		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
 		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -131,7 +132,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 		@Nonnull EntitySchema entitySchema,
 		@Nonnull BinaryEntity entity,
 		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) throws EntityAlreadyRemovedException;
 
 	/**
@@ -162,7 +163,7 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	@Nonnull
 	Iterator<Entity> entityIterator(
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	);
 
 	/**
@@ -170,9 +171,17 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 	 */
 	@Nonnull
 	EntityCollectionHeader flush(
-		long transactionId,
+		long newCatalogVersion,
 		@Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory
 	);
+
+	/**
+	 * Flushes entire living data set to the target file. The file must exist and must be prepared for re-writing.
+	 * File must not be used by any other process.
+	 *
+	 * @param newFile target file
+	 */
+	void copySnapshotTo(@Nonnull File newFile);
 
 	/**
 	 * Method deletes entire entity collection persistent storage.
@@ -181,9 +190,8 @@ public non-sealed interface EntityCollectionPersistenceService extends Persisten
 
 	/**
 	 * Closes the entity collection persistent storage. If you don't call {@link #flush(long, Function)}
-	 * or {@link #flushTrappedUpdates(BufferedChangeSet)} you'll lose the data in the buffers.
+	 * or {@link #flushTrappedUpdates(DataStoreIndexChanges)} you'll lose the data in the buffers.
 	 */
 	@Override
 	void close();
-
 }

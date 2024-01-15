@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.IndexDataStructure;
@@ -299,14 +298,13 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	@Override
 	public ChainIndex createCopyWithMergedTransactionalMemory(
 		@Nullable ChainIndexChanges layer,
-		@Nonnull TransactionalLayerMaintainer transactionalLayer,
-		@Nullable Transaction transaction
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
 	) {
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new ChainIndex(
 			attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.chains, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.chains),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.elementStates)
 		);
 	}
 

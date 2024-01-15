@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,10 +23,8 @@
 
 package io.evitadb.index.transactionalMemory;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.index.transactionalMemory.exception.StaleTransactionMemoryException;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -51,6 +49,11 @@ import static java.util.Optional.ofNullable;
 @NotThreadSafe
 public class TransactionalLayerMaintainer {
 	/**
+	 * Finalizer that are able to process transactional layers and merge them with original state producing
+	 * brand-new state in return.
+	 */
+	@Nonnull private final TransactionalLayerMaintainerFinalizer finalizer;
+	/**
 	 * This field may refer to the upper transaction. Currently, it's not used but it's the preferred way of implementing
 	 * nested transactions if they're going to be supported in the future.
 	 */
@@ -60,11 +63,6 @@ public class TransactionalLayerMaintainer {
 	 * with isolated transactional memory.
 	 */
 	private final Map<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> transactionalLayer;
-	/**
-	 * List of all consumers that are able to process transactional layers and merge them with original state producing
-	 * brand-new state in return.
-	 */
-	private final List<TransactionalLayerConsumer> layerConsumers = new LinkedList<>();
 	/**
 	 * Internal flag that allows to avoid marking the used transactional layer as {@link TransactionalLayerState#DISCARDED}.
 	 * It's used when we need merged transactional state within the current transaction leaving the modification state
@@ -77,22 +75,29 @@ public class TransactionalLayerMaintainer {
 	 */
 	private boolean allowTransactionalLayerCreation = true;
 
-	TransactionalLayerMaintainer() {
-		parent = null;
-		transactionalLayer = new HashMap<>(1024);
+	TransactionalLayerMaintainer(
+		@Nonnull TransactionalLayerMaintainerFinalizer finalizer
+	) {
+		this.finalizer = finalizer;
+		this.parent = null;
+		this.transactionalLayer = new HashMap<>(4096);
 	}
 
-	TransactionalLayerMaintainer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	TransactionalLayerMaintainer(
+		@Nonnull TransactionalLayerMaintainerFinalizer finalizer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	) {
+		this.finalizer = finalizer;
 		this.parent = transactionalLayer;
-		this.transactionalLayer = new HashMap<>(1024);
+		this.transactionalLayer = new HashMap<>(4096);
 	}
 
 	/**
-	 * Returns list of all {@link TransactionalLayerConsumer} that take care of application diffs from transactional memory.
+	 * Returns {@link TransactionalLayerMaintainerFinalizer} that take care of application diffs from transactional memory.
 	 */
 	@Nonnull
-	public List<? extends TransactionalLayerConsumer> getLayerConsumers() {
-		return this.layerConsumers;
+	public TransactionalLayerMaintainerFinalizer getFinalizer() {
+		return this.finalizer;
 	}
 
 	/**
@@ -128,7 +133,7 @@ public class TransactionalLayerMaintainer {
 	 * @return NULL value only when {@link TransactionalLayerCreator} produces Void as its layer
 	 */
 	@Nullable
-	public <T> T getTransactionalMemoryLayer(TransactionalLayerCreator<T> layerCreator) {
+	public <T> T getTransactionalMemoryLayer(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerCreator);
 		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemoryWrapper = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
 		if (transactionalMemoryWrapper != null) {
@@ -157,7 +162,8 @@ public class TransactionalLayerMaintainer {
 	 *
 	 * @return NULL value when no diff piece is found, new diff piece is never created by this method
 	 */
-	public <T> T getTransactionalMemoryLayerIfExists(TransactionalLayerCreator<T> layerProvider) {
+	@Nullable
+	public <T> T getTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
 		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
 		if (transactionalMemory == null && parent != null) {
@@ -173,13 +179,16 @@ public class TransactionalLayerMaintainer {
 	 *
 	 * Method returns NULL if no transactional changes were made to the object, and it may remain same.
 	 */
-	public <S, T> S getStateCopyWithCommittedChangesWithoutDiscardingState(TransactionalLayerProducer<T, S> transactionalLayerProducer, Transaction transaction) {
+	@Nonnull
+	public <S, T> S getStateCopyWithCommittedChangesWithoutDiscardingState(
+		@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer
+	) {
 		try {
 			Assert.isTrue(
 				avoidDiscardingState.compareAndSet(false, true),
 				"Calling getStateCopyWithCommittedChangesWithoutDiscardingState in nested way is not allowed (we don't maintain stack)!"
 			);
-			return getStateCopyWithCommittedChanges(transactionalLayerProducer, transaction);
+			return getStateCopyWithCommittedChanges(transactionalLayerProducer);
 		} finally {
 			avoidDiscardingState.set(false);
 		}
@@ -191,13 +200,13 @@ public class TransactionalLayerMaintainer {
 	 * the transaction.
 	 */
 	@Nonnull
-	public <S, T> S getStateCopyWithCommittedChanges(@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer, @Nullable Transaction transaction) {
+	public <S, T> S getStateCopyWithCommittedChanges(@Nonnull TransactionalLayerProducer<T, S> transactionalLayerProducer) {
 		final TransactionalLayerWrapper<T> transactionalLayerForItem = getTransactionalMemoryLayerItemWrapperIfExists(transactionalLayerProducer);
 		final S copyWithCommittedChanges = transactionalLayerProducer.createCopyWithMergedTransactionalMemory(
 			ofNullable(transactionalLayerForItem)
 				.map(TransactionalLayerWrapper::getItem)
 				.orElse(null),
-			this, transaction
+			this
 		);
 		if (!avoidDiscardingState.get() && transactionalLayerForItem != null) {
 			transactionalLayerForItem.discard();
@@ -206,18 +215,8 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
-	 * Method registers new {@link TransactionalLayerConsumer} to the set of implementations that take care of application
-	 * diffs from transactional memory.
-	 *
-	 * @see TransactionalLayerConsumer
-	 */
-	void addLayerConsumer(@Nonnull TransactionalLayerConsumer consumer) {
-		this.layerConsumers.add(consumer);
-	}
-
-	/**
-	 * Method traverses through all {@link #layerConsumers} and collects new objects that combines original state and
-	 * diff in transactional memory. Method doesn't handle propagation of newly created object to the `currently used state`.
+	 * Method uses {@link #finalizer} to collect new objects that combine original state and diff in transactional
+	 * memory. Method doesn't handle propagation of newly created object to the `currently used state`.
 	 * Consumers should build up new internal state and then `old state` should be swapped with `new state` in single
 	 * reference change so that all transactional changes are applied atomically.
 	 *
@@ -230,15 +229,13 @@ public class TransactionalLayerMaintainer {
 
 		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
 		// memory containers
-		for (TransactionalLayerConsumer layerConsumer : layerConsumers) {
-			layerConsumer.collectTransactionalChanges(this);
-		}
+		finalizer.commit(this);
 		// collect all data that has not been processed and discarded by the consumers and connect them with their creators
 		final List<TransactionalLayerCreator<?>> uncommittedData = new LinkedList<>();
 		for (Entry<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> entry : transactionalLayer.entrySet()) {
 			if (entry.getValue().getState() == TransactionalLayerState.ALIVE) {
 				final TransactionalLayerCreatorKey key = entry.getKey();
-				final TransactionalLayerCreator<?> transactionalLayerCreator = key.getTransactionalLayerCreator();
+				final TransactionalLayerCreator<?> transactionalLayerCreator = key.transactionalLayerCreator();
 				uncommittedData.add(transactionalLayerCreator);
 			}
 		}
@@ -250,13 +247,25 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
+	 * TODO JNO - document me
+	 */
+	void rollback() {
+		// no new transactional memories may happen
+		allowTransactionalLayerCreation = false;
+
+		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
+		// memory containers
+		finalizer.rollback(this);
+	}
+
+	/**
 	 * Returns existing transactional memory for passed {@link TransactionalLayerCreator}. If no transactional memory
 	 * diff piece exists NULL is returned.
 	 *
 	 * @return NULL value when no diff piece is found, new diff piece is never created by this method
 	 */
 	@Nullable
-	private <T> TransactionalLayerWrapper<T> getTransactionalMemoryLayerItemWrapperIfExists(TransactionalLayerCreator<T> layerProvider) {
+	private <T> TransactionalLayerWrapper<T> getTransactionalMemoryLayerItemWrapperIfExists(@Nonnull TransactionalLayerCreator<T> layerProvider) {
 		final TransactionalLayerCreatorKey key = new TransactionalLayerCreatorKey(layerProvider);
 		@SuppressWarnings("unchecked") final TransactionalLayerWrapper<T> transactionalMemory = (TransactionalLayerWrapper<T>) transactionalLayer.get(key);
 		if (transactionalMemory == null && parent != null) {
@@ -269,19 +278,19 @@ public class TransactionalLayerMaintainer {
 	 * Class represents caching key for the diff piece created by {@link TransactionalLayerCreator#createLayer()}.
 	 * Equals and hash logic uses {@link TransactionalLayerCreator#getId()} and {@link TransactionalLayerCreator#getClass()}.
 	 */
-	private static class TransactionalLayerCreatorKey {
-		@Getter private final TransactionalLayerCreator<?> transactionalLayerCreator;
-		@Getter private final Long transactionalLayerProviderId;
+	private record TransactionalLayerCreatorKey(
+		@Nonnull TransactionalLayerCreator<?> transactionalLayerCreator,
+		long transactionalLayerProviderId
+	) {
 
-		TransactionalLayerCreatorKey(TransactionalLayerCreator<?> transactionalLayerCreator) {
-			this.transactionalLayerCreator = transactionalLayerCreator;
-			this.transactionalLayerProviderId = transactionalLayerCreator.getId();
+		TransactionalLayerCreatorKey(@Nonnull TransactionalLayerCreator<?> transactionalLayerCreator) {
+			this(transactionalLayerCreator, transactionalLayerCreator.getId());
 		}
 
 		@Override
 		public int hashCode() {
-			int result = transactionalLayerCreator != null ? transactionalLayerCreator.getClass().hashCode() : 0;
-			result = 31 * result + (transactionalLayerProviderId != null ? transactionalLayerProviderId.hashCode() : 0);
+			int result = transactionalLayerCreator.getClass().hashCode();
+			result = 31 * result + Long.hashCode(transactionalLayerProviderId);
 			return result;
 		}
 
@@ -292,9 +301,8 @@ public class TransactionalLayerMaintainer {
 
 			TransactionalLayerCreatorKey that = (TransactionalLayerCreatorKey) o;
 
-			if (transactionalLayerCreator != null ? !transactionalLayerCreator.getClass().equals(that.transactionalLayerCreator.getClass()) : that.transactionalLayerCreator != null)
-				return false;
-			return transactionalLayerProviderId != null ? transactionalLayerProviderId.equals(that.transactionalLayerProviderId) : that.transactionalLayerProviderId == null;
+			return transactionalLayerProviderId == that.transactionalLayerProviderId &&
+				transactionalLayerCreator.getClass().equals(that.transactionalLayerCreator.getClass());
 		}
 
 	}

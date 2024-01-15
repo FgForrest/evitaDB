@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.list;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
@@ -85,10 +84,10 @@ public class TransactionalList<V> implements List<V>, Serializable, Cloneable, T
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	@Override
-	public List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public List<V> createCopyWithMergedTransactionalMemory(@Nullable ListChanges<V> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		return createCopyWithMergedTransactionalMemory(
 			layer,
-			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer) value, transaction)
+			value -> (V) transactionalLayer.getStateCopyWithCommittedChanges((TransactionalLayerProducer) value)
 		);
 	}
 

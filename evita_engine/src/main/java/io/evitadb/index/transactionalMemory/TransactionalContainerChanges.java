@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,8 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Transactional memory piece that collects created and removed inner transactional objects.
+ *
+ * TODO JNO  move entire io/evitadb/index/transactionalMemory to package io/evitadb/transaction
  */
 public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER extends TransactionalLayerProducer<DIFF_PIECE, COPY>> {
 	private List<PRODUCER> createdItems;

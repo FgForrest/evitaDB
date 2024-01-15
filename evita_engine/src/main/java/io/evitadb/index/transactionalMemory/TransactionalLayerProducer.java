@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@
  */
 
 package io.evitadb.index.transactionalMemory;
-
-import io.evitadb.core.Transaction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,10 +42,11 @@ public interface TransactionalLayerProducer<DIFF_PIECE, COPY> extends Transactio
 	 *
 	 * @param layer              the transactional memory of this object that holds the difference protocol to apply to get updated version of the object
 	 * @param transactionalLayer object that provides access to entire transactional memory so that it can be manipulated
-	 * @param transaction        object that references current transaction and allows collecting data that needs to be persisted on commit,
-	 *                           if NULL the changes should not be persisted at all
 	 */
 	@Nonnull
-	COPY createCopyWithMergedTransactionalMemory(@Nullable DIFF_PIECE layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction);
+	COPY createCopyWithMergedTransactionalMemory(
+		@Nullable DIFF_PIECE layer,
+		@Nonnull TransactionalLayerMaintainer transactionalLayer
+	);
 
 }

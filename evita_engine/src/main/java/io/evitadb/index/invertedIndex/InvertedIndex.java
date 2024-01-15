@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.invertedIndex;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -350,8 +349,8 @@ public class InvertedIndex<T extends Comparable<T>> implements VoidTransactionMe
 
 	@Nonnull
 	@Override
-	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
-		return new InvertedIndex<>(transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap, transaction));
+	public InvertedIndex<T> createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		return new InvertedIndex<>(transactionalLayer.getStateCopyWithCommittedChanges(this.valueToRecordBitmap));
 	}
 
 	@Override

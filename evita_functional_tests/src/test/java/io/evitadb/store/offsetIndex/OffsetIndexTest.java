@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		final OffsetIndexDescriptor fileOffsetIndexDescriptor = fileOffsetIndex.flush(transactionId);
 		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
-				fileOffsetIndexDescriptor.getFileLocation(),
+				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor
 			),
 			options,
@@ -162,7 +162,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
-				fileOffsetIndexInfo.getFileLocation(),
+				fileOffsetIndexInfo.fileLocation(),
 				fileOffsetIndexInfo
 			),
 			options,
@@ -208,7 +208,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 		final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
-				fileOffsetIndexDescriptor.getFileLocation(),
+				fileOffsetIndexDescriptor.fileLocation(),
 				fileOffsetIndexDescriptor
 			),
 			options,
@@ -350,7 +350,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 				long start = System.nanoTime();
 				final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
 					new OffsetIndexDescriptor(
-						fileOffsetIndexDescriptor.getFileLocation(),
+						fileOffsetIndexDescriptor.fileLocation(),
 						fileOffsetIndexDescriptor
 					),
 					options,

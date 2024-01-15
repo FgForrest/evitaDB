@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,35 +21,36 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi.operation;
+package io.evitadb.store.spi.model.reference;
 
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.DeferredStorageOperation;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.nio.file.Path;
 
 /**
- * Implementation removes entire entity collection data file from the disk.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * TODO JNO - document me
  */
-@RequiredArgsConstructor
-public class RemoveCollectionOperation implements DeferredStorageOperation<CatalogPersistenceService> {
-	/**
-	 * Contains entity type that identifies the entity collection to drop.
-	 */
-	@Nonnull
-	private final String entityType;
+public record WalFileReference(
+	@Nonnull String catalogName,
+	int fileIndex,
+	@Nullable FileLocation fileLocation
+) implements CatalogVariableContentFileReference {
 
-	@Nonnull
 	@Override
-	public Class<CatalogPersistenceService> getRequiredPersistenceServiceType() {
-		return CatalogPersistenceService.class;
+	@Nonnull
+	public Path toFilePath(@Nonnull Path catalogFolder) {
+		return catalogFolder.resolve(
+			CatalogPersistenceService.getWalFileName(catalogName, fileIndex)
+		);
 	}
 
 	@Override
-	public void execute(@Nonnull String owner, long transactionId, @Nonnull CatalogPersistenceService persistenceService) {
-		persistenceService.deleteEntityCollection(entityType);
+	@Nonnull
+	public WalFileReference incrementAndGet() {
+		return new WalFileReference(catalogName, fileIndex + 1, null);
 	}
 }

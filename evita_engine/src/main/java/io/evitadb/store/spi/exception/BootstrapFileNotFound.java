@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,17 +37,17 @@ import java.nio.file.Path;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class HeaderFileNotFound extends EvitaInvalidUsageException {
+public class BootstrapFileNotFound extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = -337988885403543275L;
 	@Getter private final Path catalogDirectory;
-	@Getter private final File headerFile;
+	@Getter private final File bootstrapFile;
 
-	public HeaderFileNotFound(@Nonnull Path catalogDirectory, @Nonnull File headerFile) {
+	public BootstrapFileNotFound(@Nonnull Path catalogDirectory, @Nonnull File bootstrapFile) {
 		super(
-			"Failed to locate header file for catalog `" + catalogDirectory + "`.",
-			"Failed to locate header file for catalog `" + catalogDirectory.getName(catalogDirectory.getNameCount() - 1) + "`."
+			"Failed to locate bootstrap file for catalog `" + catalogDirectory + "` and the directory is not empty!",
+			"Failed to locate bootstrap file for catalog `" + catalogDirectory.getName(catalogDirectory.getNameCount() - 1) + "`."
 		);
 		this.catalogDirectory = catalogDirectory;
-		this.headerFile = headerFile;
+		this.bootstrapFile = bootstrapFile;
 	}
 }

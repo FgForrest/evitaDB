@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,37 +21,32 @@
  *   limitations under the License.
  */
 
-package io.evitadb.store.spi.operation;
+package io.evitadb.store.catalog.service;
 
+import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.model.StoragePart;
-import io.evitadb.store.spi.DeferredStorageOperation;
-import io.evitadb.store.spi.StoragePartPersistenceService;
-import lombok.RequiredArgsConstructor;
+import io.evitadb.store.service.StoragePartRegistry;
+import io.evitadb.store.spi.model.CatalogHeader;
+import io.evitadb.store.spi.model.EntityCollectionHeader;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.List;
 
 /**
- * Implementation stores the {@link #storagePart} to the storage file mem-table.
+ * Implementation provides registry of {@link StoragePart} for catalog model.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
-public class PutStoragePartOperation implements DeferredStorageOperation<StoragePartPersistenceService> {
-	/**
-	 * Represents the storage part, that should be inserted or updated.
-	 */
-	@Nonnull
-	private final StoragePart storagePart;
+public class CatalogStoragePartRegistry implements StoragePartRegistry {
 
 	@Nonnull
 	@Override
-	public Class<StoragePartPersistenceService> getRequiredPersistenceServiceType() {
-		return StoragePartPersistenceService.class;
+	public Collection<StoragePartRecord> listStorageParts() {
+		return List.of(
+			new StoragePartRecord((byte) 50, CatalogHeader.class),
+			new StoragePartRecord((byte) 51, EntityCollectionHeader.class),
+			new StoragePartRecord((byte) 52, CatalogSchemaStoragePart.class)
+		);
 	}
-
-	@Override
-	public void execute(@Nonnull String owner, long transactionId, @Nonnull StoragePartPersistenceService persistenceService) {
-		persistenceService.putStoragePart(transactionId, storagePart);
-	}
-
 }

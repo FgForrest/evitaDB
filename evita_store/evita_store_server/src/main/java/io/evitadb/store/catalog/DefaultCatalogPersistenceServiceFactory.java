@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -42,6 +43,7 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	@Nonnull
 	@Override
 	public CatalogPersistenceService createNew(
+		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions
 	) {
@@ -51,11 +53,12 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	@Nonnull
 	@Override
 	public CatalogPersistenceService load(
+		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions
 	) {
-		return new DefaultCatalogPersistenceService(catalogName, catalogStoragePath, storageOptions);
+		return new DefaultCatalogPersistenceService(catalogInstance, catalogName, catalogStoragePath, storageOptions);
 	}
 
 }

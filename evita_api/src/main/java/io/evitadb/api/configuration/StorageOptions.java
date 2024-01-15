@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ import java.util.Optional;
  * @param maxOpenedReadHandles        Maximum number of simultaneously opened {@link java.io.InputStream} to file offset index file.
  * @param computeCRC32C               Contains setting that determined whether CRC32C checksums will be computed for written
  *                                    records and also whether the CRC32C checksum will be checked on record read.
+ * @param transactionMemoryBufferLimitSizeBytes TODO JNO - document me
+ * @param transactionMemoryRegionCount TODO JNO - document me
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Builder
@@ -64,7 +66,11 @@ public record StorageOptions(
 	long waitOnCloseSeconds,
 	int outputBufferSize,
 	int maxOpenedReadHandles,
-	boolean computeCRC32C
+	boolean computeCRC32C,
+	long transactionMemoryBufferLimitSizeBytes,
+	int transactionMemoryRegionCount,
+	long walFileSizeBytes,
+	int walFileCountKept
 ) {
 
 	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152;
@@ -74,6 +80,10 @@ public record StorageOptions(
 	public static final int DEFAULT_WAIT_ON_CLOSE_SECONDS = 5;
 	public static final int DEFAULT_MAX_OPENED_READ_HANDLES = Runtime.getRuntime().availableProcessors();
 	public static final boolean DEFAULT_COMPUTE_CRC = true;
+	public static final long DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE = 16_777_216;
+	public static final int DEFAULT_TRANSACTION_MEMORY_REGION_COUNT = 256;
+	public static final int DEFAULT_WAL_SIZE_BYTES = 16_777_216;
+	public static final int DEFAULT_WAL_FILE_COUNT_KEPT = 8;
 
 	/**
 	 * Builder method is planned to be used only in tests.
@@ -84,7 +94,11 @@ public record StorageOptions(
 			Path.of(System.getProperty("java.io.tmpdir"), "evita/transactions"),
 			5, 5, DEFAULT_OUTPUT_BUFFER_SIZE,
 			Runtime.getRuntime().availableProcessors(),
-			true
+			true,
+			DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
+			DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
+			DEFAULT_WAL_SIZE_BYTES,
+			DEFAULT_WAL_FILE_COUNT_KEPT
 		);
 	}
 
@@ -110,7 +124,11 @@ public record StorageOptions(
 			DEFAULT_WAIT_ON_CLOSE_SECONDS,
 			DEFAULT_OUTPUT_BUFFER_SIZE,
 			DEFAULT_MAX_OPENED_READ_HANDLES,
-			DEFAULT_COMPUTE_CRC
+			DEFAULT_COMPUTE_CRC,
+			DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
+			DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
+			DEFAULT_WAL_SIZE_BYTES,
+			DEFAULT_WAL_FILE_COUNT_KEPT
 		);
 	}
 
@@ -121,7 +139,11 @@ public record StorageOptions(
 		long waitOnCloseSeconds,
 		int outputBufferSize,
 		int maxOpenedReadHandles,
-		boolean computeCRC32C
+		boolean computeCRC32C,
+		long transactionMemoryBufferLimitSizeBytes,
+		int transactionMemoryRegionCount,
+		long walFileSizeBytes,
+		int walFileCountKept
 	) {
 		this.storageDirectory = Optional.ofNullable(storageDirectory).orElse(DEFAULT_DIRECTORY);
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
@@ -130,6 +152,10 @@ public record StorageOptions(
 		this.outputBufferSize = outputBufferSize;
 		this.maxOpenedReadHandles = maxOpenedReadHandles;
 		this.computeCRC32C = computeCRC32C;
+		this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
+		this.transactionMemoryRegionCount = transactionMemoryRegionCount;
+		this.walFileSizeBytes = walFileSizeBytes;
+		this.walFileCountKept = walFileCountKept;
 	}
 
 	/**
@@ -153,6 +179,10 @@ public record StorageOptions(
 		private int outputBufferSize = DEFAULT_OUTPUT_BUFFER_SIZE;
 		private int maxOpenedReadHandles = DEFAULT_MAX_OPENED_READ_HANDLES;
 		private boolean computeCRC32C = DEFAULT_COMPUTE_CRC;
+		private long transactionMemoryBufferLimitSizeBytes = DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE;
+		private int transactionMemoryRegionCount = DEFAULT_TRANSACTION_MEMORY_REGION_COUNT;
+		private long walFileSizeBytes = DEFAULT_WAL_SIZE_BYTES;
+		private int walFileCountKept = DEFAULT_WAL_FILE_COUNT_KEPT;
 
 		Builder() {
 		}
@@ -165,43 +195,79 @@ public record StorageOptions(
 			this.outputBufferSize = storageOptions.outputBufferSize;
 			this.maxOpenedReadHandles = storageOptions.maxOpenedReadHandles;
 			this.computeCRC32C = storageOptions.computeCRC32C;
+			this.transactionMemoryBufferLimitSizeBytes = storageOptions.transactionMemoryBufferLimitSizeBytes;
+			this.transactionMemoryRegionCount = storageOptions.transactionMemoryRegionCount;
+			this.walFileSizeBytes = storageOptions.walFileSizeBytes;
+			this.walFileCountKept = storageOptions.walFileCountKept;
 		}
 
+		@Nonnull
 		public Builder storageDirectory(@Nonnull Path storageDirectory) {
 			this.storageDirectory = storageDirectory;
 			return this;
 		}
 
+		@Nonnull
 		public Builder transactionWorkDirectory(@Nonnull Path transactionWorkDirectory) {
 			this.transactionWorkDirectory = transactionWorkDirectory;
 			return this;
 		}
 
+		@Nonnull
 		public Builder lockTimeoutSeconds(long lockTimeoutSeconds) {
 			this.lockTimeoutSeconds = lockTimeoutSeconds;
 			return this;
 		}
 
+		@Nonnull
 		public Builder waitOnCloseSeconds(long waitOnCloseSeconds) {
 			this.waitOnCloseSeconds = waitOnCloseSeconds;
 			return this;
 		}
 
+		@Nonnull
 		public Builder outputBufferSize(int outputBufferSize) {
 			this.outputBufferSize = outputBufferSize;
 			return this;
 		}
 
+		@Nonnull
 		public Builder maxOpenedReadHandles(int maxOpenedReadHandles) {
 			this.maxOpenedReadHandles = maxOpenedReadHandles;
 			return this;
 		}
 
+		@Nonnull
 		public Builder computeCRC32(boolean computeCRC32) {
 			this.computeCRC32C = computeCRC32;
 			return this;
 		}
 
+		@Nonnull
+		public Builder transactionMemoryBufferLimitSizeBytes(long transactionMemoryBufferLimitSizeBytes) {
+			this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
+			return this;
+		}
+
+		@Nonnull
+		public Builder transactionMemoryRegionCount(int transactionMemoryRegionCount) {
+			this.transactionMemoryRegionCount = transactionMemoryRegionCount;
+			return this;
+		}
+
+		@Nonnull
+		public Builder walFileSizeBytes(long walFileSizeBytes) {
+			this.walFileSizeBytes = walFileSizeBytes;
+			return this;
+		}
+
+		@Nonnull
+		public Builder walFileCountKept(int walFileCountKept) {
+			this.walFileCountKept = walFileCountKept;
+			return this;
+		}
+
+		@Nonnull
 		public StorageOptions build() {
 			return new StorageOptions(
 				storageDirectory,
@@ -210,7 +276,11 @@ public record StorageOptions(
 				waitOnCloseSeconds,
 				outputBufferSize,
 				maxOpenedReadHandles,
-				computeCRC32C
+				computeCRC32C,
+				transactionMemoryBufferLimitSizeBytes,
+				transactionMemoryRegionCount,
+				walFileSizeBytes,
+				walFileCountKept
 			);
 		}
 

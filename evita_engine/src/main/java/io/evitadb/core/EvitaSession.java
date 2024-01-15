@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,6 +71,8 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.core.exception.CatalogCorruptedException;
+import io.evitadb.core.transaction.TransactionWalFinalizer;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -609,7 +611,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			.validate();
 
 		return executeInTransactionIfPossible(session -> {
-			getCatalog().updateSchema(session, schemaMutation);
+			getCatalog().updateSchema(schemaMutation);
 			return getCatalogSchema().version();
 		});
 	}
@@ -622,7 +624,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			return getCatalogSchema();
 		}
 		return executeInTransactionIfPossible(session -> {
-			getCatalog().updateSchema(session, schemaMutation);
+			getCatalog().updateSchema(schemaMutation);
 			return getCatalogSchema();
 		});
 	}
@@ -1216,22 +1218,20 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private Transaction createTransaction() {
 		Assert.isTrue(!isReadOnly(), "Evita session is read only!");
-		final Transaction transaction = new Transaction(
-			getCatalog(),
-			(currentCatalog, updatedCatalog) -> {
-				final CatalogContract previousCatalog = this.catalog.compareAndExchange(currentCatalog, updatedCatalog);
-				Assert.isPremiseValid(
-					previousCatalog == currentCatalog, "The expected catalog instance didn't match!"
-				);
-				ofNullable(this.updatedCatalogCallback)
-					.ifPresent(it -> this.catalog.set(it.apply(updatedCatalog)));
+		final CatalogContract currentCatalog = getCatalog();
+		if (currentCatalog instanceof Catalog theCatalog) {
+			final Transaction transaction = new Transaction(
+				UUID.randomUUID(),
+				new TransactionWalFinalizer(theCatalog, getId(), theCatalog::createIsolatedWalService)
+			);
+			// when the session is marked as "dry run" we never commit the transaction but always roll-back
+			if (sessionTraits.isDryRun()) {
+				transaction.setRollbackOnly();
 			}
-		);
-		// when the session is marked as "dry run" we never commit the transaction but always roll-back
-		if (sessionTraits.isDryRun()) {
-			transaction.setRollbackOnly();
+			return transaction;
+		} else {
+			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}
-		return transaction;
 	}
 
 	/**
@@ -1278,7 +1278,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 *
 	 * @throws UnexpectedTransactionStateException if transaction is not open
 	 */
-	private <T> T executeInTransactionIfPossible(Function<EvitaSessionContract, T> logic) {
+	private <T> T executeInTransactionIfPossible(@Nonnull Function<EvitaSessionContract, T> logic) {
 		if (transactionAccessor.get() == null && getCatalog().supportsTransaction()) {
 			try (final Transaction newTransaction = createTransaction()) {
 				transactionAccessor.set(newTransaction);

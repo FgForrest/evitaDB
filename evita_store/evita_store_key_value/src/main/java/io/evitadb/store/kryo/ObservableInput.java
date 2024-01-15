@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -425,7 +425,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * Expected and read record size is verified at all times.
 	 * Method resets all record related flags and another record can be read afterwards.
 	 */
-	public void markEnd() {
+	public void markEnd(byte controlByte) {
 		try {
 			this.readingPayload = false;
 			this.readingTail = true;
@@ -443,6 +443,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 				} else {
 					// update CRC32 checksum with the final payload part
 					crc32C.update(super.buffer, this.payloadStartPosition, payloadLength);
+					crc32C.update(controlByte);
 					// verify checksum
 					final long computedChecksum = crc32C.getValue();
 					final long loadedChecksum = readLong();
@@ -450,7 +451,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 						computedChecksum == loadedChecksum,
 						() -> new CorruptedRecordException(
 							"Invalid checksum - data probably corrupted " +
-								"(record should have CRC32C " + loadedChecksum + ", but was " + computedChecksum + ").",
+								"(record should have got CRC32C " + loadedChecksum + ", but was " + computedChecksum + ").",
 							loadedChecksum, computedChecksum
 						)
 					);

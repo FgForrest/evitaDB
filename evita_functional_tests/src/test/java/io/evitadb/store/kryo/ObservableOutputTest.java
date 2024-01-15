@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -173,6 +173,7 @@ class ObservableOutputTest {
 
 		crc32C.reset();
 		crc32C.update(bytes);
+		crc32C.update((byte) 0);
 		controlOutput.writeInt(length + OVERHEAD_SIZE);
 		controlOutput.writeByte(0);
 		controlOutput.writeBytes(bytes);

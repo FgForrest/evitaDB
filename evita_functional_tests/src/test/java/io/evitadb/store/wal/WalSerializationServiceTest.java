@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,9 @@
 
 package io.evitadb.store.wal;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Input;
+import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -35,6 +38,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.store.service.KryoFactory;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
@@ -59,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Test verifies behavior of {@link WalSerializationService}.
+ * Test verifies behavior of {@link WalKryoConfigurer} and subsequent serialization.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -119,7 +123,7 @@ class WalSerializationServiceTest {
 	void shouldSerializeAndDeserializeSchemaMutations() {
 		final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(2048);
-		final WalSerializationService walSerializationService = new WalSerializationService();
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final ModifyEntitySchemaMutation mutation = constructSomeSchema(
 			new InternalEntitySchemaBuilder(
 				CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, NamingConvention.generate(TestConstants.TEST_CATALOG), EnumSet.allOf(CatalogEvolutionMode.class), EmptyEntitySchemaAccessor.INSTANCE),
@@ -129,19 +133,25 @@ class WalSerializationServiceTest {
 			.toMutation()
 			.orElseThrow();
 
-		walSerializationService.serialize(mutation, baos);
+		try (final Output output = new Output(baos)) {
+			walKryo.writeClassAndObject(output, mutation);
+		}
+
 		final byte[] serializedWal = baos.toByteArray();
 		assertNotNull(serializedWal);
 		assertTrue(serializedWal.length > 0);
 
-		final ModifyEntitySchemaMutation deserializedMutation = (ModifyEntitySchemaMutation) walSerializationService.deserialize(new ByteArrayInputStream(serializedWal));
+		final ModifyEntitySchemaMutation deserializedMutation;
+		try (final Input input = new Input(new ByteArrayInputStream(serializedWal))) {
+			deserializedMutation = (ModifyEntitySchemaMutation) walKryo.readClassAndObject(input);
+		}
 		assertEquals(mutation, deserializedMutation);
 	}
 
 	@Test
 	void shouldSerializeAndDeserializeDataMutations() {
 		final ByteArrayOutputStream baos = new ByteArrayOutputStream(4084);
-		final WalSerializationService walSerializationService = new WalSerializationService();
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 
 		final EntitySchemaContract productSchema = constructSomeSchema(
 			new InternalEntitySchemaBuilder(
@@ -161,11 +171,10 @@ class WalSerializationServiceTest {
 			.map(it -> it.toMutation().orElseThrow())
 			.toList();
 
-		final int[] positions = new int[mutations.size()];
-		for (int i = 0; i < mutations.size(); i++) {
-			final EntityMutation mutation = mutations.get(i);
-			positions[i] = baos.size();
-			walSerializationService.serialize(mutation, baos);
+		try (final Output output = new Output(baos)) {
+			for (final EntityMutation mutation : mutations) {
+				walKryo.writeClassAndObject(output, mutation);
+			}
 		}
 
 		final byte[] serializedWal = baos.toByteArray();
@@ -173,15 +182,15 @@ class WalSerializationServiceTest {
 		assertTrue(serializedWal.length > 0);
 
 		final List<EntityMutation> deserializedMutations = new ArrayList<>(5);
-		for (int i = 0; i < 5; i++) {
-			final ByteArrayInputStream is = new ByteArrayInputStream(serializedWal);
-			assertEquals(positions[i], is.skip(positions[i]));
-			try {
-				deserializedMutations.add(
-					(EntityMutation) walSerializationService.deserialize(is)
-				);
-			} catch (Exception ex) {
-				fail("Failed to deserialized mutation no #" + i, ex);
+		try (final Input input = new Input(new ByteArrayInputStream(serializedWal))) {
+			for (int i = 0; i < 5; i++) {
+				try {
+					deserializedMutations.add(
+						(EntityMutation) walKryo.readClassAndObject(input)
+					);
+				} catch (Exception ex) {
+					fail("Failed to deserialized mutation no #" + i, ex);
+				}
 			}
 		}
 

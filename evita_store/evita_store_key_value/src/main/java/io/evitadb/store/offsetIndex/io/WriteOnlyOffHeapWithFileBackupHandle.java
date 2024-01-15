@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.SyncFailedException;
+import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -39,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.BufferOverflowException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -92,7 +94,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Contains the information about the last end byte of fully written record.
 	 */
-	private long lastConsistentWrittenPosition = 0;
+	private int lastConsistentWrittenPosition = 0;
 
 	/**
 	 * Synchronizes the data stored in the provided observable output stream to the disk.
@@ -197,12 +199,39 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		}
 	}
 
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	public OffHeapWithFileBackupReference toReadOffHeapWithFileBackupReference() {
+		// sync to disk first
+		execute("flush", () -> { }, (o) -> null, true);
+
+		if (offHeapMemoryOutput != null) {
+			final ByteBuffer byteBuffer = offHeapMemoryOutput.getOutputStream().getByteBuffer();
+			byteBuffer.limit(lastConsistentWrittenPosition);
+			return OffHeapWithFileBackupReference.withByteBuffer(
+				byteBuffer,
+				lastConsistentWrittenPosition
+			);
+		} else if (fileOutput != null) {
+			return OffHeapWithFileBackupReference.withFilePath(targetFile, Math.toIntExact(targetFile.toFile().length()));
+		} else {
+			throw new EvitaInternalError(
+				"No content has been written using this write handle!"
+			);
+		}
+	}
+
 	@Override
 	public void close() {
 		if (offHeapMemoryOutput != null) {
 			offHeapMemoryOutput.close();
 		} else if (fileOutput != null && observableOutputKeeper.isPrepared()) {
 			observableOutputKeeper.free(targetFile);
+			Assert.isPremiseValid(getTargetFile(targetFile).delete(), "Failed to delete temporary file `" + targetFile + "`!");
 		}
 	}
 
@@ -269,7 +298,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 			doSync(output);
 		}
 		// update the last consistent written position
-		lastConsistentWrittenPosition = output.total();
+		lastConsistentWrittenPosition = Math.toIntExact(output.total());
 		return result;
 	}
 

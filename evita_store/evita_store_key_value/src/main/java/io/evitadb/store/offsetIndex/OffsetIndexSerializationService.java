@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -88,7 +88,7 @@ public class OffsetIndexSerializationService {
 		for (int i = 0; i < fileOffsetIndexRecordCount.getFragments(); i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
-					output, OffsetIndex.SINGLE_NODE_ID, transactionId, i + 1 == fileOffsetIndexRecordCount.getFragments(),
+					output, transactionId, i + 1 == fileOffsetIndexRecordCount.getFragments(),
 					stream -> {
 						final FileLocation lsrl = lastStorageRecordLocation.get();
 						if (lsrl == null) {
@@ -113,7 +113,7 @@ public class OffsetIndexSerializationService {
 						}
 						return fileOffsetIndex;
 					}
-				).getFileLocation()
+				).fileLocation()
 			);
 		}
 
@@ -141,7 +141,7 @@ public class OffsetIndexSerializationService {
 		boolean head = true;
 		Long transactionId = null;
 		do {
-			final StorageRecord<Object> readRecord = new StorageRecord<>(
+			final StorageRecord<Object> readRecord = StorageRecord.read(
 				input,
 				fileOffsetIndexFragmentLocation.get(),
 				(stream, length) -> {
@@ -189,17 +189,17 @@ public class OffsetIndexSerializationService {
 
 			if (head) {
 				Assert.isTrue(
-					readRecord.isClosesTransaction(),
+					readRecord.closesTransaction(),
 					"Head OffsetIndex must have transaction finalization flag set, but it has not!"
 				);
 				head = false;
 			} else {
 				Assert.isTrue(
-					readRecord.getTransactionId() < transactionId || readRecord.getTransactionId() == 0L && transactionId == 0L,
-					"Transaction ids must compose a monotonic row - but they don't:  `" + transactionId + "` vs `" + readRecord.getTransactionId() + "`!"
+					readRecord.transactionId() < transactionId || readRecord.transactionId() == 0L && transactionId == 0L,
+					"Transaction ids must compose a monotonic row - but they don't:  `" + transactionId + "` vs `" + readRecord.transactionId() + "`!"
 				);
 			}
-			transactionId = readRecord.getTransactionId();
+			transactionId = readRecord.transactionId();
 
 			// repeat reading fragments until root fragment is found
 		} while (fileOffsetIndexFragmentLocation.get() != null);

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,22 +46,20 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 
 	@Override
 	public void write(Kryo kryo, Output output, EntityCollectionHeader object) {
-		output.writeString(object.getEntityType());
-		output.writeVarInt(object.getEntityTypePrimaryKey(), true);
-		output.writeVarLong(object.getVersion(), true);
-		output.writeVarInt(object.getLastPrimaryKey(), true);
-		output.writeVarInt(object.getLastEntityIndexPrimaryKey(), true);
-		output.writeVarInt(object.getRecordCount(), true);
+		output.writeString(object.entityType());
+		output.writeVarInt(object.entityTypePrimaryKey(), true);
+		output.writeVarInt(object.entityTypeFileIndex(), true);
+		output.writeVarLong(object.version(), true);
+		output.writeVarInt(object.lastPrimaryKey(), true);
+		output.writeVarInt(object.lastEntityIndexPrimaryKey(), true);
+		output.writeVarInt(object.recordCount(), true);
 
-		final FileLocation fileOffsetIndexLocation = object.getFileLocation();
-		output.writeBoolean(fileOffsetIndexLocation != null);
-		if (fileOffsetIndexLocation != null) {
-			output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
-			output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
-		}
+		final FileLocation fileOffsetIndexLocation = object.fileLocation();
+		output.writeVarLong(fileOffsetIndexLocation.startingPosition(), true);
+		output.writeVarInt(fileOffsetIndexLocation.recordLength(), true);
 
-		serializeKeys(object.getCompressedKeys(), output, kryo);
-		kryo.writeObjectOrNull(output, object.getGlobalEntityIndexId(), Integer.class);
+		serializeKeys(object.compressedKeys(), output, kryo);
+		kryo.writeObjectOrNull(output, object.globalEntityIndexId(), Integer.class);
 		serializeEntityIndexIds(output, object);
 	}
 
@@ -69,35 +67,49 @@ public class EntityCollectionHeaderSerializer extends AbstractPersistentStorageH
 	public EntityCollectionHeader read(Kryo kryo, Input input, Class<? extends EntityCollectionHeader> type) {
 		final String entityType = input.readString();
 		final int entityTypePrimaryKey = input.readVarInt(true);
+		final int entityTypeFileIndex = input.readVarInt(true);
 		final long version = input.readVarLong(true);
 		final int lastPrimaryKey = input.readVarInt(true);
 		final int lastEntityIndexPrimaryKey = input.readVarInt(true);
 		final int entityCount = input.readVarInt(true);
-		final FileLocation fileOffsetIndexLocation = input.readBoolean() ?
-			new FileLocation(
+		final FileLocation fileOffsetIndexLocation = new FileLocation(
 				input.readVarLong(true),
 				input.readVarInt(true)
-			) : null;
+			);
 		final Map<Integer, Object> keys = deserializeKeys(input, kryo);
 
 		final Integer globalIndexKey = kryo.readObjectOrNull(input, Integer.class);
 		final List<Integer> entityIndexIds = deserializeEntityIndexIds(input);
 
 		return new EntityCollectionHeader(
-			entityType, entityTypePrimaryKey, entityCount, lastPrimaryKey, lastEntityIndexPrimaryKey,
+			entityType,
+			entityTypePrimaryKey,
+			entityTypeFileIndex,
+			entityCount,
+			lastPrimaryKey,
+			lastEntityIndexPrimaryKey,
 			new PersistentStorageHeader(version, fileOffsetIndexLocation, keys),
-			globalIndexKey, entityIndexIds
+			globalIndexKey,
+			entityIndexIds
 		);
 	}
 
-	private void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
-		final int entityIndexCount = catalogEntityHeader.getUsedEntityIndexIds().size();
+	private static void serializeEntityIndexIds(@Nonnull Output output, @Nonnull EntityCollectionHeader catalogEntityHeader) {
+		final int entityIndexCount = catalogEntityHeader.usedEntityIndexIds().size();
 		output.writeVarInt(entityIndexCount, true);
-		output.writeInts(catalogEntityHeader.getUsedEntityIndexIds().stream().mapToInt(it -> it).toArray(), 0, entityIndexCount, true);
+		output.writeInts(
+			catalogEntityHeader.usedEntityIndexIds()
+				.stream()
+				.mapToInt(it -> it)
+				.toArray(),
+			0,
+			entityIndexCount,
+			true
+		);
 	}
 
 	@Nonnull
-	private List<Integer> deserializeEntityIndexIds(@Nonnull Input input) {
+	private static List<Integer> deserializeEntityIndexIds(@Nonnull Input input) {
 		final int entityIndexCount = input.readVarInt(true);
 		return Arrays.stream(input.readInts(entityIndexCount, true))
 			.boxed()

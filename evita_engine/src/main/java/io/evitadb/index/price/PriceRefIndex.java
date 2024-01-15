@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.index.price;
 import io.evitadb.api.query.order.PriceNatural;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceRefIndex.PriceIndexChanges;
@@ -116,9 +115,9 @@ public class PriceRefIndex extends AbstractPriceIndex<PriceListAndCurrencyPriceR
 
 	@Nonnull
 	@Override
-	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public PriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable PriceIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		final PriceRefIndex priceIndex = new PriceRefIndex(
-			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.priceIndexes),
 			this.superIndexAccessor
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));

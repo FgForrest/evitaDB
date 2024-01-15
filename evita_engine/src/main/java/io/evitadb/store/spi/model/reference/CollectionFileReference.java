@@ -1,0 +1,79 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2024
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.store.spi.model.reference;
+
+import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.spi.CatalogPersistenceService;
+import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
+import io.evitadb.utils.StringUtils;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.nio.file.Path;
+
+/**
+ * TODO JNO - document me
+ */
+public record CollectionFileReference(
+	@Nonnull String entityType,
+	int entityTypePrimaryKey,
+	int fileIndex,
+	@Nullable FileLocation fileLocation
+) implements CatalogVariableContentFileReference {
+
+	@Override
+	@Nonnull
+	public Path toFilePath(@Nonnull Path catalogFolder) {
+		return catalogFolder.resolve(
+			CatalogPersistenceService.getEntityCollectionDataStoreFileName(
+				StringUtils.toCamelCase(entityType), fileIndex
+			)
+		);
+	}
+
+	@Override
+	@Nonnull
+	public CollectionFileReference incrementAndGet() {
+		return new CollectionFileReference(entityType, entityTypePrimaryKey, fileIndex + 1, null);
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (o == null || getClass() != o.getClass()) return false;
+
+		CollectionFileReference that = (CollectionFileReference) o;
+
+		if (fileIndex != that.fileIndex) return false;
+		return entityType.equals(that.entityType);
+	}
+
+	@Override
+	public int hashCode() {
+		int result = entityType.hashCode();
+		result = 31 * result + fileIndex;
+		return result;
+	}
+
+}

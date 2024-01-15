@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,16 +25,24 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
+import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputKeeper;
+import io.evitadb.store.kryo.VersionedKryo;
+import io.evitadb.store.kryo.VersionedKryoKeyInputs;
 import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
+import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.exception.PersistenceServiceClosed;
+import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Objects;
+import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -44,14 +52,55 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public class OffsetIndexStoragePartPersistenceService implements StoragePartPersistenceService {
-
+	/**
+	 * Logical name of the file that backs the {@link OffsetIndex}.
+	 */
+	protected final String name;
 	/**
 	 * Memory key-value store for entities.
 	 */
-	private final OffsetIndex offsetIndex;
+	@Nonnull protected final OffsetIndex offsetIndex;
+	/**
+	 * Memory manager for off-heap memory.
+	 */
+	@Nonnull protected final OffHeapMemoryManager offHeapMemoryManager;
+	/**
+	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
+	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
+	 * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
+	 */
+	@Nonnull protected final ObservableOutputKeeper observableOutputKeeper;
+	/**
+	 * Factory for {@link VersionedKryo} instances.
+	 */
+	@Nonnull protected final Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory;
 
-	public OffsetIndexStoragePartPersistenceService(@Nonnull OffsetIndex offsetIndex) {
+	public OffsetIndexStoragePartPersistenceService(
+		@Nonnull String name,
+		@Nonnull OffsetIndex offsetIndex,
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
+	) {
+		this.name = name;
 		this.offsetIndex = offsetIndex;
+		this.offHeapMemoryManager = offHeapMemoryManager;
+		this.observableOutputKeeper = observableOutputKeeper;
+		this.kryoFactory = kryoFactory;
+	}
+
+	@Nonnull
+	@Override
+	public StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId) {
+		return new TransactionalStoragePartPersistenceService(
+			transactionId,
+			this.name, this,
+			this.offsetIndex.getOptions(),
+			this.offHeapMemoryManager,
+			this.kryoFactory,
+			this.offsetIndex.getRecordTypeRegistry(),
+			this.observableOutputKeeper
+		);
 	}
 
 	@Override
@@ -74,9 +123,9 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	}
 
 	@Override
-	public <T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container) {
+	public <T extends StoragePart> long putStoragePart(long catalogVersion, @Nonnull T container) {
 		if (offsetIndex.isOperative()) {
-			return this.offsetIndex.put(storagePartPk, container);
+			return this.offsetIndex.put(catalogVersion, container);
 		} else {
 			throw new PersistenceServiceClosed();
 		}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -47,8 +47,9 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.BufferedChangeSet;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreIndexChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.EntityIndex;
@@ -70,7 +71,6 @@ import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
 import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
-import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.entity.EntityFactory;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
@@ -90,14 +90,15 @@ import io.evitadb.store.model.PersistentStorageDescriptor;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
+import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.SharedClassesConfigurer;
-import io.evitadb.store.spi.DeferredStorageOperation;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
+import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.storageParts.index.*;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.store.wal.TransactionalStoragePartPersistenceService;
@@ -107,6 +108,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.File;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -134,10 +136,22 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class DefaultEntityCollectionPersistenceService implements EntityCollectionPersistenceService {
 	public static final byte[][] BYTE_TWO_DIMENSIONAL_ARRAY = new byte[0][];
+	/**
+	 * Factory function that configures new instance of the versioned kryo factory.
+	 */
+	private static final Function<VersionedKryoKeyInputs, VersionedKryo> VERSIONED_KRYO_FACTORY = kryoKeyInputs -> VersionedKryoFactory.createKryo(
+		kryoKeyInputs.version(),
+		SchemaKryoConfigurer.INSTANCE
+			.andThen(SharedClassesConfigurer.INSTANCE)
+			.andThen(SchemaKryoConfigurer.INSTANCE)
+			.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
+			.andThen(new EntityStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
+	);
 
 	/**
 	 * Contains reference to the target file where the entity collection is stored.
 	 */
+	@Nonnull
 	private final Path entityCollectionFile;
 	/**
 	 * Represents a registry for offset index record types and is propagated to internal {@link #storagePartPersistenceService}.
@@ -148,12 +162,21 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull @Getter
 	private final OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry;
 	/**
-	 *  ObservableOutputKeeper is used to track {@link io.evitadb.store.kryo.ObservableOutput} tied to particular file
-	 *  and is propagated to internal {@link #storagePartPersistenceService}. It can be also retrieved and is shared with its
-	 *  wrapping implementation.
+	 * Memory manager for off-heap memory.
+	 */
+	@Nonnull private final OffHeapMemoryManager offHeapMemoryManager;
+	/**
+	 * ObservableOutputKeeper is used to track {@link io.evitadb.store.kryo.ObservableOutput} tied to particular file
+	 * and is propagated to internal {@link #storagePartPersistenceService}. It can be also retrieved and is shared with its
+	 * wrapping implementation.
 	 */
 	@Nonnull @Getter
 	private final ObservableOutputKeeper observableOutputKeeper;
+	/**
+	 * Contains information about storage configuration options.
+	 */
+	@Nonnull
+	private final StorageOptions storageOptions;
 	/**
 	 * Contains reference to the catalog entity header collecting all crucial information about single entity collection.
 	 * The catalog entity header is loaded in constructor and because it's immutable it needs to be replaced with each
@@ -165,442 +188,14 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 * The storage part persistence service implementation.
 	 */
 	@Nonnull @Getter
-	private StoragePartPersistenceService storagePartPersistenceService;
-
-	public DefaultEntityCollectionPersistenceService(
-		@Nonnull Path entityCollectionFile,
-		@Nonnull EntityCollectionHeader entityHeader,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
-	) {
-		this.catalogEntityHeader = entityHeader;
-		this.entityCollectionFile = entityCollectionFile;
-		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
-		this.observableOutputKeeper = observableOutputKeeper;
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			new OffsetIndex(
-				new OffsetIndexDescriptor(
-					entityHeader,
-					this.createTypeKryoInstance()
-				),
-				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
-			)
-		);
-	}
-
-	public DefaultEntityCollectionPersistenceService(
-		@Nonnull DefaultEntityCollectionPersistenceService previous,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
-	) {
-		this.catalogEntityHeader = previous.catalogEntityHeader;
-		this.entityCollectionFile = previous.entityCollectionFile;
-		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
-		this.observableOutputKeeper = observableOutputKeeper;
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			new OffsetIndex(
-				new OffsetIndexDescriptor(
-					previous.catalogEntityHeader,
-					this.createTypeKryoInstance()
-				),
-				storageOptions,
-				offsetIndexRecordTypeRegistry,
-				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
-			)
-		);
-	}
-
-	@Override
-	public boolean isNew() {
-		return this.storagePartPersistenceService.isNew();
-	}
-
-	@Nullable
-	@Override
-	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
-		// provide passed schema during deserialization from binary form
-		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
-			// fetch the main entity container
-			final EntityBodyStoragePart entityStorageContainer = storageContainerBuffer.fetch(
-				entityPrimaryKey, EntityBodyStoragePart.class
-			);
-			if (entityStorageContainer == null || entityStorageContainer.isMarkedForRemoval()) {
-				// return null if not found
-				return null;
-			} else {
-				return toEntity(entityStorageContainer, evitaRequest, entitySchema, storageContainerBuffer);
-			}
-		});
-	}
-
-	@Nullable
-	@Override
-	public BinaryEntity readBinaryEntity(
-		int entityPrimaryKey,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
-	) {
-		// provide passed schema during deserialization from binary form
-		final EntitySchema entitySchema = entityCollectionFetcher.apply(evitaRequest.getEntityType()).getInternalSchema();
-		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
-			// fetch the main entity container
-			final byte[] entityStorageContainer = storageContainerBuffer.fetchBinary(
-				entityPrimaryKey, EntityBodyStoragePart.class,
-				entityBodyStoragePart -> this.storagePartPersistenceService.serializeStoragePart(entityBodyStoragePart)
-			);
-			if (entityStorageContainer == null) {
-				// return null if not found
-				return null;
-			} else {
-				return toBinaryEntity(
-					entityStorageContainer, evitaRequest, session, entityCollectionFetcher, storageContainerBuffer
-				);
-			}
-		});
-	}
-
-	@Nonnull
-	@Override
-	public Entity enrichEntity(
-		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityDecorator entityDecorator,
-		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
-		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
-		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
-		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
-		@Nonnull PriceContractSerializablePredicate newPricePredicate,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
-	) {
-		// provide passed schema during deserialization from binary form
-		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
-			final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
-
-			// body part is fetched everytime - we need to at least test the version
-			final EntityBodyStoragePart bodyPart = storageContainerBuffer.fetch(
-				entityPrimaryKey, EntityBodyStoragePart.class
-			);
-
-			if (bodyPart == null || bodyPart.isMarkedForRemoval()) {
-				throw new EntityAlreadyRemovedException(
-					entityDecorator.getType(), entityPrimaryKey
-				);
-			}
-
-			final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
-
-			// fetch additional data if requested and not already present
-			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
-				versionDiffers ? null : entityDecorator.getReferencePredicate(),
-				newReferenceContractPredicate,
-				() -> storageContainerBuffer.fetch(entityPrimaryKey, ReferencesStoragePart.class)
-			);
-			final PricesStoragePart priceStorageContainer = fetchPrices(
-				versionDiffers ? null : entityDecorator.getPricePredicate(),
-				newPricePredicate,
-				() -> storageContainerBuffer.fetch(entityPrimaryKey, PricesStoragePart.class)
-			);
-
-			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
-				entityPrimaryKey,
-				versionDiffers ? null : entityDecorator.getAttributePredicate(),
-				newAttributePredicate,
-				bodyPart.getAttributeLocales(),
-				key -> storageContainerBuffer.fetch(key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId)
-			);
-			final List<AssociatedDataStoragePart> associatedDataStorageContainers = fetchAssociatedData(
-				entityPrimaryKey,
-				versionDiffers ? null : entityDecorator.getAssociatedDataPredicate(),
-				newAssociatedDataPredicate,
-				bodyPart.getAssociatedDataKeys(),
-				key -> storageContainerBuffer.fetch(key, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId)
-			);
-
-			// if anything was fetched from the persistent storage
-			if (versionDiffers) {
-				// build the enriched entity from scratch
-				return EntityFactory.createEntityFrom(
-					entityDecorator.getDelegate().getSchema(),
-					bodyPart,
-					attributesStorageContainers,
-					associatedDataStorageContainers,
-					referencesStorageContainer,
-					priceStorageContainer
-				);
-			} else if (referencesStorageContainer != null || priceStorageContainer != null ||
-				!attributesStorageContainers.isEmpty() || !associatedDataStorageContainers.isEmpty()) {
-				// and build the enriched entity as a new instance
-				return EntityFactory.createEntityFrom(
-					entityDecorator.getDelegate().getSchema(),
-					entityDecorator.getDelegate(),
-					bodyPart,
-					attributesStorageContainers,
-					associatedDataStorageContainers,
-					referencesStorageContainer,
-					priceStorageContainer
-				);
-			} else {
-				// return original entity - nothing has been fetched
-				return entityDecorator.getDelegate();
-			}
-		});
-	}
-
-	@Nonnull
-	@Override
-	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
-		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
-		return entity;
-	}
-
-	@Override
-	public EntityIndex readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
-		final EntityIndexStoragePart entityIndexCnt = storagePartPersistenceService.getStoragePart(entityIndexId, EntityIndexStoragePart.class);
-		isPremiseValid(
-			entityIndexCnt != null,
-			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
-		);
-
-		final Map<AttributeKey, UniqueIndex> uniqueIndexes = new HashMap<>();
-		final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
-		final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
-		final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
-		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
-		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
-			switch (attributeIndexKey.indexType()) {
-				case UNIQUE -> fetchUniqueIndex(schemaSupplier.get().getName(), entityIndexId, storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
-				case FILTER -> fetchFilterIndex(entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey);
-				case SORT -> fetchSortIndex(entityIndexId, storagePartPersistenceService, sortIndexes, attributeIndexKey);
-				case CHAIN -> fetchChainIndex(entityIndexId, storagePartPersistenceService, chainIndexes, attributeIndexKey);
-				case CARDINALITY -> fetchCardinalityIndex(entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
-				default -> throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
-			}
-		}
-
-		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(entityIndexId, storagePartPersistenceService, entityIndexCnt);
-		final FacetIndex facetIndex = fetchFacetIndex(entityIndexId, storagePartPersistenceService, entityIndexCnt);
-
-		final EntityIndexType entityIndexType = entityIndexCnt.getEntityIndexKey().getType();
-		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
-		if (entityIndexType == EntityIndexType.GLOBAL) {
-			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
-				entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
-			);
-			return new GlobalEntityIndex(
-				entityIndexCnt.getPrimaryKey(),
-				entityIndexCnt.getEntityIndexKey(),
-				entityIndexCnt.getVersion(),
-				schemaSupplier,
-				entityIndexCnt.getEntityIds(),
-				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
-					schemaSupplier.get().getName(),
-					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-				),
-				new PriceSuperIndex(
-					Objects.requireNonNull(entityIndexCnt.getInternalPriceIdSequence()),
-					priceIndexes
-				),
-				hierarchyIndex,
-				facetIndex
-			);
-		} else if (entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
-			return new ReferencedTypeEntityIndex(
-				entityIndexCnt.getPrimaryKey(),
-				entityIndexCnt.getEntityIndexKey(),
-				entityIndexCnt.getVersion(),
-				schemaSupplier,
-				entityIndexCnt.getEntityIds(),
-				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
-					schemaSupplier.get().getName(),
-					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-				),
-				hierarchyIndex,
-				facetIndex,
-				entityIndexCnt.getPrimaryKeyCardinality(),
-				cardinalityIndexes
-			);
-		} else {
-			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
-				entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService, temporalIndexAccessor
-			);
-			return new ReducedEntityIndex(
-				entityIndexCnt.getPrimaryKey(),
-				entityIndexCnt.getEntityIndexKey(),
-				entityIndexCnt.getVersion(),
-				schemaSupplier,
-				entityIndexCnt.getEntityIds(),
-				entityIndexCnt.getEntityIdsByLanguage(),
-				new AttributeIndex(
-					schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
-				),
-				new PriceRefIndex(priceIndexes, superIndexAccessor),
-				hierarchyIndex,
-				facetIndex
-			);
-		}
-	}
-
-	/**
-	 * Returns count of entities of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
-	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
-	 */
-	@Override
-	public <T extends StoragePart> int count(@Nonnull Class<T> containerClass) {
-		return storagePartPersistenceService.countStorageParts(containerClass);
-	}
-
-	/**
-	 * Returns iterator that goes through all containers of certain type in the target storage.
-	 *
-	 * <strong>Note:</strong> the list may not be accurate - it only goes through already persisted containers to the
-	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
-	 */
-	@Nonnull
-	@Override
-	public Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
-		final EvitaRequest evitaRequest = new EvitaRequest(
-			Query.query(
-				collection(entitySchema.getName()),
-				require(entityFetchAll())
-			),
-			OffsetDateTime.now(),
-			Entity.class,
-			null,
-			EvitaRequest.CONVERSION_NOT_SUPPORTED
-		);
-		return this.storagePartPersistenceService
-			.getEntryStream(EntityBodyStoragePart.class)
-			.map(it -> toEntity(it, evitaRequest, entitySchema, storageContainerBuffer))
-			.iterator();
-	}
-
-	@Nonnull
-	@Override
-	public EntityCollectionHeader flush(long transactionId, @Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory) {
-		final long previousVersion = this.storagePartPersistenceService.getVersion();
-		final PersistentStorageDescriptor newDescriptor = this.storagePartPersistenceService.flush(transactionId);
-		// when versions are equal - nothing has changed, and we can reuse old header
-		if (newDescriptor.getVersion() > previousVersion) {
-			this.catalogEntityHeader = catalogEntityHeaderFactory.apply(newDescriptor);
-		}
-
-		return this.catalogEntityHeader;
-	}
-
-	@Override
-	public void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
-		executeWriteSafely(() -> {
-			final LinkedList<DeferredStorageOperation<?>> accumulator = new LinkedList<>();
-			for (DeferredStorageOperation<?> deferredOperation : deferredOperations) {
-				if (deferredOperation.getRequiredPersistenceServiceType().isInstance(this)) {
-					//noinspection unchecked,rawtypes
-					((DeferredStorageOperation) deferredOperation).execute(owner, storagePartPk, this);
-				} else if (deferredOperation.getRequiredPersistenceServiceType().isInstance(this.storagePartPersistenceService)) {
-					if (!accumulator.isEmpty()) {
-						this.storagePartPersistenceService.applyUpdates(owner, storagePartPk, accumulator);
-						accumulator.clear();
-					}
-					accumulator.add(deferredOperation);
-				} else {
-					throw new EvitaInternalError(
-						"Incompatible deferred operation: " + deferredOperation,
-						"Incompatible deferred operation!"
-					);
-				}
-			}
-			if (!accumulator.isEmpty()) {
-				this.storagePartPersistenceService.applyUpdates(owner, storagePartPk, accumulator);
-			}
-			return null;
-		});
-	}
-
-	@Override
-	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<EntityIndexKey, EntityIndex> bufferedChangeSet) {
-		// now store all entity trapped updates
-		bufferedChangeSet.getTrappedUpdates()
-			.forEach(it -> this.storagePartPersistenceService.putStoragePart(0L, it));
-	}
-
-	@Override
-	public void delete() {
-		close();
-		if (!this.entityCollectionFile.toFile().delete()) {
-			throw new UnexpectedIOException(
-				"Failed to delete file: " + this.entityCollectionFile,
-				"Failed to delete file!"
-			);
-		}
-	}
-
-	@Override
-	public void prepare() {
-		observableOutputKeeper.prepare();
-	}
-
-	@Override
-	public void release() {
-		observableOutputKeeper.free();
-	}
-
-	@Override
-	public <T> T executeWriteSafely(@Nonnull Supplier<T> lambda) {
-		if (observableOutputKeeper.isPrepared()) {
-			return lambda.get();
-		} else {
-			try {
-				observableOutputKeeper.prepare();
-				return lambda.get();
-			} finally {
-				observableOutputKeeper.free();
-			}
-		}
-	}
-
-	@Override
-	public boolean isClosed() {
-		return this.storagePartPersistenceService.isClosed();
-	}
-
-	@Override
-	public void close() {
-		this.storagePartPersistenceService.close();
-	}
-
-	/**
-	 * Creates {@link Kryo} instance that is usable for deserializing entity instances.
-	 */
-	@Nonnull
-	public Function<VersionedKryoKeyInputs, VersionedKryo> createTypeKryoInstance() {
-		return kryoKeyInputs -> VersionedKryoFactory.createKryo(
-			kryoKeyInputs.version(),
-			SchemaKryoConfigurer.INSTANCE
-				.andThen(SharedClassesConfigurer.INSTANCE)
-				.andThen(SchemaKryoConfigurer.INSTANCE)
-				.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
-				.andThen(new EntityStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
-		);
-	}
-
-	/*
-		PRIVATE METHODS
-	 */
+	private final StoragePartPersistenceService storagePartPersistenceService;
 
 	@Nonnull
 	private static Entity toEntity(
 		@Nonnull EntityBodyStoragePart entityStorageContainer,
 		@Nonnull EvitaRequest evitaRequest,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
 	) {
 		final int entityPrimaryKey = entityStorageContainer.getPrimaryKey();
 		// load additional containers only when requested
@@ -632,128 +227,6 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			associatedDataStorageContainers,
 			referencesStorageContainer,
 			priceStorageContainer
-		);
-	}
-
-	@Nonnull
-	private BinaryEntity toBinaryEntity(
-		@Nonnull byte[] entityStorageContainer,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
-	) {
-		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
-		final EntityBodyStoragePart deserializedEntityBody = this.storagePartPersistenceService.deserializeStoragePart(
-			entityStorageContainer, EntityBodyStoragePart.class
-		);
-
-		final int entityPrimaryKey = deserializedEntityBody.getPrimaryKey();
-		// load additional containers only when requested
-		final byte[] priceStorageContainer = fetchPrices(
-			null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
-			() -> storageContainerBuffer.fetchBinary(
-				entityPrimaryKey,
-				PricesStoragePart.class,
-				pricesStoragePart -> this.storagePartPersistenceService.serializeStoragePart(pricesStoragePart)
-			)
-		);
-
-		final List<byte[]> attributesStorageContainers = fetchAttributes(
-			entityPrimaryKey, null, new AttributeValueSerializablePredicate(evitaRequest),
-			deserializedEntityBody.getAttributeLocales(),
-			attributesSetKey -> storageContainerBuffer.fetchBinary(
-				attributesSetKey,
-				AttributesStoragePart.class,
-				AttributesStoragePart::computeUniquePartId,
-				attributesStoragePart -> this.storagePartPersistenceService.serializeStoragePart(attributesStoragePart)
-			)
-		);
-		final List<byte[]> associatedDataStorageContainers = fetchAssociatedData(
-			entityPrimaryKey, null, new AssociatedDataValueSerializablePredicate(evitaRequest),
-			deserializedEntityBody.getAssociatedDataKeys(),
-			associatedDataKey -> storageContainerBuffer.fetchBinary(
-				associatedDataKey,
-				AssociatedDataStoragePart.class,
-				AssociatedDataStoragePart::computeUniquePartId,
-				associatedDataStoragePart -> this.storagePartPersistenceService.serializeStoragePart(associatedDataStoragePart)
-			)
-		);
-
-		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
-		final AtomicReference<ReferencesStoragePart> referencesStoragePartRef = new AtomicReference<>();
-		final byte[] referencesStorageContainer = fetchReferences(
-			null, new ReferenceContractSerializablePredicate(evitaRequest),
-			() -> {
-				if (referenceEntityFetch.isEmpty()) {
-					return storageContainerBuffer.fetchBinary(
-						entityPrimaryKey,
-						ReferencesStoragePart.class,
-						referencesStoragePart -> this.storagePartPersistenceService.serializeStoragePart(referencesStoragePart)
-					);
-				} else {
-					final ReferencesStoragePart fetchedPart = storageContainerBuffer.fetch(
-						entityPrimaryKey, ReferencesStoragePart.class
-					);
-					if (fetchedPart == null) {
-						return null;
-					} else {
-						referencesStoragePartRef.set(fetchedPart);
-						return this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
-					}
-				}
-			}
-		);
-
-		final BinaryEntity[] referencedEntities = referencesStoragePartRef.get() == null ?
-			new BinaryEntity[0] :
-			referenceEntityFetch
-				.entrySet()
-				.stream()
-				.flatMap(entry -> {
-					final String referenceName = entry.getKey();
-					final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-					final RequirementContext requirementTuple = entry.getValue();
-					final EntityFetch entityFetch = referenceSchema.isReferencedEntityTypeManaged() ?
-						requirementTuple.entityFetch() : null;
-					final EntityGroupFetch entityGroupFetch = referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null ?
-						requirementTuple.entityGroupFetch() : null;
-					return Stream.concat(
-						ofNullable(entityFetch)
-							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedIds(referenceName))
-									.mapToObj(
-										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedEntityType())
-											.getBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedEntityType(), entityFetch), session)
-											.orElse(null)
-									)
-							)
-							.orElse(Stream.empty()),
-						ofNullable(entityGroupFetch)
-							.map(
-								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedGroupIds(referenceName))
-									.mapToObj(
-										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedGroupType())
-											.getBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedGroupType(), entityGroupFetch), session)
-											.orElse(null)
-									)
-							)
-							.orElse(Stream.empty())
-					);
-				})
-				.filter(Objects::nonNull)
-				.toArray(BinaryEntity[]::new);
-
-		// and build the entity
-		return new BinaryEntity(
-			entitySchema,
-			entityPrimaryKey,
-			entityStorageContainer,
-			attributesStorageContainers.toArray(BYTE_TWO_DIMENSIONAL_ARRAY),
-			associatedDataStorageContainers.toArray(BYTE_TWO_DIMENSIONAL_ARRAY),
-			priceStorageContainer,
-			referencesStorageContainer,
-			referencedEntities
 		);
 	}
 
@@ -1145,6 +618,541 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 				.collect(Collectors.toList());
 		}
 		return Collections.emptyList();
+	}
+
+	public DefaultEntityCollectionPersistenceService(
+		@Nonnull Path catalogStoragePath,
+		@Nonnull EntityCollectionHeader entityTypeHeader,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
+		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
+	) {
+		this.entityCollectionFile = new CollectionFileReference(
+			entityTypeHeader.entityType(),
+			entityTypeHeader.entityTypePrimaryKey(),
+			entityTypeHeader.entityTypeFileIndex(),
+			entityTypeHeader.fileLocation()
+		).toFilePath(catalogStoragePath);
+
+		this.catalogEntityHeader = entityTypeHeader;
+		this.offsetIndexRecordTypeRegistry = offsetIndexRecordTypeRegistry;
+		this.offHeapMemoryManager = offHeapMemoryManager;
+		this.observableOutputKeeper = observableOutputKeeper;
+		this.storageOptions = storageOptions;
+		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+			this.entityCollectionFile.toFile().getName(),
+			new OffsetIndex(
+				new OffsetIndexDescriptor(
+					entityTypeHeader,
+					this.createTypeKryoInstance()
+				),
+				storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
+			),
+			offHeapMemoryManager,
+			observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY
+		);
+	}
+
+	public DefaultEntityCollectionPersistenceService(@Nonnull DefaultEntityCollectionPersistenceService previous) {
+		this.entityCollectionFile = previous.entityCollectionFile;
+		this.catalogEntityHeader = previous.catalogEntityHeader;
+		this.offsetIndexRecordTypeRegistry = previous.offsetIndexRecordTypeRegistry;
+		this.offHeapMemoryManager = previous.offHeapMemoryManager;
+		this.observableOutputKeeper = previous.observableOutputKeeper;
+		this.storageOptions = previous.storageOptions;
+		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
+			this.entityCollectionFile.toFile().getName(),
+			new OffsetIndex(
+				new OffsetIndexDescriptor(
+					previous.catalogEntityHeader,
+					this.createTypeKryoInstance()
+				),
+				previous.storageOptions,
+				offsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(entityCollectionFile, observableOutputKeeper)
+			),
+			offHeapMemoryManager,
+			observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY
+		);
+	}
+
+	@Override
+	public boolean isNew() {
+		return this.storagePartPersistenceService.isNew();
+	}
+
+	@Override
+	public void prepare() {
+		observableOutputKeeper.prepare();
+	}
+
+	@Override
+	public void release() {
+		observableOutputKeeper.free();
+	}
+
+	/*
+		PRIVATE METHODS
+	 */
+
+	@Override
+	public <T> T executeWriteSafely(@Nonnull Supplier<T> lambda) {
+		if (observableOutputKeeper.isPrepared()) {
+			return lambda.get();
+		} else {
+			try {
+				observableOutputKeeper.prepare();
+				return lambda.get();
+			} finally {
+				observableOutputKeeper.free();
+			}
+		}
+	}
+
+	@Override
+	public void flushTrappedUpdates(@Nonnull DataStoreIndexChanges<EntityIndexKey, EntityIndex> dataStoreIndexChanges) {
+		// now store all entity trapped updates
+		dataStoreIndexChanges.popTrappedUpdates()
+			.forEach(it -> this.storagePartPersistenceService.putStoragePart(0L, it));
+	}
+
+	@Override
+	public boolean isClosed() {
+		return this.storagePartPersistenceService.isClosed();
+	}
+
+	@Nullable
+	@Override
+	public Entity readEntity(int entityPrimaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EntitySchema entitySchema, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
+		// provide passed schema during deserialization from binary form
+		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
+			// fetch the main entity container
+			final EntityBodyStoragePart entityStorageContainer = storageContainerBuffer.fetch(
+				entityPrimaryKey, EntityBodyStoragePart.class
+			);
+			if (entityStorageContainer == null || entityStorageContainer.isMarkedForRemoval()) {
+				// return null if not found
+				return null;
+			} else {
+				return toEntity(entityStorageContainer, evitaRequest, entitySchema, storageContainerBuffer);
+			}
+		});
+	}
+
+	@Nullable
+	@Override
+	public BinaryEntity readBinaryEntity(
+		int entityPrimaryKey,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	) {
+		// provide passed schema during deserialization from binary form
+		final EntitySchema entitySchema = entityCollectionFetcher.apply(evitaRequest.getEntityType()).getInternalSchema();
+		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
+			// fetch the main entity container
+			final byte[] entityStorageContainer = storageContainerBuffer.fetchBinary(
+				entityPrimaryKey, EntityBodyStoragePart.class
+			);
+			if (entityStorageContainer == null) {
+				// return null if not found
+				return null;
+			} else {
+				return toBinaryEntity(
+					entityStorageContainer, evitaRequest, session, entityCollectionFetcher, storageContainerBuffer
+				);
+			}
+		});
+	}
+
+	@Nonnull
+	@Override
+	public Entity enrichEntity(
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull EntityDecorator entityDecorator,
+		@Nonnull HierarchySerializablePredicate newHierarchyPredicate,
+		@Nonnull AttributeValueSerializablePredicate newAttributePredicate,
+		@Nonnull AssociatedDataValueSerializablePredicate newAssociatedDataPredicate,
+		@Nonnull ReferenceContractSerializablePredicate newReferenceContractPredicate,
+		@Nonnull PriceContractSerializablePredicate newPricePredicate,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	) {
+		// provide passed schema during deserialization from binary form
+		return EntitySchemaContext.executeWithSchemaContext(entitySchema, () -> {
+			final int entityPrimaryKey = Objects.requireNonNull(entityDecorator.getPrimaryKey());
+
+			// body part is fetched everytime - we need to at least test the version
+			final EntityBodyStoragePart bodyPart = storageContainerBuffer.fetch(
+				entityPrimaryKey, EntityBodyStoragePart.class
+			);
+
+			if (bodyPart == null || bodyPart.isMarkedForRemoval()) {
+				throw new EntityAlreadyRemovedException(
+					entityDecorator.getType(), entityPrimaryKey
+				);
+			}
+
+			final boolean versionDiffers = bodyPart.getVersion() != entityDecorator.version();
+
+			// fetch additional data if requested and not already present
+			final ReferencesStoragePart referencesStorageContainer = fetchReferences(
+				versionDiffers ? null : entityDecorator.getReferencePredicate(),
+				newReferenceContractPredicate,
+				() -> storageContainerBuffer.fetch(entityPrimaryKey, ReferencesStoragePart.class)
+			);
+			final PricesStoragePart priceStorageContainer = fetchPrices(
+				versionDiffers ? null : entityDecorator.getPricePredicate(),
+				newPricePredicate,
+				() -> storageContainerBuffer.fetch(entityPrimaryKey, PricesStoragePart.class)
+			);
+
+			final List<AttributesStoragePart> attributesStorageContainers = fetchAttributes(
+				entityPrimaryKey,
+				versionDiffers ? null : entityDecorator.getAttributePredicate(),
+				newAttributePredicate,
+				bodyPart.getAttributeLocales(),
+				key -> storageContainerBuffer.fetch(key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId)
+			);
+			final List<AssociatedDataStoragePart> associatedDataStorageContainers = fetchAssociatedData(
+				entityPrimaryKey,
+				versionDiffers ? null : entityDecorator.getAssociatedDataPredicate(),
+				newAssociatedDataPredicate,
+				bodyPart.getAssociatedDataKeys(),
+				key -> storageContainerBuffer.fetch(key, AssociatedDataStoragePart.class, AssociatedDataStoragePart::computeUniquePartId)
+			);
+
+			// if anything was fetched from the persistent storage
+			if (versionDiffers) {
+				// build the enriched entity from scratch
+				return EntityFactory.createEntityFrom(
+					entityDecorator.getDelegate().getSchema(),
+					bodyPart,
+					attributesStorageContainers,
+					associatedDataStorageContainers,
+					referencesStorageContainer,
+					priceStorageContainer
+				);
+			} else if (referencesStorageContainer != null || priceStorageContainer != null ||
+				!attributesStorageContainers.isEmpty() || !associatedDataStorageContainers.isEmpty()) {
+				// and build the enriched entity as a new instance
+				return EntityFactory.createEntityFrom(
+					entityDecorator.getDelegate().getSchema(),
+					entityDecorator.getDelegate(),
+					bodyPart,
+					attributesStorageContainers,
+					associatedDataStorageContainers,
+					referencesStorageContainer,
+					priceStorageContainer
+				);
+			} else {
+				// return original entity - nothing has been fetched
+				return entityDecorator.getDelegate();
+			}
+		});
+	}
+
+	@Nonnull
+	@Override
+	public BinaryEntity enrichEntity(@Nonnull EntitySchema entitySchema, @Nonnull BinaryEntity entity, @Nonnull EvitaRequest evitaRequest, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) throws EntityAlreadyRemovedException {
+		/* TOBEDONE https://github.com/FgForrest/evitaDB/issues/13 */
+		return entity;
+	}
+
+	@Override
+	public EntityIndex readEntityIndex(int entityIndexId, @Nonnull Supplier<EntitySchema> schemaSupplier, @Nonnull Supplier<PriceSuperIndex> temporalIndexAccessor, @Nonnull Supplier<PriceSuperIndex> superIndexAccessor) {
+		final EntityIndexStoragePart entityIndexCnt = storagePartPersistenceService.getStoragePart(entityIndexId, EntityIndexStoragePart.class);
+		isPremiseValid(
+			entityIndexCnt != null,
+			"Entity index with PK `" + entityIndexId + "` was unexpectedly not found in the mem table!"
+		);
+
+		final Map<AttributeKey, UniqueIndex> uniqueIndexes = new HashMap<>();
+		final Map<AttributeKey, FilterIndex> filterIndexes = new HashMap<>();
+		final Map<AttributeKey, SortIndex> sortIndexes = new HashMap<>();
+		final Map<AttributeKey, ChainIndex> chainIndexes = new HashMap<>();
+		final Map<AttributeKey, CardinalityIndex> cardinalityIndexes = new HashMap<>();
+		for (AttributeIndexStorageKey attributeIndexKey : entityIndexCnt.getAttributeIndexes()) {
+			switch (attributeIndexKey.indexType()) {
+				case UNIQUE ->
+					fetchUniqueIndex(schemaSupplier.get().getName(), entityIndexId, storagePartPersistenceService, uniqueIndexes, attributeIndexKey);
+				case FILTER ->
+					fetchFilterIndex(entityIndexId, storagePartPersistenceService, filterIndexes, attributeIndexKey);
+				case SORT ->
+					fetchSortIndex(entityIndexId, storagePartPersistenceService, sortIndexes, attributeIndexKey);
+				case CHAIN ->
+					fetchChainIndex(entityIndexId, storagePartPersistenceService, chainIndexes, attributeIndexKey);
+				case CARDINALITY ->
+					fetchCardinalityIndex(entityIndexId, storagePartPersistenceService, cardinalityIndexes, attributeIndexKey);
+				default ->
+					throw new EvitaInternalError("Unknown attribute index type: " + attributeIndexKey.indexType());
+			}
+		}
+
+		final HierarchyIndex hierarchyIndex = fetchHierarchyIndex(entityIndexId, storagePartPersistenceService, entityIndexCnt);
+		final FacetIndex facetIndex = fetchFacetIndex(entityIndexId, storagePartPersistenceService, entityIndexCnt);
+
+		final EntityIndexType entityIndexType = entityIndexCnt.getEntityIndexKey().getType();
+		// base on entity index type we either create GlobalEntityIndex or ReducedEntityIndex
+		if (entityIndexType == EntityIndexType.GLOBAL) {
+			final Map<PriceIndexKey, PriceListAndCurrencyPriceSuperIndex> priceIndexes = fetchPriceSuperIndexes(
+				entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService
+			);
+			return new GlobalEntityIndex(
+				entityIndexCnt.getPrimaryKey(),
+				entityIndexCnt.getEntityIndexKey(),
+				entityIndexCnt.getVersion(),
+				schemaSupplier,
+				entityIndexCnt.getEntityIds(),
+				entityIndexCnt.getEntityIdsByLanguage(),
+				new AttributeIndex(
+					schemaSupplier.get().getName(),
+					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				),
+				new PriceSuperIndex(
+					Objects.requireNonNull(entityIndexCnt.getInternalPriceIdSequence()),
+					priceIndexes
+				),
+				hierarchyIndex,
+				facetIndex
+			);
+		} else if (entityIndexType == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			return new ReferencedTypeEntityIndex(
+				entityIndexCnt.getPrimaryKey(),
+				entityIndexCnt.getEntityIndexKey(),
+				entityIndexCnt.getVersion(),
+				schemaSupplier,
+				entityIndexCnt.getEntityIds(),
+				entityIndexCnt.getEntityIdsByLanguage(),
+				new AttributeIndex(
+					schemaSupplier.get().getName(),
+					uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				),
+				hierarchyIndex,
+				facetIndex,
+				entityIndexCnt.getPrimaryKeyCardinality(),
+				cardinalityIndexes
+			);
+		} else {
+			final Map<PriceIndexKey, PriceListAndCurrencyPriceRefIndex> priceIndexes = fetchPriceRefIndexes(
+				entityIndexId, entityIndexCnt.getPriceIndexes(), storagePartPersistenceService, temporalIndexAccessor
+			);
+			return new ReducedEntityIndex(
+				entityIndexCnt.getPrimaryKey(),
+				entityIndexCnt.getEntityIndexKey(),
+				entityIndexCnt.getVersion(),
+				schemaSupplier,
+				entityIndexCnt.getEntityIds(),
+				entityIndexCnt.getEntityIdsByLanguage(),
+				new AttributeIndex(
+					schemaSupplier.get().getName(), uniqueIndexes, filterIndexes, sortIndexes, chainIndexes
+				),
+				new PriceRefIndex(priceIndexes, superIndexAccessor),
+				hierarchyIndex,
+				facetIndex
+			);
+		}
+	}
+
+	/**
+	 * Returns count of entities of certain type in the target storage.
+	 *
+	 * <strong>Note:</strong> the count may not be accurate - it counts only already persisted containers to the
+	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
+	 */
+	@Override
+	public <T extends StoragePart> int count(@Nonnull Class<T> containerClass) {
+		return storagePartPersistenceService.countStorageParts(containerClass);
+	}
+
+	/**
+	 * Returns iterator that goes through all containers of certain type in the target storage.
+	 *
+	 * <strong>Note:</strong> the list may not be accurate - it only goes through already persisted containers to the
+	 * {@link OffsetIndex} and doesn't take transactional memory into an account.
+	 */
+	@Nonnull
+	@Override
+	public Iterator<Entity> entityIterator(@Nonnull EntitySchema entitySchema, @Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer) {
+		final EvitaRequest evitaRequest = new EvitaRequest(
+			Query.query(
+				collection(entitySchema.getName()),
+				require(entityFetchAll())
+			),
+			OffsetDateTime.now(),
+			Entity.class,
+			null,
+			EvitaRequest.CONVERSION_NOT_SUPPORTED
+		);
+		return this.storagePartPersistenceService
+			.getEntryStream(EntityBodyStoragePart.class)
+			.map(it -> toEntity(it, evitaRequest, entitySchema, storageContainerBuffer))
+			.iterator();
+	}
+
+	@Override
+	public void copySnapshotTo(@Nonnull File newFile) {
+		// TODO JNO - IMPLEMENT ME
+	}
+
+	@Nonnull
+	@Override
+	public EntityCollectionHeader flush(long newCatalogVersion, @Nonnull Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory) {
+		final long previousVersion = this.storagePartPersistenceService.getVersion();
+		final PersistentStorageDescriptor newDescriptor = this.storagePartPersistenceService.flush(newCatalogVersion);
+		// when versions are equal - nothing has changed, and we can reuse old header
+		if (newDescriptor.version() > previousVersion) {
+			this.catalogEntityHeader = catalogEntityHeaderFactory.apply(newDescriptor);
+		}
+
+		return this.catalogEntityHeader;
+	}
+
+	@Override
+	public void delete() {
+		close();
+		if (!this.entityCollectionFile.toFile().delete()) {
+			throw new UnexpectedIOException(
+				"Failed to delete file: " + this.entityCollectionFile,
+				"Failed to delete file!"
+			);
+		}
+	}
+
+	@Override
+	public void close() {
+		this.storagePartPersistenceService.close();
+	}
+
+	/**
+	 * Creates {@link Kryo} instance that is usable for deserializing entity instances.
+	 */
+	@Nonnull
+	public Function<VersionedKryoKeyInputs, VersionedKryo> createTypeKryoInstance() {
+		return VERSIONED_KRYO_FACTORY;
+	}
+
+	@Nonnull
+	private BinaryEntity toBinaryEntity(
+		@Nonnull byte[] entityStorageContainer,
+		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Function<String, EntityCollection> entityCollectionFetcher,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer
+	) {
+		final EntitySchema entitySchema = EntitySchemaContext.getEntitySchema();
+		final EntityBodyStoragePart deserializedEntityBody = this.storagePartPersistenceService.deserializeStoragePart(
+			entityStorageContainer, EntityBodyStoragePart.class
+		);
+
+		final int entityPrimaryKey = deserializedEntityBody.getPrimaryKey();
+		// load additional containers only when requested
+		final byte[] priceStorageContainer = fetchPrices(
+			null, new PriceContractSerializablePredicate(evitaRequest, (Boolean) null),
+			() -> storageContainerBuffer.fetchBinary(
+				entityPrimaryKey, PricesStoragePart.class
+			)
+		);
+
+		final List<byte[]> attributesStorageContainers = fetchAttributes(
+			entityPrimaryKey, null, new AttributeValueSerializablePredicate(evitaRequest),
+			deserializedEntityBody.getAttributeLocales(),
+			attributesSetKey -> storageContainerBuffer.fetchBinary(
+				attributesSetKey,
+				AttributesStoragePart.class,
+				AttributesStoragePart::computeUniquePartId,
+				this.storagePartPersistenceService::serializeStoragePart
+			)
+		);
+		final List<byte[]> associatedDataStorageContainers = fetchAssociatedData(
+			entityPrimaryKey, null, new AssociatedDataValueSerializablePredicate(evitaRequest),
+			deserializedEntityBody.getAssociatedDataKeys(),
+			associatedDataKey -> storageContainerBuffer.fetchBinary(
+				associatedDataKey,
+				AssociatedDataStoragePart.class,
+				AssociatedDataStoragePart::computeUniquePartId,
+				this.storagePartPersistenceService::serializeStoragePart
+			)
+		);
+
+		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
+		final AtomicReference<ReferencesStoragePart> referencesStoragePartRef = new AtomicReference<>();
+		final byte[] referencesStorageContainer = fetchReferences(
+			null, new ReferenceContractSerializablePredicate(evitaRequest),
+			() -> {
+				if (referenceEntityFetch.isEmpty()) {
+					return storageContainerBuffer.fetchBinary(
+						entityPrimaryKey, ReferencesStoragePart.class
+					);
+				} else {
+					final ReferencesStoragePart fetchedPart = storageContainerBuffer.fetch(
+						entityPrimaryKey, ReferencesStoragePart.class
+					);
+					if (fetchedPart == null) {
+						return null;
+					} else {
+						referencesStoragePartRef.set(fetchedPart);
+						return this.storagePartPersistenceService.serializeStoragePart(fetchedPart);
+					}
+				}
+			}
+		);
+
+		final BinaryEntity[] referencedEntities = referencesStoragePartRef.get() == null ?
+			new BinaryEntity[0] :
+			referenceEntityFetch
+				.entrySet()
+				.stream()
+				.flatMap(entry -> {
+					final String referenceName = entry.getKey();
+					final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
+					final RequirementContext requirementTuple = entry.getValue();
+					final EntityFetch entityFetch = referenceSchema.isReferencedEntityTypeManaged() ?
+						requirementTuple.entityFetch() : null;
+					final EntityGroupFetch entityGroupFetch = referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null ?
+						requirementTuple.entityGroupFetch() : null;
+					return Stream.concat(
+						ofNullable(entityFetch)
+							.map(
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedIds(referenceName))
+									.mapToObj(
+										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedEntityType())
+											.getBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedEntityType(), entityFetch), session)
+											.orElse(null)
+									)
+							)
+							.orElse(Stream.empty()),
+						ofNullable(entityGroupFetch)
+							.map(
+								requirement -> Arrays.stream(referencesStoragePartRef.get().getReferencedGroupIds(referenceName))
+									.mapToObj(
+										it -> entityCollectionFetcher.apply(referenceSchema.getReferencedGroupType())
+											.getBinaryEntity(it, evitaRequest.deriveCopyWith(referenceSchema.getReferencedGroupType(), entityGroupFetch), session)
+											.orElse(null)
+									)
+							)
+							.orElse(Stream.empty())
+					);
+				})
+				.filter(Objects::nonNull)
+				.toArray(BinaryEntity[]::new);
+
+		// and build the entity
+		return new BinaryEntity(
+			entitySchema,
+			entityPrimaryKey,
+			entityStorageContainer,
+			attributesStorageContainers.toArray(BYTE_TWO_DIMENSIONAL_ARRAY),
+			associatedDataStorageContainers.toArray(BYTE_TWO_DIMENSIONAL_ARRAY),
+			priceStorageContainer,
+			referencesStorageContainer,
+			referencedEntities
+		);
 	}
 
 }

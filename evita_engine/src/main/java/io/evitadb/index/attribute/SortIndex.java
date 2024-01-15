@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
@@ -611,15 +610,15 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 
 	@Nonnull
 	@Override
-	public SortIndex createCopyWithMergedTransactionalMemory(@Nullable SortIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public SortIndex createCopyWithMergedTransactionalMemory(@Nullable SortIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		return new SortIndex(
 			this.comparatorBase,
 			this.attributeKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecords),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.sortedRecordsValues),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.valueCardinalities)
 		);
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.index.iterator.ConstantObjIterator;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
@@ -303,7 +302,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 
 	@Nonnull
 	@Override
-	public T[] createCopyWithMergedTransactionalMemory(@Nullable ComplexObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public T[] createCopyWithMergedTransactionalMemory(@Nullable ComplexObjArrayChanges<T> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		if (layer == null) {
 			@SuppressWarnings("unchecked") final T[] copy = (T[]) Array.newInstance(objectType, delegate.length);
 			for (int i = 0; i < delegate.length; i++) {
@@ -312,7 +311,7 @@ public class TransactionalComplexObjArray<T extends TransactionalObject<T, ?> & 
 					@SuppressWarnings("unchecked") final TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?> theProducer = (TransactionalLayerProducer<ComplexObjArrayChanges<T>, ?>) item;
 					//noinspection unchecked
 					item = (T) theProducer.createCopyWithMergedTransactionalMemory(
-						null, transactionalLayer, transaction
+						null, transactionalLayer
 					);
 				}
 				copy[i] = item;

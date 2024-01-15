@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -57,14 +57,14 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
-import io.evitadb.core.buffer.DataStoreTxMemoryBuffer;
+import io.evitadb.core.buffer.DataStoreChanges;
+import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.EntityIndexType;
 import io.evitadb.index.IndexMaintainer;
-import io.evitadb.index.transactionalMemory.diff.DataSourceChanges;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -74,7 +74,6 @@ import io.evitadb.store.entity.model.entity.ReferencesStoragePart;
 import io.evitadb.store.entity.model.entity.price.MinimalPriceInternalIdContainer;
 import io.evitadb.store.entity.model.entity.price.PriceInternalIdContainer;
 import io.evitadb.store.model.EntityStoragePart;
-import io.evitadb.store.model.RecordWithCompressedId;
 import io.evitadb.store.spi.model.storageParts.accessor.AbstractEntityStorageContainerAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.EntityStoragePartAccessor;
 import io.evitadb.store.spi.model.storageParts.accessor.WritableEntityStorageContainerAccessor;
@@ -138,7 +137,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
+		@Nonnull DataStoreMemoryBuffer<EntityIndexKey, EntityIndex, DataStoreChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
@@ -190,32 +189,10 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 		getChangedEntityStorageParts()
 			.forEach(part -> {
 				if (part.isEmpty()) {
-					if (part.getStoragePartPK() == null) {
-						Assert.isPremiseValid(
-							part instanceof RecordWithCompressedId,
-							"Removed container must have already its unique part id assigned or must be unsaved RecordWithCompressedId!"
-						);
-						Assert.isPremiseValid(
-							this.storageContainerBuffer.removeByOriginalKey(
-								((RecordWithCompressedId<?>) part).getStoragePartSourceKey(),
-								part.getClass()
-							),
-							"Removed container was expected to be in transactional memory but was not!"
-						);
-					} else {
-						if (part instanceof RecordWithCompressedId<?> recordWithCompressedId) {
-							this.storageContainerBuffer.removeByPrimaryAndOriginalKey(
-								part.getStoragePartPK(),
-								recordWithCompressedId.getStoragePartSourceKey(),
-								part.getClass()
-							);
-						} else {
-							this.storageContainerBuffer.removeByPrimaryKey(
-								part.getStoragePartPK(),
-								part.getClass()
-							);
-						}
-					}
+					this.storageContainerBuffer.removeByPrimaryKey(
+						part.getStoragePartPK(),
+						part.getClass()
+					);
 				} else {
 					Assert.isPremiseValid(
 						!removeOnly,

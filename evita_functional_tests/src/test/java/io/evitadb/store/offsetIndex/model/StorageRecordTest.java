@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -146,14 +146,14 @@ class StorageRecordTest {
 	void shouldWriteAndReadRecord() throws IOException {
 		final StorageRecord<ByteChunk> record;
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0)) {
-			record = new StorageRecord<>(kryo, output, (byte) 1, 1L, false, generateBytes(256));
+			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
 		}
 
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192)) {
-			final StorageRecord<ByteChunk> loadedRecord = new StorageRecord<>(
+			final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> {
-					assertEquals(record.getFileLocation(), fl);
+					assertEquals(record.fileLocation(), fl);
 					return ByteChunk.class;
 				}
 			);
@@ -166,14 +166,14 @@ class StorageRecordTest {
 	void shouldWriteAndReadRecordWithCrc32Check() throws IOException {
 		final StorageRecord<ByteChunk> record;
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
-			record = new StorageRecord<>(kryo, output, (byte) 1, 1L, false, generateBytes(256));
+			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
 		}
 
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192).computeCRC32()) {
-			final StorageRecord<ByteChunk> loadedRecord = new StorageRecord<>(
+			final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> {
-					assertEquals(record.getFileLocation(), fl);
+					assertEquals(record.fileLocation(), fl);
 					return ByteChunk.class;
 				}
 			);
@@ -186,14 +186,14 @@ class StorageRecordTest {
 	void shouldWriteAndReadRecordWithComputingButNotVerifyingCrc32Check() throws IOException {
 		final StorageRecord<ByteChunk> record;
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
-			record = new StorageRecord<>(kryo, output, (byte) 1, 1L, false, generateBytes(256));
+			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
 		}
 
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192)) {
-			final StorageRecord<ByteChunk> loadedRecord = new StorageRecord<>(
+			final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> {
-					assertEquals(record.getFileLocation(), fl);
+					assertEquals(record.fileLocation(), fl);
 					return ByteChunk.class;
 				}
 			);
@@ -211,7 +211,7 @@ class StorageRecordTest {
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 16_384).computeCRC32()) {
 			final AtomicReference<FileLocation> locRef = new AtomicReference<>();
 			for (int i = 0; i < count; i++) {
-				final StorageRecord<ByteChunk> loadedRecord = new StorageRecord<>(
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
 					kryo, input,
 					fl -> {
 						locRef.set(fl);
@@ -239,7 +239,7 @@ class StorageRecordTest {
 		try (final RandomAccessFileInputStream is = new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r"));
 		     final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(is, 8_192).computeCRC32()) {
 			index.forEach((key, expectedRecord) -> {
-				final StorageRecord<ByteChunk> loadedRecord = new StorageRecord<>(input, key, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, key, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
 				assertEquals(expectedRecord, loadedRecord);
 			});
 		}
@@ -258,7 +258,7 @@ class StorageRecordTest {
 		     final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(is, 8_192 * 2).computeCRC32()) {
 			for (int i = 0; i < retrievalCount; i++) {
 				final FileLocation randomLocation = locations.get(random.nextInt(locations.size()));
-				final StorageRecord<ByteChunk> loadedRecord = new StorageRecord<>(input, randomLocation, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
+				final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(input, randomLocation, (stream, length) -> kryo.readObject(stream, ByteChunk.class));
 				final StorageRecord<ByteChunk> expectedRecord = index.get(randomLocation);
 				assertEquals(expectedRecord, loadedRecord);
 			}
@@ -270,27 +270,27 @@ class StorageRecordTest {
 	void shouldWriteAndReadLongRecordThatExceedsTheBufferButConsistsOfMultipleSmallItems() throws IOException {
 		final StorageRecord<LongSetChunk> record;
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 512, 2_048, 0)) {
-			record = new StorageRecord<>(kryo, output, (byte) 1, 1L, true, generateLongSetOfSize(5000));
+			record = new StorageRecord<>(kryo, output, 1L, true, generateLongSetOfSize(5000));
 		}
 
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192)) {
-			final StorageRecord<LongSetChunk> loadedRecord = new StorageRecord<>(
+			final StorageRecord<LongSetChunk> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> LongSetChunk.class
 			);
-			assertEquals(record.getFileLocation(), loadedRecord.getFileLocation());
+			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.isClosesTransaction());
+			assertTrue(loadedRecord.closesTransaction());
 		}
 
 		try (final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192)) {
-			final StorageRecord<LongSetChunk> loadedRecord = new StorageRecord<>(
-				input, record.getFileLocation(),
+			final StorageRecord<LongSetChunk> loadedRecord = StorageRecord.read(
+				input, record.fileLocation(),
 				(stream, length) -> kryo.readObject(stream, LongSetChunk.class)
 			);
-			assertEquals(record.getFileLocation(), loadedRecord.getFileLocation());
+			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.isClosesTransaction());
+			assertTrue(loadedRecord.closesTransaction());
 		}
 	}
 
@@ -305,31 +305,31 @@ class StorageRecordTest {
 
 		final StorageRecord<Roaring64Bitmap> record;
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 512, 1024, 0).computeCRC32()) {
-			record = new StorageRecord<>(kryo, output, (byte) 1, 1L, true, bitmap);
+			record = new StorageRecord<>(kryo, output, 1L, true, bitmap);
 		}
 
 		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192).computeCRC32()) {
-			final StorageRecord<Roaring64Bitmap> loadedRecord = new StorageRecord<>(
+			final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
 				kryo, input,
 				fl -> Roaring64Bitmap.class
 			);
-			assertEquals(record.getFileLocation(), loadedRecord.getFileLocation());
+			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
 
-			final Iterator<Long> it = loadedRecord.getPayload().iterator();
+			final Iterator<Long> it = loadedRecord.payload().iterator();
 			for (int i = 0; i < cardinality; i++) {
 				assertEquals(Long.valueOf(i), it.next());
 			}
 		}
 
 		try (final ObservableInput<RandomAccessFileInputStream> input = new ObservableInput<>(new RandomAccessFileInputStream(new RandomAccessFile(tempFile, "r")), 8_192)) {
-			final StorageRecord<Roaring64Bitmap> loadedRecord = new StorageRecord<>(
-				input, record.getFileLocation(),
+			final StorageRecord<Roaring64Bitmap> loadedRecord = StorageRecord.read(
+				input, record.fileLocation(),
 				(stream, length) -> kryo.readObject(stream, Roaring64Bitmap.class)
 			);
-			assertEquals(record.getFileLocation(), loadedRecord.getFileLocation());
+			assertEquals(record.fileLocation(), loadedRecord.fileLocation());
 			assertEquals(record, loadedRecord);
-			assertTrue(loadedRecord.isClosesTransaction());
+			assertTrue(loadedRecord.closesTransaction());
 		}
 	}
 
@@ -343,8 +343,8 @@ class StorageRecordTest {
 
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
 			for (int i = 0; i < count; i++) {
-				final StorageRecord<ByteChunk> record = new StorageRecord<>(kryo, output, (byte) 1, 1L, false, generateBytes(random.nextInt(256)));
-				index.put(record.getFileLocation(), record);
+				final StorageRecord<ByteChunk> record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(random.nextInt(256)));
+				index.put(record.fileLocation(), record);
 				consumer.accept(record);
 			}
 		}
@@ -361,8 +361,8 @@ class StorageRecordTest {
 	}
 
 	private StorageRecord<ByteChunk> writeRandomRecord(Map<FileLocation, StorageRecord<ByteChunk>> index, ObservableOutput<?> output, int payloadSize) {
-		final StorageRecord<ByteChunk> record = new StorageRecord<>(kryo, output, (byte) 1, 1L, false, generateBytes(payloadSize));
-		index.put(record.getFileLocation(), record);
+		final StorageRecord<ByteChunk> record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(payloadSize));
+		index.put(record.fileLocation(), record);
 		return record;
 	}
 

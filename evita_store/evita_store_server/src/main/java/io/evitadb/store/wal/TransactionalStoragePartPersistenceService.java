@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,9 +40,11 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.PersistentStorageHeader;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
@@ -64,6 +66,7 @@ import static java.util.Optional.ofNullable;
  * {@link EntityCollection} persistence services.
  *
  * TODO In January 2024:
+ * ---------------------
  * - rewire EntityCollection + Catalog to use this StoragePartPersistenceService in their persistence services inside transaction
  * - contents of this storage part layer will be always completely removed on transaction commit / rollback
  * - separately there will be a WAL which will record all the mutations in its own offset index and that will copy
@@ -76,6 +79,7 @@ import static java.util.Optional.ofNullable;
  */
 public class TransactionalStoragePartPersistenceService implements StoragePartPersistenceService {
 	private final StoragePartPersistenceService delegate;
+	private final Path targetFile;
 	private final OffsetIndex offsetIndex;
 	private final Set<RecordKey> removedStoragePartKeys = new HashSet<>(64);
 
@@ -91,6 +95,9 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	) {
 		this.delegate = delegate;
 		// we create a duplicate offset index that targets temporary file in tx related directory
+		this.targetFile = storageOptions.transactionWorkDirectory()
+			.resolve(transactionId.toString())
+			.resolve(name + ".tmp");
 		this.offsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
 				new PersistentStorageHeader(1L, null, Collections.emptyMap()),
@@ -99,13 +106,17 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			storageOptions,
 			offsetIndexRecordTypeRegistry,
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				storageOptions.transactionWorkDirectory()
-					.resolve(transactionId.toString())
-					.resolve(name + ".tmp"),
+				this.targetFile,
 				observableOutputKeeper,
 				offHeapMemoryManager
 			)
 		);
+	}
+
+	@Nonnull
+	@Override
+	public StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId) {
+		throw new UnsupportedOperationException("Transactional service cannot be created from transactional service!");
 	}
 
 	@Nullable
@@ -129,13 +140,13 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	}
 
 	@Override
-	public <T extends StoragePart> long putStoragePart(long storagePartPk, @Nonnull T container) {
+	public <T extends StoragePart> long putStoragePart(long catalogVersion, @Nonnull T container) {
 		// delete from removed keys (if present)
 		this.removedStoragePartKeys.remove(
-			new RecordKey(this.offsetIndex.getIdForRecordType(container.getClass()), storagePartPk)
+			new RecordKey(this.offsetIndex.getIdForRecordType(container.getClass()), catalogVersion)
 		);
 		// put into tx offset index
-		return this.offsetIndex.put(storagePartPk, container);
+		return this.offsetIndex.put(catalogVersion, container);
 	}
 
 	@Override
@@ -231,7 +242,18 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 
 	@Override
 	public void close() {
+		// when this service is closed the file is deleted
 		this.offsetIndex.close();
+		if (this.targetFile.toFile().exists()) {
+			Assert.isPremiseValid(
+				this.targetFile.toFile().delete(),
+				"Cannot delete temporary file: " + this.targetFile
+			);
+		}
 	}
 
+	@Override
+	public String toString() {
+		return "TransactionalStoragePartPersistenceService: `" + targetFile + '`';
+	}
 }

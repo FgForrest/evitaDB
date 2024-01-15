@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ package io.evitadb.index.price;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -341,15 +340,15 @@ public class PriceListAndCurrencyPriceRefIndex implements VoidTransactionMemoryP
 
 	@Nonnull
 	@Override
-	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public PriceListAndCurrencyPriceRefIndex createCopyWithMergedTransactionalMemory(@Nullable Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.priceRecords);
 		return new PriceListAndCurrencyPriceRefIndex(
 			priceIndexKey,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex, transaction),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceEntityIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.indexedPriceIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.validityIndex),
 			this.superIndexAccessor
 		);
 	}

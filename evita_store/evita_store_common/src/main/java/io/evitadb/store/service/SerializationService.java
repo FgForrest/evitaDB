@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@ import com.esotericsoftware.kryo.io.ByteBufferInput;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.store.exception.UnknownClassOnDeserializationException;
 
 import javax.annotation.Nonnull;
 import java.io.InputStream;
@@ -37,39 +36,12 @@ import java.io.OutputStream;
  * Generic contract for all serialization services. We want to avoid fragmentation and keep (de)serialization logic
  * unified for all data types.
  *
+ * TODO JNO - toto je úplně špatný koncept, který mě zavedl na scestí - tohle rozhraní ideálně úplně zrušit a i
+ * catalog header ukládat přes StorageRecord
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface SerializationService<T> {
-
-	/**
-	 * Method allows to translate passed class name to a {@link Class} type with optimization for primitiv java types.
-	 */
-	@Nonnull
-	static Class<?> getClassTypeSafely(String className) {
-		if (Character.isLowerCase(className.charAt(0))) {
-			switch (className) {
-				case "boolean":
-					return boolean.class;
-				case "byte":
-					return byte.class;
-				case "short":
-					return short.class;
-				case "int":
-					return int.class;
-				case "long":
-					return long.class;
-				case "char":
-					return char.class;
-			}
-		}
-		try {
-			return Class.forName(className);
-		} catch (ClassNotFoundException e) {
-			throw new UnknownClassOnDeserializationException(
-				"Serialized class " + className + " not found by actual classloader!"
-			);
-		}
-	}
 
 	/**
 	 * Method serializes the object to the output stream. Output stream is closed in the process of serialization.

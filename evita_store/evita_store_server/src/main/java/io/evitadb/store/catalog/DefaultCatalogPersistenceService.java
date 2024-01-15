@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,17 +25,20 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.util.Pool;
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.buffer.BufferedChangeSet;
+import io.evitadb.core.buffer.DataStoreIndexChanges;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -44,7 +47,7 @@ import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
-import io.evitadb.store.entity.EntityStoragePartConfigurer;
+import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.exception.InvalidFileNameException;
 import io.evitadb.store.exception.InvalidStoragePathException;
@@ -54,67 +57,91 @@ import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoFactory;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
+import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.model.PersistentStorageDescriptor;
-import io.evitadb.store.offsetIndex.OffsetIndex;
-import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
 import io.evitadb.store.offsetIndex.exception.UnexpectedCatalogContentsException;
+import io.evitadb.store.offsetIndex.io.OffHeapMemoryManager;
+import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
 import io.evitadb.store.offsetIndex.io.WriteOnlyFileHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyHandle;
+import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
+import io.evitadb.store.service.KryoFactory;
 import io.evitadb.store.service.SerializationService;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogPersistenceService;
-import io.evitadb.store.spi.DeferredStorageOperation;
+import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.EntityCollectionPersistenceService;
+import io.evitadb.store.spi.IsolatedWalPersistenceService;
+import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.StoragePartPersistenceService;
+import io.evitadb.store.spi.exception.BootstrapFileNotFound;
 import io.evitadb.store.spi.exception.DirectoryNotEmptyException;
-import io.evitadb.store.spi.exception.HeaderFileNotFound;
-import io.evitadb.store.spi.model.CatalogBootstrap;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
+import io.evitadb.store.spi.model.reference.CollectionFileReference;
+import io.evitadb.store.spi.model.reference.WalFileReference;
 import io.evitadb.store.spi.model.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.store.wal.CatalogWriteAheadLog;
+import io.evitadb.store.wal.WalKryoConfigurer;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
-import io.evitadb.utils.StringUtils;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogBootstrapFileName;
+import static io.evitadb.store.spi.CatalogPersistenceService.getCatalogDataStoreFileName;
+import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 import static java.util.Optional.ofNullable;
 
 /**
  * DefaultEntityCollectionPersistenceService class encapsulates main logic of {@link Catalog}
  * serialization to persistent storage and also deserializing the catalog contents back.
  *
+ * TODO JNO - implementovat proces uzavírání a odstraňování servis, koukajících do file indexů pro něž už neexistují transakce
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @Slf4j
 public class DefaultCatalogPersistenceService implements CatalogPersistenceService {
+	/**
+	 * Factory function that configures new instance of the versioned kryo factory.
+	 */
+	private static final Function<VersionedKryoKeyInputs, VersionedKryo> VERSIONED_KRYO_FACTORY = kryoKeyInputs -> VersionedKryoFactory.createKryo(
+		kryoKeyInputs.version(),
+		SchemaKryoConfigurer.INSTANCE
+			.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
+			.andThen(SharedClassesConfigurer.INSTANCE)
+			.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
+	);
 
 	/**
 	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
@@ -122,6 +149,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final OffHeapMemoryManager offHeapMemoryManager;
 	/**
 	 * The name of the catalog that maps to {@link EntitySchema#getName()}.
 	 */
@@ -140,8 +171,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	/**
 	 * The storage part persistence service implementation.
 	 */
-	@Nonnull @Getter
-	private final StoragePartPersistenceService storagePartPersistenceService;
+	@Nonnull
+	private final CatalogStoragePartPersistenceService catalogStoragePartPersistenceService;
 	/**
 	 * Contains information about storage configuration options.
 	 */
@@ -153,122 +184,338 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * singletons.
 	 */
 	@Nonnull
-	private final ConcurrentHashMap<String, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices;
-	private final Pool<SerializationService<CatalogBootstrap>> headerSerializationServicePool = new Pool<>(true, false, 8) {
+	private final ConcurrentHashMap<CollectionFileReference, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices;
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nonnull
+	private final WriteOnlyHandle bootstrapWriteHandle;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final CatalogBootstrap bootstrapUsed;
+	/**
+	 * TODO JNO - DOCUMENT ME
+	 */
+	@Nullable private final CatalogWriteAheadLog catalogWal;
+	/**
+	 * Pool contains instances of {@link SerializationService} that are used for serializing mutations in WAL.
+	 */
+	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 16) {
 		@Override
-		protected SerializationService<CatalogBootstrap> create() {
-			return new CatalogBootstrapSerializationService(
-				CatalogHeaderKryoConfigurer.INSTANCE
-					.andThen(SharedClassesConfigurer.INSTANCE)
-			);
+		protected Kryo create() {
+			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
+
 	/**
-	 * Contains reference to the catalog header collecting all crucial information about all entity collections.
-	 * The catalog header is loaded in constructor and because it's immutable it needs to be replaced with each
-	 * {@link #storeHeader(CatalogState, long, int, List)} call.
+	 * Check whether target directory exists and whether it is really directory.
+	 *
+	 * @return name of the directory (e.g. catalog name)
 	 */
-	@Getter @Nonnull
-	private CatalogBootstrap catalogBootstrap;
+	@Nonnull
+	private static String verifyDirectory(@Nonnull Path storageDirectory, boolean requireEmpty) {
+		final File storageDirectoryFile = storageDirectory.toFile();
+		if (!storageDirectoryFile.exists()) {
+			//noinspection ResultOfMethodCallIgnored
+			storageDirectoryFile.mkdirs();
+		}
+		Assert.isTrue(storageDirectoryFile.exists(), () -> new InvalidStoragePathException("Storage path doesn't exist: " + storageDirectory));
+		Assert.isTrue(storageDirectoryFile.isDirectory(), () -> new InvalidStoragePathException("Storage path doesn't represent a directory: " + storageDirectory));
+		if (requireEmpty) {
+			Assert.isTrue(
+				ofNullable(storageDirectoryFile.listFiles()).map(it -> it.length).orElse(0) == 0,
+				() -> new DirectoryNotEmptyException(storageDirectory.toString())
+			);
+		}
+
+		return storageDirectoryFile.getName();
+	}
+
+	/**
+	 * Verifies the name of the catalog and its uniqueness among other existing catalogs.
+	 */
+	@Nonnull
+	private static Path pathForNewCatalog(@Nonnull String catalogName, @Nonnull Path storageDirectory) {
+		try {
+			return storageDirectory.resolve(catalogName);
+		} catch (InvalidPathException ex) {
+			throw new InvalidFileNameException("Name `" + catalogName + "` cannot be converted a valid file name: " + ex.getMessage() + "! Please rename the catalog.");
+		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	@Nonnull
+	private static CatalogBootstrap getLastCatalogBootstrap(
+		@Nonnull Path catalogStoragePath,
+		@Nonnull String catalogName,
+		@Nonnull StorageOptions storageOptions
+	) {
+		final String bootstrapFileName = getCatalogBootstrapFileName(catalogName);
+		final Path bootstrapFilePath = catalogStoragePath.resolve(bootstrapFileName);
+		final File bootstrapFile = bootstrapFilePath.toFile();
+		if (bootstrapFile.exists()) {
+			final long length = bootstrapFile.length();
+			final long lastMeaningfulPosition = CatalogBootstrap.getLastMeaningfulPosition(length);
+			try {
+				final ReadOnlyFileHandle readHandle = new ReadOnlyFileHandle(bootstrapFilePath, storageOptions.computeCRC32C());
+				return readHandle.execute(
+					input -> StorageRecord.read(
+						input,
+						new FileLocation(lastMeaningfulPosition, CatalogBootstrap.BOOTSTRAP_RECORD_SIZE),
+						(theInput, recordLength) -> new CatalogBootstrap(
+							theInput.readLong(),
+							theInput.readInt(),
+							Instant.ofEpochMilli(theInput.readLong()).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+							new FileLocation(
+								theInput.readLong(),
+								theInput.readInt()
+							)
+						)
+					)
+				).payload();
+			} catch (Exception e) {
+				throw new UnexpectedIOException(
+					"Failed to open catalog bootstrap file `" + bootstrapFile.getAbsolutePath() + "`!",
+					"Failed to open catalog bootstrap file!",
+					e
+				);
+			}
+		} else {
+			if (FileUtils.isDirectoryEmpty(catalogStoragePath)) {
+				return new CatalogBootstrap(
+					0,
+					0,
+					Instant.now().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+					null
+				);
+			} else {
+				throw new BootstrapFileNotFound(catalogStoragePath, bootstrapFile);
+			}
+		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 */
+	private static void verifyCatalogNameMatches(
+		@Nonnull CatalogContract catalogInstance,
+		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
+		@Nonnull StoragePartPersistenceService storagePartPersistenceService
+	) {
+		// verify that the catalog schema is the same as the one in the catalog directory
+		final CatalogSchemaStoragePart catalogSchemaStoragePart = CatalogSchemaStoragePart.deserializeWithCatalog(
+			catalogInstance,
+			() -> storagePartPersistenceService.getStoragePart(1, CatalogSchemaStoragePart.class)
+		);
+		Assert.isTrue(
+			catalogSchemaStoragePart.catalogSchema().getName().equals(catalogName),
+			() -> new UnexpectedCatalogContentsException(
+				"Directory " + catalogStoragePath + " contains data of " + catalogSchemaStoragePart.catalogSchema().getName() +
+					" catalog. Cannot load catalog " + catalogName + " from this directory!"
+			)
+		);
+	}
+
+	@Nullable
+	private static CatalogWriteAheadLog getWalFileChannel(
+		@Nonnull String catalogName,
+		@Nonnull Path catalogStoragePath,
+		@Nonnull CatalogHeader catalogHeader,
+		@Nonnull Pool<Kryo> catalogKryoPool,
+		@Nonnull StorageOptions storageOptions
+	) {
+		WalFileReference currentWalFileRef = catalogHeader.walFileReference();
+		if (catalogHeader.catalogState() == CatalogState.ALIVE && currentWalFileRef == null) {
+			// set up new empty WAL file
+			currentWalFileRef = new WalFileReference(catalogName, 0, null);
+			final Path walFilePath = catalogStoragePath.resolve(getWalFileName(catalogName, currentWalFileRef.fileIndex()));
+			Assert.isPremiseValid(
+				!walFilePath.toFile().exists(),
+				() -> new UnexpectedIOException(
+					"WAL file `" + walFilePath + "` is not expected to exist at this point, but it does!",
+					"WAL file is not expected to exist at this point, but it does!"
+				)
+			);
+			try {
+				Assert.isPremiseValid(
+					walFilePath.toFile().createNewFile(),
+					() -> new UnexpectedIOException(
+						"WAL file `" + walFilePath + "` was unexpectedly not created!",
+						"WAL file was unexpectedly not created!"
+					)
+				);
+			} catch (IOException e) {
+				throw new UnexpectedIOException(
+					"Failed to create WAL file `" + walFilePath + "`!",
+					"Failed to create WAL file!",
+					e
+				);
+			}
+		}
+		return ofNullable(currentWalFileRef)
+			.map(
+				walFileReference -> new CatalogWriteAheadLog(
+					catalogName, catalogStoragePath, walFileReference, catalogKryoPool, storageOptions
+				)
+			)
+			.orElse(null);
+	}
 
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions
 	) {
 		this.storageOptions = storageOptions;
+		this.offHeapMemoryManager = new OffHeapMemoryManager(
+			storageOptions.transactionMemoryBufferLimitSizeBytes(),
+			storageOptions.transactionMemoryRegionCount()
+		);
 		this.catalogName = catalogName;
 		this.catalogStoragePath = pathForNewCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
-		this.verifyDirectory(this.catalogStoragePath, true);
-		this.catalogBootstrap = new CatalogBootstrap(
-			CatalogState.WARMING_UP, 0L,
-			new CatalogHeader(catalogName, 0),
-			Collections.emptyList()
-		);
+		verifyDirectory(this.catalogStoragePath, true);
 		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions);
-		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
-		final Path targetFile = this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName));
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			new OffsetIndex(
-				new OffsetIndexDescriptor(
-					this.catalogBootstrap.getCatalogHeader(),
-					this.createTypeKryoInstance()
-				),
-				storageOptions,
-				recordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
-			)
+		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
+		final CatalogBootstrap lastCatalogBootstrap = getLastCatalogBootstrap(
+			this.catalogStoragePath, verifiedCatalogName, storageOptions
 		);
+		this.bootstrapWriteHandle = new WriteOnlyFileHandle(
+			this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
+			this.observableOutputKeeper
+		);
+		final String catalogFileName = getCatalogDataStoreFileName(catalogName, lastCatalogBootstrap.catalogFileIndex());
+		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+
+		try {
+			this.observableOutputKeeper.prepare();
+			this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
+				catalogName,
+				catalogFileName,
+				catalogFilePath,
+				storageOptions,
+				lastCatalogBootstrap,
+				recordTypeRegistry,
+				offHeapMemoryManager,
+				observableOutputKeeper,
+				VERSIONED_KRYO_FACTORY
+			);
+			this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(16);
+
+			if (lastCatalogBootstrap.fileLocation() == null) {
+				this.bootstrapUsed = recordBootstrap(0, this.catalogName, 0);
+			} else {
+				this.bootstrapUsed = lastCatalogBootstrap;
+			}
+
+			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+			this.catalogWal = getWalFileChannel(
+				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
+			);
+		} finally {
+			this.observableOutputKeeper.free();
+		}
 	}
 
 	public DefaultCatalogPersistenceService(
+		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull StorageOptions storageOptions
 	) {
 		this.storageOptions = storageOptions;
+		this.offHeapMemoryManager = new OffHeapMemoryManager(
+			storageOptions.transactionMemoryBufferLimitSizeBytes(),
+			storageOptions.transactionMemoryRegionCount()
+		);
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.catalogBootstrap = readHeader(
-			this.catalogStoragePath,
-			this.verifyDirectory(this.catalogStoragePath, false)
-		);
 		this.observableOutputKeeper = new ObservableOutputKeeper(storageOptions);
-		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
-			ofNullable(this.catalogBootstrap).map(it -> it.getCollectionHeaders().size()).orElse(16)
-		);
 		this.recordTypeRegistry = new OffsetIndexRecordTypeRegistry();
-		final Path targetFile = this.catalogStoragePath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogName));
-		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
-			new OffsetIndex(
-				new OffsetIndexDescriptor(
-					this.catalogBootstrap.getCatalogHeader(),
-					this.createTypeKryoInstance()
-				),
-				storageOptions,
-				recordTypeRegistry,
-				new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
-			)
+		final String verifiedCatalogName = verifyDirectory(this.catalogStoragePath, false);
+		this.bootstrapUsed = getLastCatalogBootstrap(
+			catalogStoragePath, verifiedCatalogName, storageOptions
+		);
+		this.bootstrapWriteHandle = new WriteOnlyFileHandle(
+			this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
+			observableOutputKeeper
+		);
+
+		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
+		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+		this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
+			catalogName,
+			catalogFileName,
+			catalogFilePath,
+			storageOptions,
+			this.bootstrapUsed,
+			recordTypeRegistry,
+			offHeapMemoryManager, observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY
+		);
+		verifyCatalogNameMatches(catalogInstance, catalogName, catalogStoragePath, this.catalogStoragePartPersistenceService);
+		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
+			this.catalogStoragePartPersistenceService.getCatalogHeader().getEntityTypeFileIndexes().size()
+		);
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		this.catalogWal = getWalFileChannel(
+			catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
 		);
 	}
 
 	private DefaultCatalogPersistenceService(
 		@Nonnull OffsetIndexRecordTypeRegistry fileOffsetIndexRecordTypeRegistry,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
+		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull StoragePartPersistenceService storagePartPersistenceService,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull ConcurrentHashMap<String, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices,
-		@Nonnull CatalogBootstrap catalogBootstrap
+		@Nonnull CatalogBootstrap bootstrapUsed,
+		@Nonnull WriteOnlyHandle bootstrapWriteHandle,
+		@Nonnull StorageOptions storageOptions
 	) {
+		this.bootstrapUsed = bootstrapUsed;
 		this.recordTypeRegistry = fileOffsetIndexRecordTypeRegistry;
 		this.observableOutputKeeper = observableOutputKeeper;
+		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
-		this.storagePartPersistenceService = storagePartPersistenceService;
+		this.bootstrapWriteHandle = bootstrapWriteHandle;
 		this.storageOptions = storageOptions;
-		this.entityCollectionPersistenceServices = entityCollectionPersistenceServices;
-		this.catalogBootstrap = catalogBootstrap;
-	}
 
-	@Override
-	public boolean isNew() {
-		return this.storagePartPersistenceService.isNew();
-	}
-
-	/**
-	 * Creates {@link Kryo} instance that is usable for deserializing catalog content.
-	 */
-	public Function<VersionedKryoKeyInputs, VersionedKryo> createTypeKryoInstance() {
-		return kryoKeyInputs -> VersionedKryoFactory.createKryo(
-			kryoKeyInputs.version(),
-			SchemaKryoConfigurer.INSTANCE
-				.andThen(CatalogHeaderKryoConfigurer.INSTANCE)
-				.andThen(SharedClassesConfigurer.INSTANCE)
-				.andThen(new EntityStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
-				.andThen(new IndexStoragePartConfigurer(kryoKeyInputs.keyCompressor()))
+		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
+		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
+		this.catalogStoragePartPersistenceService = CatalogOffsetIndexStoragePartPersistenceService.create(
+			catalogName,
+			catalogFileName,
+			catalogFilePath,
+			storageOptions,
+			this.bootstrapUsed,
+			recordTypeRegistry,
+			offHeapMemoryManager, observableOutputKeeper,
+			VERSIONED_KRYO_FACTORY
 		);
+		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
+			this.catalogStoragePartPersistenceService.getCatalogHeader().getEntityTypeFileIndexes().size()
+		);
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		this.catalogWal = getWalFileChannel(
+			catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
+		);
+	}
+
+	@Nonnull
+	@Override
+	public CatalogStoragePartPersistenceService getStoragePartPersistenceService() {
+		return catalogStoragePartPersistenceService;
+	}
+
+	@Nonnull
+	@Override
+	public CatalogHeader getCatalogHeader() {
+		return this.catalogStoragePartPersistenceService.getCatalogHeader();
 	}
 
 	@Override
@@ -297,15 +544,15 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public CatalogIndex readCatalogIndex(@Nonnull Catalog catalog) {
-		final CatalogIndexStoragePart catalogIndexStoragePart = this.storagePartPersistenceService.getStoragePart(1, CatalogIndexStoragePart.class);
+		final CatalogIndexStoragePart catalogIndexStoragePart = this.catalogStoragePartPersistenceService.getStoragePart(1, CatalogIndexStoragePart.class);
 		if (catalogIndexStoragePart == null) {
 			return new CatalogIndex(catalog);
 		} else {
 			final Set<AttributeKey> sharedAttributeUniqueIndexes = catalogIndexStoragePart.getSharedAttributeUniqueIndexes();
 			final Map<AttributeKey, GlobalUniqueIndex> sharedUniqueIndexes = CollectionUtils.createHashMap(sharedAttributeUniqueIndexes.size());
 			for (AttributeKey attributeKey : sharedAttributeUniqueIndexes) {
-				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, this.storagePartPersistenceService.getReadOnlyKeyCompressor());
-				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.storagePartPersistenceService.getStoragePart(partId, GlobalUniqueIndexStoragePart.class);
+				final long partId = GlobalUniqueIndexStoragePart.computeUniquePartId(attributeKey, this.catalogStoragePartPersistenceService.getReadOnlyKeyCompressor());
+				final GlobalUniqueIndexStoragePart sharedUniqueIndexStoragePart = this.catalogStoragePartPersistenceService.getStoragePart(partId, GlobalUniqueIndexStoragePart.class);
 				Assert.isPremiseValid(
 					sharedUniqueIndexStoragePart != null,
 					"Shared unique index not found for attribute `" + attributeKey + "`!"
@@ -326,45 +573,102 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void storeHeader(@Nonnull CatalogState catalogState, long transactionId, int lastEntityCollectionPrimaryKey, @Nonnull List<EntityCollectionHeader> entityHeaders) {
-		writeHeader(catalogName, this.catalogStoragePath, catalogState, transactionId, lastEntityCollectionPrimaryKey, entityHeaders);
+	public void storeHeader(
+		@Nonnull CatalogState catalogState,
+		long catalogVersion,
+		int lastEntityCollectionPrimaryKey,
+		@Nonnull List<EntityCollectionHeader> entityHeaders
+	) {
+		// first store all entity collection headers if they differ
+		final CatalogHeader currentCatalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		for (EntityCollectionHeader entityHeader : entityHeaders) {
+			final FileLocation currentLocation = entityHeader.fileLocation();
+			final Optional<FileLocation> previousLocation = currentCatalogHeader
+				.getEntityTypeFileIndexIfExists(entityHeader.entityType())
+				.map(CollectionFileReference::fileLocation);
+			// if the location is different, store the header
+			if (!previousLocation.map(it -> it.equals(currentLocation)).orElse(false)) {
+				this.catalogStoragePartPersistenceService.putStoragePart(catalogVersion, entityHeader);
+			}
+		}
+
+		this.catalogStoragePartPersistenceService.writeCatalogHeader(
+			STORAGE_PROTOCOL_VERSION,
+			catalogVersion,
+			/* TODO JNO - tady přidat referenci na transakci ve WAL od prvního záznamu až po úplně poslední */
+			null,
+			entityHeaders
+				.stream()
+				.map(
+					it -> new CollectionFileReference(
+						it.entityType(),
+						it.entityTypePrimaryKey(),
+						it.entityTypeFileIndex(),
+						it.fileLocation()
+					)
+				)
+				.collect(
+					Collectors.toMap(
+						CollectionFileReference::entityType,
+						Function.identity()
+					)
+				),
+			this.catalogName,
+			catalogState,
+			lastEntityCollectionPrimaryKey
+		);
+		recordBootstrap(catalogVersion, this.catalogName, this.bootstrapUsed.catalogFileIndex());
 	}
 
 	@Nonnull
 	@Override
-	public EntityCollectionPersistenceService createEntityCollectionPersistenceService(@Nonnull String entityType, int entityTypePrimaryKey) {
-		return this.entityCollectionPersistenceServices.computeIfAbsent(entityType, eType -> new DefaultEntityCollectionPersistenceService(
-			pathForEntityCollectionFile(eType),
-			ofNullable(catalogBootstrap.getEntityTypeHeader(eType))
-				.orElseGet(() -> new EntityCollectionHeader(eType, entityTypePrimaryKey)),
-			storageOptions,
-			observableOutputKeeper,
-			recordTypeRegistry
-		));
+	public EntityCollectionPersistenceService createEntityCollectionPersistenceService(
+		@Nonnull String entityType,
+		int entityTypePrimaryKey
+	) {
+		final EntityCollectionHeader entityCollectionHeader = ofNullable(
+			this.catalogStoragePartPersistenceService.getStoragePart(
+				entityTypePrimaryKey, EntityCollectionHeader.class
+			)
+		).orElseGet(() -> new EntityCollectionHeader(entityType, entityTypePrimaryKey));
+		return this.entityCollectionPersistenceServices.computeIfAbsent(
+			new CollectionFileReference(
+				entityType,
+				entityTypePrimaryKey,
+				entityCollectionHeader.entityTypeFileIndex(),
+				entityCollectionHeader.fileLocation()
+			),
+			eType -> new DefaultEntityCollectionPersistenceService(
+				catalogStoragePath,
+				entityCollectionHeader,
+				storageOptions,
+				offHeapMemoryManager,
+				observableOutputKeeper,
+				recordTypeRegistry
+			)
+		);
 	}
 
+	@Nonnull
 	@Override
-	public void prepare() {
-		observableOutputKeeper.prepare();
+	public EntityCollectionHeader getEntityCollectionHeader(@Nonnull CollectionFileReference collectionFileReference) {
+		return this.catalogStoragePartPersistenceService.getStoragePart(
+			collectionFileReference.entityTypePrimaryKey(), EntityCollectionHeader.class
+		);
 	}
 
+	@Nonnull
 	@Override
-	public void release() {
-		observableOutputKeeper.free();
-	}
-
-	@Override
-	public <T> T executeWriteSafely(@Nonnull Supplier<T> lambda) {
-		if (observableOutputKeeper.isPrepared()) {
-			return lambda.get();
-		} else {
-			try {
-				observableOutputKeeper.prepare();
-				return lambda.get();
-			} finally {
-				observableOutputKeeper.free();
-			}
-		}
+	public IsolatedWalPersistenceService createIsolatedWalPersistenceService(@Nonnull UUID transactionId) {
+		return new DefaultIsolatedWalService(
+			transactionId,
+			this.catalogKryoPool.obtain(),
+			new WriteOnlyOffHeapWithFileBackupHandle(
+				this.storageOptions.transactionWorkDirectory().resolve(transactionId + ".wal"),
+				this.observableOutputKeeper,
+				this.offHeapMemoryManager
+			)
+		);
 	}
 
 	@Override
@@ -372,34 +676,61 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		FileUtils.deleteDirectory(catalogStoragePath);
 	}
 
+	@Override
+	public void appendWalAndDiscard(
+		@Nonnull TransactionMutation transactionMutation,
+		@Nonnull OffHeapWithFileBackupReference walReference
+	) {
+		Assert.isPremiseValid(this.catalogWal != null, "Cannot append WAL to catalog that doesn't have WAL!");
+		Assert.isPremiseValid(
+			walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
+			"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
+		);
+
+		this.catalogWal.append(transactionMutation, walReference);
+	}
+
 	@Nonnull
 	@Override
-	public CatalogPersistenceService replaceWith(@Nonnull String catalogNameToBeReplaced, @Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced, @Nonnull CatalogSchema catalogSchema, long transactionId) {
+	public CatalogPersistenceService replaceWith(
+		@Nonnull String catalogNameToBeReplaced,
+		@Nonnull Map<NamingConvention, String> catalogNameVariationsToBeReplaced,
+		@Nonnull CatalogSchema catalogSchema
+	) {
 		final Path newPath = pathForNewCatalog(catalogNameToBeReplaced, storageOptions.storageDirectoryOrDefault());
 		final boolean targetPathExists = newPath.toFile().exists();
 		if (targetPathExists) {
 			Assert.isPremiseValid(newPath.toFile().isDirectory(), () -> "Path `" + newPath.toAbsolutePath() + "` is not a directory!");
 		}
 
-		// first replace name of the catalog in the catalog schema in catalog that replaces the original
+		// first changes and replace name of the catalog in the catalog schema in catalog that replaces the original
 		CatalogSchemaStoragePart.serializeWithCatalogName(
 			catalogNameToBeReplaced,
 			catalogNameVariationsToBeReplaced,
 			() -> {
-				this.storagePartPersistenceService.putStoragePart(transactionId, new CatalogSchemaStoragePart(catalogSchema));
+				final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(catalogSchema);
+				this.catalogStoragePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
 				return null;
 			}
 		);
 
 		// store the catalog that replaces the original header
-		final CatalogHeader catalogHeader = this.catalogBootstrap.getCatalogHeader();
-		writeHeader(
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		final long catalogVersion = catalogHeader.version() + 1;
+		catalogStoragePartPersistenceService.writeCatalogHeader(
+			STORAGE_PROTOCOL_VERSION,
+			catalogVersion,
+			/* TODO JNO - tady přidat referenci na transakci ve WAL od prvního záznamu až po úplně poslední */
+			null,
+			catalogHeader.collectionFileIndex(),
 			catalogNameToBeReplaced,
-			catalogStoragePath,
-			this.catalogBootstrap.getCatalogState(),
-			transactionId,
-			catalogHeader.getLastEntityCollectionPrimaryKey(),
-			this.catalogBootstrap.getEntityTypeHeaders()
+			catalogHeader.catalogState(),
+			catalogHeader.lastEntityCollectionPrimaryKey()
+		);
+		final CatalogBootstrap newCatalogBootstrap = recordBootstrap(
+			catalogVersion,
+			catalogNameToBeReplaced,
+			this.bootstrapUsed.catalogFileIndex()
 		);
 
 		// close the catalog
@@ -409,15 +740,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		ofNullable(
 			this.catalogStoragePath
 				.toFile()
-				.listFiles((dir, name) -> name.startsWith(this.catalogName + "."))
+				.listFiles((dir, name) -> name.startsWith(this.catalogName))
 		)
 			.stream()
 			.flatMap(Arrays::stream)
 			.forEach(it -> {
 				final Path filePath = it.toPath();
-				final String fileNameToRename = filePath.getFileName().toString().substring(this.catalogName.length());
-				final Path filePathForRename = filePath.getParent()
-					.resolve(catalogNameToBeReplaced + fileNameToRename);
+				final String fileNameToRename;
+				if (it.getName().equals(getCatalogBootstrapFileName(this.catalogName))) {
+					fileNameToRename = getCatalogBootstrapFileName(catalogNameToBeReplaced);
+				} else if (it.getName().equals(getCatalogDataStoreFileName(this.catalogName, this.bootstrapUsed.catalogFileIndex()))) {
+					fileNameToRename = getCatalogDataStoreFileName(catalogNameToBeReplaced, this.bootstrapUsed.catalogFileIndex());
+				} else {
+					return;
+				}
+				final Path filePathForRename = filePath.getParent().resolve(fileNameToRename);
 				Assert.isPremiseValid(
 					it.renameTo(filePathForRename.toFile()),
 					() -> new EvitaInternalError(
@@ -448,26 +785,18 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			ofNullable(temporaryOriginal)
 				.ifPresent(FileUtils::deleteDirectory);
 
-			final Path targetFile = newPath.resolve(CatalogPersistenceService.getCatalogDataStoreFileName(catalogNameToBeReplaced));
 			return new DefaultCatalogPersistenceService(
 				this.recordTypeRegistry,
 				this.observableOutputKeeper,
+				this.offHeapMemoryManager,
 				catalogNameToBeReplaced,
 				newPath,
-				new OffsetIndexStoragePartPersistenceService(
-					new OffsetIndex(
-						new OffsetIndexDescriptor(
-							this.catalogBootstrap.getCatalogHeader(),
-							this.createTypeKryoInstance()
-						),
-						storageOptions,
-						recordTypeRegistry,
-						new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
-					)
+				newCatalogBootstrap,
+				new WriteOnlyFileHandle(
+					newPath.resolve(getCatalogBootstrapFileName(catalogNameToBeReplaced)),
+					this.observableOutputKeeper
 				),
-				this.storageOptions,
-				this.entityCollectionPersistenceServices,
-				this.catalogBootstrap
+				this.storageOptions
 			);
 		} catch (RuntimeException ex) {
 			// rename original directory back
@@ -486,68 +815,55 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	@Override
-	public void replaceCollectionWith(@Nonnull String entityType, int entityTypePrimaryKey, @Nonnull String newEntityType, long transactionId) {
-		final File oldFile = pathForEntityCollectionFile(entityType).toFile();
-		final File newFile = pathForEntityCollectionFile(newEntityType).toFile();
-		final CatalogBootstrap originalBootstrap = this.catalogBootstrap;
-		Optional<DefaultEntityCollectionPersistenceService> entityServiceForRename = Optional.empty();
-		Optional<DefaultEntityCollectionPersistenceService> conflictingService = Optional.empty();
-		File tmpFile = null;
+	public void replaceCollectionWith(@Nonnull String entityType, int entityTypePrimaryKey, @Nonnull String newEntityType) {
+		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+		final CollectionFileReference newEntityTypeExistingFileIndex = catalogHeader.getEntityTypeFileIndexIfExists(entityType)
+			.orElseGet(() -> new CollectionFileReference(entityType, entityTypePrimaryKey, 0, null));
+		final CollectionFileReference newEntityTypeFileIndex = newEntityTypeExistingFileIndex.incrementAndGet();
+		final File newFile = newEntityTypeFileIndex.toFilePath(catalogStoragePath).toFile();
+
+		final DefaultEntityCollectionPersistenceService entityPersistenceService = this.entityCollectionPersistenceServices.get(
+			newEntityTypeExistingFileIndex
+		);
+		Assert.isPremiseValid(
+			entityPersistenceService != null,
+			"Entity collection persistence service  for `" + entityType + "` not found in catalog `" + catalogName + "`!"
+		);
+
 		try {
-			entityServiceForRename = ofNullable(this.entityCollectionPersistenceServices.get(entityType));
-			conflictingService = ofNullable(this.entityCollectionPersistenceServices.remove(newEntityType));
-
-			entityServiceForRename.ifPresent(EntityCollectionPersistenceService::close);
-			conflictingService.ifPresent(EntityCollectionPersistenceService::close);
-
 			// define new catalog header (this should be still covered by transaction)
-			final EntityCollectionHeader entityHeaderToRename = catalogBootstrap.getEntityTypeHeader(entityType);
-			this.catalogBootstrap = new CatalogBootstrap(
-				this.catalogBootstrap.getCatalogState(),
-				transactionId,
-				this.catalogBootstrap.getCatalogHeader(),
+			final CatalogHeader newCatalogHeader = new CatalogHeader(
+				STORAGE_PROTOCOL_VERSION,
+				catalogHeader.version() + 1,
+				// TODO JNO - tohle bude taky asi součástí nějaké WAL operace?!
+				null,
 				Stream.concat(
-						catalogBootstrap.getEntityTypeHeaders()
+						catalogHeader.collectionFileIndex()
+							.values()
 							.stream()
-							.filter(it -> !Objects.equals(it.getEntityType(), newEntityType) && !Objects.equals(it.getEntityType(), entityType)),
-						Stream.of(
-							new EntityCollectionHeader(
-								newEntityType,
-								entityTypePrimaryKey,
-								entityHeaderToRename
-							)
-						)
+							.filter(it -> !Objects.equals(it.entityType(), newEntityType) && !Objects.equals(it.entityType(), entityType)),
+						Stream.of(newEntityTypeFileIndex)
 					)
-					.collect(Collectors.toList())
+					.collect(
+						Collectors.toMap(
+							CollectionFileReference::entityType,
+							Function.identity()
+						)
+					),
+				catalogHeader.compressedKeys(),
+				catalogHeader.catalogName(),
+				catalogHeader.catalogState(),
+				catalogHeader.lastEntityCollectionPrimaryKey()
 			);
 
-			// now copy and overwrite the original file
-			if (newFile.exists()) {
-				tmpFile = File.createTempFile("evita", newFile.getName());
-				Assert.isPremiseValid(tmpFile.delete(), "Cannot remove temporary file: `" + tmpFile.toPath() + "`");
-				Assert.isPremiseValid(newFile.renameTo(tmpFile), "Cannot backup old entity collection file: `" + newFile.toPath() + "` to `" + tmpFile.toPath() + "`");
-			}
-			Assert.isPremiseValid(oldFile.renameTo(newFile), "Cannot move old entity collection file: `" + oldFile.toPath() + "` to `" + newFile.toPath() + "`");
-
-			// let the service recreate itself
-			this.entityCollectionPersistenceServices.remove(entityType);
-
+			// now copy living snapshot of the entity collection to a new file
+			Assert.isPremiseValid(newFile.createNewFile(), "Cannot create new entity collection file: `" + newFile.toPath() + "`!");
+			entityPersistenceService.copySnapshotTo(newFile);
 		} catch (RuntimeException | IOException ex) {
-			// rollback changes in map and recreate the original EntityCollectionPersistenceService
-			if (tmpFile != null && tmpFile.exists()) {
-				Assert.isPremiseValid(tmpFile.renameTo(newFile), "Cannot restore backed-up entity collection file: `" + tmpFile.toPath() + "` to `" + newFile.toPath() + "`");
+			// delete non-finished damaged file if exists
+			if (newFile.exists()) {
+				Assert.isPremiseValid(newFile.delete(), "Cannot remove unfinished file: `" + newFile.toPath() + "`!");
 			}
-			this.catalogBootstrap = originalBootstrap;
-			entityServiceForRename.ifPresent(it -> this.entityCollectionPersistenceServices.put(entityType, it));
-			conflictingService.ifPresent(it -> this.entityCollectionPersistenceServices.put(
-				newEntityType,
-				new DefaultEntityCollectionPersistenceService(
-					it,
-					storageOptions,
-					observableOutputKeeper,
-					recordTypeRegistry
-				)
-			));
 			if (ex instanceof RuntimeException runtimeException) {
 				throw runtimeException;
 			} else {
@@ -562,233 +878,116 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Override
 	public void deleteEntityCollection(@Nonnull String entityType) {
-		final EntityCollectionPersistenceService entityCollectionPersistenceService = Objects.requireNonNull(this.entityCollectionPersistenceServices.get(entityType));
+		final CollectionFileReference entityFileIndex = this.catalogStoragePartPersistenceService.getCatalogHeader()
+			.getEntityTypeFileIndexIfExists(entityType)
+			.orElseGet(() -> new CollectionFileReference(entityType, 0, 0, null));
+		final EntityCollectionPersistenceService entityCollectionPersistenceService = Objects.requireNonNull(
+			this.entityCollectionPersistenceServices.get(entityFileIndex)
+		);
 		entityCollectionPersistenceService.delete();
-		this.entityCollectionPersistenceServices.remove(entityType);
+		this.entityCollectionPersistenceServices.remove(entityFileIndex);
 	}
 
+	@Nonnull
 	@Override
-	public void applyUpdates(@Nonnull String owner, long storagePartPk, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
-		executeWriteSafely(() -> {
-			final LinkedList<DeferredStorageOperation<?>> accumulator = new LinkedList<>();
-			for (DeferredStorageOperation<?> deferredOperation : deferredOperations) {
-				if (deferredOperation.getRequiredPersistenceServiceType().isInstance(this)) {
-					//noinspection unchecked,rawtypes
-					((DeferredStorageOperation) deferredOperation).execute(owner, storagePartPk, this);
-				} else if (deferredOperation.getRequiredPersistenceServiceType().isInstance(this.storagePartPersistenceService)) {
-					if (!accumulator.isEmpty()) {
-						this.storagePartPersistenceService.applyUpdates(owner, storagePartPk, accumulator);
-						accumulator.clear();
-					}
-					accumulator.add(deferredOperation);
-				} else {
-					throw new EvitaInternalError(
-						"Incompatible deferred operation: " + deferredOperation,
-						"Incompatible deferred operation!"
-					);
-				}
-			}
-			if (!accumulator.isEmpty()) {
-				this.storagePartPersistenceService.applyUpdates(owner, storagePartPk, accumulator);
-			}
-			return null;
-		});
-	}
-
-	@Override
-	public void flushTrappedUpdates(@Nonnull BufferedChangeSet<CatalogIndexKey, CatalogIndex> bufferedChangeSet) {
-		// now store all entity trapped updates
-		bufferedChangeSet.getTrappedUpdates()
-			.forEach(it -> this.storagePartPersistenceService.putStoragePart(0L, it));
-	}
-
-	@Override
-	public boolean isClosed() {
-		return this.storagePartPersistenceService.isClosed();
+	public Iterator<Mutation> getCommittedMutationIterator(long catalogVersion) {
+		return null;
 	}
 
 	@Override
 	public void close() {
-		// close all services
-		for (EntityCollectionPersistenceService entityCollectionPersistenceService : this.entityCollectionPersistenceServices.values()) {
-			entityCollectionPersistenceService.close();
+		try {
+			// close all services
+			for (EntityCollectionPersistenceService entityCollectionPersistenceService : this.entityCollectionPersistenceServices.values()) {
+				entityCollectionPersistenceService.close();
+			}
+			this.entityCollectionPersistenceServices.clear();
+			// close current file offset index
+			this.catalogStoragePartPersistenceService.close();
+			// close WAL
+			if (this.catalogWal != null) {
+				this.catalogWal.close();
+			}
+		} catch (IOException e) {
+			// ignore / log - we tried to close everything
+			log.error("Failed to close catalog persistence service `" + this.catalogName + "`!", e);
 		}
-		this.entityCollectionPersistenceServices.clear();
-		// close current file offset index
-		this.storagePartPersistenceService.close();
 	}
 
-	/*
-		PRIVATE METHODS
-	 */
+	@Override
+	public boolean isNew() {
+		return this.catalogStoragePartPersistenceService.isNew();
+	}
 
-	/**
-	 * Method writes header into the mem table.
-	 */
-	private void writeHeader(
-		@Nonnull String theCatalogName,
-		@Nonnull Path catalogStoragePath,
-		@Nonnull CatalogState catalogState,
-		long catalogVersion,
-		int lastEntityCollectionPrimaryKey,
-		@Nonnull Collection<EntityCollectionHeader> entityHeaders
-	) {
-		final long start = System.nanoTime();
+	@Override
+	public void prepare() {
+		observableOutputKeeper.prepare();
+	}
 
-		final long previousVersion = this.storagePartPersistenceService.getVersion();
-		final PersistentStorageDescriptor newDescriptor = this.storagePartPersistenceService.flush(catalogVersion);
-		final CatalogHeader catalogHeader;
-		// when versions are equal - nothing has changed, and we can reuse old header
-		if (newDescriptor.getVersion() > previousVersion || !Objects.equals(catalogName, theCatalogName)) {
-			catalogHeader = new CatalogHeader(
-				newDescriptor.getVersion(),
-				newDescriptor.getFileLocation(),
-				newDescriptor.getCompressedKeys(),
-				theCatalogName,
-				lastEntityCollectionPrimaryKey
-			);
+	@Override
+	public void release() {
+		observableOutputKeeper.free();
+	}
+
+	@Override
+	public <T> T executeWriteSafely(@Nonnull Supplier<T> lambda) {
+		if (observableOutputKeeper.isPrepared()) {
+			return lambda.get();
 		} else {
-			catalogHeader = this.catalogBootstrap.getCatalogHeader();
-		}
-
-		final SerializationService<CatalogBootstrap> catalogHeaderSerializationService = headerSerializationServicePool.obtain();
-		try {
-
-			final CatalogBootstrap catalogBootstrap = new CatalogBootstrap(
-				catalogState,
-				catalogVersion,
-				catalogHeader,
-				entityHeaders
-			);
-
-			final Path headerFile = catalogStoragePath.resolve(CatalogPersistenceService.getCatalogHeaderFileName(this.catalogName));
-			try (final FileOutputStream os = new FileOutputStream(headerFile.toFile())) {
-				catalogHeaderSerializationService.serialize(catalogBootstrap, os);
-				logStatistics(catalogBootstrap, "has been written");
-				this.catalogBootstrap = catalogBootstrap;
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to store Evita header file `" + headerFile + "`! All data are worthless :(",
-					"Failed to store Evita header file! All data are worthless :(", e
-				);
+			try {
+				observableOutputKeeper.prepare();
+				return lambda.get();
+			} finally {
+				observableOutputKeeper.free();
 			}
+		}
+	}
 
+	@Override
+	public void flushTrappedUpdates(@Nonnull DataStoreIndexChanges<CatalogIndexKey, CatalogIndex> dataStoreIndexChanges) {
+		// now store all entity trapped updates
+		dataStoreIndexChanges.popTrappedUpdates()
+			.forEach(it -> this.catalogStoragePartPersistenceService.putStoragePart(0L, it));
+	}
+
+	@Override
+	public boolean isClosed() {
+		return this.catalogStoragePartPersistenceService.isClosed();
+	}
+
+	private CatalogBootstrap recordBootstrap(long catalogVersion, @Nonnull String newCatalogName, int catalogFileIndex) {
+		final PersistentStorageDescriptor newDescriptor = this.catalogStoragePartPersistenceService.flush(catalogVersion);
+		final Kryo kryo = catalogKryoPool.obtain();
+		try {
+			return this.bootstrapWriteHandle.checkAndExecuteAndSync(
+				"store bootstrap record",
+				() -> {
+				},
+				output -> {
+					return new StorageRecord<>(
+						output, catalogVersion, true,
+						theOutput -> {
+							final long now = System.currentTimeMillis();
+							final CatalogBootstrap catalogBootstrap = new CatalogBootstrap(
+								catalogVersion, catalogFileIndex,
+								Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+								newDescriptor.fileLocation()
+							);
+
+							theOutput.writeLong(catalogBootstrap.catalogVersion());
+							theOutput.writeInt(catalogBootstrap.catalogFileIndex());
+							theOutput.writeLong(now);
+							theOutput.writeLong(catalogBootstrap.fileLocation().startingPosition());
+							theOutput.writeInt(catalogBootstrap.fileLocation().recordLength());
+							return catalogBootstrap;
+						}
+					).payload();
+				},
+				(output, catalogBootstrap) -> catalogBootstrap
+			);
 		} finally {
-			headerSerializationServicePool.free(catalogHeaderSerializationService);
-			log.info("Catalog stored in " + StringUtils.formatNano(System.nanoTime() - start));
-		}
-	}
-
-	/**
-	 * Deserializes catalog from persistent storage. As of now the catalog is read entirely from scratch from
-	 * catalog storage directory. Contents of the directory must contain previously serialized catalog of the identical
-	 * catalog otherwise exception is thrown.
-	 *
-	 * @throws HeaderFileNotFound                 when target directory contains no header file
-	 * @throws UnexpectedCatalogContentsException when directory contains different catalog data or no data at all
-	 * @throws UnexpectedIOException              in case of any unknown IOException
-	 */
-	@Nonnull
-	private CatalogBootstrap readHeader(@Nonnull Path catalogDirectory, @Nonnull String catalogName) {
-		final long start = System.nanoTime();
-		final SerializationService<CatalogBootstrap> serializationService = headerSerializationServicePool.obtain();
-		try {
-			final Path headerFilePath = catalogDirectory.resolve(CatalogPersistenceService.getCatalogHeaderFileName(catalogName));
-			final File headerFile = headerFilePath.toFile();
-			if (!headerFile.exists()) {
-				throw new HeaderFileNotFound(catalogDirectory, headerFile);
-			}
-			final CatalogBootstrap catalogBootstrap;
-			try (final FileInputStream is = new FileInputStream(headerFile)) {
-				catalogBootstrap = serializationService.deserialize(is);
-				logStatistics(catalogBootstrap, "is being loaded");
-			} catch (IOException e) {
-				throw new UnexpectedIOException(
-					"Failed to read Evita bootstrap file `" + headerFilePath + "`! No data will be readable for the catalog.",
-					"Failed to read Evita bootstrap file! No data will be readable for the catalog.", e
-				);
-			}
-			Assert.isTrue(
-				catalogBootstrap.getCatalogHeader().getCatalogName().equals(catalogName),
-				() -> new UnexpectedCatalogContentsException(
-					"Directory " + catalogDirectory + " contains data of " + catalogBootstrap.getCatalogHeader().getCatalogName() +
-						" catalog. Cannot load catalog " + catalogName + " from this directory!"
-				)
-			);
-			return catalogBootstrap;
-		} finally {
-			headerSerializationServicePool.free(serializationService);
-		}
-	}
-
-	/**
-	 * Check whether target directory exists and whether it is really directory.
-	 *
-	 * @return name of the directory (e.g. catalog name)
-	 */
-	@Nonnull
-	private String verifyDirectory(@Nonnull Path storageDirectory, boolean requireEmpty) {
-		final File storageDirectoryFile = storageDirectory.toFile();
-		if (!storageDirectoryFile.exists()) {
-			//noinspection ResultOfMethodCallIgnored
-			storageDirectoryFile.mkdirs();
-		}
-		Assert.isTrue(storageDirectoryFile.exists(), () -> new InvalidStoragePathException("Storage path doesn't exist: " + storageDirectory));
-		Assert.isTrue(storageDirectoryFile.isDirectory(), () -> new InvalidStoragePathException("Storage path doesn't represent a directory: " + storageDirectory));
-		if (requireEmpty) {
-			Assert.isTrue(
-				ofNullable(storageDirectoryFile.listFiles()).map(it -> it.length).orElse(0) == 0,
-				() -> new DirectoryNotEmptyException(storageDirectory.toString())
-			);
-		}
-
-		return storageDirectoryFile.getName();
-	}
-
-	/**
-	 * Verifies the name of the catalog and its uniqueness among other existing catalogs.
-	 */
-	@Nonnull
-	private Path pathForNewCatalog(@Nonnull String catalogName, @Nonnull Path storageDirectory) {
-		try {
-			return storageDirectory.resolve(catalogName);
-		} catch (InvalidPathException ex) {
-			throw new InvalidFileNameException("Name `" + catalogName + "` cannot be converted a valid file name: " + ex.getMessage() + "! Please rename the catalog.");
-		}
-	}
-
-	/**
-	 * Creates path for entity collection with specified name.
-	 */
-	@Nonnull
-	private Path pathForEntityCollectionFile(@Nonnull String entityType) {
-		return catalogStoragePath.resolve(
-			CatalogPersistenceService.getEntityCollectionDataStoreFileName(
-				StringUtils.toCamelCase(entityType)
-			)
-		);
-	}
-
-	/**
-	 * Logs statistics about the catalog and entities in it to the logger.
-	 */
-	private void logStatistics(@Nonnull CatalogBootstrap catalogHeader, @Nonnull String operation) {
-		if (log.isInfoEnabled()) {
-			final StringBuilder stats = new StringBuilder("Catalog `" + catalogHeader.getCatalogHeader().getCatalogName() + "` " + operation + " and ");
-			final Map<String, EntityCollectionHeader> collectionHeaders = catalogHeader.getCollectionHeaders();
-			if (collectionHeaders.isEmpty()) {
-				stats.append("it's empty.");
-			} else {
-				stats.append("it contains:");
-				for (EntityCollectionHeader entityTypeHeader : collectionHeaders.values()) {
-					stats.append("\n\t- ")
-						.append(entityTypeHeader.getEntityType())
-						.append(" (")
-						.append(entityTypeHeader.getRecordCount())
-						.append(")");
-				}
-			}
-			log.info(stats.toString());
+			catalogKryoPool.free(kryo);
+			log.debug("Catalog `{}` stored to `{}`.", newCatalogName, catalogStoragePath);
 		}
 	}
 

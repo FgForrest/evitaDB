@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -798,7 +798,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 * Creates new instance of the record with applied transactional changes if transactional layer is available.
 	 */
 	private static <T> T getTransactionalCopy(TransactionalLayerMaintainer transactionalLayer, TransactionalLayerProducer<?, ?> value) {
-		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChanges(value, null);
+		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChanges(value);
 	}
 
 	/**
@@ -806,7 +806,7 @@ class ComplexObjArrayChanges<T extends TransactionalObject<T, ?> & Comparable<T>
 	 * Transactional state of the original object is not discarded by this operation.
 	 */
 	private static <T> T getTransactionalCopyWithoutDiscardingState(TransactionalLayerMaintainer transactionalLayer, TransactionalLayerProducer<?, ?> value) {
-		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChangesWithoutDiscardingState(value, null);
+		return transactionalLayer == null ? (T) value : (T) transactionalLayer.getStateCopyWithCommittedChangesWithoutDiscardingState(value);
 	}
 
 	/**

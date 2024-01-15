@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-import io.evitadb.core.Transaction;
 import io.evitadb.index.ReferencedTypeEntityIndex.ReferencedTypeEntityIndexChanges;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -363,18 +362,18 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 
 	@Nonnull
 	@Override
-	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+	public ReferencedTypeEntityIndex createCopyWithMergedTransactionalMemory(ReferencedTypeEntityIndexChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		// we can safely throw away dirty flag now
-		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty, transaction);
+		final Boolean wasDirty = transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		final ReferencedTypeEntityIndex referencedTypeEntityIndex = new ReferencedTypeEntityIndex(
 			primaryKey, indexKey, version + (wasDirty ? 1 : 0), schemaAccessor,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality, transaction),
-			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes, transaction)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIds),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.entityIdsByLanguage),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.attributeIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.primaryKeyCardinality),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.cardinalityIndexes)
 		);
 
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));

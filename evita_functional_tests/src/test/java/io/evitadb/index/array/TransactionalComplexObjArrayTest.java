@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.core.Transaction;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import io.evitadb.test.duration.TimeArgumentProvider;
@@ -39,7 +38,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -986,7 +984,7 @@ class TransactionalComplexObjArrayTest implements TimeBoundedTestSupport {
 		implements TransactionalObject<TransactionalInteger, Void>, VoidTransactionMemoryProducer<TransactionalInteger>, Comparable<TransactionalInteger> {
 		@Nonnull
 		@Override
-		public TransactionalInteger createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		public TransactionalInteger createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			return this;
 		}
 
@@ -1019,7 +1017,7 @@ class TransactionalComplexObjArrayTest implements TimeBoundedTestSupport {
 
 		@Nonnull
 		@Override
-		public DistinctValueHolder createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Transaction transaction) {
+		public DistinctValueHolder createCopyWithMergedTransactionalMemory(Void layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			return this;
 		}
 
