@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -148,7 +148,10 @@ public final class GrpcEnums {
       "\010FETCHING\020\022\022\027\n\023FETCHING_REFERENCES\020\023\022\024\n\020" +
       "FETCHING_PARENTS\020\024*H\n\023GrpcEntityExistenc" +
       "e\022\r\n\tMAY_EXIST\020\000\022\022\n\016MUST_NOT_EXIST\020\001\022\016\n\n" +
-      "MUST_EXIST\020\002B\014P\001\252\002\007EvitaDBb\006proto3"
+      "MUST_EXIST\020\002*`\n\023GrpcCommitBehaviour\022\013\n\007N" +
+      "O_WAIT\020\000\022\034\n\030WAIT_FOR_LOG_PERSISTENCE\020\001\022\036" +
+      "\n\032WAIT_FOR_INDEX_PROPAGATION\020\002B\014P\001\252\002\007Evi" +
+      "taDBb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

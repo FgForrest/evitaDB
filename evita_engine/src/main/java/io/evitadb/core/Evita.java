@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.EvitaSessionTerminationCallback;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
@@ -286,21 +287,12 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	@Nonnull
-	public EvitaSessionContract createReadOnlySession(@Nonnull String catalogName) {
-		return createEvitaSession(new SessionTraits(catalogName));
-	}
-
-	@Override
-	@Nonnull
-	public EvitaSessionContract createReadWriteSession(@Nonnull String catalogName) {
-		return createSession(new SessionTraits(catalogName, SessionFlags.READ_WRITE));
-	}
-
-	@Override
-	@Nonnull
-	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
+	public EvitaSessionContract createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits) {
 		notNull(traits.catalogName(), "Catalog name is mandatory information.");
-		return createEvitaSession(traits);
+		return createEvitaSession(
+			commitBehaviour == null ? CommitBehaviour.defaultBehaviour() : commitBehaviour,
+			traits
+		);
 	}
 
 	@Override
@@ -396,7 +388,7 @@ public final class Evita implements EvitaContract {
 	@Override
 	public <T> T queryCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
 		assertActive();
-		try (final EvitaSessionContract session = this.createEvitaSession(new SessionTraits(catalogName, flags))) {
+		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
 			return queryLogic.apply(session);
 		}
 	}
@@ -410,7 +402,7 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
+	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nonnull CommitBehaviour commitBehaviour, @Nullable SessionFlags... flags) {
 		assertActive();
 		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw new ReadOnlyException();
@@ -421,13 +413,13 @@ public final class Evita implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
+		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
 			return session.execute(updater);
 		}
 	}
 
 	@Override
-	public void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
+	public void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nonnull CommitBehaviour commitBehaviour, @Nullable SessionFlags... flags) {
 		updateCatalog(
 			catalogName,
 			evitaSession -> {
@@ -634,7 +626,9 @@ public final class Evita implements EvitaContract {
 	}
 
 	/**
-	 * Replaces current catalog reference with updated one. Catalogs
+	 * Replaces current catalog reference with updated one.
+	 *
+	 * TODO JNO - tohle musí být voláno z místa, kde se zpracovávají mutace
 	 */
 	@Nonnull
 	private CatalogContract replaceCatalogReference(@Nonnull CatalogContract catalog) {
@@ -716,7 +710,7 @@ public final class Evita implements EvitaContract {
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
 	 */
 	@Nonnull
-	private EvitaSessionContract createEvitaSession(@Nonnull SessionTraits sessionTraits) {
+	private EvitaSessionContract createEvitaSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits sessionTraits) {
 		final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
 		final Catalog catalog;
 		if (catalogContract instanceof CorruptedCatalog corruptedCatalog) {
@@ -754,9 +748,9 @@ public final class Evita implements EvitaContract {
 
 		final EvitaInternalSessionContract newSession = sessionRegistry.addSession(
 			supportsTransactionInTheBeginning,
-			() -> sessionTraits.isReadWrite() ?
-				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, this::replaceCatalogReference, sessionTraits) :
-				new EvitaSession(this, catalog, reflectionLookup, terminationCallback, sessionTraits)
+			() -> new EvitaSession(
+				this, catalog, reflectionLookup, terminationCallback, commitBehaviour, sessionTraits
+			)
 		);
 
 		if (sessionTraits.isReadWrite()) {

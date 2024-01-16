@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -1013,9 +1013,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 
 	/**
 	 * Terminates opened transaction - either by rollback or commit depending on {@link TransactionContract#isRollbackOnly()}.
-	 * This method throws exception only when transaction hasn't been opened.
+	 * New transaction is immediately opened after the transaction is closed - this is to ensure that there is always
+	 * transaction opened in the read/write session.
+	 *
+	 * @throws EvitaInvalidUsageException when transaction hasn't been opened.
 	 */
-	void closeTransaction();
+	void closeTransaction() throws EvitaInvalidUsageException;
 
 	/**
 	 * Returns true if currently opened transaction has rollback flag set on.

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -697,4 +698,36 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts the given CommitBehaviour to GrpcCommitBehaviour.
+	 *
+	 * @param commitBehaviour the CommitBehaviour to convert
+	 * @return the corresponding GrpcCommitBehaviour
+	 */
+	@Nonnull
+	public static GrpcCommitBehaviour toGrpcCommitBehaviour(@Nonnull CommitBehaviour commitBehaviour) {
+		return switch (commitBehaviour) {
+			case NO_WAIT -> GrpcCommitBehaviour.NO_WAIT;
+			case WAIT_FOR_LOG_PERSISTENCE -> GrpcCommitBehaviour.WAIT_FOR_LOG_PERSISTENCE;
+			case WAIT_FOR_INDEX_PROPAGATION -> GrpcCommitBehaviour.WAIT_FOR_LOG_PERSISTENCE;
+		};
+	}
+
+	/**
+	 * Converts a GrpcCommitBehaviour to a CommitBehaviour.
+	 *
+	 * @param commitBehaviour The GrpcCommitBehaviour to convert.
+	 * @return The converted CommitBehaviour.
+	 * @throws EvitaInternalError if the given commitBehaviour is unrecognized.
+	 */
+	@Nonnull
+	public static CommitBehaviour toCommitBehaviour(@Nonnull GrpcCommitBehaviour commitBehaviour) {
+		return switch (commitBehaviour) {
+			case NO_WAIT -> CommitBehaviour.NO_WAIT;
+			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE;
+			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehaviour.WAIT_FOR_INDEX_PROPAGATION;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote commit behaviour: " + commitBehaviour);
+		};
+	}
 }

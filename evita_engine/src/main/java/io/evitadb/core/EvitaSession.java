@@ -31,6 +31,7 @@ import io.evitadb.api.EvitaSessionTerminationCallback;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.InstanceTerminatedException;
@@ -98,7 +99,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -138,14 +138,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private final UUID id = UUIDUtil.randomUUID();
 	/**
+	 * Contains commit behaviour for this transaction.
+	 *
+	 * @see CommitBehaviour
+	 */
+	@Getter private final CommitBehaviour commitBehaviour;
+	/**
 	 * Contains information passed at the time session was created that defines its behaviour
 	 */
 	private final SessionTraits sessionTraits;
-	/**
-	 * Contains reference to the callback that needs to be called one catalog contents are changed (i.e. transaction
-	 * is committed).
-	 */
-	private final UnaryOperator<CatalogContract> updatedCatalogCallback;
 	/**
 	 * Reference, that allows to access transaction object.
 	 */
@@ -234,30 +235,14 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nonnull Catalog catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
+		@Nonnull CommitBehaviour commitBehaviour,
 		@Nonnull SessionTraits sessionTraits
 	) {
 		this.evita = evita;
 		this.catalog = new AtomicReference<>(catalog);
 		this.reflectionLookup = reflectionLookup;
 		this.proxyFactory = catalog.getProxyFactory();
-		this.updatedCatalogCallback = null;
-		this.sessionTraits = sessionTraits;
-		this.terminationCallback = terminationCallback;
-	}
-
-	EvitaSession(
-		@Nonnull Evita evita,
-		@Nonnull Catalog catalog,
-		@Nonnull ReflectionLookup reflectionLookup,
-		@Nullable EvitaSessionTerminationCallback terminationCallback,
-		@Nonnull UnaryOperator<CatalogContract> updatedCatalogCallback,
-		@Nonnull SessionTraits sessionTraits
-	) {
-		this.evita = evita;
-		this.catalog = new AtomicReference<>(catalog);
-		this.reflectionLookup = reflectionLookup;
-		this.proxyFactory = catalog.getProxyFactory();
-		this.updatedCatalogCallback = updatedCatalogCallback;
+		this.commitBehaviour = commitBehaviour;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
 	}
@@ -992,7 +977,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public void closeTransaction() {
 		transactionAccessor.getAndUpdate(transaction -> {
-			Assert.isPremiseValid(transaction != null, "Transaction unexpectedly not present!");
+			Assert.isTrue(transaction != null, "Transaction unexpectedly not present!");
 			transaction.close();
 			return null;
 		});
@@ -1216,13 +1201,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	/**
 	 * Creates new transaction a wraps it into carrier object.
 	 */
-	private Transaction createTransaction() {
+	private Transaction createTransaction(@Nonnull CommitBehaviour commitBehaviour) {
 		Assert.isTrue(!isReadOnly(), "Evita session is read only!");
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
 			final Transaction transaction = new Transaction(
 				UUID.randomUUID(),
-				new TransactionWalFinalizer(theCatalog, getId(), theCatalog::createIsolatedWalService)
+				new TransactionWalFinalizer(
+					theCatalog,
+					getId(),
+					commitBehaviour,
+					theCatalog::createIsolatedWalService
+				)
 			);
 			// when the session is marked as "dry run" we never commit the transaction but always roll-back
 			if (sessionTraits.isDryRun()) {
@@ -1265,7 +1255,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		if (!getCatalog().supportsTransaction()) {
 			throw new TransactionNotSupportedException("Catalog " + getCatalog().getName() + " doesn't support transactions yet. Call `goLiveAndClose()` method first!");
 		}
-		final Transaction tx = createTransaction();
+		final Transaction tx = createTransaction(commitBehaviour);
 		transactionAccessor.getAndUpdate(transaction -> {
 			Assert.isPremiseValid(transaction == null, "Transaction unexpectedly found!");
 			return tx;
@@ -1280,7 +1270,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private <T> T executeInTransactionIfPossible(@Nonnull Function<EvitaSessionContract, T> logic) {
 		if (transactionAccessor.get() == null && getCatalog().supportsTransaction()) {
-			try (final Transaction newTransaction = createTransaction()) {
+			try (final Transaction newTransaction = createTransaction(commitBehaviour)) {
 				transactionAccessor.set(newTransaction);
 				return Transaction.executeInTransactionIfProvided(
 					newTransaction,

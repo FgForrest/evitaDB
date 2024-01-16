@@ -186,7 +186,11 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	void delete();
 
 	/**
-	 * TODO JNO - document me
+	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
+	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
+	 *
+	 * @param transactionMutation The transaction mutation to append to the WAL.
+	 * @param walReference The off-heap data with file backup reference to discard.
 	 */
 	void appendWalAndDiscard(
 		@Nonnull TransactionMutation transactionMutation,

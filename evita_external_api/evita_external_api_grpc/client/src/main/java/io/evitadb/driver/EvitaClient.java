@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -177,23 +178,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public EvitaSessionContract createReadOnlySession(@Nonnull String catalogName) {
-		return createSession(
-			new SessionTraits(catalogName)
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EvitaSessionContract createReadWriteSession(@Nonnull String catalogName) {
-		return createSession(
-			new SessionTraits(catalogName, SessionFlags.READ_WRITE)
-		);
-	}
-
-	@Nonnull
-	@Override
-	public EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
+	public EvitaSessionContract createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits) {
 		assertActive();
 		final GrpcEvitaSessionResponse grpcResponse;
 
@@ -203,6 +188,7 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createBinaryReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
+							.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehaviour(commitBehaviour))
 							.setDryRun(traits.isDryRun())
 							.build()
 					)
@@ -212,6 +198,7 @@ public class EvitaClient implements EvitaContract {
 					evitaService.createReadWriteSession(
 						GrpcEvitaSessionRequest.newBuilder()
 							.setCatalogName(traits.catalogName())
+							.setCommitBehaviour(EvitaEnumConverter.toGrpcCommitBehaviour(commitBehaviour))
 							.setDryRun(traits.isDryRun())
 							.build()
 					)
@@ -248,6 +235,7 @@ public class EvitaClient implements EvitaContract {
 			traits.catalogName(),
 			EvitaEnumConverter.toCatalogState(grpcResponse.getCatalogState()),
 			UUIDUtil.uuid(grpcResponse.getSessionId()),
+			EvitaEnumConverter.toCommitBehaviour(grpcResponse.getCommitBehaviour()),
 			traits,
 			evitaSession -> {
 				this.activeSessions.remove(evitaSession.getId());
@@ -396,9 +384,12 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		@Override
-		public <T > T
-		updateCatalog(@Nonnull String catalogName, @Nonnull Function < EvitaSessionContract, T > updater, @Nullable SessionFlags...
-		flags){
+		public <T> T updateCatalog(
+			@Nonnull String catalogName,
+			@Nonnull Function<EvitaSessionContract, T> updater,
+			@Nonnull CommitBehaviour commitBehaviour,
+			@Nullable SessionFlags... flags
+		) {
 			assertActive();
 			final SessionTraits traits = new SessionTraits(
 				catalogName,
@@ -415,8 +406,12 @@ public class EvitaClient implements EvitaContract {
 		}
 
 		@Override
-		public void updateCatalog (@Nonnull String
-		catalogName, @Nonnull Consumer < EvitaSessionContract > updater, @Nullable SessionFlags...flags){
+		public void updateCatalog (
+			@Nonnull String catalogName,
+			@Nonnull Consumer <EvitaSessionContract> updater,
+			@Nonnull CommitBehaviour commitBehaviour,
+			@Nullable SessionFlags...flags
+		){
 			updateCatalog(
 				catalogName,
 				session -> {

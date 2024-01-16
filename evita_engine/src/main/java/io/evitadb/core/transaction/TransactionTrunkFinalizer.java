@@ -23,21 +23,13 @@
 
 package io.evitadb.core.transaction;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Transaction;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.Iterator;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -49,66 +41,13 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-public class TransactionTrunkFinalizer implements Callable<CatalogContract>, TransactionHandler {
+public class TransactionTrunkFinalizer implements TransactionHandler {
 	private final AtomicReference<Catalog> currentCatalog;
-	private final Iterator<Mutation> mutationIterator;
 	private final AtomicLong lastFinalizedCatalogVersion;
-	private final long timeout;
 
-	public TransactionTrunkFinalizer(@Nonnull Catalog currentCatalog, int timeoutMillis) {
+	public TransactionTrunkFinalizer(@Nonnull Catalog currentCatalog) {
 		this.currentCatalog = new AtomicReference<>(currentCatalog);
-		// convert timeout to nanos
-		this.timeout = timeoutMillis * 1_000_000L;
-		this.mutationIterator = currentCatalog.getCommittedMutationIterator(currentCatalog.getVersion());
 		this.lastFinalizedCatalogVersion = new AtomicLong(currentCatalog.getVersion());
-	}
-
-	@Override
-	public CatalogContract call() throws Exception {
-		Catalog processedCatalog = this.currentCatalog.get();
-		if (mutationIterator.hasNext()) {
-			final long start = System.nanoTime();
-			Mutation leadingMutation = mutationIterator.next();
-			do {
-				Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
-				final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
-				// read WAL and apply mutations to the catalog
-				final Transaction transaction = new Transaction(transactionMutation.getTransactionId(), this);
-				Transaction.executeInTransactionIfProvided(
-					transaction,
-					() -> {
-						int mutationCount = 0;
-						String entityType = null;
-						EntityCollection collection = null;
-						while (mutationIterator.hasNext() && mutationCount < transactionMutation.getMutationCount()) {
-							final Mutation mutation = mutationIterator.next();
-							mutationCount++;
-							if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
-								// apply schema mutation to the catalog
-								processedCatalog.updateSchema(schemaMutation);
-							} else if (mutation instanceof EntityMutation entityMutation) {
-								// reuse last collection if the entity type is the same
-								final String mutationEntityType = entityMutation.getEntityType();
-								collection = collection == null || !entityType.equals(mutationEntityType) ?
-									processedCatalog.getCollectionForEntityOrThrowException(mutationEntityType) :
-									collection;
-								entityType = mutationEntityType.equals(entityType) ?
-									entityType : mutationEntityType;
-								// apply mutation to the collection
-								collection.upsertEntity(entityMutation);
-							} else {
-								throw new EvitaInternalError("Unexpected mutation type: " + mutation.getClass().getName());
-							}
-						}
-
-						lastFinalizedCatalogVersion.set(transactionMutation.getCatalogVersion());
-						// TODO JNO - toto by se mělo posunout za další while a ty transakce by měly sdílet rozpracovanou práci
-						transaction.close();
-					}
-				);
-			} while (System.nanoTime() - start < this.timeout && mutationIterator.hasNext());
-		}
-		return processedCatalog;
 	}
 
 	@Override

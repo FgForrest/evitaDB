@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,10 +52,29 @@ public interface GrpcEvitaSessionRequestOrBuilder extends
 
   /**
    * <pre>
+   * Commit behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 2;</code>
+   * @return The enum numeric value on the wire for commitBehaviour.
+   */
+  int getCommitBehaviourValue();
+  /**
+   * <pre>
+   * Commit behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 2;</code>
+   * @return The commitBehaviour.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour getCommitBehaviour();
+
+  /**
+   * <pre>
    * For testing purposes. Flag indicating that all changes by the session should be rollbacked after the session is closed.
    * </pre>
    *
-   * <code>bool dryRun = 2;</code>
+   * <code>bool dryRun = 3;</code>
    * @return The dryRun.
    */
   boolean getDryRun();

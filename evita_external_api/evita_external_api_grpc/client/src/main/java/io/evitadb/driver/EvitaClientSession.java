@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityClassInvalidException;
@@ -201,6 +202,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private final SessionTraits sessionTraits;
 	/**
+	 * Contains commit behaviour for this transaction.
+	 *
+	 * @see CommitBehaviour
+	 */
+	@Getter private final CommitBehaviour commitBehaviour;
+	/**
 	 * Callback that will be called when session is closed.
 	 */
 	private final Consumer<EvitaClientSession> onTerminationCallback;
@@ -245,6 +252,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull String catalogName,
 		@Nonnull CatalogState catalogState,
 		@Nonnull UUID sessionId,
+		@Nonnull CommitBehaviour commitBehaviour,
 		@Nonnull SessionTraits sessionTraits,
 		@Nonnull Consumer<EvitaClientSession> onTerminationCallback
 	) {
@@ -256,6 +264,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 		this.channelPool = channelPool;
 		this.catalogName = catalogName;
 		this.catalogState = catalogState;
+		this.commitBehaviour = commitBehaviour;
 		this.sessionId = sessionId;
 		this.sessionTraits = sessionTraits;
 		this.onTerminationCallback = onTerminationCallback;

@@ -23,10 +23,12 @@
 
 package io.evitadb.core.transaction;
 
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -43,6 +45,12 @@ import java.util.function.Function;
 @Slf4j
 public class TransactionWalFinalizer implements TransactionHandler {
 	private final @Nonnull UUID transactionId;
+	/**
+	 * Contains commit behaviour for this transaction.
+	 *
+	 * @see CommitBehaviour
+	 */
+	@Getter private final CommitBehaviour commitBehaviour;
 	private final @Nonnull Catalog catalog;
 	private final @Nonnull LinkedList<Closeable> closeables = new LinkedList<>();
 	/**
@@ -54,10 +62,12 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	public TransactionWalFinalizer(
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
+		@Nonnull CommitBehaviour commitBehaviour,
 		@Nonnull Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory
 	) {
 		this.catalog = catalog;
 		this.transactionId = transactionId;
+		this.commitBehaviour = commitBehaviour;
 		this.walPersistenceServiceFactory = walPersistenceServiceFactory;
 	}
 
@@ -70,8 +80,11 @@ public class TransactionWalFinalizer implements TransactionHandler {
 		try {
 			closeRegisteredCloseables();
 			if (walPersistenceService != null) {
-				/* TODO JNO - zde se musí přidělovat další očekávaná verze katalogu ze sdíleného objektu */
-				catalog.commitWal(0L, walPersistenceService);
+				catalog.commitWal(
+					transactionId,
+					commitBehaviour,
+					walPersistenceService
+				);
 			}
 		} finally {
 			if (walPersistenceService != null) {

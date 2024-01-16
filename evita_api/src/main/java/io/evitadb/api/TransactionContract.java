@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -101,7 +101,15 @@ public interface TransactionContract extends AutoCloseable {
 		 * slowest but guarantees that the changes are persisted on disk and durable and that they are visible
 		 * immediately after the commit is marked as completed.
 		 */
-		WAIT_FOR_INDEX_PROPAGATION
+		WAIT_FOR_INDEX_PROPAGATION;
+
+		/**
+		 * Returns default commit behaviour.
+		 * @return default commit behaviour
+		 */
+		public static CommitBehaviour defaultBehaviour() {
+			return WAIT_FOR_LOG_PERSISTENCE;
+		}
 
 	}
 

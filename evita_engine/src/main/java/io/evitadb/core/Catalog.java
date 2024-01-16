@@ -28,12 +28,15 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.exception.TransactionException;
+import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -68,6 +71,7 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -85,6 +89,7 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
+import io.evitadb.store.spi.OffHeapWithFileBackupReference;
 import io.evitadb.store.spi.StoragePartPersistenceService;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.EntityCollectionHeader;
@@ -106,6 +111,7 @@ import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -203,6 +209,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Provides access to the entity schema in the catalog.
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
+	/**
+	 * TODO JNO - document me
+	 */
+	private final ConflictResolutionTransactionStage firstTransactionStage;
 	/**
 	 * TODO JNO - document me
 	 */
@@ -884,18 +894,33 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	/**
 	 * TODO JNO - document me
-	 * @param walPersistenceService
 	 */
-	public void commitWal(long catalogVersion, @Nonnull IsolatedWalPersistenceService walPersistenceService) {
-		this.persistenceService.appendWalAndDiscard(
-			new TransactionMutation(
-				walPersistenceService.getTransactionId(),
-				catalogVersion,
+	public void commitWal(
+		@Nonnull UUID transactionId,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull IsolatedWalPersistenceService walPersistenceService
+	) {
+		try {
+			firstTransactionStage.submit(
+				getName(),
+				transactionId,
 				walPersistenceService.getMutationCount(),
-				walPersistenceService.getMutationSizeInBytes()
-			),
-			walPersistenceService.getWalReference()
-		);
+				walPersistenceService.getMutationSizeInBytes(),
+				walPersistenceService.getWalReference(),
+				commitBehaviour
+			).get();
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new TransactionTimedOutException("Transaction processing was interrupted!");
+		} catch (ExecutionException e) {
+			if (e.getCause() instanceof TransactionException txException) {
+				throw txException;
+			} else {
+				throw new TransactionException(
+					"Unknown exception occurred while processing transaction!", e.getCause()
+				);
+			}
+		}
 	}
 
 	/**
@@ -940,6 +965,20 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Nonnull
 	public IsolatedWalPersistenceService createIsolatedWalService(@Nonnull UUID transactionId) {
 		return this.persistenceService.createIsolatedWalPersistenceService(transactionId);
+	}
+
+	/**
+	 * Appends the given transaction mutation to the write-ahead log (WAL) and appends its mutation chain taken from
+	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
+	 *
+	 * @param transactionMutation The transaction mutation to append to the WAL.
+	 * @param walReference The off-heap data with file backup reference to discard.
+	 */
+	public void appendWalAndDiscard(
+		@Nonnull TransactionMutation transactionMutation,
+		@Nonnull OffHeapWithFileBackupReference walReference
+	) {
+		this.persistenceService.appendWalAndDiscard(transactionMutation, walReference);
 	}
 
 	/*

@@ -50,6 +50,7 @@ import static java.util.Optional.ofNullable;
 
 /**
  * {@inheritDoc TransactionContract}
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
@@ -70,7 +71,8 @@ public final class Transaction implements TransactionContract {
 	 */
 	@Getter private final TransactionalMemory transactionalMemory;
 	/**
-	 * TODO JNO - document me
+	 * This class provides methods for handling transactions = registering mutations and interpreting commit / rollback
+	 * actions.
 	 */
 	private final TransactionHandler transactionHandler;
 	/**
@@ -242,9 +244,16 @@ public final class Transaction implements TransactionContract {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param storagePartPersistenceService
-	 * @return
+	 * Creates a transactional persistence service based on the given storage part persistence service.
+	 * If a transaction is active, it creates a transactional service using the current transaction identifier.
+	 * Registers the transactional service with the transaction's finalizer for cleanup.
+	 * Returns the transactional service if a transaction is active, otherwise returns the original storage part
+	 * persistence service which writes all the changes in the "trunk".
+	 *
+	 * @param storagePartPersistenceService The storage part persistence service.
+	 * @return The transactional persistence service if a transaction is active, otherwise the original storage part
+	 * persistence service.
+	 * @throws EvitaInternalError if the finalizer type is unexpected.
 	 */
 	public static StoragePartPersistenceService createTransactionalPersistenceService(
 		@Nonnull StoragePartPersistenceService storagePartPersistenceService
@@ -267,8 +276,8 @@ public final class Transaction implements TransactionContract {
 	/**
 	 * Creates new transaction.
 	 *
-	 * @param transactionId		  unique id of the transaction
-	 * @param transactionHandler TODO JNO - DOCUMENT ME
+	 * @param transactionId      unique id of the transaction
+	 * @param transactionHandler handler that takes care about mutation persistence, commit and rollback behaviour
 	 */
 	public Transaction(
 		@Nonnull UUID transactionId,

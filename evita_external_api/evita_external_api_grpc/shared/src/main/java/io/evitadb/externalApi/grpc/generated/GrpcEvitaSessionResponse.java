@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   private GrpcEvitaSessionResponse() {
     sessionId_ = "";
     sessionType_ = 0;
+    commitBehaviour_ = 0;
     catalogState_ = 0;
   }
 
@@ -91,6 +92,12 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 24: {
+            int rawValue = input.readEnum();
+
+            commitBehaviour_ = rawValue;
+            break;
+          }
+          case 32: {
             int rawValue = input.readEnum();
 
             catalogState_ = rawValue;
@@ -201,14 +208,41 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcSessionType.UNRECOGNIZED : result;
   }
 
-  public static final int CATALOGSTATE_FIELD_NUMBER = 3;
+  public static final int COMMITBEHAVIOUR_FIELD_NUMBER = 3;
+  private int commitBehaviour_;
+  /**
+   * <pre>
+   * Commit behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+   * @return The enum numeric value on the wire for commitBehaviour.
+   */
+  @java.lang.Override public int getCommitBehaviourValue() {
+    return commitBehaviour_;
+  }
+  /**
+   * <pre>
+   * Commit behaviour
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+   * @return The commitBehaviour.
+   */
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour getCommitBehaviour() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.valueOf(commitBehaviour_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.UNRECOGNIZED : result;
+  }
+
+  public static final int CATALOGSTATE_FIELD_NUMBER = 4;
   private int catalogState_;
   /**
    * <pre>
    * State of the catalog after the session was created.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
    * @return The enum numeric value on the wire for catalogState.
    */
   @java.lang.Override public int getCatalogStateValue() {
@@ -219,7 +253,7 @@ private static final long serialVersionUID = 0L;
    * State of the catalog after the session was created.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
    * @return The catalogState.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCatalogState getCatalogState() {
@@ -248,8 +282,11 @@ private static final long serialVersionUID = 0L;
     if (sessionType_ != io.evitadb.externalApi.grpc.generated.GrpcSessionType.READ_ONLY.getNumber()) {
       output.writeEnum(2, sessionType_);
     }
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.NO_WAIT.getNumber()) {
+      output.writeEnum(3, commitBehaviour_);
+    }
     if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
-      output.writeEnum(3, catalogState_);
+      output.writeEnum(4, catalogState_);
     }
     unknownFields.writeTo(output);
   }
@@ -267,9 +304,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, sessionType_);
     }
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.NO_WAIT.getNumber()) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeEnumSize(3, commitBehaviour_);
+    }
     if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(3, catalogState_);
+        .computeEnumSize(4, catalogState_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -289,6 +330,7 @@ private static final long serialVersionUID = 0L;
     if (!getSessionId()
         .equals(other.getSessionId())) return false;
     if (sessionType_ != other.sessionType_) return false;
+    if (commitBehaviour_ != other.commitBehaviour_) return false;
     if (catalogState_ != other.catalogState_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
@@ -305,6 +347,8 @@ private static final long serialVersionUID = 0L;
     hash = (53 * hash) + getSessionId().hashCode();
     hash = (37 * hash) + SESSIONTYPE_FIELD_NUMBER;
     hash = (53 * hash) + sessionType_;
+    hash = (37 * hash) + COMMITBEHAVIOUR_FIELD_NUMBER;
+    hash = (53 * hash) + commitBehaviour_;
     hash = (37 * hash) + CATALOGSTATE_FIELD_NUMBER;
     hash = (53 * hash) + catalogState_;
     hash = (29 * hash) + unknownFields.hashCode();
@@ -448,6 +492,8 @@ private static final long serialVersionUID = 0L;
 
       sessionType_ = 0;
 
+      commitBehaviour_ = 0;
+
       catalogState_ = 0;
 
       return this;
@@ -478,6 +524,7 @@ private static final long serialVersionUID = 0L;
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse result = new io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse(this);
       result.sessionId_ = sessionId_;
       result.sessionType_ = sessionType_;
+      result.commitBehaviour_ = commitBehaviour_;
       result.catalogState_ = catalogState_;
       onBuilt();
       return result;
@@ -533,6 +580,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.sessionType_ != 0) {
         setSessionTypeValue(other.getSessionTypeValue());
+      }
+      if (other.commitBehaviour_ != 0) {
+        setCommitBehaviourValue(other.getCommitBehaviourValue());
       }
       if (other.catalogState_ != 0) {
         setCatalogStateValue(other.getCatalogStateValue());
@@ -736,13 +786,87 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private int commitBehaviour_ = 0;
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * @return The enum numeric value on the wire for commitBehaviour.
+     */
+    @java.lang.Override public int getCommitBehaviourValue() {
+      return commitBehaviour_;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * @param value The enum numeric value on the wire for commitBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCommitBehaviourValue(int value) {
+      
+      commitBehaviour_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * @return The commitBehaviour.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour getCommitBehaviour() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.valueOf(commitBehaviour_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * @param value The commitBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCommitBehaviour(io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      
+      commitBehaviour_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearCommitBehaviour() {
+      
+      commitBehaviour_ = 0;
+      onChanged();
+      return this;
+    }
+
     private int catalogState_ = 0;
     /**
      * <pre>
      * State of the catalog after the session was created.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @return The enum numeric value on the wire for catalogState.
      */
     @java.lang.Override public int getCatalogStateValue() {
@@ -753,7 +877,7 @@ private static final long serialVersionUID = 0L;
      * State of the catalog after the session was created.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @param value The enum numeric value on the wire for catalogState to set.
      * @return This builder for chaining.
      */
@@ -768,7 +892,7 @@ private static final long serialVersionUID = 0L;
      * State of the catalog after the session was created.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @return The catalogState.
      */
     @java.lang.Override
@@ -782,7 +906,7 @@ private static final long serialVersionUID = 0L;
      * State of the catalog after the session was created.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @param value The catalogState to set.
      * @return This builder for chaining.
      */
@@ -800,7 +924,7 @@ private static final long serialVersionUID = 0L;
      * State of the catalog after the session was created.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCatalogState catalogState = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearCatalogState() {
