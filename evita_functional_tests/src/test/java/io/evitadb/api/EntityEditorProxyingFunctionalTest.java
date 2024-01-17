@@ -2231,16 +2231,18 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 				assertEquals(1, store.getId());
 				assertEquals("Delirium-Tremens-1", store.getCode());
 
+				assertTrue(product1.removeStoreByIdAndReturnBoolean(2));
+
 				final Optional<EntityMutation> mutation = product1.toMutation();
 				assertTrue(mutation.isPresent());
-				assertEquals(2, mutation.get().getLocalMutations().size());
+				assertEquals(3, mutation.get().getLocalMutations().size());
 
 				final ProductInterface modifiedInstance = product1.toInstance();
 				assertEquals(1, modifiedInstance.getProductCategories().size());
 				assertNotNull(modifiedInstance.getCategoryById(categoryId1));
 				assertNull(modifiedInstance.getCategoryById(categoryId2));
 
-				assertEquals(2, modifiedInstance.getStores().length);
+				assertEquals(1, modifiedInstance.getStores().length);
 
 				product1.upsertVia(evitaSession);
 
@@ -2250,7 +2252,7 @@ public class EntityEditorProxyingFunctionalTest extends AbstractEntityProxyingFu
 
 				assertNull(product8SE.getReference(Entities.CATEGORY, categoryId2).orElse(null));
 				assertNotNull(product8SE.getReference(Entities.CATEGORY, categoryId1).orElse(null));
-				assertEquals(2, product8SE.getReferences(Entities.STORE).size());
+				assertEquals(1, product8SE.getReferences(Entities.STORE).size());
 			}
 		);
 	}
