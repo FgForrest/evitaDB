@@ -317,6 +317,32 @@ public class EntityByAttributeFilteringFunctionalTest {
 		});
 	}
 
+	@DisplayName("Should return no entities when set is empty")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesWhenSetIsEmpty(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet()
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(0, result.getTotalRecordCount());
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by matching locale")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -372,6 +398,31 @@ public class EntityByAttributeFilteringFunctionalTest {
 					sealedEntity -> codeAttribute.equals(sealedEntity.getAttribute(ATTRIBUTE_CODE)),
 					result.getRecordData()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return no entity for empty price list constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntityForEmptyPriceListConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							priceInPriceLists()
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(0, result.getTotalRecordCount());
 				return null;
 			}
 		);
@@ -468,6 +519,33 @@ public class EntityByAttributeFilteringFunctionalTest {
 					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKey(), sealedEntity.getPrimaryKey()),
 					result.getRecordData()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return no entities for empty attribute in set constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesForEmptyAttributeInSetConstraint(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							attributeInSet(ATTRIBUTE_CODE)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertEquals(0, result.getTotalRecordCount());
+
 				return null;
 			}
 		);

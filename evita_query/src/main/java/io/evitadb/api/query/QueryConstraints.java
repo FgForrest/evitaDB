@@ -1537,13 +1537,11 @@ public interface QueryConstraints {
 	@SuppressWarnings("unchecked")
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nullable String attributeName, @Nullable T... set) {
-		if (attributeName == null || ArrayUtils.isEmpty(set)) {
+		if (attributeName == null || set == null) {
 			return null;
 		}
 		final List<T> args = Arrays.stream(set).filter(Objects::nonNull).toList();
-		if (args.isEmpty()) {
-			return null;
-		} else if (args.size() == set.length) {
+		if (args.size() == set.length) {
 			return new AttributeInSet(attributeName, set);
 		} else {
 			final T[] limitedSet = (T[]) Array.newInstance(set.getClass().getComponentType(), args.size());

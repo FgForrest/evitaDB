@@ -34,6 +34,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
@@ -55,9 +56,12 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 			SuperSetMatchingPostProcessor.class,
 			() -> new SuperSetMatchingPostProcessor(filterByVisitor)
 		);
-		final ConstantFormula requiredBitmap = new ConstantFormula(
-			new BaseBitmap(entityPrimaryKeyInSet.getPrimaryKeys())
-		);
+		final int[] primaryKeys = entityPrimaryKeyInSet.getPrimaryKeys();
+		final Formula requiredBitmap = ArrayUtils.isEmpty(primaryKeys) ?
+			EmptyFormula.INSTANCE :
+			new ConstantFormula(
+				new BaseBitmap(primaryKeys)
+			);
 		return filterByVisitor.applyOnIndexes(
 			entityIndex -> {
 				superSetMatchingPostProcessor.addSuperSet(entityIndex.getAllPrimaryKeys());
@@ -104,12 +108,12 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 			} else {
 				// if the index is not queried by other constraints, we need to merge the super set formulas
 				return FormulaFactory.and(
-						FormulaFactory.or(
-							superSetFormulas.stream()
-								.map(it -> it.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(it))
-								.toArray(Formula[]::new)
-						),
-						resultFormula
+					FormulaFactory.or(
+						superSetFormulas.stream()
+							.map(it -> it.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(it))
+							.toArray(Formula[]::new)
+					),
+					resultFormula
 				);
 			}
 		}
