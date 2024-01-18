@@ -184,7 +184,7 @@ public class EvitaClient implements EvitaContract {
 		try {
 			final SystemStatus systemStatus = this.getSystemStatus();
 			final SemVer serverVersion = new SemVer(systemStatus.version());
-			final SemVer clientVersion = new SemVer(VersionUtils.readVersion());
+			final SemVer clientVersion = new SemVer(getVersion());
 			final int comparisonResult = SemVer.compare(clientVersion, serverVersion);
 			if (comparisonResult < 0) {
 				log.warn(
@@ -207,6 +207,16 @@ public class EvitaClient implements EvitaContract {
 		} catch (Exception ex) {
 			log.error("Failed to connect to evitaDB server. Please check the connection settings.", ex);
 		}
+	}
+
+	/**
+	 * Retrieves the version number of the evitaDB client.
+	 *
+	 * @return The version number as a string.
+	 */
+	@Nonnull
+	public String getVersion() {
+		return VersionUtils.readVersion();
 	}
 
 	@Nonnull
