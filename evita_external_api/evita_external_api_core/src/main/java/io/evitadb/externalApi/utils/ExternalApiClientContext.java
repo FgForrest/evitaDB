@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,12 +24,19 @@
 package io.evitadb.externalApi.utils;
 
 import io.evitadb.api.ClientContext;
+import io.evitadb.externalApi.trace.OpenTelemetryTracerSetup;
+import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.net.SocketAddress;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
@@ -65,15 +72,27 @@ public abstract class ExternalApiClientContext  {
 	 *                      evita sessions
 	 * @param lambda        function to be executed
 	 */
-	public void executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
+	protected void executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
 	                                          @Nullable String clientId,
 	                                          @Nullable String requestId,
 	                                          @Nonnull Runnable lambda) {
-		internalClientContext.executeWithClientAndRequestId(
-			convertClientId(clientAddress, clientId),
-			sanitizeId(requestId),
-			lambda
-		);
+		Context context = Context.current();
+		try (Scope scope = context.makeCurrent()) {
+			final Span span = OpenTelemetryTracerSetup.getTracer()
+				.spanBuilder(getProtocol()+UUID.randomUUID())
+				.setSpanKind(SpanKind.SERVER)
+				.startSpan();
+
+			try (Scope ignored = span.makeCurrent()) {
+				internalClientContext.executeWithClientAndRequestId(
+					convertClientId(clientAddress, clientId),
+					sanitizeId(requestId),
+					lambda
+				);
+			} finally {
+				span.end();
+			}
+		}
 	}
 
 	/**
@@ -89,15 +108,27 @@ public abstract class ExternalApiClientContext  {
 	 * @param lambda        function to be executed
 	 * @return result of the lambda function
 	 */
-	public <T> T executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
+	protected <T> T executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
 	                                           @Nullable String clientId,
 	                                           @Nullable String requestId,
 	                                           @Nonnull Supplier<T> lambda) {
-		return internalClientContext.executeWithClientAndRequestId(
-			convertClientId(clientAddress, clientId),
-			sanitizeId(requestId),
-			lambda
-		);
+		Context context = Context.current();
+		try (Scope scope = context.makeCurrent()) {
+			final Span span = OpenTelemetryTracerSetup.getTracer()
+				.spanBuilder(getProtocol()+UUID.randomUUID())
+				.setSpanKind(SpanKind.SERVER)
+				.startSpan();
+
+			try (Scope ignored = span.makeCurrent()) {
+				return internalClientContext.executeWithClientAndRequestId(
+					convertClientId(clientAddress, clientId),
+					sanitizeId(requestId),
+					lambda
+				);
+			} finally {
+				span.end();
+			}
+		}
 	}
 
 	/**

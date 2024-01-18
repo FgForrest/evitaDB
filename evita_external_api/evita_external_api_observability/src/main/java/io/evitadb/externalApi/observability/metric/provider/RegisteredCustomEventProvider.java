@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,25 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io;
+package io.evitadb.externalApi.observability.metric.provider;
 
-import io.evitadb.exception.EvitaError;
+import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
+import io.evitadb.core.metric.event.QueryPlanStepExecutedEvent;
+import io.evitadb.core.metric.event.TestEvent;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
-import javax.annotation.Nonnull;
+import java.util.Set;
 
 /**
- * DTO returned as description of exception in system outside of OpenAPI.
+ * This class is used as a provider of registered custom metrics events.
  *
- * @param errorCode error code classifying error ({@link EvitaError#getErrorCode()})
- * @param message descriptive message of exception for client ({@link EvitaError#getPublicMessage()})
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
- * @author Martin Veska, FG Forrest a.s. (c) 2022
+ * All registered custom metrics events must be registered here.
  */
-public record ErrorDto(@Nonnull String errorCode, @Nonnull String message) {}
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class RegisteredCustomEventProvider {
+	static final Set<Class<? extends CustomMetricsExecutionEvent>> REGISTERED_EVENTS = Set.of(
+		QueryPlanStepExecutedEvent.class,
+		TestEvent.class
+	);
+}

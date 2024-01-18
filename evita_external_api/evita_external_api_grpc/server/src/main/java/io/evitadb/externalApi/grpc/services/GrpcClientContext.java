@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.externalApi.grpc.services;
 
 import io.evitadb.api.ClientContext;
 import io.evitadb.externalApi.utils.ExternalApiClientContext;
+import io.evitadb.externalApi.utils.ProtobufApiClientContext;
 
 import javax.annotation.Nonnull;
 
@@ -33,7 +34,7 @@ import javax.annotation.Nonnull;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GrpcClientContext extends ExternalApiClientContext {
+public class GrpcClientContext extends ProtobufApiClientContext {
 
 	private static final String PROTOCOL = "GRPC";
 

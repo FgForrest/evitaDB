@@ -61,6 +61,7 @@ module evita.external.api.core {
 	requires org.slf4j;
 	requires jboss.threads;
 	requires undertow.core;
+	requires undertow.servlet;
 	requires com.fasterxml.jackson.databind;
 	requires xnio.api;
 	requires zero.allocation.hashing;
@@ -71,4 +72,14 @@ module evita.external.api.core {
 	requires evita.query;
 	requires org.bouncycastle.provider;
 	requires org.bouncycastle.pkix;
+
+	requires io.opentelemetry.sdk.trace;
+	requires io.opentelemetry.sdk;
+	requires io.opentelemetry.context;
+	requires io.opentelemetry.api;
+	requires io.opentelemetry.sdk.common;
+	requires io.opentelemetry.semconv;
+	requires io.opentelemetry.exporter.logging;
+	requires io.opentelemetry.exporter.otlp;
+	requires io.opentelemetry.sdk.autoconfigure;
 }

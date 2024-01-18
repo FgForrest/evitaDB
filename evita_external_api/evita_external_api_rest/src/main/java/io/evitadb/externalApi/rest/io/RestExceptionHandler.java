@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
+import io.evitadb.externalApi.http.ErrorDto;
 import io.evitadb.externalApi.http.ExternalApiExceptionHandler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.rest.RestProvider;

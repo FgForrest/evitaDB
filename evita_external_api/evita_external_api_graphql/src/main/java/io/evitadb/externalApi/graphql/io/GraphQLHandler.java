@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -116,11 +116,10 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
     @Nonnull
     protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
-        final ClientContextExtension clientContextExtension = graphQLRequest.clientContextExtension();
+        //final ClientContextExtension clientContextExtension = graphQLRequest.clientContextExtension();
         final GraphQLResponse<?> graphQLResponse = clientContext.executeWithClientAndRequestId(
             exchange.serverExchange().getSourceAddress(),
-            clientContextExtension.clientId(),
-            clientContextExtension.requestId(),
+            exchange.serverExchange.getRequestHeaders(),
             () -> executeRequest(graphQLRequest)
         );
         return new SuccessEndpointResponse(graphQLResponse);

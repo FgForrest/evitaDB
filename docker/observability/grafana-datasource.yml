@@ -1,0 +1,58 @@
+apiVersion: 1
+
+datasources:
+#  - name: prometheus
+#    type: prometheus
+#    url: http://prometheus:9090
+#    basicAuth: false
+#    access: proxy
+#    version: 1
+#  - name: loki
+#    type: loki
+#    url: http://loki:3100
+#    basicAuth: false
+#    access: proxy
+#    version: 1
+#  - name: tempo
+#    type: tempo
+#    url: http://tempo:3200
+#    basicAuth: false
+#    access: proxy
+#    version: 1
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    orgId: 1
+    url: http://prometheus:9090
+    basicAuth: false
+    isDefault: false
+    version: 1
+    editable: false
+    jsonData:
+      httpMethod: GET
+  - name: Tempo
+    type: tempo
+    access: proxy
+    orgId: 1
+    url: http://tempo:3200
+    basicAuth: false
+    isDefault: true
+    version: 1
+    editable: false
+    apiVersion: 1
+    uid: tempo
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: prometheus
+  - name: loki
+    type: loki
+    access: proxy
+    orgId: 1
+    url: http://loki:3100
+    basicAuth: false
+    isDefault: false
+    version: 1
+    editable: false
+    apiVersion: 1
