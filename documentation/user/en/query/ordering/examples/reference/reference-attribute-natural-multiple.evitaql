@@ -2,7 +2,7 @@ query(
     collection("Product"),
     filterBy(
         referenceHaving(
-            "brand",
+            "groups",
             entityHaving(
                 attributeInSet("code", "sale", "new")
             )

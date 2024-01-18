@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -67,6 +68,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 		final EntitySchemaContract schema = extraResultPlanner.getSchema();
 		final String[] attributeNames = attributeHistogram.getAttributeNames();
 		final int bucketCount = attributeHistogram.getRequestedBucketCount();
+		final HistogramBehavior behavior = attributeHistogram.getBehavior();
 
 		// find user filters that enclose variable user defined part
 		final Set<Formula> userFilters = extraResultPlanner.getUserFilteringFormula();
@@ -85,6 +87,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				attributeHistogramProducer = new AttributeHistogramProducer(
 					schema.getName(),
 					bucketCount,
+					behavior,
 					extraResultPlanner.getFilteringFormula(),
 					extraResultPlanner.getExtraResultCacheAccessor()
 				);

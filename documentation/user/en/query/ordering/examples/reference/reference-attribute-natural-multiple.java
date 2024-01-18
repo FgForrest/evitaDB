@@ -6,7 +6,7 @@ final EvitaResponse<SealedEntity> entities = evita.queryCatalog(
 				collection("Product"),
 				filterBy(
 					referenceHaving(
-						"brand",
+						"groups",
 						entityHaving(
 							attributeInSet("code", "sale", "new")
 						)

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -46,6 +46,7 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static java.util.Optional.ofNullable;
 
@@ -62,6 +63,7 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLClassifierTokenVisitor classifierTokenVisitor = new EvitaQLClassifierTokenVisitor();
 	protected final EvitaQLValueTokenVisitor queryPriceModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(QueryPriceMode.class);
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
+	protected final EvitaQLValueTokenVisitor histogramBehaviorValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(HistogramBehavior.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
 		Byte.class,
 		Short.class,
@@ -73,6 +75,16 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor emptyHierarchicalEntityBehaviourValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(EmptyHierarchicalEntityBehaviour.class);
 	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
+	protected final EvitaQLValueTokenVisitor attributeHistogramArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		Byte.class,
+		Short.class,
+		Integer.class,
+		Long.class,
+		String.class,
+		HistogramBehavior.class,
+		String[].class,
+		Iterable.class
+	);
 
 	protected final EvitaQLFilterConstraintVisitor filterConstraintVisitor = new EvitaQLFilterConstraintVisitor();
 	protected final EvitaQLOrderConstraintVisitor orderConstraintVisitor = new EvitaQLOrderConstraintVisitor();
@@ -1085,10 +1097,48 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	public RequireConstraint visitAttributeHistogramConstraint(@Nonnull AttributeHistogramConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeHistogram(
-				ctx.args.value.accept(intValueTokenVisitor).asInt(),
-				ctx.args.classifiers.accept(classifierTokenVisitor).asClassifierArray()
-			)
+			() -> {
+				final int requestedBucketCount = ctx.args.requestedBucketCount.accept(intValueTokenVisitor).asInt();
+
+				final LinkedList<Serializable> args = Arrays.stream(ctx.args.values
+					.accept(attributeHistogramArgValueTokenVisitor)
+					.asSerializableArray())
+					.collect(Collectors.toCollection(LinkedList::new));
+
+				final HistogramBehavior behavior;
+				final Serializable secondArgument = args.peekFirst();
+				if (secondArgument instanceof HistogramBehavior) {
+					behavior = castArgument(ctx, args.pop(), HistogramBehavior.class);
+				} else if (secondArgument instanceof EnumWrapper enumWrapper && enumWrapper.canBeMappedTo(HistogramBehavior.class)) {
+					behavior = castArgument(ctx, args.pop(), EnumWrapper.class).toEnum(HistogramBehavior.class);
+				} else {
+					behavior = null;
+				}
+
+				final Serializable attributeNamesArgument = args.peekFirst();
+				final String[] attributesNames;
+				if (attributeNamesArgument == null) {
+					attributesNames = new String[0];
+				} else if (attributeNamesArgument instanceof Iterable<?>) {
+					attributesNames = StreamSupport.stream(((Iterable<?>) args.pop()).spliterator(), false)
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new);
+				} else if (attributeNamesArgument.getClass().isArray()) {
+					attributesNames = Arrays.stream((Object[]) args.pop())
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new);
+				} else {
+					attributesNames = args.stream()
+						.map(it -> castArgument(ctx, it, String.class))
+						.toArray(String[]::new);
+				}
+
+				return new AttributeHistogram(
+					requestedBucketCount,
+					behavior,
+					attributesNames
+				);
+			}
 		);
 	}
 
@@ -1097,7 +1147,8 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 		return parse(
 			ctx,
 			() -> new PriceHistogram(
-				ctx.args.value.accept(intValueTokenVisitor).asInt()
+				ctx.args.requestedBucketCount.accept(intValueTokenVisitor).asInt(),
+				ctx.args.behaviour != null ? ctx.args.behaviour.accept(histogramBehaviorValueTokenVisitor).asEnum(HistogramBehavior.class) : null
 			)
 		);
 	}

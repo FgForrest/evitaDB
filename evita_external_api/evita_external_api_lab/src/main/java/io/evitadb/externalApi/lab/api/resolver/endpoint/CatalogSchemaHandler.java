@@ -70,17 +70,17 @@ public abstract class CatalogSchemaHandler extends JsonRestHandler<LabApiHandlin
 
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final CatalogContract catalog = restApiHandlingContext.getEvita().getCatalogInstance(catalogName)
+		final CatalogContract catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName)
 			.orElseThrow(() -> new RestInvalidArgumentException("Catalog `" + catalogName + "` does not exist."));
 
 		if (modifiesData()) {
-			final EvitaSessionContract session = restApiHandlingContext.getEvita().createReadWriteSession(catalog.getName());
+			final EvitaSessionContract session = restHandlingContext.getEvita().createReadWriteSession(catalog.getName());
 			if (catalog.supportsTransaction()) {
 				session.openTransaction();
 			}
 			return Optional.of(session);
 		} else {
-			return Optional.of(restApiHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
+			return Optional.of(restHandlingContext.getEvita().createReadOnlySession(catalog.getName()));
 		}
 	}
 

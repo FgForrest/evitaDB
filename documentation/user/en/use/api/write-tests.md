@@ -44,7 +44,7 @@ artifact into your project:
 <dependency>
     <groupId>io.evitadb</groupId>
     <artifactId>evita_test_support</artifactId>
-    <version>0.9.ALPHA</version>
+    <version>10.1.1</version>
     <scope>test</scope>
 </dependency>
 ```

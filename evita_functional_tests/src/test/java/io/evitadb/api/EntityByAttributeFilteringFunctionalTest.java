@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Evita;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -80,6 +79,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -167,10 +167,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = histogram.getBuckets()[i];
-			if (
-				(from != null || to != null) &&
-					(from == null || from.compareTo(bucket.threshold()) <= 0) &&
-					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
 				assertTrue(bucket.requested());
 			} else {
 				assertFalse(bucket.requested());
@@ -2844,6 +2845,76 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities from different collections by equals to global localized attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesFromDifferentCollectionsByEqualsToGlobalLocalizedAttribute(Evita evita) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL),
+								dataInLocales(Locale.ENGLISH)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String productUrl = product.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String categoryUrl = category.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						filterBy(
+							attributeInSet(ATTRIBUTE_URL, productUrl, categoryUrl),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							//debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				assertEquals(2, result.getRecordData().size());
+				assertEquals(productUrl, result.getRecordData().get(0).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				assertEquals(categoryUrl, result.getRecordData().get(1).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should not return entities by equals to global localized attribute when locale doesn't match (String)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3421,7 +3492,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.toArray(String[]::new);
 				ArrayUtils.shuffleArray(random, randomCodes);
 
-				final EvitaResponse<SealedEntity> products = SelectionFormula.doWithCustomPrefetchCostEstimator(
+				final EvitaResponse<SealedEntity> products = doWithCustomPrefetchCostEstimator(
 					() -> session.querySealedEntity(
 						query(
 							collection(Entities.PRODUCT),
@@ -3885,6 +3956,51 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, null, null);
 				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY, null, null);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return attribute histogram with attribute between")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnAttributeHistogramWithAttributeBetweenIsUsed(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<BigDecimal> sortedQuantities = originalProductEntities.stream()
+					.map(it -> it.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
+					.filter(Objects::nonNull)
+					.sorted()
+					.toList();
+				final BigDecimal from = sortedQuantities.get(sortedQuantities.size() / 3);
+				final BigDecimal to = sortedQuantities.get(sortedQuantities.size() / 3 * 2);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								attributeBetween(ATTRIBUTE_QUANTITY, from, to)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class) != null)
+					.collect(Collectors.toList());
+
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, from, to);
 
 				return null;
 			}

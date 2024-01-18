@@ -78,8 +78,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final Optional<ReferencedTypeEntityIndex> referencedEntityTypeIndex = orderByVisitor.getIndex(entityIndexKey);
 
 		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
-			getHierarchyComparator(orderByVisitor.getGlobalEntityIndex(referenceSchema.getReferencedEntityType())) :
-			DEFAULT_COMPARATOR;
+			orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
+				.map(ReferencePropertyTranslator::getHierarchyComparator)
+				.orElse(DEFAULT_COMPARATOR) : DEFAULT_COMPARATOR;
 
 		return referencedEntityTypeIndex.map(
 				it -> it.getAllPrimaryKeys()
@@ -116,8 +117,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		boolean referencedEntityHierarchical
 	) {
 		final Comparator<EntityIndex> indexComparator = referencedEntityHierarchical ?
-			getHierarchyComparator(orderByVisitor.getGlobalEntityIndex(referenceSchema.getReferencedEntityType())) :
-			DEFAULT_COMPARATOR;
+			orderByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
+				.map(ReferencePropertyTranslator::getHierarchyComparator)
+				.orElse(DEFAULT_COMPARATOR) : DEFAULT_COMPARATOR;
 
 		return orderByVisitor.getTargetIndexes()
 			.stream()

@@ -24,10 +24,12 @@
 package io.evitadb.core.query.algebra.attribute;
 
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -40,6 +42,9 @@ import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.util.function.Predicate;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+
 /**
  * Attribute formula envelopes {@link Formula} that compute {@link io.evitadb.api.query.FilterConstraint} targeted
  * at attribute values. The formula simply delegates its {@link #compute()} method to the single delegating formula.
@@ -49,7 +54,7 @@ import java.util.function.Predicate;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeFormula extends AbstractFormula {
+public class AttributeFormula extends AbstractFormula implements RequirementsDefiner {
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
@@ -137,6 +142,12 @@ public class AttributeFormula extends AbstractFormula {
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	@Nullable
+	@Override
+	public EntityRequire getEntityRequire() {
+		return entityFetch(attributeContent(attributeKey.attributeName()));
 	}
 
 }

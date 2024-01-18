@@ -54,7 +54,7 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 	@Override
 	public String doLayout(ILoggingEvent event) {
-		final StringBuilder buf = new StringBuilder(128);
+		final StringBuilder buf = new StringBuilder(512);
 
 		buf.append("{");
 

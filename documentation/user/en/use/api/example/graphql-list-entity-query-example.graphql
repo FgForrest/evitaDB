@@ -1,0 +1,8 @@
+{
+  listEntity(url: ["/en/macbook-pro-13-2022", "/en/cell-phones"], locale: en) {
+    primaryKey
+    attributes {
+      code
+    }
+  }
+}

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
@@ -86,6 +87,11 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	private final int bucketCount;
 	/**
+	 * Contains behavior that was requested by the user in the query.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull private final HistogramBehavior behavior;
+	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
@@ -103,11 +109,13 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	public AttributeHistogramProducer(
 		@Nonnull String entityType,
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@Nonnull Formula filterFormula,
 		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor
 	) {
 		this.entityType = entityType;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.filterFormula = filterFormula;
 		this.extraResultCacheAccessor = extraResultCacheAccessor;
 		this.histogramRequests = new HashMap<>();
@@ -116,12 +124,14 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	private AttributeHistogramProducer(
 		@Nonnull String entityType,
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@Nonnull Formula filterFormula,
 		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor,
 		@Nonnull Map<String, AttributeHistogramRequest> histogramRequests
 	) {
 		this.entityType = entityType;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.filterFormula = filterFormula;
 		this.extraResultCacheAccessor = extraResultCacheAccessor;
 		this.histogramRequests = histogramRequests;
@@ -137,7 +147,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 * record that is not part of the `filteringFormula` output). Empty buckets are discarded along the way.
 	 */
 	static <T extends Comparable<T>> ValueToRecordBitmap<T>[] getCombinedAndFilteredBucketArray(
-		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormula,
 		@Nonnull ValueToRecordBitmap<T>[][] histogramBitmaps
 	) {
 		if (ArrayUtils.isEmpty(histogramBitmaps)) {
@@ -146,7 +156,8 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 		}
 
 		// prepare filtering bitmap
-		final RoaringBitmap filteredRecordIds = RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
+		final RoaringBitmap filteredRecordIds = filteringFormula == null ?
+			null : RoaringBitmapBackedBitmap.getRoaringBitmap(filteringFormula.compute());
 		// prepare output elastic array
 		@SuppressWarnings("rawtypes") final CompositeObjectArray<ValueToRecordBitmap> finalBuckets = new CompositeObjectArray<>(ValueToRecordBitmap.class, false);
 
@@ -259,16 +270,19 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	@SuppressWarnings("rawtypes")
 	private static <T extends Comparable<T>> void addBucket(
-		@Nonnull RoaringBitmap filteredRecordIds,
+		@Nullable RoaringBitmap filteredRecordIds,
 		@Nonnull CompositeObjectArray<ValueToRecordBitmap> finalBuckets,
 		@Nonnull ValueToRecordBitmap<T> theBucket
 	) {
-		final BaseBitmap recordIds = new BaseBitmap(
-			RoaringBitmap.and(
-				filteredRecordIds,
-				RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
-			)
-		);
+		final Bitmap recordIds = filteredRecordIds == null ?
+			theBucket.getRecordIds() :
+			new BaseBitmap(
+				RoaringBitmap.and(
+					filteredRecordIds,
+					RoaringBitmapBackedBitmap.getRoaringBitmap(theBucket.getRecordIds())
+				)
+			);
+
 		if (!recordIds.isEmpty()) {
 			finalBuckets.add(
 				new ValueToRecordBitmap<>(
@@ -372,7 +386,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						entityType,
 						new AttributeHistogramComputer(
 							histogramRequest.getAttributeName(),
-							optimizedFormula, bucketCount, histogramRequest
+							optimizedFormula, bucketCount, behavior, histogramRequest
 						)
 					).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
@@ -382,7 +396,8 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						return new AttributeHistogramWrapper(
 							entry.getKey(),
 							optimalHistogram.convertToHistogram(
-								ofNullable(userFilterFormulaPredicates.get(entry.getKey())).orElseGet(() -> value -> false)
+								ofNullable(userFilterFormulaPredicates.get(entry.getKey()))
+									.orElseGet(() -> value -> true)
 							)
 						);
 					}
@@ -401,7 +416,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	@Override
 	public AttributeHistogramProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
 		return new AttributeHistogramProducer(
-			entityType, bucketCount, filterFormula, cacheAccessor, histogramRequests
+			entityType, bucketCount, behavior, filterFormula, cacheAccessor, histogramRequests
 		);
 	}
 
@@ -410,9 +425,12 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 * at least single entity primary key left?
 	 */
 	private static boolean hasSenseWithMandatoryFilter(
-		@Nonnull Formula filteringFormula,
+		@Nullable Formula filteringFormula,
 		@Nonnull AttributeHistogramRequest request
 	) {
+		if (filteringFormula == null) {
+			return true;
+		}
 		// collect all records from the filter indexes for this attribute
 		final Bitmap[] histogramBitmaps = request
 			.attributeIndexes()

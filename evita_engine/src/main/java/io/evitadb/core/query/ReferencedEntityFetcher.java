@@ -30,6 +30,7 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.FilterBy;
@@ -1105,8 +1106,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			// initialize used data structures
 			final String entityType = entityCollection.getEntityType();
-			final GlobalEntityIndex globalIndex = entityCollection instanceof EntityCollection ec ? ec.getGlobalIndex() :
-				queryContext.getGlobalEntityIndex(entityType);
+			final GlobalEntityIndex globalIndex = entityCollection instanceof EntityCollection ec ?
+				ec.getGlobalIndex() :
+				queryContext.getGlobalEntityIndexIfExists(entityType)
+					.orElseThrow(() -> new CollectionNotFoundException(entityType));
 			// scope predicate limits the parent traversal
 			final HierarchyTraversalPredicate scopePredicate = hierarchyContent.getStopAt()
 				.map(stopAt -> stopAtConstraintToPredicate(TraversalDirection.BOTTOM_UP, stopAt, queryContext, globalIndex, null))

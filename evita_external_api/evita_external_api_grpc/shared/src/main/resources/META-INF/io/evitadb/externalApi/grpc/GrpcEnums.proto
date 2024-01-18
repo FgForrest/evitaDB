@@ -128,6 +128,17 @@ enum GrpcStatisticsType {
   QUERIED_ENTITY_COUNT = 1;
 }
 
+// The enum specifies whether the HistogramBehavior should produce histogram with exactly requested bucket counts
+// or optimized one, which may have less buckets than requested, but is more compact
+enum GrpcHistogramBehavior {
+  // Histogram always contains the number of buckets you asked for. This is the default behaviour.
+  STANDARD = 0;
+  // Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
+  // there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
+  // better user experience.
+  OPTIMIZED = 1;
+}
+
 // This enum controls how prices that share same `inner entity id` will behave during filtering and sorting.
 enum GrpcPriceInnerRecordHandling {
   // No special strategy set. Inner record id is not taken into account at all.

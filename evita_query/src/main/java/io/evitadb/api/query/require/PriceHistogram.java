@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.AttributeBetween;
 import io.evitadb.api.query.filter.PriceBetween;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 
@@ -40,6 +41,13 @@ import java.io.Serializable;
  * the case, the user narrowing the filtered range based on the histogram results would be driven into a narrower and
  * narrower range and eventually into a dead end.
  *
+ * It accepts two arguments:
+ *
+ * 1. The number of buckets (columns) the histogram should contain.
+ * 2. The behavior of the histogram calculation - either STANDARD (default), where the exactly requested bucket count
+ *    is returned or OPTIMIZED, where the number of columns is reduced if the data is scarce and there would be big gaps
+ *    (empty buckets) between buckets. This leads to more compact histograms, which provide better user experience.
+ *
  * The priceType requirement the source price property for the histogram computation. If no requirement, the histogram
  * visualizes the price with tax.
  *
@@ -47,6 +55,7 @@ import java.io.Serializable;
  *
  * <pre>
  * priceHistogram(20)
+ * priceHistogram(20, OPTIMIZED)
  * </pre>
  * 
  * <p><a href="https://evitadb.io/documentation/query/requirements/histogram#price-histogram">Visit detailed user documentation</a></p>
@@ -66,8 +75,12 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 	}
 
 	@Creator
+	public PriceHistogram(int requestedBucketCount, @Nullable HistogramBehavior behavior) {
+		super(new Serializable[]{requestedBucketCount, behavior == null ? HistogramBehavior.STANDARD : behavior});
+	}
+
 	public PriceHistogram(int requestedBucketCount) {
-		super(requestedBucketCount);
+		super(new Serializable[]{requestedBucketCount, HistogramBehavior.STANDARD});
 	}
 
 	/**
@@ -78,6 +91,17 @@ public class PriceHistogram extends AbstractRequireConstraintLeaf implements Pri
 	 */
 	public int getRequestedBucketCount() {
 		return (Integer) getArguments()[0];
+	}
+
+	/**
+	 * Returns the requested behavior of the histogram calculation.
+	 *
+	 * @return {@link HistogramBehavior#STANDARD} if not specified otherwise.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull
+	public HistogramBehavior getBehavior() {
+		return (HistogramBehavior) getArguments()[1];
 	}
 
 	@Nonnull

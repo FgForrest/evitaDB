@@ -1,7 +1,7 @@
 ---
 title: The origins of the evitaDB
 perex: Our company set foot in the e-commerce world around 2010. By that time we were in web development for more than 10 years, starting even before the .com bubble.
-date: '2022-01-12'
+date: '12.1.2022'
 author: 'Ing. Jan Novotný'
 motive: assets/images/01-origins-of-the-evita-db.png
 ---

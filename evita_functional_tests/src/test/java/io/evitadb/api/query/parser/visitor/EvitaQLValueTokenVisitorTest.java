@@ -35,6 +35,9 @@ import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.LongNumberRange;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -48,6 +51,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static io.evitadb.dataType.EvitaDataTypes.formatValue;
 import static org.junit.jupiter.api.Assertions.*;
@@ -177,19 +181,28 @@ class EvitaQLValueTokenVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseValue("@name", Map.of("something", "code")));
     }
 
-    @Test
-    void shouldParseStringLiteral() {
-        final Value value1 = parseValueUnsafe("'hello all'");
-        assertEquals(String.class, value1.getType());
-        assertEquals("hello all", value1.asString());
+    @ParameterizedTest
+    @MethodSource("validStringLiterals")
+    void shouldParseStringLiteral(String stringLiteral, String expectedJavaString) {
+        final Value value = parseValueUnsafe(stringLiteral);
+        assertEquals(String.class, value.getType());
+        assertEquals(expectedJavaString, value.asString());
+    }
 
-        final Value value3 = parseValueUnsafe("\"hello all\"");
-        assertEquals(String.class, value3.getType());
-        assertEquals("hello all", value3.asString());
-
-        final Value value2 = parseValueUnsafe(formatValue("hello all"));
-        assertEquals(String.class, value2.getType());
-        assertEquals("hello all", value2.asString());
+    @Nonnull
+    static Stream<Arguments> validStringLiterals() {
+        return Stream.of(
+            Arguments.of("\"hello all\"", "hello all"),
+            Arguments.of("\"hello\\\"all\"", "hello\"all"),
+            Arguments.of("\"'hello all'\"", "'hello all'"),
+            Arguments.of("\"\\thello\\t\\nall\"", "\thello\t\nall"),
+            Arguments.of("\"hello\\u0020all\"", "hello all"),
+            Arguments.of("'hello all'", "hello all"),
+            Arguments.of("'hello\"all'", "hello\"all"),
+            Arguments.of("'hello\\'all'", "hello'all"),
+            Arguments.of("'\\thello\\t\\nall'", "\thello\t\nall"),
+            Arguments.of("'hello\\u0020all'", "hello all")
+        );
     }
 
     @Test

@@ -558,10 +558,38 @@ public interface GrpcQueryParamOrBuilder extends
 
   /**
    * <pre>
+   * The histogram behavior enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
+   * @return Whether the histogramBehavior field is set.
+   */
+  boolean hasHistogramBehavior();
+  /**
+   * <pre>
+   * The histogram behavior enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
+   * @return The enum numeric value on the wire for histogramBehavior.
+   */
+  int getHistogramBehaviorValue();
+  /**
+   * <pre>
+   * The histogram behavior enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior histogramBehavior = 21;</code>
+   * @return The histogramBehavior.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHistogramBehavior getHistogramBehavior();
+
+  /**
+   * <pre>
    * The string array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 21;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
    * @return Whether the stringArrayValue field is set.
    */
   boolean hasStringArrayValue();
@@ -570,7 +598,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The string array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 21;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
    * @return The stringArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStringArray getStringArrayValue();
@@ -579,7 +607,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The string array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 21;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStringArray stringArrayValue = 101;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStringArrayOrBuilder getStringArrayValueOrBuilder();
 
@@ -588,7 +616,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The integer array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 22;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
    * @return Whether the integerArrayValue field is set.
    */
   boolean hasIntegerArrayValue();
@@ -597,7 +625,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The integer array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 22;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
    * @return The integerArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerArray getIntegerArrayValue();
@@ -606,7 +634,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The integer array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 22;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerArray integerArrayValue = 102;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerArrayOrBuilder getIntegerArrayValueOrBuilder();
 
@@ -615,7 +643,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The long array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 23;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
    * @return Whether the longArrayValue field is set.
    */
   boolean hasLongArrayValue();
@@ -624,7 +652,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The long array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 23;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
    * @return The longArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongArray getLongArrayValue();
@@ -633,7 +661,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The long array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 23;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongArray longArrayValue = 103;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongArrayOrBuilder getLongArrayValueOrBuilder();
 
@@ -642,7 +670,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The boolean array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
    * @return Whether the booleanArrayValue field is set.
    */
   boolean hasBooleanArrayValue();
@@ -651,7 +679,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The boolean array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
    * @return The booleanArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBooleanArray getBooleanArrayValue();
@@ -660,7 +688,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The boolean array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 24;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBooleanArray booleanArrayValue = 104;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBooleanArrayOrBuilder getBooleanArrayValueOrBuilder();
 
@@ -669,7 +697,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The big decimal array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 25;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
    * @return Whether the bigDecimalArrayValue field is set.
    */
   boolean hasBigDecimalArrayValue();
@@ -678,7 +706,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The big decimal array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 25;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
    * @return The bigDecimalArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray getBigDecimalArrayValue();
@@ -687,7 +715,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The big decimal array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 25;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArray bigDecimalArrayValue = 105;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalArrayOrBuilder getBigDecimalArrayValueOrBuilder();
 
@@ -696,7 +724,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The date time range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
    * @return Whether the dateTimeRangeArrayValue field is set.
    */
   boolean hasDateTimeRangeArrayValue();
@@ -705,7 +733,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The date time range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
    * @return The dateTimeRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray getDateTimeRangeArrayValue();
@@ -714,7 +742,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The date time range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 26;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArray dateTimeRangeArrayValue = 106;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcDateTimeRangeArrayOrBuilder getDateTimeRangeArrayValueOrBuilder();
 
@@ -723,7 +751,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The integer number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
    * @return Whether the integerNumberRangeArrayValue field is set.
    */
   boolean hasIntegerNumberRangeArrayValue();
@@ -732,7 +760,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The integer number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
    * @return The integerNumberRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray getIntegerNumberRangeArrayValue();
@@ -741,7 +769,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The integer number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 27;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArray integerNumberRangeArrayValue = 107;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRangeArrayOrBuilder getIntegerNumberRangeArrayValueOrBuilder();
 
@@ -750,7 +778,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The long number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
    * @return Whether the longNumberRangeArrayValue field is set.
    */
   boolean hasLongNumberRangeArrayValue();
@@ -759,7 +787,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The long number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
    * @return The longNumberRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray getLongNumberRangeArrayValue();
@@ -768,7 +796,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The long number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 28;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArray longNumberRangeArrayValue = 108;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLongNumberRangeArrayOrBuilder getLongNumberRangeArrayValueOrBuilder();
 
@@ -777,7 +805,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The big decimal number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
    * @return Whether the bigDecimalNumberRangeArrayValue field is set.
    */
   boolean hasBigDecimalNumberRangeArrayValue();
@@ -786,7 +814,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The big decimal number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
    * @return The bigDecimalNumberRangeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray getBigDecimalNumberRangeArrayValue();
@@ -795,7 +823,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The big decimal number range array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 29;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArray bigDecimalNumberRangeArrayValue = 109;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcBigDecimalNumberRangeArrayOrBuilder getBigDecimalNumberRangeArrayValueOrBuilder();
 
@@ -804,7 +832,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The offset date time array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
    * @return Whether the offsetDateTimeArrayValue field is set.
    */
   boolean hasOffsetDateTimeArrayValue();
@@ -813,7 +841,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The offset date time array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
    * @return The offsetDateTimeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray getOffsetDateTimeArrayValue();
@@ -822,7 +850,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The offset date time array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 30;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArray offsetDateTimeArrayValue = 110;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOffsetDateTimeArrayOrBuilder getOffsetDateTimeArrayValueOrBuilder();
 
@@ -831,7 +859,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The locale array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 31;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
    * @return Whether the localeArrayValue field is set.
    */
   boolean hasLocaleArrayValue();
@@ -840,7 +868,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The locale array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 31;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
    * @return The localeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleArray getLocaleArrayValue();
@@ -849,7 +877,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The locale array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 31;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcLocaleArray localeArrayValue = 111;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcLocaleArrayOrBuilder getLocaleArrayValueOrBuilder();
 
@@ -858,7 +886,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The currency array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 32;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
    * @return Whether the currencyArrayValue field is set.
    */
   boolean hasCurrencyArrayValue();
@@ -867,7 +895,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The currency array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 32;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
    * @return The currencyArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray getCurrencyArrayValue();
@@ -876,7 +904,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The currency array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 32;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCurrencyArray currencyArrayValue = 112;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcCurrencyArrayOrBuilder getCurrencyArrayValueOrBuilder();
 
@@ -885,7 +913,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The facet statistics depth array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
    * @return Whether the facetStatisticsDepthArrayValue field is set.
    */
   boolean hasFacetStatisticsDepthArrayValue();
@@ -894,7 +922,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The facet statistics depth array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
    * @return The facetStatisticsDepthArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray getFacetStatisticsDepthArrayValue();
@@ -903,7 +931,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The facet statistics depth array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 33;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray facetStatisticsDepthArrayValue = 113;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArrayOrBuilder getFacetStatisticsDepthArrayValueOrBuilder();
 
@@ -912,7 +940,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The query price mode array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
    * @return Whether the queryPriceModelArrayValue field is set.
    */
   boolean hasQueryPriceModelArrayValue();
@@ -921,7 +949,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The query price mode array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
    * @return The queryPriceModelArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray getQueryPriceModelArrayValue();
@@ -930,7 +958,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The query price mode array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 34;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray queryPriceModelArrayValue = 114;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArrayOrBuilder getQueryPriceModelArrayValueOrBuilder();
 
@@ -939,7 +967,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The price content mode array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 35;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
    * @return Whether the priceContentModeArrayValue field is set.
    */
   boolean hasPriceContentModeArrayValue();
@@ -948,7 +976,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The price content mode array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 35;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
    * @return The priceContentModeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray getPriceContentModeArrayValue();
@@ -957,7 +985,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The price content mode array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 35;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray priceContentModeArrayValue = 115;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArrayOrBuilder getPriceContentModeArrayValueOrBuilder();
 
@@ -966,7 +994,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The attribute special value array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
    * @return Whether the attributeSpecialArrayValue field is set.
    */
   boolean hasAttributeSpecialArrayValue();
@@ -975,7 +1003,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The attribute special value array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
    * @return The attributeSpecialArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray getAttributeSpecialArrayValue();
@@ -984,7 +1012,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The attribute special value array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 36;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray attributeSpecialArrayValue = 116;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArrayOrBuilder getAttributeSpecialArrayValueOrBuilder();
 
@@ -993,7 +1021,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The order direction array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 37;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
    * @return Whether the orderDirectionArrayValue field is set.
    */
   boolean hasOrderDirectionArrayValue();
@@ -1002,7 +1030,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The order direction array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 37;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
    * @return The orderDirectionArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray getOrderDirectionArrayValue();
@@ -1011,7 +1039,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The order direction array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 37;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray orderDirectionArrayValue = 117;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArrayOrBuilder getOrderDirectionArrayValueOrBuilder();
 
@@ -1020,7 +1048,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The empty hierarchical entity behaviour array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
    * @return Whether the emptyHierarchicalEntityBehaviourArrayValue field is set.
    */
   boolean hasEmptyHierarchicalEntityBehaviourArrayValue();
@@ -1029,7 +1057,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The empty hierarchical entity behaviour array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
    * @return The emptyHierarchicalEntityBehaviourArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray getEmptyHierarchicalEntityBehaviourArrayValue();
@@ -1038,22 +1066,22 @@ public interface GrpcQueryParamOrBuilder extends
    * The empty hierarchical entity behaviour array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 38;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray emptyHierarchicalEntityBehaviourArrayValue = 118;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArrayOrBuilder getEmptyHierarchicalEntityBehaviourArrayValueOrBuilder();
 
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return Whether the statisticsBaseArrayValue field is set.
    */
   boolean hasStatisticsBaseArrayValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    * @return The statisticsBaseArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray getStatisticsBaseArrayValue();
   /**
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 39;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray statisticsBaseArrayValue = 119;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArrayOrBuilder getStatisticsBaseArrayValueOrBuilder();
 
@@ -1062,7 +1090,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The statistics type array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
    * @return Whether the statisticsTypeArrayValue field is set.
    */
   boolean hasStatisticsTypeArrayValue();
@@ -1071,7 +1099,7 @@ public interface GrpcQueryParamOrBuilder extends
    * The statistics type array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
    * @return The statisticsTypeArrayValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray getStatisticsTypeArrayValue();
@@ -1080,9 +1108,36 @@ public interface GrpcQueryParamOrBuilder extends
    * The statistics type array value.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 40;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray statisticsTypeArrayValue = 120;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArrayOrBuilder getStatisticsTypeArrayValueOrBuilder();
+
+  /**
+   * <pre>
+   * The histogram behavior enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
+   * @return Whether the histogramBehaviorTypeArrayValue field is set.
+   */
+  boolean hasHistogramBehaviorTypeArrayValue();
+  /**
+   * <pre>
+   * The histogram behavior enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
+   * @return The histogramBehaviorTypeArrayValue.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray getHistogramBehaviorTypeArrayValue();
+  /**
+   * <pre>
+   * The histogram behavior enum value.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArray histogramBehaviorTypeArrayValue = 121;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcHistogramBehaviorTypeArrayOrBuilder getHistogramBehaviorTypeArrayValueOrBuilder();
 
   public io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase getQueryParamCase();
 }

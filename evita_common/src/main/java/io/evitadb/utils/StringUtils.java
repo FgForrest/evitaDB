@@ -35,6 +35,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
@@ -397,6 +398,94 @@ public class StringUtils {
 	}
 
 	/**
+	 * Returns a string whose value is the passed string, with escape sequences
+	 * translated as if in a string literal.
+	 * Base code borrowed from {@link String#translateEscapes()} and extended to support unicode escape sequences.
+	 *
+	 * @throws IllegalArgumentException when an escape sequence is malformed.
+	 *
+	 * @return String with escape sequences translated.
+	 */
+	public static String translateEscapes(@Nonnull String s) {
+		if (s.isEmpty()) {
+			return "";
+		}
+		char[] chars = s.toCharArray();
+		int length = chars.length;
+		int from = 0;
+		int to = 0;
+		while (from < length) {
+			char[] ch = { chars[from++] };
+			if (ch[0] == '\\') {
+				ch[0] = from < length ? chars[from++] : '\0';
+				switch (ch[0]) {
+					case 'b':
+						ch[0] = '\b';
+						break;
+					case 'f':
+						ch[0] = '\f';
+						break;
+					case 'n':
+						ch[0] = '\n';
+						break;
+					case 'r':
+						ch[0] = '\r';
+						break;
+					case 's':
+						ch[0] = ' ';
+						break;
+					case 't':
+						ch[0] = '\t';
+						break;
+					case 'u':
+						final int unicodeCodepoint = Integer.parseInt(new String(chars, from, 4), 16);
+						ch = Character.toChars(unicodeCodepoint);
+						from += 4;
+						break;
+					case '\'':
+					case '\"':
+					case '\\':
+						// as is
+						break;
+					case '0': case '1': case '2': case '3':
+					case '4': case '5': case '6': case '7':
+						int limit = Integer.min(from + (ch[0] <= '3' ? 2 : 1), length);
+						int code = ch[0] - '0';
+						while (from < limit) {
+							ch[0] = chars[from];
+							if (ch[0] < '0' || '7' < ch[0]) {
+								break;
+							}
+							from++;
+							code = (code << 3) | (ch[0] - '0');
+						}
+						ch[0] = (char)code;
+						break;
+					case '\n':
+						continue;
+					case '\r':
+						if (from < length && chars[from] == '\n') {
+							from++;
+						}
+						continue;
+					default: {
+						String msg = String.format(
+							"Invalid escape sequence: \\%c \\\\u%04X",
+							ch[0], (int)ch[0]);
+						throw new IllegalArgumentException(msg);
+					}
+				}
+			}
+
+			for (char c : ch) {
+				chars[to++] = c;
+			}
+		}
+
+		return new String(chars, 0, to);
+	}
+
+	/**
 	 * <p>
 	 * Replaces all occurrences of Strings within another String.
 	 * </p>
@@ -440,9 +529,37 @@ public class StringUtils {
 	}
 
 	/**
+	 * Formats duration to human readable format.
+	 * @param duration duration to be formatted
+	 * @return formatted duration
+	 */
+	@Nonnull
+	public static String formatDuration(@Nonnull Duration duration) {
+		long days = duration.toDaysPart();
+		long hours = duration.toHoursPart();
+		long minutes = duration.toMinutesPart();
+		long seconds = duration.toSecondsPart();
+
+		StringBuilder sb = new StringBuilder(32);
+
+		if (days > 0) {
+			sb.append(days).append("d ");
+		}
+		if (hours > 0 || days > 0) {
+			sb.append(hours).append("h ");
+		}
+		if (minutes > 0 || hours > 0 || days > 0) {
+			sb.append(minutes).append("m ");
+		}
+		sb.append(seconds).append("s");
+
+		return sb.toString().trim();
+	}
+
+	/**
 	 * <p>
 	 * Replace all occurrences of Strings within another String.
-	 * This is a private recursive helper method for {@link #replaceEachRepeatedly(String, String[], String[])} and
+	 * This is a private recursive helper method for {@link #replaceEach(String, String[], String[])} and
 	 * {@link #replaceEach(String, String[], String[])}
 	 * </p>
 	 *
