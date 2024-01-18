@@ -47,7 +47,7 @@ else
 fi
 
 echo "Tagging as: $IMAGE"
-docker buildx . \
+docker build . \
     --pull \
     --platform linux/amd64 \
     -t "$IMAGE" \
