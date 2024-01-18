@@ -74,7 +74,7 @@ class RequireTest {
 					attributeHistogram(20, "abc")
 				);
 		assertNotNull(require);
-		assertEquals("require(entityFetch(),attributeHistogram(20,'abc'))", require.toString());
+		assertEquals("require(entityFetch(),attributeHistogram(20,STANDARD,'abc'))", require.toString());
 	}
 
 	@Test

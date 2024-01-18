@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateCatalogSchem
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
@@ -66,6 +67,7 @@ import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.StringUtils;
+import io.evitadb.utils.VersionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -76,6 +78,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.ServiceLoader.Provider;
@@ -174,6 +178,10 @@ public final class Evita implements EvitaContract {
 	 */
 	private boolean active;
 	/**
+	 * This variable represents the starting date and time.
+	 */
+	private final OffsetDateTime started;
+	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
 	 */
@@ -242,7 +250,6 @@ public final class Evita implements EvitaContract {
 		try {
 			startUpLatch.await();
 			this.active = true;
-			this.readOnly = this.configuration.server().readOnly();
 		} catch (InterruptedException ex) {
 			// terminate evitaDB - it has not properly started
 			this.executor.shutdown();
@@ -250,6 +257,9 @@ public final class Evita implements EvitaContract {
 				catalog.terminate();
 			}
 		}
+
+		this.readOnly = this.configuration.server().readOnly();
+		this.started = OffsetDateTime.now();
 	}
 
 	/**
@@ -485,6 +495,24 @@ public final class Evita implements EvitaContract {
 	public CatalogContract getCatalogInstanceOrThrowException(@Nonnull String catalog) throws IllegalArgumentException {
 		return getCatalogInstance(catalog)
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
+	}
+
+	@Nonnull
+	@Override
+	public SystemStatus getSystemStatus() {
+		final int corruptedCatalogs = (int) this.catalogs.values()
+			.stream()
+			.filter(it -> it instanceof CorruptedCatalog)
+			.count();
+
+		return new SystemStatus(
+			VersionUtils.readVersion(),
+			this.started,
+			Duration.between(this.started, OffsetDateTime.now()),
+			this.configuration.name(),
+			corruptedCatalogs,
+			this.catalogs.size() - corruptedCatalogs
+		);
 	}
 
 	/*

@@ -6,7 +6,24 @@ option csharp_namespace = "EvitaDB";
 
 import "google/protobuf/empty.proto";
 import "GrpcEnums.proto";
+import "GrpcEvitaDataTypes.proto";
 import "GrpcCatalogSchemaMutation.proto";
+
+// Response to a server status request.
+message GrpcEvitaServerStatusResponse {
+  // Version of evitaDB server taken from the MANIFEST.MF file
+  string version = 1;
+  // Date and time when the server was started
+  GrpcOffsetDateTime startedAt = 2;
+  // Duration of time since the server was started (seconds)
+  int64 uptime = 3;
+  // Unique identifier of the server instance
+  string instanceId = 4;
+  // Number of corrupted catalogs
+  int32 catalogsCorrupted = 5;
+  // Number of catalogs that are ok
+  int32 catalogsOk = 6;
+}
 
 // Request to create a session inside of a catalog.
 message GrpcEvitaSessionRequest {
@@ -111,6 +128,8 @@ message GrpcUpdateEvitaRequest {
 // This service contains RPCs that could be called by gRPC clients on evitaDB. Main purpose of this service is to provide
 // a way to create sessions and catalogs, and to update the catalog.
 service EvitaService {
+  // Procedure used to obtain server status.
+  rpc ServerStatus(google.protobuf.Empty) returns (GrpcEvitaServerStatusResponse);
   // Procedure used to create read only sessions.
   rpc CreateReadOnlySession(GrpcEvitaSessionRequest) returns (GrpcEvitaSessionResponse);
   // Procedure used to create read write sessions.

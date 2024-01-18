@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -167,10 +167,11 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = histogram.getBuckets()[i];
-			if (
-				(from != null || to != null) &&
-					(from == null || from.compareTo(bucket.threshold()) <= 0) &&
-					(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
 				assertTrue(bucket.requested());
 			} else {
 				assertFalse(bucket.requested());
@@ -3955,6 +3956,51 @@ public class EntityByAttributeFilteringFunctionalTest {
 
 				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, null, null);
 				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY, null, null);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return attribute histogram with attribute between")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnAttributeHistogramWithAttributeBetweenIsUsed(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<BigDecimal> sortedQuantities = originalProductEntities.stream()
+					.map(it -> it.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
+					.filter(Objects::nonNull)
+					.sorted()
+					.toList();
+				final BigDecimal from = sortedQuantities.get(sortedQuantities.size() / 3);
+				final BigDecimal to = sortedQuantities.get(sortedQuantities.size() / 3 * 2);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								attributeBetween(ATTRIBUTE_QUANTITY, from, to)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class) != null)
+					.collect(Collectors.toList());
+
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, from, to);
 
 				return null;
 			}

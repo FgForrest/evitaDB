@@ -6,6 +6,6 @@ query(
         priceValidInNow()
     ),
     require(
-      priceHistogram(10)
+      priceHistogram(20)
     )
 )

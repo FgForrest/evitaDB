@@ -322,4 +322,8 @@ public interface ProductInterfaceEditor extends ProductInterface, WithEntityBuil
 	@ReferenceRef(Entities.STORE)
 	@RemoveWhenExists
 	StoreInterface removeStoreById(int storeId);
+
+	@ReferenceRef(Entities.STORE)
+	@RemoveWhenExists
+	boolean removeStoreByIdAndReturnBoolean(int storeId);
 }

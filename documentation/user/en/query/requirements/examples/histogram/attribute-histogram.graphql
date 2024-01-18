@@ -6,7 +6,7 @@
           min
           max
           overallCount
-          buckets(requestedCount: 5) {
+          buckets(requestedCount: 20) {
             index
             threshold
             occurrences
@@ -17,7 +17,7 @@
           min
           max
           overallCount
-          buckets(requestedCount: 5) {
+          buckets(requestedCount: 20) {
             index
             threshold
             occurrences

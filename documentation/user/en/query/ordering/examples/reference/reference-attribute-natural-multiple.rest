@@ -2,7 +2,7 @@ POST /rest/evita/Product/query
 
 {
   "filterBy" : {
-    "referenceBrandHaving" : [
+    "referenceGroupsHaving" : [
       {
         "entityHaving" : {
           "attributeCodeInSet" : [

@@ -30,6 +30,7 @@ import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -254,5 +255,13 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 * @see #updateCatalog(String, Function, CommitBehaviour, SessionFlags[])
 	 */
 	void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nonnull CommitBehaviour commitBehaviour, @Nullable SessionFlags... flags);
+
+	/**
+	 * Retrieves the current system status of the EvitaDB server.
+	 *
+	 * @return the system status of the EvitaDB server
+	 */
+	@Nonnull
+	SystemStatus getSystemStatus();
 
 }

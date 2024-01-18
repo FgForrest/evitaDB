@@ -1536,6 +1536,20 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	}
 
 	/**
+	 * Returns method implementation that removes the referenced entity id and return TRUE if the reference was removed.
+	 *
+	 * @param referenceSchema the reference schema
+	 * @return the method implementation
+	 */
+	@Nonnull
+	private static CurriedMethodContextInvocationHandler<Object, SealedEntityProxyState> removeReferencedEntityIdWithBooleanResult(
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final String referenceName = referenceSchema.getName();
+		return (proxy, theMethod, args, theState, invokeSuper) -> removeReferencedEntityId(referenceName, args, theState);
+	}
+
+	/**
 	 * Returns method implementation that removes the referenced entity id and return the reference to the proxy to allow
 	 * chaining (builder pattern).
 	 *
@@ -1560,17 +1574,22 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	 * @param args          the arguments passed to the method
 	 * @param theState      the state of the entity proxy
 	 */
-	private static void removeReferencedEntityId(
+	private static boolean removeReferencedEntityId(
 		@Nonnull String referenceName,
 		@Nonnull Object[] args,
 		@Nonnull SealedEntityProxyState theState
 	) {
 		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final Serializable referencedPrimaryKey = (Serializable) args[0];
-		entityBuilder.removeReference(
-			referenceName,
-			EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class)
-		);
+		final Integer referenceId = EvitaDataTypes.toTargetType(referencedPrimaryKey, int.class);
+		final Optional<ReferenceContract> reference = entityBuilder.getReference(referenceName, referenceId);
+		if (reference.isPresent()) {
+			entityBuilder.removeReference(
+				referenceName,
+				referenceId
+			);
+		}
+		return reference.isPresent();
 	}
 
 	/**
@@ -1930,6 +1949,8 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 				return removeReferencedEntityIdWithBuilderResult(referenceSchema);
 			} else if (void.class.equals(returnType)) {
 				return removeReferencedEntityIdWithVoidResult(referenceSchema);
+			} else if (boolean.class.equals(returnType)) {
+				return removeReferencedEntityIdWithBooleanResult(referenceSchema);
 			} else {
 				return removeReferencedEntityIdWithReferenceResult(
 					referenceSchema, returnType, false
@@ -1938,7 +1959,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		} else {
 			if (returnType.equals(proxyState.getProxyClass())) {
 				return setReferencedEntityPrimaryKeyWithBuilderResult(referenceSchema);
-			} else if (returnType.equals(void.class)) {
+			} else if (void.class.equals(returnType)) {
 				return setReferencedEntityPrimaryKeyWithVoidResult(referenceSchema);
 			} else if (method.isAnnotationPresent(CreateWhenMissing.class)) {
 				return getOrCreateByIdWithReferenceResult(referenceSchema, returnType);

@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.dto.QueryTelemetryDto;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.FacetSummaryDescriptor.FacetGroupStatisticsDescriptor;
@@ -53,22 +52,18 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.model.extraResult.LevelIn
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.exception.RestQueryResolvingInternalError;
-import io.evitadb.externalApi.rest.io.RestHandlingContext;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.NamingConvention;
-import io.evitadb.utils.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.function.Function;
 
+import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -82,13 +77,9 @@ public class ExtraResultsJsonSerializer {
 	private final EntityJsonSerializer entityJsonSerializer;
 	private final ObjectJsonSerializer objectJsonSerializer;
 
-	private final Function<String, String> referenceNameToFieldName;
-
 	public ExtraResultsJsonSerializer(@Nonnull EntityJsonSerializer entityJsonSerializer,
-	                                  @Nonnull Function<String, String> referenceNameToFieldName,
 	                                  @Nonnull ObjectMapper objectMapper) {
 		this.entityJsonSerializer = entityJsonSerializer;
-		this.referenceNameToFieldName = referenceNameToFieldName;
 		this.objectJsonSerializer = new ObjectJsonSerializer(objectMapper);
 	}
 
@@ -106,11 +97,11 @@ public class ExtraResultsJsonSerializer {
 			if (extraResult instanceof QueryTelemetry queryTelemetry) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.QUERY_TELEMETRY.name(), serializeQueryTelemetry(queryTelemetry));
 			} else if (extraResult instanceof AttributeHistogram attributeHistogram) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram));
+				rootNode.putIfAbsent(ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name(), serializeAttributeHistogram(attributeHistogram, resultEntitySchema));
 			} else if (extraResult instanceof PriceHistogram priceHistogram) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.PRICE_HISTOGRAM.name(), serializePriceHistogram(priceHistogram));
 			} else if (extraResult instanceof Hierarchy hierarchyStats) {
-				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats, catalogSchema));
+				rootNode.putIfAbsent(ExtraResultsDescriptor.HIERARCHY.name(), serializeHierarchy(hierarchyStats, catalogSchema, resultEntitySchema));
 			} else if (extraResult instanceof FacetSummary facetSummary) {
 				rootNode.putIfAbsent(ExtraResultsDescriptor.FACET_SUMMARY.name(), serializeFacetSummary(facetSummary, catalogSchema, resultEntitySchema));
 			}
@@ -133,14 +124,20 @@ public class ExtraResultsJsonSerializer {
 		}
 
 		final ObjectNode facetGroupStatsNode = objectJsonSerializer.objectNode();
-		groupedStats.forEach((key, value) -> facetGroupStatsNode.putIfAbsent(
-			StringUtils.toSpecificCase(key, ExternalApiNamingConventions.PROPERTY_NAME_NAMING_CONVENTION),
-			serializeFacetSameGroupStatistics(
-				value,
-				entitySchema.getReference(key).orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")),
-				catalogSchema
-			)
-		));
+		groupedStats.forEach((key, value) -> {
+			final String serializableReferenceName = entitySchema.getReference(key)
+				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + key + "` in entity schema `" + entitySchema.getName() + "`."));
+
+			facetGroupStatsNode.putIfAbsent(
+				serializableReferenceName,
+				serializeFacetSameGroupStatistics(
+					value,
+					entitySchema.getReference(key).orElseThrow(() -> new RestInternalError("Could not find referenc schema for `" + key + "`.")),
+					catalogSchema
+				)
+			);
+		});
 		return facetGroupStatsNode;
 
 	}
@@ -199,7 +196,9 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeHierarchy(@Nonnull Hierarchy hierarchy, @Nonnull CatalogSchemaContract catalogSchema) {
+	private JsonNode serializeHierarchy(@Nonnull Hierarchy hierarchy,
+	                                    @Nonnull CatalogSchemaContract catalogSchema,
+	                                    @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode hierarchyNode = objectJsonSerializer.objectNode();
 
 		final Map<String, List<LevelInfo>> selfHierarchy = hierarchy.getSelfHierarchy();
@@ -208,12 +207,11 @@ public class ExtraResultsJsonSerializer {
 		}
 
 		hierarchy.getReferenceHierarchies().forEach((referenceName, hierarchyOfReference) -> {
-			final String fieldName = referenceNameToFieldName.apply(referenceName);
-			Assert.isPremiseValid(
-				fieldName != null,
-				() -> new RestQueryResolvingInternalError("Reference name `" + referenceName + "` is not mapped to any field name.")
-			);
-			hierarchyNode.putIfAbsent(fieldName, serializeHierarchyOf(hierarchyOfReference, catalogSchema));
+			final String serializableReferenceName = entitySchema.getReference(referenceName)
+				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find reference schema for `" + referenceName + "` in entity schema `" + entitySchema.getName() + "`."));
+
+			hierarchyNode.putIfAbsent(serializableReferenceName, serializeHierarchyOf(hierarchyOfReference, catalogSchema));
 		});
 
 		return hierarchyNode;
@@ -262,10 +260,16 @@ public class ExtraResultsJsonSerializer {
 	}
 
 	@Nonnull
-	private JsonNode serializeAttributeHistogram(@Nonnull AttributeHistogram attributeHistogram) {
+	private JsonNode serializeAttributeHistogram(@Nonnull AttributeHistogram attributeHistogram,
+	                                             @Nonnull EntitySchemaContract entitySchema) {
 		final ObjectNode histogramNode = objectJsonSerializer.objectNode();
 		for (Entry<String, HistogramContract> entry : attributeHistogram.getHistograms().entrySet()) {
-			histogramNode.putIfAbsent(entry.getKey(), objectJsonSerializer.getObjectMapper().valueToTree(entry.getValue()));
+			final String attributeName = entry.getKey();
+			final String serializableAttributeName = entitySchema.getAttribute(attributeName)
+				.map(it -> it.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+				.orElseThrow(() -> new RestQueryResolvingInternalError("Cannot find attribute schema for `" + attributeName + "` in entity schema `" + entitySchema.getName() + "`."));
+
+			histogramNode.putIfAbsent(serializableAttributeName, objectJsonSerializer.getObjectMapper().valueToTree(entry.getValue()));
 		}
 		return histogramNode;
 	}

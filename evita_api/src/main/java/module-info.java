@@ -31,6 +31,7 @@ module evita.api {
 	exports io.evitadb.api.requestResponse.schema.mutation.entity;
 	exports io.evitadb.api.requestResponse.schema.mutation.reference;
 	exports io.evitadb.api.requestResponse.schema.dto;
+	exports io.evitadb.api.requestResponse.system;
 	exports io.evitadb.api.exception;
 	exports io.evitadb.api.requestResponse.mutation;
 	exports io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound;
