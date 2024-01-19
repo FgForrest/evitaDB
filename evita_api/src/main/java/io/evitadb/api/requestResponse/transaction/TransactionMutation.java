@@ -32,16 +32,29 @@ import java.io.Serial;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * This transaction mutation delimits mutations of one transaction from another. It contains data that allow to recognize
+ * the scope of the transaction and verify its integrity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @EqualsAndHashCode
 public final class TransactionMutation implements Mutation {
 	@Serial private static final long serialVersionUID = -8039363287149601917L;
+	/**
+	 * Represents the unique identifier of a transaction.
+	 */
 	@Getter private final UUID transactionId;
+	/**
+	 * Represents the catalog version the transaction is based on.
+	 */
 	@Getter private final long catalogVersion;
+	/**
+	 * Represents the number of mutations in this particular transaction.
+	 */
 	@Getter private final int mutationCount;
+	/**
+	 * Represents the size of the serialized transaction mutations that follow this mutation in bytes.
+	 */
 	@Getter private final long walSizeInBytes;
 
 	public TransactionMutation(

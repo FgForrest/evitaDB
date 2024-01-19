@@ -26,6 +26,7 @@ package io.evitadb.store.catalog;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
@@ -177,6 +178,11 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	 */
 	@Nonnull
 	private final StorageOptions storageOptions;
+	/**
+	 * Contains information about transactions configuration options.
+	 */
+	@Nonnull
+	private final TransactionOptions transactionOptions;
 	/**
 	 * Contains reference to the catalog entity header collecting all crucial information about single entity collection.
 	 * The catalog entity header is loaded in constructor and because it's immutable it needs to be replaced with each
@@ -624,6 +630,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		@Nonnull Path catalogStoragePath,
 		@Nonnull EntityCollectionHeader entityTypeHeader,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry
@@ -640,8 +647,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
 		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			this.entityCollectionFile.toFile().getName(),
+			transactionOptions,
 			new OffsetIndex(
 				new OffsetIndexDescriptor(
 					entityTypeHeader,
@@ -664,8 +673,10 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 		this.offHeapMemoryManager = previous.offHeapMemoryManager;
 		this.observableOutputKeeper = previous.observableOutputKeeper;
 		this.storageOptions = previous.storageOptions;
+		this.transactionOptions = previous.transactionOptions;
 		this.storagePartPersistenceService = new OffsetIndexStoragePartPersistenceService(
 			this.entityCollectionFile.toFile().getName(),
+			previous.transactionOptions,
 			new OffsetIndex(
 				new OffsetIndexDescriptor(
 					previous.catalogEntityHeader,
@@ -1065,8 +1076,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			attributesSetKey -> storageContainerBuffer.fetchBinary(
 				attributesSetKey,
 				AttributesStoragePart.class,
-				AttributesStoragePart::computeUniquePartId,
-				this.storagePartPersistenceService::serializeStoragePart
+				AttributesStoragePart::computeUniquePartId
 			)
 		);
 		final List<byte[]> associatedDataStorageContainers = fetchAssociatedData(
@@ -1075,8 +1085,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 			associatedDataKey -> storageContainerBuffer.fetchBinary(
 				associatedDataKey,
 				AssociatedDataStoragePart.class,
-				AssociatedDataStoragePart::computeUniquePartId,
-				this.storagePartPersistenceService::serializeStoragePart
+				AssociatedDataStoragePart::computeUniquePartId
 			)
 		);
 

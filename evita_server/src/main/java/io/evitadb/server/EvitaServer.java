@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -65,12 +65,9 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -247,6 +244,7 @@ public class EvitaServer {
 			evitaServerConfig.name(),
 			evitaServerConfig.server(),
 			evitaServerConfig.storage(),
+			evitaServerConfig.transactions(),
 			evitaServerConfig.cache()
 		);
 		this.apiOptions = evitaServerConfig.api();

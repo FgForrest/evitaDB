@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -92,6 +93,7 @@ import io.evitadb.utils.ClassifierUtils;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.FileUtils;
 import io.evitadb.utils.NamingConvention;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -162,7 +164,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 * Contains path to the directory that contains all files for the catalog this instance of persistence service
 	 * takes care of.
 	 */
-	@Nonnull
+	@Nonnull @Getter
 	private final Path catalogStoragePath;
 	/**
 	 * Contains configuration of record types that could be stored into the mem-table.
@@ -178,6 +180,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	@Nonnull
 	private final StorageOptions storageOptions;
+	/**
+	 * Contains information about transactions configuration options.
+	 */
+	@Nonnull
+	private final TransactionOptions transactionOptions;
 	/**
 	 * The map contains index of already created {@link EntityCollectionPersistenceService entity collection services}.
 	 * Instances of these services are costly and also contain references to the state, so that they must be kept as
@@ -367,12 +374,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	public DefaultCatalogPersistenceService(
 		@Nonnull String catalogName,
-		@Nonnull StorageOptions storageOptions
-	) {
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
+		) {
 		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
-			storageOptions.transactionMemoryBufferLimitSizeBytes(),
-			storageOptions.transactionMemoryRegionCount()
+			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
+			transactionOptions.transactionMemoryRegionCount()
 		);
 		this.catalogName = catalogName;
 		this.catalogStoragePath = pathForNewCatalog(catalogName, storageOptions.storageDirectoryOrDefault());
@@ -397,6 +406,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				catalogFileName,
 				catalogFilePath,
 				storageOptions,
+				transactionOptions,
 				lastCatalogBootstrap,
 				recordTypeRegistry,
 				offHeapMemoryManager,
@@ -424,12 +434,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
 	) {
 		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
-			storageOptions.transactionMemoryBufferLimitSizeBytes(),
-			storageOptions.transactionMemoryRegionCount()
+			transactionOptions.transactionMemoryBufferLimitSizeBytes(),
+			transactionOptions.transactionMemoryRegionCount()
 		);
 		this.catalogName = catalogName;
 		this.catalogStoragePath = catalogStoragePath;
@@ -451,6 +463,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogFileName,
 			catalogFilePath,
 			storageOptions,
+			transactionOptions,
 			this.bootstrapUsed,
 			recordTypeRegistry,
 			offHeapMemoryManager, observableOutputKeeper,
@@ -474,7 +487,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogBootstrap bootstrapUsed,
 		@Nonnull WriteOnlyHandle bootstrapWriteHandle,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
 	) {
 		this.bootstrapUsed = bootstrapUsed;
 		this.recordTypeRegistry = fileOffsetIndexRecordTypeRegistry;
@@ -484,6 +498,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		this.catalogStoragePath = catalogStoragePath;
 		this.bootstrapWriteHandle = bootstrapWriteHandle;
 		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
@@ -492,6 +507,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			catalogFileName,
 			catalogFilePath,
 			storageOptions,
+			transactionOptions,
 			this.bootstrapUsed,
 			recordTypeRegistry,
 			offHeapMemoryManager, observableOutputKeeper,
@@ -642,6 +658,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				catalogStoragePath,
 				entityCollectionHeader,
 				storageOptions,
+				transactionOptions,
 				offHeapMemoryManager,
 				observableOutputKeeper,
 				recordTypeRegistry
@@ -664,7 +681,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			transactionId,
 			this.catalogKryoPool.obtain(),
 			new WriteOnlyOffHeapWithFileBackupHandle(
-				this.storageOptions.transactionWorkDirectory().resolve(transactionId + ".wal"),
+				this.transactionOptions.transactionWorkDirectory().resolve(transactionId + ".wal"),
 				this.observableOutputKeeper,
 				this.offHeapMemoryManager
 			)
@@ -796,7 +813,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 					newPath.resolve(getCatalogBootstrapFileName(catalogNameToBeReplaced)),
 					this.observableOutputKeeper
 				),
-				this.storageOptions
+				this.storageOptions,
+				this.transactionOptions
 			);
 		} catch (RuntimeException ex) {
 			// rename original directory back
@@ -963,26 +981,24 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 				"store bootstrap record",
 				() -> {
 				},
-				output -> {
-					return new StorageRecord<>(
-						output, catalogVersion, true,
-						theOutput -> {
-							final long now = System.currentTimeMillis();
-							final CatalogBootstrap catalogBootstrap = new CatalogBootstrap(
-								catalogVersion, catalogFileIndex,
-								Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
-								newDescriptor.fileLocation()
-							);
+				output -> new StorageRecord<>(
+					output, catalogVersion, true,
+					theOutput -> {
+						final long now = System.currentTimeMillis();
+						final CatalogBootstrap catalogBootstrap = new CatalogBootstrap(
+							catalogVersion, catalogFileIndex,
+							Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+							newDescriptor.fileLocation()
+						);
 
-							theOutput.writeLong(catalogBootstrap.catalogVersion());
-							theOutput.writeInt(catalogBootstrap.catalogFileIndex());
-							theOutput.writeLong(now);
-							theOutput.writeLong(catalogBootstrap.fileLocation().startingPosition());
-							theOutput.writeInt(catalogBootstrap.fileLocation().recordLength());
-							return catalogBootstrap;
-						}
-					).payload();
-				},
+						theOutput.writeLong(catalogBootstrap.catalogVersion());
+						theOutput.writeInt(catalogBootstrap.catalogFileIndex());
+						theOutput.writeLong(now);
+						theOutput.writeLong(catalogBootstrap.fileLocation().startingPosition());
+						theOutput.writeInt(catalogBootstrap.fileLocation().recordLength());
+						return catalogBootstrap;
+					}
+				).payload(),
 				(output, catalogBootstrap) -> catalogBootstrap
 			);
 		} finally {

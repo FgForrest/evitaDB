@@ -83,6 +83,7 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.ServiceLoader.Provider;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -173,14 +174,14 @@ public final class Evita implements EvitaContract {
 	 */
 	private final ThreadLocal<CatalogContract> removedCatalog = new ThreadLocal<>();
 	/**
+	 * This variable represents the starting date and time.
+	 */
+	private final OffsetDateTime started;
+	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
 	private boolean active;
-	/**
-	 * This variable represents the starting date and time.
-	 */
-	private final OffsetDateTime started;
 	/**
 	 * Flag that is initially set to {@link ServerOptions#readOnly()} from {@link EvitaConfiguration}.
 	 * The flag might be changed from false to TRUE one time using internal Evita API. This is used in test support.
@@ -236,7 +237,14 @@ public final class Evita implements EvitaContract {
 				CatalogContract catalog;
 				try {
 					final long start = System.nanoTime();
-					catalog = new Catalog(catalogName, directory, cacheSupervisor, configuration.storage(), reflectionLookup);
+					catalog = new Catalog(
+						catalogName, directory, cacheSupervisor,
+						configuration.storage(),
+						configuration.transactions(),
+						reflectionLookup,
+						executor,
+						this::replaceCatalogReference
+					);
 					log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
 				} catch (Throwable ex) {
 					log.error("Catalog {} is corrupted!", catalogName);
@@ -297,7 +305,7 @@ public final class Evita implements EvitaContract {
 
 	@Override
 	@Nonnull
-	public EvitaSessionContract createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits) {
+	public EvitaInternalSessionContract createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits) {
 		notNull(traits.catalogName(), "Catalog name is mandatory information.");
 		return createEvitaSession(
 			commitBehaviour == null ? CommitBehaviour.defaultBehaviour() : commitBehaviour,
@@ -412,7 +420,12 @@ public final class Evita implements EvitaContract {
 	}
 
 	@Override
-	public <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nonnull CommitBehaviour commitBehaviour, @Nullable SessionFlags... flags) {
+	public <T> CompletableFuture<T> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Function<EvitaSessionContract, T> updater,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
 		assertActive();
 		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
 			throw new ReadOnlyException();
@@ -423,20 +436,76 @@ public final class Evita implements EvitaContract {
 				new SessionFlags[]{SessionFlags.READ_WRITE} :
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
-		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
-			return session.execute(updater);
+		try (final EvitaInternalSessionContract session = this.createSession(commitBehaviour, traits)) {
+			final T resultValue = session.execute(updater);
+			return session.getTransactionFinalizationFuture()
+				.map(txFuture -> {
+					// join the transaction future and return the result
+					final CompletableFuture<T> result = new CompletableFuture<>();
+					txFuture.whenComplete((txId, ex) -> {
+						if (ex != null) {
+							result.completeExceptionally(ex);
+						} else {
+							result.complete(resultValue);
+						}
+					});
+					return result;
+				})
+				.orElseGet(() -> {
+					// complete immediately
+					final CompletableFuture<T> result = new CompletableFuture<>();
+					result.complete(resultValue);
+					return result;
+				});
 		}
 	}
 
 	@Override
-	public void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nonnull CommitBehaviour commitBehaviour, @Nullable SessionFlags... flags) {
-		updateCatalog(
+	public CompletableFuture<Long> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<EvitaSessionContract> updater,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
+		assertActive();
+		if (readOnly && Arrays.stream(flags).noneMatch(it -> it == SessionFlags.DRY_RUN)) {
+			throw new ReadOnlyException();
+		}
+		final SessionTraits traits = new SessionTraits(
 			catalogName,
-			evitaSession -> {
-				updater.accept(evitaSession);
-				return null;
-			},
-			flags
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		try (final EvitaInternalSessionContract session = this.createSession(commitBehaviour, traits)) {
+			final long catalogVersion = session.getCatalogVersion();
+			session.execute(updater);
+			// join the transaction future and return the result
+			return session.getTransactionFinalizationFuture()
+				.orElseGet(() -> {
+					// complete immediately
+					final CompletableFuture<Long> result = new CompletableFuture<>();
+					result.complete(catalogVersion);
+					return result;
+				});
+		}
+	}
+
+	@Nonnull
+	@Override
+	public SystemStatus getSystemStatus() {
+		final int corruptedCatalogs = (int) this.catalogs.values()
+			.stream()
+			.filter(it -> it instanceof CorruptedCatalog)
+			.count();
+
+		return new SystemStatus(
+			VersionUtils.readVersion(),
+			this.started,
+			Duration.between(this.started, OffsetDateTime.now()),
+			this.configuration.name(),
+			corruptedCatalogs,
+			this.catalogs.size() - corruptedCatalogs
 		);
 	}
 
@@ -497,24 +566,6 @@ public final class Evita implements EvitaContract {
 			.orElseThrow(() -> new IllegalArgumentException("Catalog " + catalog + " is not known to Evita!"));
 	}
 
-	@Nonnull
-	@Override
-	public SystemStatus getSystemStatus() {
-		final int corruptedCatalogs = (int) this.catalogs.values()
-			.stream()
-			.filter(it -> it instanceof CorruptedCatalog)
-			.count();
-
-		return new SystemStatus(
-			VersionUtils.readVersion(),
-			this.started,
-			Duration.between(this.started, OffsetDateTime.now()),
-			this.configuration.name(),
-			corruptedCatalogs,
-			this.catalogs.size() - corruptedCatalogs
-		);
-	}
-
 	/*
 		PRIVATE METHODS
 	 */
@@ -562,7 +613,10 @@ public final class Evita implements EvitaContract {
 						catalogSchema,
 						cacheSupervisor,
 						configuration.storage(),
-						reflectionLookup
+						configuration.transactions(),
+						reflectionLookup,
+						executor,
+						this::replaceCatalogReference
 					);
 				} else {
 					throw new CatalogAlreadyPresentException(catalogName, existingCatalog.getName());
@@ -658,8 +712,7 @@ public final class Evita implements EvitaContract {
 	 *
 	 * TODO JNO - tohle musí být voláno z místa, kde se zpracovávají mutace
 	 */
-	@Nonnull
-	private CatalogContract replaceCatalogReference(@Nonnull CatalogContract catalog) {
+	private void replaceCatalogReference(@Nonnull CatalogContract catalog) {
 		notNull(catalog, "Sanity check.");
 		final String catalogName = catalog.getName();
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
@@ -683,8 +736,6 @@ public final class Evita implements EvitaContract {
 		// notify structural changes callbacks
 		ofNullable(originalCatalog.get())
 			.ifPresent(it -> notifyStructuralChangeObservers(catalog, it));
-
-		return actualCatalog;
 	}
 
 	/**
@@ -738,7 +789,7 @@ public final class Evita implements EvitaContract {
 	 * Creates {@link EvitaSession} instance and registers all appropriate termination callbacks along.
 	 */
 	@Nonnull
-	private EvitaSessionContract createEvitaSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits sessionTraits) {
+	private EvitaInternalSessionContract createEvitaSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits sessionTraits) {
 		final CatalogContract catalogContract = getCatalogInstanceOrThrowException(sessionTraits.catalogName());
 		final Catalog catalog;
 		if (catalogContract instanceof CorruptedCatalog corruptedCatalog) {
@@ -765,9 +816,6 @@ public final class Evita implements EvitaContract {
 			sessionRegistry.removeSession(session);
 
 			if (sessionTraits.isReadWrite()) {
-				if (supportsTransactionInTheBeginning) {
-					session.closeTransaction();
-				}
 				catalog.decreaseReadWriteSessionCount();
 				ofNullable(nonTransactionalCatalogDescriptor)
 					.ifPresent(NonTransactionalCatalogDescriptor::notifyStructuralChangeObservers);
@@ -1007,6 +1055,7 @@ public final class Evita implements EvitaContract {
 		@Nonnull String catalogName,
 		@Nonnull NamingConvention convention,
 		@Nonnull String name
-	) {}
+	) {
+	}
 
 }

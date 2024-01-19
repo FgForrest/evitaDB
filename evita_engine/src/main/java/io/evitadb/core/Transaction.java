@@ -285,7 +285,27 @@ public final class Transaction implements TransactionContract {
 	) {
 		this.transactionId = transactionId;
 		this.transactionHandler = transactionHandler;
-		this.transactionalMemory = new TransactionalMemory(this.transactionId, transactionHandler);
+		this.transactionalMemory = new TransactionalMemory(transactionHandler);
+	}
+
+	/**
+	 * Creates new transaction.
+	 *
+	 * @param transactionId      unique id of the transaction
+	 * @param transactionHandler handler that takes care about mutation persistence, commit and rollback behaviour
+	 */
+	public Transaction(
+		@Nonnull UUID transactionId,
+		@Nonnull TransactionHandler transactionHandler,
+		@Nonnull TransactionalMemory transactionalMemory
+	) {
+		Assert.isPremiseValid(
+			transactionHandler == transactionalMemory.getFinalizer(),
+			"Transaction handler and transactional memory finalizer must be the same instance!"
+		);
+		this.transactionId = transactionId;
+		this.transactionHandler = transactionHandler;
+		this.transactionalMemory = transactionalMemory;
 	}
 
 	@Override

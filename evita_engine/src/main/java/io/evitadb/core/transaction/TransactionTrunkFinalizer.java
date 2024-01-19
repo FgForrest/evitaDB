@@ -30,42 +30,85 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * TODO JNO - document me
- * TODO JNO - implementovat slučování více transakcí do jedné, pokud se stíhají v intervalu
- * (TO BY BYLO ASI MOŽNÉ TÍM, ŽE SE STÁVAJÍCÍ TRANSACTION MEMORY MÍSTO ZAHOZENÍ PŘEDÁ DO DALŠÍ TRANSAKCE - POKUD TATO
- * TRANSAKCE OBSAHUJE POUZE TAKOVÝ POČET MUTACÍ, KTERÉ SE PRAVDĚPODOBNĚ STÍHAJÍ ZPRACOVAT V INTERVALU)
+ * This implementation is used to incorporate multiple transactions into the trunk of the catalog. Commits are ignored
+ * so that multiple "transactions" can be incorporated in a single "turn". The final commit that may contain at least
+ * one full transaction or may also contain multiple shorter full transactions is done by calling
+ * {@link #commitCatalogChanges(long)} which makes also additional uses of this instance impossible.
+ *
+ * This class is not thread-safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
+@NotThreadSafe
 public class TransactionTrunkFinalizer implements TransactionHandler {
-	private final AtomicReference<Catalog> currentCatalog;
-	private final AtomicLong lastFinalizedCatalogVersion;
+	/**
+	 * Represents the catalog that needs to be updated.
+	 */
+	private final Catalog catalogToUpdate;
+	/**
+	 * Represents the last transactional layer committed in the trunk. Once assigned all additional commits must refer
+	 * to the very same transactional layer (as if the first transaction is simply prolonged).
+	 */
+	private TransactionalLayerMaintainer lastTransactionLayer;
+	/**
+	 * Represents the committed catalog.
+	 *
+	 * This variable holds the instance of the catalog that has been committed after calling {@link #commitCatalogChanges(long)}
+	 * method in the TransactionTrunkFinalizer class. It stores the state of the catalog with all the changes made in the
+	 * transactional layers. When this variable is non-null additional commits are not allowed.
+	 */
+	private Catalog committedCatalog;
 
-	public TransactionTrunkFinalizer(@Nonnull Catalog currentCatalog) {
-		this.currentCatalog = new AtomicReference<>(currentCatalog);
-		this.lastFinalizedCatalogVersion = new AtomicLong(currentCatalog.getVersion());
+	public TransactionTrunkFinalizer(@Nonnull Catalog catalogToUpdate) {
+		this.catalogToUpdate = catalogToUpdate;
 	}
 
 	@Override
 	public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final Catalog catalogToUpdate = this.currentCatalog.get();
-		// init new catalog with the same collections as previous one
-		final Catalog newCatalog = transactionalLayer.getStateCopyWithCommittedChanges(catalogToUpdate);
-		// now let's flush the catalog on the disk
-		newCatalog.flush(lastFinalizedCatalogVersion.get());
-		// and set reference to a new catalog
-		final Catalog witness = this.currentCatalog.compareAndExchange(catalogToUpdate, newCatalog);
-		// verify expectations
-		Assert.isPremiseValid(witness == catalogToUpdate, "Catalog was changed by other thread in the meantime!");
+		if (this.lastTransactionLayer == null) {
+			this.lastTransactionLayer = transactionalLayer;
+		} else {
+			Assert.isPremiseValid(
+				this.lastTransactionLayer == transactionalLayer,
+				"Transaction layer must be the same for all transactions in the trunk!");
+		}
 	}
 
 	@Override
 	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		throw new EvitaInternalError("Rollback is not supported here!");
+	}
+
+	/**
+	 * This method should be used to build new transaction on top of the changes made by the last transaction.
+	 *
+	 * @return last transaction layer
+	 */
+	@Nullable
+	public TransactionalLayerMaintainer getLastTransactionLayer() {
+		return lastTransactionLayer;
+	}
+
+	/**
+	 * This method finally commits the catalog changes and returns the new instance of the committed catalog.
+	 * @param transactionId transaction id
+	 * @return committed catalog
+	 */
+	@Nonnull
+	public Catalog commitCatalogChanges(long transactionId) {
+		Assert.isPremiseValid(committedCatalog == null, "Catalog was already committed!");
+		// init new catalog with the same collections as previous one
+		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(catalogToUpdate);
+		// now let's flush the catalog on the disk
+		newCatalog.flush(transactionId);
+		// assign committed catalog
+		this.committedCatalog = newCatalog;
+		// and return created catalog
+		return this.committedCatalog;
 	}
 
 	@Override

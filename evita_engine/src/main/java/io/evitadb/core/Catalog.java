@@ -30,15 +30,14 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.exception.TransactionException;
-import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.proxy.ProxyFactory;
-import io.evitadb.api.proxy.impl.UnsatisfiedDependencyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -71,7 +70,11 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.transaction.stage.CatalogSnapshotPropagationTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
+import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
+import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage;
+import io.evitadb.core.transaction.stage.WalAppendingTransactionStage;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
@@ -97,7 +100,6 @@ import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.storageParts.accessor.CatalogReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
-import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -111,10 +113,12 @@ import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -192,7 +196,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 *
 	 * @see CatalogState
 	 */
-	private final AtomicReference<CatalogState> state;
+	private final CatalogState state;
 	/**
 	 * Contains reference to the main catalog index that allows fast lookups for entities across all types.
 	 */
@@ -206,32 +210,87 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
+	 * TODO JNO - document me
+	 */
+	private final StorageOptions storageOptions;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final TransactionOptions transactionOptions;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final ExecutorService executorService;
+	/**
+	 * TODO JNO - document me
+	 */
+	private final Consumer<CatalogContract> newCatalogVersionConsumer;
+	/**
 	 * Provides access to the entity schema in the catalog.
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
 	/**
 	 * TODO JNO - document me
 	 */
-	private final ConflictResolutionTransactionStage firstTransactionStage;
+	private final SubmissionPublisher<ConflictResolutionTransactionTask> transactionalPipeline;
 	/**
-	 * TODO JNO - document me
+	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
+
+	/**
+	 * Creates a transaction pipeline for transaction processing consisting of 4 stages:
+	 *
+	 * - conflict resolution (and catalog version sequence number assignment)
+	 * - WAL appending (writing {@link IsolatedWalPersistenceService} to the shared catalog WAL)
+	 * - trunk incorporation (applying transactions from shared WAL in order to the shared catalog view)
+	 * - catalog snapshot propagation (propagating new catalog version to the "live view" of the evitaDB engine)
+	 *
+	 * @param catalogName               the name of the catalog
+	 * @param catalog                   the catalog instance
+	 * @param transactionOptions        the options for the transaction
+	 * @param executorService           the executor service for async processing
+	 * @param newCatalogVersionConsumer the consumer to handle new catalog versions
+	 * @return the submission publisher for conflict resolution transaction tasks
+	 */
+	@Nonnull
+	private static SubmissionPublisher<ConflictResolutionTransactionTask> createTransactionPipeline(
+		@Nonnull String catalogName,
+		@Nonnull Catalog catalog,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ExecutorService executorService,
+		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
+	) {
+		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(executorService, transactionOptions.maxQueueSize());
+		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog);
+		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog);
+		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequency());
+
+		txPublisher.subscribe(stage1);
+		stage1.subscribe(stage2);
+		stage2.subscribe(stage3);
+		stage3.subscribe(new CatalogSnapshotPropagationTransactionStage(catalogName, newCatalogVersionConsumer));
+		return txPublisher;
+	}
 
 	public Catalog(
 		@Nonnull CatalogSchemaContract catalogSchema,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ExecutorService executorService,
+		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
 	) {
+		final String catalogName = catalogSchema.getName();
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
-			catalogSchema.getName(), catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
+			catalogName, catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
 			getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions))
+			.map(it -> it.createNew(this, this.getSchema().getName(), storageOptions, transactionOptions))
 			.orElseThrow(StorageImplementationNotFoundException::new);
 
 		final CatalogStoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
@@ -244,7 +303,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		}
 
 		// initialize container buffer
-		this.state = new AtomicReference<>(CatalogState.WARMING_UP);
+		this.state = CatalogState.WARMING_UP;
 		this.readWriteSessionCount = new AtomicInteger(0);
 		this.versionId = new TransactionalReference<>(1L);
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(1L, this, storagePartPersistenceService);
@@ -253,11 +312,16 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entitySchemaIndex = new TransactionalMap<>(createHashMap(0));
 		this.entityTypeSequence = sequenceService.getOrCreateSequence(
-			catalogSchema.getName(), SequenceType.ENTITY_COLLECTION, 0
+			catalogName, SequenceType.ENTITY_COLLECTION, 0
 		);
 		this.catalogIndex = new CatalogIndex(this);
 		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
+		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
+		this.transactionalPipeline = createTransactionPipeline(catalogName, this, transactionOptions, executorService, newCatalogVersionConsumer);
 	}
 
 	public Catalog(
@@ -265,14 +329,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull Path catalogPath,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull StorageOptions storageOptions,
-		@Nonnull ReflectionLookup reflectionLookup
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull ExecutorService executorService,
+		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
 	) {
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
-			.map(it -> it.load(this, catalogName, catalogPath, storageOptions))
+			.map(it -> it.load(this, catalogName, catalogPath, storageOptions, transactionOptions))
 			.orElseThrow(() -> new IllegalStateException("IO service is unexpectedly not available!"));
 		final CatalogHeader catalogHeader = this.persistenceService.getCatalogHeader();
-		this.state = new AtomicReference<>(catalogHeader.catalogState());
+		this.state = catalogHeader.catalogState();
 		// initialize container buffer
 		final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
 		// initialize schema - still in constructor
@@ -334,13 +401,13 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					)
 				)
 		);
-		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
-			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
-			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
-				.getConstructor(ReflectionLookup.class)
-				.newInstance(reflectionLookup)
-		).orElse(UnsatisfiedDependencyFactory.INSTANCE);
+		this.proxyFactory = ProxyFactory.createInstance(reflectionLookup);
+		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
+		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
+		this.transactionalPipeline = createTransactionPipeline(catalogName, this, transactionOptions, executorService, newCatalogVersionConsumer);
 	}
 
 	Catalog(
@@ -352,10 +419,14 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull AtomicInteger readWriteSessionCount,
 		@Nonnull AtomicInteger entityTypeSequence,
 		@Nonnull Map<String, EntityCollection> entityCollections,
-		@Nonnull ProxyFactory proxyFactory
+		@Nonnull ProxyFactory proxyFactory,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull ExecutorService executorService,
+		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
 	) {
 		this.versionId = new TransactionalReference<>(versionId);
-		this.state = new AtomicReference<>(catalogState);
+		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
 		catalogIndex.updateReferencesTo(this);
 
@@ -399,7 +470,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				)
 		);
 		this.proxyFactory = proxyFactory;
+		this.storageOptions = storageOptions;
+		this.transactionOptions = transactionOptions;
+		this.executorService = executorService;
+		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
+		this.transactionalPipeline = createTransactionPipeline(
+			catalogSchema.getName(), this,
+			transactionOptions,
+			executorService,
+			newCatalogVersionConsumer
+		);
 	}
 
 	@Override
@@ -511,7 +592,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Override
 	@Nonnull
 	public CatalogState getCatalogState() {
-		return this.state.get();
+		return this.state;
 	}
 
 	@Override
@@ -527,7 +608,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	@Override
 	public boolean supportsTransaction() {
-		return state.get() == CatalogState.ALIVE;
+		return state == CatalogState.ALIVE;
 	}
 
 	@Override
@@ -661,7 +742,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				readWriteSessionCount,
 				entityTypeSequence,
 				newCollections,
-				proxyFactory
+				proxyFactory,
+				storageOptions,
+				transactionOptions,
+				executorService,
+				newCatalogVersionConsumer
 			);
 			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
 			return catalogAfterRename;
@@ -690,9 +775,38 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				goingLive.compareAndSet(false, true),
 				"Concurrent call of `goLive` method is not supported!"
 			);
-			Assert.isTrue(state.get() == CatalogState.WARMING_UP, "Catalog has already alive state!");
+			Assert.isTrue(state == CatalogState.WARMING_UP, "Catalog has already alive state!");
 			flush();
-			return state.compareAndSet(CatalogState.WARMING_UP, CatalogState.ALIVE);
+
+			newCatalogVersionConsumer.accept(
+				new Catalog(
+					1,
+					CatalogState.ALIVE,
+					catalogIndex,
+					ServiceLoader.load(CatalogPersistenceServiceFactory.class)
+						.findFirst()
+						.map(
+							it -> it.load(
+								this,
+								this.getSchema().getName(),
+								persistenceService.getCatalogStoragePath(),
+								storageOptions,
+								transactionOptions
+							)
+						)
+						.orElseThrow(StorageImplementationNotFoundException::new),
+					cacheSupervisor,
+					readWriteSessionCount,
+					entityTypeSequence,
+					entityCollections,
+					proxyFactory,
+					storageOptions,
+					transactionOptions,
+					executorService,
+					newCatalogVersionConsumer
+				)
+			);
+			return true;
 		} finally {
 			goingLive.set(false);
 		}
@@ -865,7 +979,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				readWriteSessionCount,
 				entityTypeSequence,
 				possiblyUpdatedCollections,
-				proxyFactory
+				proxyFactory,
+				storageOptions,
+				transactionOptions,
+				executorService,
+				newCatalogVersionConsumer
 			);
 		} else {
 			if (possiblyUpdatedCatalogIndex != catalogIndex ||
@@ -883,7 +1001,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					readWriteSessionCount,
 					entityTypeSequence,
 					possiblyUpdatedCollections,
-					proxyFactory
+					proxyFactory,
+					storageOptions,
+					transactionOptions,
+					executorService,
+					newCatalogVersionConsumer
 				);
 			} else {
 				// no changes present we can return self
@@ -893,31 +1015,39 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Commits a Write-Ahead Log (WAL) for and processes the transaction.
+	 *
+	 * @param transactionId         The ID of the transaction to commit.
+	 * @param commitBehaviour       The requested stage the transaction needs to reach in order the returned future
+	 *                              is completed.
+	 * @param walPersistenceService The Write-Ahead Log persistence service.
+	 * @return A CompletableFuture that completes with the requested stage reached by the transaction processing.
+	 * @throws TransactionException If an unknown exception occurs while processing the transaction.
 	 */
 	public void commitWal(
 		@Nonnull UUID transactionId,
 		@Nonnull CommitBehaviour commitBehaviour,
-		@Nonnull IsolatedWalPersistenceService walPersistenceService
+		@Nonnull IsolatedWalPersistenceService walPersistenceService,
+		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
 		try {
-			firstTransactionStage.submit(
-				getName(),
-				transactionId,
-				walPersistenceService.getMutationCount(),
-				walPersistenceService.getMutationSizeInBytes(),
-				walPersistenceService.getWalReference(),
-				commitBehaviour
-			).get();
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new TransactionTimedOutException("Transaction processing was interrupted!");
-		} catch (ExecutionException e) {
+			transactionalPipeline.submit(
+				new ConflictResolutionTransactionTask(
+					getName(),
+					transactionId,
+					walPersistenceService.getMutationCount(),
+					walPersistenceService.getMutationSizeInBytes(),
+					walPersistenceService.getWalReference(),
+					commitBehaviour,
+					transactionFinalizationFuture
+				)
+			);
+		} catch (Exception e) {
 			if (e.getCause() instanceof TransactionException txException) {
 				throw txException;
 			} else {
 				throw new TransactionException(
-					"Unknown exception occurred while processing transaction!", e.getCause()
+					"Unknown exception occurred while processing transaction!", e
 				);
 			}
 		}
@@ -925,8 +1055,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	/**
 	 * TODO JNO - document me
-	 * @return
 	 */
+	@Nonnull
 	public Iterator<Mutation> getCommittedMutationIterator(long catalogVersion) {
 		return this.persistenceService.getCommittedMutationIterator(catalogVersion);
 	}
@@ -972,7 +1102,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * offHeapWithFileBackupReference. After that it discards the specified off-heap data with file backup reference.
 	 *
 	 * @param transactionMutation The transaction mutation to append to the WAL.
-	 * @param walReference The off-heap data with file backup reference to discard.
+	 * @param walReference        The off-heap data with file backup reference to discard.
 	 */
 	public void appendWalAndDiscard(
 		@Nonnull TransactionMutation transactionMutation,

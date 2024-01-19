@@ -25,6 +25,7 @@ package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import com.esotericsoftware.kryo.io.Input;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -57,6 +58,11 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	 */
 	protected final String name;
 	/**
+	 * Configuration settings related to transactions.
+	 */
+	@Nonnull
+	protected final TransactionOptions transactionOptions;
+	/**
 	 * Memory key-value store for entities.
 	 */
 	@Nonnull protected final OffsetIndex offsetIndex;
@@ -77,12 +83,14 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 
 	public OffsetIndexStoragePartPersistenceService(
 		@Nonnull String name,
+		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory
 	) {
 		this.name = name;
+		this.transactionOptions = transactionOptions;
 		this.offsetIndex = offsetIndex;
 		this.offHeapMemoryManager = offHeapMemoryManager;
 		this.observableOutputKeeper = observableOutputKeeper;
@@ -95,7 +103,8 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 		return new TransactionalStoragePartPersistenceService(
 			transactionId,
 			this.name, this,
-			this.offsetIndex.getOptions(),
+			this.offsetIndex.getStorageOptions(),
+			this.transactionOptions,
 			this.offHeapMemoryManager,
 			this.kryoFactory,
 			this.offsetIndex.getRecordTypeRegistry(),

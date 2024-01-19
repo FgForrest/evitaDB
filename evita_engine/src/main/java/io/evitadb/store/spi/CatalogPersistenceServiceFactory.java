@@ -25,6 +25,7 @@ package io.evitadb.store.spi;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
@@ -61,7 +62,8 @@ public interface CatalogPersistenceServiceFactory {
 	CatalogPersistenceService createNew(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
 	);
 
 	/**
@@ -73,7 +75,8 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
 	);
 
 }

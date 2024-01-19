@@ -24,29 +24,27 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehaviour;
-import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
-import io.evitadb.core.Evita;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.transaction.TransactionTrunkFinalizer;
+import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
+import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Iterator;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.Executor;
 
 /**
  * TODO JNO - document me
@@ -54,125 +52,100 @@ import java.util.concurrent.SynchronousQueue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-public class TrunkIncorporationTransactionStage implements TransactionStage {
-	private final Evita evita;
-	private final TrunkIncorporationTransactionStage trunkIncorporationTransactionStage;
-
-	private final SynchronousQueue<Boolean> newWorkQueue = new SynchronousQueue<>();
-	private final
-	private final ConcurrentHashMap<String, BlockingQueue<TrunkIncorporationTransactionTask>> queue = new ConcurrentHashMap<>(32);
+@NotThreadSafe
+public final class TrunkIncorporationTransactionStage
+	extends AbstractTransactionStage<TrunkIncorporationTransactionTask, UpdatedCatalogTransactionTask> {
+	private final Catalog catalog;
 	private final long timeout;
+	private UUID lastFinalizedTransactionId;
+	private long lastFinalizedCatalogVersion;
 
-	public TrunkIncorporationTransactionStage(Evita evita, TrunkIncorporationTransactionStage trunkIncorporationTransactionStage) {
-		this.evita = evita;
-		this.trunkIncorporationTransactionStage = trunkIncorporationTransactionStage;
-		// convert timeout to nanos
-		/* TODO JNO - možná zvážit založení nového konfiguráku čistě pro transakce?! */
-		this.timeout = /*evita.getConfiguration().storage().()*/ 100 * 1_000_000L;
+	public TrunkIncorporationTransactionStage(@Nonnull Executor executor, int maxBufferCapacity, @Nonnull Catalog catalog, long timeout) {
+		super(executor, maxBufferCapacity, catalog.getName());
+		this.catalog = catalog;
+		this.timeout = timeout;
 	}
 
-	public void processQueue() {
-		while (true) {
-			try {
-				final TrunkIncorporationTransactionTask task = queue.take();
-				try {
-					final Catalog catalog = (Catalog) evita.getCatalogInstanceOrThrowException(task.catalogName());
-					final Iterator<Mutation> mutationIterator = catalog.getCommittedMutationIterator(task.catalogVersion());
-					if (mutationIterator.hasNext()) {
-						final long start = System.nanoTime();
-						Mutation leadingMutation = mutationIterator.next();
-						do {
-							Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
-							final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
-							// read WAL and apply mutations to the catalog
-							final Transaction transaction = new Transaction(
-								transactionMutation.getTransactionId(),
-								new TransactionTrunkFinalizer(catalog)
-							);
+	@Override
+	protected String getName() {
+		return "trunk incorporation";
+	}
 
-							Transaction.executeInTransactionIfProvided(
-								transaction,
-								() -> {
-									int mutationCount = 0;
-									String entityType = null;
-									EntityCollection collection = null;
-									while (mutationIterator.hasNext() && mutationCount < transactionMutation.getMutationCount()) {
-										final Mutation mutation = mutationIterator.next();
-										mutationCount++;
-										if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
-											// apply schema mutation to the catalog
-											catalog.updateSchema(schemaMutation);
-										} else if (mutation instanceof EntityMutation entityMutation) {
-											// reuse last collection if the entity type is the same
-											final String mutationEntityType = entityMutation.getEntityType();
-											collection = collection == null || !entityType.equals(mutationEntityType) ?
-												catalog.getCollectionForEntityOrThrowException(mutationEntityType) :
-												collection;
-											entityType = mutationEntityType.equals(entityType) ?
-												entityType : mutationEntityType;
-											// apply mutation to the collection
-											collection.upsertEntity(entityMutation);
-										} else {
-											throw new EvitaInternalError("Unexpected mutation type: " + mutation.getClass().getName());
-										}
-									}
+	@Override
+	protected void handleNext(@Nonnull TrunkIncorporationTransactionTask task) {
+		if (task.catalogVersion() <= lastFinalizedCatalogVersion) {
+			// the transaction has been already processed
+			return;
+		} else {
+			final TransactionTrunkFinalizer transactionHandler = new TransactionTrunkFinalizer(catalog);
+			final Iterator<Mutation> mutationIterator = catalog.getCommittedMutationIterator(task.catalogVersion());
+			if (mutationIterator.hasNext()) {
+				final long start = System.nanoTime();
+				Mutation leadingMutation = mutationIterator.next();
+				do {
+					Assert.isPremiseValid(leadingMutation instanceof TransactionMutation, "First mutation must be transaction mutation!");
+					final TransactionMutation transactionMutation = (TransactionMutation) leadingMutation;
+					Assert.isPremiseValid(
+						transactionMutation.getCatalogVersion() == lastFinalizedCatalogVersion + 1,
+						"Unexpected catalog version! " +
+							"Transaction mutation catalog version: " + transactionMutation.getCatalogVersion() + ", " +
+							"last finalized catalog version: " + lastFinalizedCatalogVersion + "."
+					);
 
-									lastFinalizedCatalogVersion.set(transactionMutation.getCatalogVersion());
-									// TODO JNO - toto by se mělo posunout za další while a ty transakce by měly sdílet rozpracovanou práci
-									transaction.close();
+					// read WAL and apply mutations to the catalog
+					final Transaction transaction = new Transaction(
+						transactionMutation.getTransactionId(),
+						transactionHandler
+					);
+
+					Transaction.executeInTransactionIfProvided(
+						transaction,
+						() -> {
+							int mutationCount = 0;
+							String entityType = null;
+							EntityCollection collection = null;
+							while (mutationIterator.hasNext() && mutationCount < transactionMutation.getMutationCount()) {
+								final Mutation mutation = mutationIterator.next();
+								mutationCount++;
+								if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
+									// apply schema mutation to the catalog
+									catalog.updateSchema(schemaMutation);
+								} else if (mutation instanceof EntityMutation entityMutation) {
+									// reuse last collection if the entity type is the same
+									final String mutationEntityType = entityMutation.getEntityType();
+									collection = collection == null || !entityType.equals(mutationEntityType) ?
+										catalog.getCollectionForEntityOrThrowException(mutationEntityType) :
+										collection;
+									entityType = mutationEntityType.equals(entityType) ?
+										entityType : mutationEntityType;
+									// apply mutation to the collection
+									collection.upsertEntity(entityMutation);
+								} else {
+									throw new EvitaInternalError("Unexpected mutation type: " + mutation.getClass().getName());
 								}
-							);
-						} while (System.nanoTime() - start < this.timeout && mutationIterator.hasNext());
-					}
+							}
 
-					if (task.commitBehaviour() == CommitBehaviour.WAIT_FOR_INDEX_PROPAGATION && task.future() != null) {
-						task.future().complete(task.catalogVersion());
-					}
-				} catch (Throwable ex) {
-					task.future.completeExceptionally(ex);
-					throw ex;
-				}
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				break;
-			} catch (Throwable e) {
-				log.error("Error while processing trunk incorporation task!", e);
+							this.lastFinalizedTransactionId = transaction.getTransactionId();
+							this.lastFinalizedCatalogVersion = transactionMutation.getCatalogVersion();
+						}
+					);
+
+					// this is the last mutation in the transaction
+					transaction.close();
+				} while (System.nanoTime() - start < this.timeout && mutationIterator.hasNext());
 			}
-		}
-	}
 
-	public void submit(
-		@Nonnull String catalogName,
-		@Nonnull UUID transactionId,
-		long catalogVersion,
-		@Nonnull CommitBehaviour commitBehaviour,
-		@Nullable CompletableFuture<Long> future
-	) {
-		final boolean accepted = queue
-			.computeIfAbsent(
-				catalogName, theCatalogName -> new ArrayBlockingQueue<>(32)
-			).offer(
-				new TrunkIncorporationTransactionTask(
-					catalogName,
-					catalogVersion,
-					transactionId,
-					commitBehaviour,
-					future
+			final Catalog updatedCatalogTrunk = transactionHandler.commitCatalogChanges(lastFinalizedCatalogVersion);
+			push(
+				task,
+				new UpdatedCatalogTransactionTask(
+					updatedCatalogTrunk,
+					lastFinalizedTransactionId,
+					task.commitBehaviour(),
+					task.future()
 				)
 			);
-		newWorkQueue.offer(true);
-		if (!accepted) {
-			throw new TransactionTimedOutException(
-				"Transaction timed out - trunk incorporation process reached maximal capacity (" + queue.size() + ")!"
-			);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public CompletableFuture<Void> removeCatalog() {
-		// TODO JNO - implement
-		return null;
 	}
 
 	/**
@@ -186,7 +159,31 @@ public class TrunkIncorporationTransactionStage implements TransactionStage {
 		@Nonnull UUID transactionId,
 		@Nonnull CommitBehaviour commitBehaviour,
 		@Nullable CompletableFuture<Long> future
-	) {
+	) implements TransactionTask {
+	}
+
+	/**
+	 * TODO JNO - document me
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+	 */
+	public record UpdatedCatalogTransactionTask(
+		@Nonnull Catalog catalog,
+		@Nonnull UUID transactionId,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nullable CompletableFuture<Long> future
+	) implements TransactionTask {
+
+		@Nonnull
+		@Override
+		public String catalogName() {
+			return catalog.getName();
+		}
+
+		@Override
+		public long catalogVersion() {
+			return catalog.getVersion();
+		}
 	}
 
 }

@@ -796,25 +796,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	}
 
 	/**
-	 * Closes a transaction on the current session. Each changes performed since will be written to the database and changes made will be visible to the sessions created after this call.
-	 *
-	 * @param request          empty request
-	 * @param responseObserver observer on which errors might be thrown and result returned
-	 * @see EvitaSessionContract#closeTransaction()
-	 */
-	@Override
-	public void closeTransaction(GrpcCloseTransactionRequest request, StreamObserver<Empty> responseObserver) {
-		executeWithClientContext(session -> {
-			if (request.getRollback()) {
-				session.setRollbackOnly();
-			}
-			session.closeTransaction();
-			responseObserver.onNext(Empty.getDefaultInstance());
-			responseObserver.onCompleted();
-		});
-	}
-
-	/**
 	 * Logic sent to this method could be executed in two ways. It can be executed right away if transaction has already benn opened, changes would be written
 	 * to the database only after manual call of {@link #closeTransaction(GrpcCloseTransactionRequest, StreamObserver)} . The second way executes {@link EvitaSessionContract#execute(Consumer)} which will wrap the call
 	 * in adhoc created transaction - the changes would be written to the database immediately.

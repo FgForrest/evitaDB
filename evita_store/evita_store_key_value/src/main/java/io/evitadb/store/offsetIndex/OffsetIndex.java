@@ -130,7 +130,7 @@ public class OffsetIndex {
 	/**
 	 * Contains configuration options for the {@link OffsetIndex},
 	 */
-	@Getter private final StorageOptions options;
+	@Getter private final StorageOptions storageOptions;
 	/**
 	 * Contains configuration of record types that could be stored into the mem-table.
 	 */
@@ -201,17 +201,17 @@ public class OffsetIndex {
 
 	public OffsetIndex(
 		@Nonnull OffsetIndexDescriptor fileOffsetDescriptor,
-		@Nonnull StorageOptions options,
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle
 	) {
-		this.options = options;
+		this.storageOptions = storageOptions;
 		this.fileOffsetDescriptor = fileOffsetDescriptor;
 		this.recordTypeRegistry = recordTypeRegistry;
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
 		this.readKryoPool = new FileOffsetIndexKryoPool(
-			options.maxOpenedReadHandles(),
+			storageOptions.maxOpenedReadHandles(),
 			version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 		);
 		this.writeKryo = fileOffsetDescriptor.getWriteKryo();
@@ -241,12 +241,12 @@ public class OffsetIndex {
 	public OffsetIndex(
 		@Nonnull Path filePath,
 		@Nonnull FileLocation fileLocation,
-		@Nonnull StorageOptions options,
+		@Nonnull StorageOptions storageOptions,
 		@Nonnull OffsetIndexRecordTypeRegistry recordTypeRegistry,
 		@Nonnull WriteOnlyHandle writeHandle,
 		@Nonnull BiFunction<FileOffsetIndexBuilder, ObservableInput<?>, ? extends OffsetIndexDescriptor> offsetIndexDescriptorFactory
 	) {
-		this.options = options;
+		this.storageOptions = storageOptions;
 		this.recordTypeRegistry = recordTypeRegistry;
 
 		this.readOnlyOpenedHandles = new CopyOnWriteArrayList<>();
@@ -279,7 +279,7 @@ public class OffsetIndex {
 			this.maxRecordSize.set(fileOffsetIndexBuilder.getMaxSize());
 			this.fileOffsetDescriptor = offsetIndexDescriptorFactory.apply(fileOffsetIndexBuilder, input);
 			this.readKryoPool = new FileOffsetIndexKryoPool(
-				options.maxOpenedReadHandles(),
+				storageOptions.maxOpenedReadHandles(),
 				version -> this.fileOffsetDescriptor.getReadKryoFactory().apply(version)
 			);
 			this.writeKryo = fileOffsetDescriptor.getWriteKryo();
@@ -541,7 +541,7 @@ public class OffsetIndex {
 						kryo -> {
 							final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(this.keyToLocations.size(), this.totalSize.get());
 							inputStream.resetToPosition(0);
-							final CRC32C crc32C = options.computeCRC32C() ? new CRC32C() : null;
+							final CRC32C crc32C = storageOptions.computeCRC32C() ? new CRC32C() : null;
 							byte[] buffer = new byte[inputStream.getBuffer().length];
 							int recCount = 0;
 							long startPosition = 0;
@@ -655,7 +655,7 @@ public class OffsetIndex {
 			if (!shutdownDownProcedureActive.compareAndExchange(false, true)) {
 				// spinning lock to close all opened handles once they occur free in pool
 				long start = System.currentTimeMillis();
-				while (!readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > options.waitOnCloseSeconds() * 1000) {
+				while (!readOnlyOpenedHandles.isEmpty() && System.currentTimeMillis() - start > storageOptions.waitOnCloseSeconds() * 1000) {
 					if (readOnlyHandlePool.getFree() > 0) {
 						final ReadOnlyHandle handleToClose = readOnlyHandlePool.obtain();
 						try {
@@ -1199,11 +1199,11 @@ public class OffsetIndex {
 		@Override
 		protected ReadOnlyHandle create() {
 			try {
-				if (readFilesLock.tryLock(options.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
+				if (readFilesLock.tryLock(storageOptions.lockTimeoutSeconds(), TimeUnit.SECONDS)) {
 					try {
 						final ReadOnlyHandle readOnlyFileHandle = writeHandle.toReadOnlyHandle();
-						if (readOnlyOpenedHandles.size() >= options.maxOpenedReadHandles()) {
-							throw new PoolExhaustedException(options.maxOpenedReadHandles(), readOnlyFileHandle.toString());
+						if (readOnlyOpenedHandles.size() >= storageOptions.maxOpenedReadHandles()) {
+							throw new PoolExhaustedException(storageOptions.maxOpenedReadHandles(), readOnlyFileHandle.toString());
 						}
 						readOnlyOpenedHandles.add(readOnlyFileHandle);
 						return readOnlyFileHandle;

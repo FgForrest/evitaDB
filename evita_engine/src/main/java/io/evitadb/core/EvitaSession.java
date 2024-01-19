@@ -96,6 +96,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -176,6 +177,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Timestamp of the last session activity (call).
 	 */
 	private long lastCall = System.currentTimeMillis();
+	/**
+	 * TODO JNO - document me
+	 */
+	private final CompletableFuture<Long> transactionFinalizationFuture;
 
 	/**
 	 * Method creates implicit filtering constraint that contains price filtering constraints for price in case
@@ -245,6 +250,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		this.commitBehaviour = commitBehaviour;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
+		this.transactionFinalizationFuture = catalog.supportsTransaction() ?
+			new CompletableFuture<>() : null;
 	}
 
 	@Nonnull
@@ -975,17 +982,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	}
 
 	@Override
-	public void closeTransaction() {
-		transactionAccessor.getAndUpdate(transaction -> {
-			Assert.isTrue(transaction != null, "Transaction unexpectedly not present!");
-			transaction.close();
-			return null;
-		});
-		// immediately open a new transaction for additional updates in the session
-		openTransaction();
-	}
-
-	@Override
 	public boolean isRollbackOnly() {
 		return ofNullable(transactionAccessor.get())
 			.map(Transaction::isRollbackOnly)
@@ -1086,6 +1082,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * other concurrent transactions.
 	 */
 	void updateCatalogReference(@Nonnull CatalogContract catalog) {
+		Assert.isPremiseValid(
+			!getCatalog().supportsTransaction(),
+			"Catalog is in transactional mode and can't be updated within session!"
+		);
 		this.catalog.set(catalog);
 	}
 
@@ -1211,7 +1211,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					theCatalog,
 					getId(),
 					commitBehaviour,
-					theCatalog::createIsolatedWalService
+					theCatalog::createIsolatedWalService,
+					this.transactionFinalizationFuture
 				)
 			);
 			// when the session is marked as "dry run" we never commit the transaction but always roll-back
@@ -1222,6 +1223,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		} else {
 			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}
+	}
+
+	/**
+	 * Retrieves a CompletableFuture that represents the finalization status of a transaction.
+	 *
+	 * @return an Optional containing the CompletableFuture that indicates the finalization status of the transaction,
+	 * or an empty Optional if the CompletableFuture is not available
+	 *.
+	 */
+	@Nonnull
+	public Optional<CompletableFuture<Long>> getTransactionFinalizationFuture() {
+		return ofNullable(transactionFinalizationFuture);
 	}
 
 	/**

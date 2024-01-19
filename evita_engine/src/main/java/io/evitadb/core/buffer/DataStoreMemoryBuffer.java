@@ -55,7 +55,7 @@ import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
  */
 public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC extends DataStoreChanges<IK, I>> {
 	/**
-	 * TODO JNO - document me
+	 * The version number written for all stored {@link StoragePart} using this buffer.
 	 */
 	private final long nextCatalogVersion;
 	/**
@@ -189,7 +189,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * is not opened) reads it from the target {@link CatalogPersistenceService}.
 	 */
 	@Nullable
-	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(@Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer, @Nonnull Function<T, byte[]> serializer) {
+	public <T extends StoragePart, U extends Comparable<U>> byte[] fetchBinary(@Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, Long> compressedKeyComputer) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayerIfExists(transactionalMemoryDataSource);
 		if (layer == null) {
 			try {

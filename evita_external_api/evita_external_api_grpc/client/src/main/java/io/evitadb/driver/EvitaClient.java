@@ -30,6 +30,7 @@ import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
@@ -49,7 +50,6 @@ import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlocki
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -75,6 +75,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -222,7 +223,7 @@ public class EvitaClient implements EvitaContract {
 
 	@Nonnull
 	@Override
-	public EvitaSessionContract createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits) {
+	public EvitaClientSession createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits) {
 		assertActive();
 		final GrpcEvitaSessionResponse grpcResponse;
 
@@ -428,38 +429,27 @@ public class EvitaClient implements EvitaContract {
 	}
 
 	@Override
-	public <T> T
-	updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags...
-		flags) {
+	public <T> CompletableFuture<T> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Function<EvitaSessionContract, T> updater,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
 		assertActive();
-		final SessionTraits traits = new SessionTraits(
-			catalogName,
-			flags == null ?
-				new SessionFlags[]{SessionFlags.READ_WRITE} :
-				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
-		);
-		try (final EvitaSessionContract session = this.createSession(traits)) {
-			return session.executeWithClientId(
-				configuration.clientId(),
-				() -> session.execute(updater)
-			);
-		}
+		// TODO TPZ - implement
+		throw new UnsupportedOperationException("Not implemented yet!");
 	}
 
 	@Override
-	public void updateCatalog(@Nonnull String
-		                          catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
-		updateCatalog(
-			catalogName,
-			session -> {
-				session.executeWithClientId(
-					configuration.clientId(),
-					() -> updater.accept(session)
-				);
-				return null;
-			},
-			flags
-		);
+	public CompletableFuture<Long> updateCatalogAsync(
+		@Nonnull String catalogName,
+		@Nonnull Consumer<EvitaSessionContract> updater,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nullable SessionFlags... flags
+	) throws TransactionException {
+		assertActive();
+		// TODO TPZ - implement
+		throw new UnsupportedOperationException("Not implemented yet!");
 	}
 
 	@Nonnull

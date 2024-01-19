@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -37,6 +37,7 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * This interface extends the public interface and adds a few methods that are targeted for internal use of EvitaDB
@@ -107,4 +108,12 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 	@Nonnull
 	<S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull EvitaRequest evitaRequest)
 		throws UnexpectedResultException, InstanceTerminatedException;
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();
+
 }

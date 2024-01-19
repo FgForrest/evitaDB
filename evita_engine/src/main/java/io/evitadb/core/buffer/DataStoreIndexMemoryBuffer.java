@@ -39,9 +39,9 @@ import java.util.stream.Stream;
 import static java.util.Optional.ofNullable;
 
 /**
- * This class contains all trapped changes in this {@link DataStoreMemoryBuffer} and represents something like transactional
- * memory when no transaction memory is yet available. The reason for this DTO to exist is the cost of storing indexes
- * with each change to persistent storage.
+ * This class contains all trapped changes in the local memory data structures. The reason for this is the cost of
+ * storing indexes with each change to persistent storage - so we collect them in memory first and store them once in
+ * {@link #popTrappedUpdates()} method.
  */
 @NotThreadSafe
 public class DataStoreIndexMemoryBuffer<IK extends IndexKey, I extends Index<IK>> implements DataStoreIndexChanges<IK, I> {

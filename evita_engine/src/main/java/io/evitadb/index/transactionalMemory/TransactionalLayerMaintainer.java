@@ -215,6 +215,14 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
+	 * Method discards all transactional memory containers. This method should be called only when transaction is
+	 * rolled back.
+	 */
+	public void discard() {
+		this.transactionalLayer.clear();
+	}
+
+	/**
 	 * Method uses {@link #finalizer} to collect new objects that combine original state and diff in transactional
 	 * memory. Method doesn't handle propagation of newly created object to the `currently used state`.
 	 * Consumers should build up new internal state and then `old state` should be swapped with `new state` in single
@@ -276,7 +284,7 @@ public class TransactionalLayerMaintainer {
 
 	/**
 	 * Class represents caching key for the diff piece created by {@link TransactionalLayerCreator#createLayer()}.
-	 * Equals and hash logic uses {@link TransactionalLayerCreator#getId()} and {@link TransactionalLayerCreator#getClass()}.
+	 * Equals and hash logic uses {@link TransactionalLayerCreator#getId()} and {@link TransactionalLayerCreator} class.
 	 */
 	private record TransactionalLayerCreatorKey(
 		@Nonnull TransactionalLayerCreator<?> transactionalLayerCreator,

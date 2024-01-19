@@ -24,16 +24,13 @@
 package io.evitadb.index.transactionalMemory;
 
 import com.carrotsearch.hppc.ObjectIdentityHashSet;
-import io.evitadb.core.transaction.TransactionHandler;
 import io.evitadb.utils.Assert;
-import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedList;
-import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -69,9 +66,24 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */
 public class TransactionalMemory {
-	@Getter private final UUID transactionId;
 	private final TransactionalLayerMaintainer transactionalLayer;
 	private final Deque<ObjectIdentityHashSet<TransactionalLayerCreator<?>>> suppressedCreatorStack = new LinkedList<>();
+
+	public TransactionalMemory(@Nonnull TransactionalLayerMaintainerFinalizer finalizer) {
+		this.transactionalLayer = new TransactionalLayerMaintainer(finalizer);
+	}
+
+	/**
+	 * Retrieves the {@link TransactionalLayerMaintainerFinalizer} that is responsible for applying
+	 * changes from the transactional memory to the immutable state and creating new instances that incorporate
+	 * the changes.
+	 *
+	 * @return the transaction finalizer
+	 */
+	@Nonnull
+	public TransactionalLayerMaintainerFinalizer getFinalizer() {
+		return transactionalLayer.getFinalizer();
+	}
 
 	/**
 	 * Propagates changes in states made in transactional layer down to real "state" in {@link TransactionalLayerCreator}
@@ -174,14 +186,6 @@ public class TransactionalMemory {
 	@Nullable
 	public <T> T removeTransactionalMemoryLayerIfExists(@Nonnull TransactionalLayerCreator<T> layerCreator) {
 		return this.transactionalLayer.removeTransactionalMemoryLayerIfExists(layerCreator);
-	}
-
-	public TransactionalMemory(
-		@Nonnull UUID transactionId,
-		@Nonnull TransactionHandler transactionHandler
-	) {
-		this.transactionId = transactionId;
-		this.transactionalLayer = new TransactionalLayerMaintainer(transactionHandler);
 	}
 
 }

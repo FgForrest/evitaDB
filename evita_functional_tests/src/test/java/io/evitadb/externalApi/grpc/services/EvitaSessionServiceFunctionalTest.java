@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -2451,60 +2451,6 @@ class EvitaSessionServiceFunctionalTest {
 		if (existingReferenceAfterUpdate.isPresent() && existingReferenceAfterUpdate.get().getGlobalAttributesMap().size() > 0) {
 			assertNotEquals(attributeValue, existingReferenceAfterUpdate.get().getGlobalAttributesMap().get(attributeName).getLongValue());
 		}
-	}
-
-	@Test
-	@UseDataSet(GRPC_THOUSAND_PRODUCTS)
-	@DisplayName("Should write changes to database only after transaction is closed")
-	void shouldWriteChangesToDatabaseAfterCloseTransaction(Evita evita, ManagedChannel channel) {
-		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
-		SessionInitializer.setSession(channel, GrpcSessionType.READ_WRITE, false);
-
-		final int primaryKey = 99999;
-		final String entityType = Entities.CATEGORY;
-
-		final EvitaSessionContract evitaSession = evita.createReadOnlySession(TEST_CATALOG);
-		assertNull(evitaSession.getEntity(entityType, primaryKey).orElse(null));
-
-		final GrpcTransactionResponse transactionId = evitaSessionBlockingStub.getTransactionId(Empty.getDefaultInstance());
-		assertTrue(transactionId.hasTransactionId());
-
-		evitaSessionBlockingStub.upsertEntity(
-			GrpcUpsertEntityRequest.newBuilder()
-				.setEntityMutation(
-					GrpcEntityMutation.newBuilder()
-						.setEntityUpsertMutation(
-							GrpcEntityUpsertMutation.newBuilder()
-								.setEntityPrimaryKey(Int32Value.of(primaryKey))
-								.setEntityType(entityType)
-								.addMutations(GrpcLocalMutation.newBuilder()
-									.setUpsertAttributeMutation(GrpcUpsertAttributeMutation.newBuilder()
-										.setAttributeName(ATTRIBUTE_PRIORITY)
-										.setAttributeValue(EvitaDataTypesConverter.toGrpcEvitaValue(99999L))
-										.build())
-									.build())
-								.build()
-						)
-						.build()
-				)
-				.build()
-		);
-
-		assertNull(evitaSession.getEntity(entityType, primaryKey).orElse(null));
-
-		evitaSessionBlockingStub.closeTransaction(GrpcCloseTransactionRequest.newBuilder().build());
-
-		/* new transaction should immediately start */
-
-		final GrpcTransactionResponse newTransactionId = evitaSessionBlockingStub.getTransactionId(Empty.getDefaultInstance());
-		assertTrue(newTransactionId.hasTransactionId());
-
-		assertNotNull(evitaSession.getEntity(entityType, primaryKey));
-
-		evitaSessionBlockingStub.deleteEntity(GrpcDeleteEntityRequest.newBuilder()
-			.setEntityType(entityType)
-			.setPrimaryKey(Int32Value.of(primaryKey))
-			.build());
 	}
 
 	@Test

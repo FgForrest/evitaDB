@@ -84,7 +84,7 @@ public class OffsetIndexSerializationService {
 		output.flush();
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
 		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(fileOffsetIndex.getFileOffsetIndexLocation());
-		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(fileOffsetIndex.getOptions(), nonFlushedEntries.size());
+		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(fileOffsetIndex.getStorageOptions(), nonFlushedEntries.size());
 		for (int i = 0; i < fileOffsetIndexRecordCount.getFragments(); i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(

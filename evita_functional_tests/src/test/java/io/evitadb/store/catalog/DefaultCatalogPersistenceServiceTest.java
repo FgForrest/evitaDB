@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
 import io.evitadb.api.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -156,13 +157,21 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	private StorageOptions getStorageOptions() {
 		return new StorageOptions(
 			getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
-			getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
 			60, 60,
-			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1, true,
-			StorageOptions.DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
-			StorageOptions.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
-			StorageOptions.DEFAULT_WAL_SIZE_BYTES,
-			StorageOptions.DEFAULT_WAL_FILE_COUNT_KEPT
+			StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 1, true
+		);
+	}
+
+	@Nonnull
+	private TransactionOptions getTransactionOptions() {
+		return new TransactionOptions(
+			getTestDirectory().resolve(TX_DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST),
+			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE,
+			TransactionOptions.DEFAULT_TRANSACTION_MEMORY_REGION_COUNT,
+			TransactionOptions.DEFAULT_WAL_SIZE_BYTES,
+			TransactionOptions.DEFAULT_WAL_FILE_COUNT_KEPT,
+			TransactionOptions.DEFAULT_MAX_QUEUE_SIZE,
+			TransactionOptions.DEFAULT_FLUSH_FREQUENCY
 		);
 	}
 
@@ -170,7 +179,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldSerializeAndDeserializeCatalogHeader() {
 		final CatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		);
 		ioService.prepare();
 
@@ -217,7 +227,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldDetectInvalidCatalogContents() {
 		final CatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		);
 		ioService.prepare();
 
@@ -267,7 +278,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					Mockito.mock(CatalogContract.class),
 					RENAMED_CATALOG,
 					renamedCatalogPath,
-					getStorageOptions()
+					getStorageOptions(),
+					getTransactionOptions()
 				)) {
 					// do nothing
 				}
@@ -282,7 +294,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			() -> {
 				try (var cps = new DefaultCatalogPersistenceService(
 					SEALED_CATALOG_SCHEMA.getName(),
-					getStorageOptions()
+					getStorageOptions(),
+					getTransactionOptions()
 				)) {
 					cps.verifyEntityType(
 						Collections.emptyList(),
@@ -300,7 +313,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			() -> {
 				try (var cps = new DefaultCatalogPersistenceService(
 					SEALED_CATALOG_SCHEMA.getName(),
-					getStorageOptions()
+					getStorageOptions(),
+					getTransactionOptions()
 				)) {
 					final EntityCollection mockCollection = mock(EntityCollection.class);
 					when(mockCollection.getEntityType()).thenReturn("a");
@@ -319,7 +333,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		//noinspection EmptyTryBlock
 		try (var ignored1 = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		)) {
 		}
 
@@ -329,7 +344,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				//noinspection EmptyTryBlock
 				try (var ignored2 = new DefaultCatalogPersistenceService(
 					CATALOG_SCHEMA.getName(),
-					getStorageOptions()
+					getStorageOptions(),
+					getTransactionOptions()
 				)) {
 				}
 			}
@@ -345,7 +361,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			Mockito.mock(CatalogContract.class),
 			TEST_CATALOG,
 			catalogDirectory,
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		)) {
 			assertTrue(catalogDirectory.toFile().exists());
 			assertEquals(5, countFiles(catalogDirectory));
@@ -358,7 +375,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 	void shouldReturnDefaultHeaderOnEmptyDirectory() {
 		try (var cps = new DefaultCatalogPersistenceService(
 			SEALED_CATALOG_SCHEMA.getName(),
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		)) {
 			final CatalogHeader header = cps.getCatalogHeader();
 			assertNotNull(header);
@@ -379,7 +397,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		// first switch to the transactional mode
 		try (var cps = new DefaultCatalogPersistenceService(
 			catalogName,
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		)) {
 			cps.executeWriteSafely(() -> {
 				cps.getStoragePartPersistenceService()
@@ -401,7 +420,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			Mockito.mock(CatalogContract.class),
 			catalogName,
 			getStorageOptions().storageDirectory().resolve(catalogName),
-			getStorageOptions()
+			getStorageOptions(),
+			getTransactionOptions()
 		)) {
 			cps.appendWalAndDiscard(
 				writtenTransactionMutation,

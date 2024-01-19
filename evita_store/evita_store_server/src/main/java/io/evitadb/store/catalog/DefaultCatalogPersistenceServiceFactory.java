@@ -25,6 +25,7 @@ package io.evitadb.store.catalog;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
@@ -45,9 +46,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 	public CatalogPersistenceService createNew(
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
 	) {
-		return new DefaultCatalogPersistenceService(catalogName, storageOptions);
+		return new DefaultCatalogPersistenceService(catalogName, storageOptions, transactionOptions);
 	}
 
 	@Nonnull
@@ -56,9 +58,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull CatalogContract catalogInstance,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
-		@Nonnull StorageOptions storageOptions
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions
 	) {
-		return new DefaultCatalogPersistenceService(catalogInstance, catalogName, catalogStoragePath, storageOptions);
+		return new DefaultCatalogPersistenceService(catalogInstance, catalogName, catalogStoragePath, storageOptions, transactionOptions);
 	}
 
 }

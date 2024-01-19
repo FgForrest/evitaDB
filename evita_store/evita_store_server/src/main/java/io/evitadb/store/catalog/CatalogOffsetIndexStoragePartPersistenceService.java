@@ -26,6 +26,7 @@ package io.evitadb.store.catalog;
 import com.esotericsoftware.kryo.Kryo;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
@@ -59,7 +60,6 @@ import java.util.function.Function;
  */
 public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndexStoragePartPersistenceService
 	implements CatalogStoragePartPersistenceService {
-
 	private CatalogHeader currentCatalogHeader;
 
 	public static CatalogOffsetIndexStoragePartPersistenceService create(
@@ -67,6 +67,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull String catalogFileName,
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull CatalogBootstrap lastCatalogBootstrap,
 		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
@@ -83,6 +84,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		return new CatalogOffsetIndexStoragePartPersistenceService(
 			catalogFileName,
 			catalogHeaderRef.get(),
+			transactionOptions,
 			offsetIndex,
 			offHeapMemoryManager, observableOutputKeeper,
 			kryoFactory
@@ -153,6 +155,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	private CatalogOffsetIndexStoragePartPersistenceService(
 		@Nonnull String name,
 		@Nullable CatalogHeader catalogHeader,
+		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffsetIndex offsetIndex,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull ObservableOutputKeeper observableOutputKeeper,
@@ -160,6 +163,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	) {
 		super(
 			name,
+			transactionOptions,
 			offsetIndex,
 			offHeapMemoryManager,
 			observableOutputKeeper,

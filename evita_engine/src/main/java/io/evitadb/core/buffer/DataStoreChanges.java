@@ -23,7 +23,6 @@
 
 package io.evitadb.core.buffer;
 
-import io.evitadb.core.EntityCollection;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
 import io.evitadb.store.model.StoragePart;
@@ -33,25 +32,17 @@ import io.evitadb.store.spi.StoragePartPersistenceService;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Stream;
-
-import static java.util.Optional.ofNullable;
 
 /**
- * This class keeps transactional layer changes for {@link EntityCollection}.
+ * This class is used as transactional memory of the {@link DataStoreChanges} and stores the changes of the storage
+ * keys directly to the target {@link StoragePartPersistenceService}, but traps the changes in the indexes in the memory
+ * buffer.
  *
+ * @see DataStoreIndexMemoryBuffer
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public class DataStoreChanges<IK extends IndexKey, I extends Index<IK>> implements DataStoreIndexChanges<IK, I> {
-	/**
-	 * This map contains reference to all {@link Index} modified in this transaction.
-	 */
-	private Map<IK, I> dirtyEntityIndexes = new HashMap<>(64);
+public class DataStoreChanges<IK extends IndexKey, I extends Index<IK>> extends DataStoreIndexMemoryBuffer<IK, I> {
 	/**
 	 * Contains reference to the I/O service, that allows reading/writing records to the persistent storage.
 	 */
@@ -59,40 +50,6 @@ public class DataStoreChanges<IK extends IndexKey, I extends Index<IK>> implemen
 
 	public DataStoreChanges(@Nonnull StoragePartPersistenceService persistenceService) {
 		this.persistenceService = persistenceService;
-	}
-
-	@Override
-	@Nonnull
-	public I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return dirtyEntityIndexes.computeIfAbsent(
-			entityIndexKey, accessorWhenMissing
-		);
-	}
-
-	@Override
-	public I getIndexIfExists(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
-		return ofNullable(dirtyEntityIndexes.get(entityIndexKey))
-			.orElseGet(() -> accessorWhenMissing.apply(entityIndexKey));
-	}
-
-	@Override
-	@Nonnull
-	public I removeIndex(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> removalPropagation) {
-		final I dirtyIndexesRemoval = dirtyEntityIndexes.remove(entityIndexKey);
-		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
-		return ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
-	}
-
-	@Override
-	@Nonnull
-	public Stream<StoragePart> popTrappedUpdates() {
-		final Map<IK, I> dirtyEntityIndexes = this.dirtyEntityIndexes;
-		// this implementation can be popped only once!
-		this.dirtyEntityIndexes = Collections.emptyMap();
-		return dirtyEntityIndexes
-			.values()
-			.stream()
-			.flatMap(it -> it.getModifiedStorageParts().stream());
 	}
 
 	@Nonnull

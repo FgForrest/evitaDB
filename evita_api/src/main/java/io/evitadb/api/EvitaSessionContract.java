@@ -1012,21 +1012,12 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	}
 
 	/**
-	 * Terminates opened transaction - either by rollback or commit depending on {@link TransactionContract#isRollbackOnly()}.
-	 * New transaction is immediately opened after the transaction is closed - this is to ensure that there is always
-	 * transaction opened in the read/write session.
-	 *
-	 * @throws EvitaInvalidUsageException when transaction hasn't been opened.
-	 */
-	void closeTransaction() throws EvitaInvalidUsageException;
-
-	/**
 	 * Returns true if currently opened transaction has rollback flag set on.
 	 */
 	boolean isRollbackOnly();
 
 	/**
-	 * Method marks current transaction to be rolled back on {@link #closeTransaction()}.
+	 * Method marks current transaction to be rolled back on {@link #close()}.
 	 * Changes made in transaction will never make it to the database.
 	 */
 	void setRollbackOnly();

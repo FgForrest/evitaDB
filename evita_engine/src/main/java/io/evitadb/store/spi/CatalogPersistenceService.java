@@ -112,8 +112,16 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @return
+	 * Returns path to directory where the catalog files are persisted.
+	 * @return path to directory where the catalog files are persisted
+	 */
+	@Nonnull
+	Path getCatalogStoragePath();
+
+	/**
+	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
+	 *
+	 * @return the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}
 	 */
 	@Override
 	@Nonnull

@@ -24,19 +24,17 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehaviour;
-import io.evitadb.api.exception.TransactionTimedOutException;
-import io.evitadb.core.Evita;
+import io.evitadb.core.Catalog;
+import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
+import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.Executor;
 
 /**
  * TODO JNO - document me
@@ -44,95 +42,60 @@ import java.util.concurrent.atomic.AtomicLong;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-@RequiredArgsConstructor
-public class ConflictResolutionTransactionStage implements TransactionStage {
-	private final Evita evita;
-	private final WalAppendingTransactionStage walAppendingTransactionStage;
-	private final BlockingQueue<ConflictResolutionTransactionTask> queue = new ArrayBlockingQueue<>(1024);
-	private final ConcurrentHashMap<String, AtomicLong> catalogVersions = new ConcurrentHashMap<>(32);
+@NotThreadSafe
+public final class ConflictResolutionTransactionStage
+	extends AbstractTransactionStage<ConflictResolutionTransactionTask, WalAppendingTransactionTask> {
 
-	public void processQueue() {
-		while (true) {
-			try {
-				final ConflictResolutionTransactionTask task = queue.take();
-				try {
-					// identify conflicts with other transactions
-					// TODO JNO - implement me
-					// assign new catalog version
-					final long newCatalogVersion = catalogVersions.computeIfAbsent(
-						task.catalogName(),
-						theCatalogName -> new AtomicLong(
-							evita.getCatalogInstanceOrThrowException(theCatalogName).getVersion()
-						)
-					).incrementAndGet();
+	/**
+	 * Contains current version of the catalog - this practically represents a sequence number increased with each
+	 * committed transaction and denotes the next catalog version.
+	 */
+	private long catalogVersion;
 
-					walAppendingTransactionStage.submit(
-						task.catalogName(),
-						task.transactionId(),
-						task.mutationCount(),
-						task.walSizeInBytes(),
-						task.walReference(),
-						task.commitBehaviour(),
-						newCatalogVersion,
-						task.commitBehaviour() != CommitBehaviour.NO_WAIT ? task.future() : null
-					);
-
-					if (task.commitBehaviour() == CommitBehaviour.NO_WAIT) {
-						task.future().complete(newCatalogVersion);
-					}
-				} catch (Throwable ex) {
-					task.future.completeExceptionally(ex);
-					throw ex;
-				}
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				break;
-			} catch (Throwable e) {
-				log.error("Error while processing conflict resolution task!", e);
-			}
-		}
+	public ConflictResolutionTransactionStage(
+		@Nonnull Executor executor,
+		int maxBufferCapacity,
+		@Nonnull Catalog catalog
+	) {
+		super(executor, maxBufferCapacity, catalog.getName());
+		this.catalogVersion = catalog.getVersion();
 	}
 
-	@Nonnull
-	public CompletableFuture<Long> submit(
-		@Nonnull String catalogName,
-		@Nonnull UUID transactionId,
-		int mutationCount,
-		long walSizeInBytes,
-		@Nonnull OffHeapWithFileBackupReference walReference,
-		@Nonnull CommitBehaviour commitBehaviour
-	) {
-		final CompletableFuture<Long> future = new CompletableFuture<>();
-		final boolean accepted = queue.offer(
-			new ConflictResolutionTransactionTask(
-				catalogName,
-				transactionId,
-				mutationCount,
-				walSizeInBytes,
-				walReference,
-				commitBehaviour,
-				future
+	@Override
+	protected String getName() {
+		return "conflict resolution";
+	}
+
+	@Override
+	public void handleNext(@Nonnull ConflictResolutionTransactionTask task) {
+		// identify conflicts with other transactions
+		// TODO JNO - implement me
+		// assign new catalog version
+		push(
+			task,
+			new WalAppendingTransactionTask(
+				task.catalogName(),
+				this.catalogVersion++,
+				task.transactionId(),
+				task.mutationCount(),
+				task.walSizeInBytes(),
+				task.walReference(),
+				task.commitBehaviour(),
+				task.commitBehaviour() != CommitBehaviour.NO_WAIT ? task.future() : null
 			)
 		);
-		if (!accepted) {
-			throw new TransactionTimedOutException(
-				"Transaction timed out - conflict resolution reached maximal capacity (" + queue.size() + ")!"
-			);
-		}
-		return future;
-	}
-
-	@Nonnull
-	@Override
-	public CompletableFuture<Void> removeCatalog() {
-		// TODO JNO - implement
-		return null;
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Represents a task for resolving conflicts during a transaction.
 	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+	 * @param catalogName the name of the catalog the transaction is bound to
+	 * @param transactionId the ID of the transaction
+	 * @param mutationCount the number of mutations in the transaction (excluding the leading mutation)
+	 * @param walSizeInBytes the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
+	 * @param walReference the reference to the WAL file
+	 * @param commitBehaviour requested stage to wait for during commit
+	 * @param future the future to complete when the transaction propagates to requested stage
 	 */
 	public record ConflictResolutionTransactionTask(
 		@Nonnull String catalogName,
@@ -142,7 +105,12 @@ public class ConflictResolutionTransactionStage implements TransactionStage {
 		@Nonnull OffHeapWithFileBackupReference walReference,
 		@Nonnull CommitBehaviour commitBehaviour,
 		@Nonnull CompletableFuture<Long> future
-	) {
+	) implements TransactionTask {
+
+		@Override
+		public long catalogVersion() {
+			throw new UnsupportedOperationException("No catalog version has been assigned yet!");
+		}
 	}
 
 }

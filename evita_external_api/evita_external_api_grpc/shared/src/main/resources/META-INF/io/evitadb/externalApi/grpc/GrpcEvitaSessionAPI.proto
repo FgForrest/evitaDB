@@ -342,12 +342,6 @@ message GrpcTransactionResponse {
   GrpcUuid transactionId = 2;
 }
 
-// Request for closing a transaction.
-message GrpcCloseTransactionRequest {
-  // If true, tha changes made by the transaction will be omitted and rollbacked.
-  bool rollback = 1;
-}
-
 // Structure that supports storing all possible parameters that could be used within query.
 message GrpcQueryParam {
   // The value of the parameter.
@@ -500,6 +494,4 @@ service EvitaSessionService {
 
   // Procedure that opens a transaction.
   rpc GetTransactionId(google.protobuf.Empty) returns (GrpcTransactionResponse);
-  // Procedure that closes a transaction.
-  rpc CloseTransaction(GrpcCloseTransactionRequest) returns (google.protobuf.Empty);
 }

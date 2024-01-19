@@ -24,20 +24,18 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.TransactionContract.CommitBehaviour;
-import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.core.Evita;
+import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
+import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * TODO JNO - document me
@@ -45,93 +43,60 @@ import java.util.concurrent.CompletableFuture;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-@RequiredArgsConstructor
-public class WalAppendingTransactionStage implements TransactionStage {
-	private final Evita evita;
-	private final TrunkIncorporationTransactionStage trunkIncorporationTransactionStage;
-	private final BlockingQueue<WalAppendingTransactionTask> queue = new ArrayBlockingQueue<>(1024);
+public final class WalAppendingTransactionStage
+	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
 
-	public void processQueue() {
-		while (true) {
-			try {
-				final WalAppendingTransactionTask task = queue.take();
-				// TODO JNO - možná se nějak vyhnout castu?!
-				try {
-					final Catalog catalog = (Catalog) evita.getCatalogInstanceOrThrowException(task.catalogName());
-					catalog.appendWalAndDiscard(
-						new TransactionMutation(
-							task.transactionId(),
-							task.catalogVersion(),
-							task.mutationCount(),
-							task.walSizeInBytes()
-						),
-						task.walReference()
-					);
+	private final Catalog catalog;
 
-					trunkIncorporationTransactionStage.submit(
-						task.catalogName(),
-						task.transactionId(),
-						task.catalogVersion(),
-						task.commitBehaviour(),
-						task.commitBehaviour() != CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE ? task.future() : null
-					);
-
-					if (task.commitBehaviour() == CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE && task.future() != null) {
-						task.future().complete(task.catalogVersion());
-					}
-				} catch (Throwable ex) {
-					task.future.completeExceptionally(ex);
-					throw ex;
-				}
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-				break;
-			} catch (Throwable e) {
-				log.error("Error while processing WAL appender task!", e);
-			}
-		}
+	public WalAppendingTransactionStage(
+		@Nonnull Executor executor,
+		int maxBufferCapacity,
+		@Nonnull Catalog catalog
+	) {
+		super(executor, maxBufferCapacity, catalog.getName());
+		this.catalog = catalog;
 	}
 
-	public void submit(
-		@Nonnull String catalogName,
-		@Nonnull UUID transactionId,
-		int mutationCount,
-		long walSizeInBytes,
-		@Nonnull OffHeapWithFileBackupReference walReference,
-		@Nonnull CommitBehaviour commitBehaviour,
-		long catalogVersion,
-		@Nullable CompletableFuture<Long> future
-	) {
-		final boolean accepted = queue.offer(
-			new WalAppendingTransactionTask(
-				catalogName,
-				catalogVersion,
-				transactionId,
-				mutationCount,
-				walSizeInBytes,
-				walReference,
-				commitBehaviour,
-				future
+	@Override
+	protected String getName() {
+		return "WAL writer";
+	}
+
+	@Override
+	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
+		catalog.appendWalAndDiscard(
+			new TransactionMutation(
+				task.transactionId(),
+				task.catalogVersion(),
+				task.mutationCount(),
+				task.walSizeInBytes()
+			),
+			task.walReference()
+		);
+
+		push(
+			task,
+			new TrunkIncorporationTransactionTask(
+				task.catalogName(),
+				task.catalogVersion(),
+				task.transactionId(),
+				task.commitBehaviour(),
+				task.commitBehaviour() != CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE ? task.future() : null
 			)
 		);
-		if (!accepted) {
-			throw new TransactionTimedOutException(
-				"Transaction timed out - WAL appender reached maximal capacity (" + queue.size() + ")!"
-			);
-		}
-	}
-
-	@Nonnull
-	@Override
-	public CompletableFuture<Void> removeCatalog() {
-		// TODO JNO - implement
-		return null;
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Represents a task for resolving conflicts during a transaction.
 	 *
-	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
+	 * @param catalogName the name of the catalog the transaction is bound to
+	 * @param catalogVersion assigned catalog version (the sequence number of the next catalog version)
+	 * @param transactionId the ID of the transaction
+	 * @param mutationCount the number of mutations in the transaction (excluding the leading mutation)
+	 * @param walSizeInBytes the size of the WAL file in bytes (size of the mutations excluding the leading mutation)
+	 * @param walReference the reference to the WAL file
+	 * @param commitBehaviour requested stage to wait for during commit
+	 * @param future the future to complete when the transaction propagates to requested stage
 	 */
 	public record WalAppendingTransactionTask(
 		@Nonnull String catalogName,
@@ -142,7 +107,7 @@ public class WalAppendingTransactionStage implements TransactionStage {
 		@Nonnull OffHeapWithFileBackupReference walReference,
 		@Nonnull CommitBehaviour commitBehaviour,
 		@Nullable CompletableFuture<Long> future
-	) {
+	) implements TransactionTask {
 	}
 
 }

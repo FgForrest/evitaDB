@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.store.wal;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
@@ -66,9 +67,10 @@ class TransactionalStoragePartPersistenceServiceTest {
 	public void setUp() {
 		offHeapMemoryManager = new OffHeapMemoryManager(2048, 1);
 		delegateService = mock(StoragePartPersistenceService.class);
-		final StorageOptions options = StorageOptions.builder().build();
+		final StorageOptions storageOptions = StorageOptions.builder().build();
+		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final ObservableOutputKeeper observableOutputKeeper = mock(ObservableOutputKeeper.class);
-		when(observableOutputKeeper.getOptions()).thenReturn(options);
+		when(observableOutputKeeper.getOptions()).thenReturn(storageOptions);
 		final OffsetIndexRecordTypeRegistry registry = mock(OffsetIndexRecordTypeRegistry.class);
 		when(registry.idFor(EntityBodyStoragePart.class)).thenReturn((byte) 1);
 		doAnswer(invocation -> EntityBodyStoragePart.class).when(registry).typeFor((byte) 1);
@@ -77,7 +79,8 @@ class TransactionalStoragePartPersistenceServiceTest {
 			UUID.randomUUID(),
 			"test",
 			delegateService,
-			options,
+			storageOptions,
+			transactionOptions,
 			offHeapMemoryManager,
 			kryoKeyInputs -> VersionedKryoFactory.createKryo(
 				kryoKeyInputs.version(),

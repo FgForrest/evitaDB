@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ public record EvitaConfiguration(
 	@Nonnull String name,
 	@Nonnull ServerOptions server,
 	@Nonnull StorageOptions storage,
+	@Nonnull TransactionOptions transactions,
 	@Nonnull CacheOptions cache
 ) {
 	public static final String DEFAULT_SERVER_NAME = "evitaDB";
@@ -70,7 +71,13 @@ public record EvitaConfiguration(
 		return new Builder(configuration);
 	}
 
-	public EvitaConfiguration(@Nonnull String name, @Nonnull ServerOptions server, @Nonnull StorageOptions storage, @Nonnull CacheOptions cache) {
+	public EvitaConfiguration(
+		@Nonnull String name,
+		@Nonnull ServerOptions server,
+		@Nonnull StorageOptions storage,
+		@Nonnull TransactionOptions transactions,
+		@Nonnull CacheOptions cache
+	) {
 		try {
 			if (DEFAULT_SERVER_NAME.equals(name)) {
 				final LongHashFunction hashFct = LongHashFunction.xx3();
@@ -95,6 +102,7 @@ public record EvitaConfiguration(
 			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, name);
 			this.server = server;
 			this.storage = storage;
+			this.transactions = transactions;
 			this.cache = cache;
 		} catch (IOException ex) {
 			throw new EvitaInternalError("Unable to access storage directory creation time!", ex);
@@ -106,6 +114,7 @@ public record EvitaConfiguration(
 			DEFAULT_SERVER_NAME,
 			new ServerOptions(),
 			new StorageOptions(),
+			new TransactionOptions(),
 			new CacheOptions()
 		);
 	}
@@ -118,6 +127,7 @@ public record EvitaConfiguration(
 		private String name = DEFAULT_SERVER_NAME;
 		private ServerOptions server = new ServerOptions();
 		private StorageOptions storage = new StorageOptions();
+		private TransactionOptions transactions = new TransactionOptions();
 		private CacheOptions cache = new CacheOptions();
 
 		Builder() {
@@ -126,32 +136,43 @@ public record EvitaConfiguration(
 		Builder(@Nonnull EvitaConfiguration configuration) {
 			this.server = configuration.server;
 			this.storage = configuration.storage;
+			this.transactions = configuration.transactions;
 			this.cache = configuration.cache;
 		}
 
-		public EvitaConfiguration.Builder name(String name) {
+		@Nonnull
+		public EvitaConfiguration.Builder name(@Nonnull String name) {
 			this.name = name;
 			return this;
 		}
 
-		public EvitaConfiguration.Builder server(ServerOptions server) {
+		@Nonnull
+		public EvitaConfiguration.Builder server(@Nonnull ServerOptions server) {
 			this.server = server;
 			return this;
 		}
 
-		public EvitaConfiguration.Builder storage(StorageOptions storage) {
+		@Nonnull
+		public EvitaConfiguration.Builder storage(@Nonnull StorageOptions storage) {
 			this.storage = storage;
 			return this;
 		}
 
-		public EvitaConfiguration.Builder cache(CacheOptions cache) {
+		@Nonnull
+		public EvitaConfiguration.Builder transactions(@Nonnull TransactionOptions transactions) {
+			this.transactions = transactions;
+			return this;
+		}
+
+		@Nonnull
+		public EvitaConfiguration.Builder cache(@Nonnull CacheOptions cache) {
 			this.cache = cache;
 			return this;
 		}
 
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				name, server, storage, cache
+				name, server, storage, transactions, cache
 			);
 		}
 

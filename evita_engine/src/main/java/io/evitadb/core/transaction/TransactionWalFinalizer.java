@@ -32,9 +32,11 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Closeable;
 import java.util.LinkedList;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 /**
@@ -43,6 +45,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
+@NotThreadSafe
 public class TransactionWalFinalizer implements TransactionHandler {
 	private final @Nonnull UUID transactionId;
 	/**
@@ -57,18 +60,22 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	 * TODO JNO - document me
 	 */
 	private final @Nonnull Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory;
+
+	private final CompletableFuture<Long> transactionFinalizationFuture;
 	private IsolatedWalPersistenceService walPersistenceService;
 
 	public TransactionWalFinalizer(
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
 		@Nonnull CommitBehaviour commitBehaviour,
-		@Nonnull Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory
+		@Nonnull Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory,
+		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
 		this.catalog = catalog;
 		this.transactionId = transactionId;
 		this.commitBehaviour = commitBehaviour;
 		this.walPersistenceServiceFactory = walPersistenceServiceFactory;
+		this.transactionFinalizationFuture = transactionFinalizationFuture;
 	}
 
 	public void registerCloseable(@Nonnull Closeable objectToClose) {
@@ -83,10 +90,14 @@ public class TransactionWalFinalizer implements TransactionHandler {
 				catalog.commitWal(
 					transactionId,
 					commitBehaviour,
-					walPersistenceService
+					walPersistenceService,
+					transactionFinalizationFuture
 				);
 			}
 		} finally {
+			// throw away all memory changes (they will be reloaded and replayed in correct sequence order from the WAL)
+			transactionalLayer.discard();
+			// close the WAL persistence service
 			if (walPersistenceService != null) {
 				walPersistenceService.close();
 				walPersistenceService = null;
@@ -108,7 +119,6 @@ public class TransactionWalFinalizer implements TransactionHandler {
 
 	@Override
 	public void registerMutation(@Nonnull Mutation mutation) {
-		// TODO JNO - zde se budou řešit konflikty - resp. v jiném sdíleném objektu, který se odtud zavolá!
 		if (this.walPersistenceService == null) {
 			this.walPersistenceService = walPersistenceServiceFactory.apply(transactionId);
 		}

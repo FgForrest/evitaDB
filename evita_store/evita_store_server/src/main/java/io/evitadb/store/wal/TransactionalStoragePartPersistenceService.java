@@ -24,6 +24,7 @@
 package io.evitadb.store.wal;
 
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
@@ -88,6 +89,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		@Nonnull String name,
 		@Nonnull StoragePartPersistenceService delegate,
 		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull OffHeapMemoryManager offHeapMemoryManager,
 		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
 		@Nonnull OffsetIndexRecordTypeRegistry offsetIndexRecordTypeRegistry,
@@ -95,7 +97,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	) {
 		this.delegate = delegate;
 		// we create a duplicate offset index that targets temporary file in tx related directory
-		this.targetFile = storageOptions.transactionWorkDirectory()
+		this.targetFile = transactionOptions.transactionWorkDirectory()
 			.resolve(transactionId.toString())
 			.resolve(name + ".tmp");
 		this.offsetIndex = new OffsetIndex(

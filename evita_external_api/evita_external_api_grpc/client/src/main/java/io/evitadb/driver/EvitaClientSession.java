@@ -30,6 +30,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
+import io.evitadb.api.TransactionContract;
 import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
@@ -1239,17 +1240,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	@Override
-	public void closeTransaction() {
-		assertActive();
-		final EvitaClientTransaction transaction = transactionAccessor.get();
-		if (transaction == null) {
-			throw new UnexpectedTransactionStateException("No transaction has been opened!");
-		}
-		destroyTransaction();
-		transaction.close();
-	}
-
-	@Override
 	public boolean isRollbackOnly() {
 		return getOpenedTransactionId().isPresent() && transactionAccessor.get().isRollbackOnly();
 	}
@@ -1318,6 +1308,16 @@ public class EvitaClientSession implements EvitaSessionContract {
 			ofNullable(onTerminationCallback)
 				.ifPresent(it -> it.accept(this));
 		}
+	}
+
+	/**
+	 * TODO JNO - document me
+	 * @return
+	 */
+	@Nonnull
+	public Optional<TransactionContract> getTransaction() {
+		// TODO JNO - implement me
+		return Optional.empty();
 	}
 
 	/**
@@ -1753,7 +1753,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 		);
 
 		final EvitaClientTransaction tx = new EvitaClientTransaction(
-			this,
 			toUuid(grpcResponse.getTransactionId()),
 			grpcResponse.getCatalogVersion()
 		);
@@ -1765,24 +1764,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 			return tx;
 		});
 		return tx;
-	}
-
-	/**
-	 * Destroys transaction reference.
-	 */
-	private void destroyTransaction() {
-		transactionAccessor.getAndUpdate(transaction -> {
-			Assert.isPremiseValid(transaction != null, "Transaction unexpectedly not present!");
-			executeWithEvitaSessionService(evitaSessionService ->
-				evitaSessionService.closeTransaction(
-					GrpcCloseTransactionRequest
-						.newBuilder()
-						.setRollback(transaction.isRollbackOnly())
-						.build()
-				)
-			);
-			return null;
-		});
 	}
 
 	/**
