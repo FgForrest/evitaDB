@@ -53,7 +53,7 @@ filterConstraint
     | 'attributeLessThan'                   args = classifierWithValueArgs                                  # attributeLessThanConstraint
     | 'attributeLessThanEquals'             args = classifierWithValueArgs                                  # attributeLessThanEqualsConstraint
     | 'attributeBetween'                    args = classifierWithBetweenValuesArgs                          # attributeBetweenConstraint
-    | 'attributeInSet'                      args = classifierWithValueListArgs                              # attributeInSetConstraint
+    | 'attributeInSet'                      args = classifierWithOptionalValueListArgs                      # attributeInSetConstraint
     | 'attributeContains'                   args = classifierWithValueArgs                                  # attributeContainsConstraint
     | 'attributeStartsWith'                 args = classifierWithValueArgs                                  # attributeStartsWithConstraint
     | 'attributeEndsWith'                   args = classifierWithValueArgs                                  # attributeEndsWithConstraint
@@ -64,7 +64,7 @@ filterConstraint
     | 'attributeIsNotNull'                  args = classifierArgs                                           # attributeIsNotNullConstraint
     | 'attributeInRange'                    args = classifierWithValueArgs                                  # attributeInRangeConstraint
     | 'attributeInRangeNow'                 args = classifierArgs                                           # attributeInRangeNowConstraint
-    | 'entityPrimaryKeyInSet'               args = valueListArgs                                            # entityPrimaryKeyInSetConstraint
+    | 'entityPrimaryKeyInSet'               (emptyArgs | args = valueListArgs)                              # entityPrimaryKeyInSetConstraint
     | 'entityLocaleEquals'                  args = valueArgs                                                # entityLocaleEqualsConstraint
     | 'priceInCurrency'                     args = valueArgs                                                # priceInCurrencyConstraint
     | 'priceInPriceLists'                   (emptyArgs | args = classifierListArgs)                         # priceInPriceListsConstraints
@@ -206,6 +206,8 @@ classifierWithValueArgs :                           ARGS_OPENING classifier = cl
 classifierWithOptionalValueArgs :                   ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER value = valueToken)? ARGS_CLOSING ;
 
 classifierWithValueListArgs :                       ARGS_OPENING classifier = classifierToken ARGS_DELIMITER values = variadicValueTokens ARGS_CLOSING ;
+
+classifierWithOptionalValueListArgs :               ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER values = variadicValueTokens)? ARGS_CLOSING ;
 
 classifierWithBetweenValuesArgs :                   ARGS_OPENING classifier = classifierToken ARGS_DELIMITER valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken ARGS_CLOSING ;
 

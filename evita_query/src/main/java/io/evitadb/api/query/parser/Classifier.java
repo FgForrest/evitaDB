@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import lombok.EqualsAndHashCode;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
+import java.lang.reflect.Array;
 import java.util.stream.StreamSupport;
 
 /**
@@ -78,6 +79,10 @@ public class Classifier {
                 .map(v -> (String) v)
                 .toArray(String[]::new);
         } else if (values.getClass().isArray()) {
+            final int length = Array.getLength(values);
+            if (length == 0) {
+                return new String[0];
+            }
             return (String[]) values;
         } else {
             // correct passed type from client should be checked at visitor level, here should be should correct checked type

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -460,9 +460,7 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInSet('a',@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',2,'b',3)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',SOME_ENUM)"));
     }
 
@@ -779,7 +777,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a','b')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet(1,'a',2)"));
@@ -883,7 +880,7 @@ class EvitaQLFilterConstraintVisitorTest {
         final FilterConstraint constraint15 = parseFilterConstraint("priceInPriceLists()");
         assertEquals(priceInPriceLists(), constraint15);
 
-        final FilterConstraint constraint16 = parseFilterConstraint("priceInPriceLists(?)", new String[0]);
+        final FilterConstraint constraint16 = parseFilterConstraint("priceInPriceLists(?)", (Object) new String[0]);
         assertEquals(priceInPriceLists(), constraint16);
 
         final FilterConstraint constraint17 = parseFilterConstraint("priceInPriceLists(@pk1)", Map.of("pk1", new String[0]));
