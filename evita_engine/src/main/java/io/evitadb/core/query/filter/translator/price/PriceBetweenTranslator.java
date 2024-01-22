@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.price.termination.PricePredicate;
@@ -93,6 +94,8 @@ public class PriceBetweenTranslator extends AbstractPriceRelatedConstraintTransl
 				"Query context is missing. You cannot use price between query without specifying price lists" +
 					" and currency that should be taken into account."
 			);
+		} else if (priceLists.length == 0) {
+			return EmptyFormula.INSTANCE;
 		}
 
 		if (filterByVisitor.isEntityTypeKnown()) {

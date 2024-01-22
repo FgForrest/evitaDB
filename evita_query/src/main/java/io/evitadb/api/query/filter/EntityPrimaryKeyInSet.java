@@ -78,6 +78,11 @@ public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
 			.toArray();
 	}
 
+	@Override
+	public boolean isApplicable() {
+		return true;
+	}
+
 	@Nonnull
 	@Override
 	public FilterConstraint cloneWithArguments(@Nonnull Serializable[] newArguments) {

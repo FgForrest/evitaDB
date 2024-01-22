@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,27 +76,6 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     private static final String EXPECTED_LOCAL_DATE_TIME_FORMAT = "yyyy-MM-ddTHH:mm:ss.sss";
     private static final String EXPECTED_LOCAL_TIME_FORMAT = "HH:mm:ss.sss";
 
-    protected static final EvitaQLValueTokenVisitor multipleValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
-        String.class,
-        Byte.class,
-        Short.class,
-        Integer.class,
-        Long.class,
-        Boolean.class,
-        Character.class,
-        BigDecimal.class,
-        OffsetDateTime.class,
-        LocalDateTime.class,
-        LocalDate.class,
-        LocalTime.class,
-        DateTimeRange.class,
-        BigDecimalNumberRange.class,
-        LongNumberRange.class,
-        IntegerNumberRange.class,
-        ShortNumberRange.class,
-        ByteNumberRange.class,
-        Enum.class
-    );
     protected final EvitaQLParameterVisitor parameterVisitor = new EvitaQLParameterVisitor();
 
     /**
@@ -125,11 +104,17 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     public static EvitaQLValueTokenVisitor withAllDataTypesAllowed() {
         return new EvitaQLValueTokenVisitor(
             String.class,
+            byte.class,
             Byte.class,
+            short.class,
             Short.class,
+            int.class,
             Integer.class,
+            long.class,
             Long.class,
+            boolean.class,
             Boolean.class,
+            char.class,
             Character.class,
             BigDecimal.class,
             OffsetDateTime.class,
@@ -155,11 +140,17 @@ public class EvitaQLValueTokenVisitor extends EvitaQLBaseVisitor<Value> {
     public static EvitaQLValueTokenVisitor withComparableTypesAllowed() {
         return new EvitaQLValueTokenVisitor(
             String.class,
+            byte.class,
             Byte.class,
+            short.class,
             Short.class,
+            int.class,
             Integer.class,
+            long.class,
             Long.class,
+            boolean.class,
             Boolean.class,
+            char.class,
             Character.class,
             BigDecimal.class,
             OffsetDateTime.class,

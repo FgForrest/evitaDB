@@ -77,6 +77,10 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 			return SkipFormula.INSTANCE;
 		} else {
 			final String[] priceLists = priceInPriceLists.getPriceLists();
+			if (priceLists.length == 0) {
+				return EmptyFormula.INSTANCE;
+			}
+
 			final Currency currency = ofNullable(filterByVisitor.findInConjunctionTree(PriceInCurrency.class))
 				.map(PriceInCurrency::getCurrency)
 				.orElse(null);
