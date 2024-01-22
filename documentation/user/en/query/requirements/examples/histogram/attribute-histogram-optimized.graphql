@@ -10,7 +10,6 @@
             requestedCount: 20
             behavior: OPTIMIZED
           ) {
-            index
             threshold
             occurrences
             requested

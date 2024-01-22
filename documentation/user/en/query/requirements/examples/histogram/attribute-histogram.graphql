@@ -7,7 +7,6 @@
           max
           overallCount
           buckets(requestedCount: 20) {
-            index
             threshold
             occurrences
             requested
@@ -18,7 +17,6 @@
           max
           overallCount
           buckets(requestedCount: 20) {
-            index
             threshold
             occurrences
             requested

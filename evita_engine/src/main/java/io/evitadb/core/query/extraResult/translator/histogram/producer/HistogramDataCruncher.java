@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -110,10 +110,6 @@ public class HistogramDataCruncher<T> {
 	 * Internal variable containing current threshold.
 	 */
 	private BigDecimal currentStep;
-	/**
-	 * Internal variable containing current index in output histogram.
-	 */
-	private int index;
 	/**
 	 * Internal variable containing reference to last bucket that contains at least single record (weight > 0)
 	 */
@@ -291,7 +287,6 @@ public class HistogramDataCruncher<T> {
 
 		// create bucket in the output histogram
 		final CacheableBucket result = new CacheableBucket(
-			this.index++,
 			this.currentStep.setScale(limitDecimalPlacesTo, RoundingMode.HALF_UP),
 			distinctValues
 		);

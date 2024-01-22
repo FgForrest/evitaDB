@@ -26,7 +26,6 @@ The histogram data structure is optimized for frontend rendering. It contains th
 - **`max`** - the maximum value of the attribute in the current filter context
 - **`overallCount`** - the number of elements whose attribute value falls into any of the buckets (it's basically a sum of all bucket occurrences)
 - **`buckets`** - an *sorted* array of buckets, each of which contains the following fields:
-  - **`index`** - the index of the bucket in the array
   - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
   - **`occurrences`** - the number of elements whose attribute value falls into the bucket
   - **`requested`**:

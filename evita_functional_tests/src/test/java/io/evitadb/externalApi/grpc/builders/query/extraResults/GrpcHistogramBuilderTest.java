@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,11 +42,11 @@ import java.util.Map;
 class GrpcHistogramBuilderTest {
 	private final Histogram histogram = new Histogram(
 		new Bucket[]{
-			new Bucket(0, BigDecimal.valueOf(1.5), 3, false),
-			new Bucket(1, BigDecimal.valueOf(2.5), 5, true),
-			new Bucket(2, BigDecimal.valueOf(3.5), 4, true),
-			new Bucket(3, BigDecimal.valueOf(4.8), 6, false),
-			new Bucket(4, BigDecimal.valueOf(8.6), 10, false),
+			new Bucket(BigDecimal.valueOf(1.5), 3, false),
+			new Bucket(BigDecimal.valueOf(2.5), 5, true),
+			new Bucket(BigDecimal.valueOf(3.5), 4, true),
+			new Bucket(BigDecimal.valueOf(4.8), 6, false),
+			new Bucket(BigDecimal.valueOf(8.6), 10, false),
 		},
 		BigDecimal.valueOf(10)
 	);
