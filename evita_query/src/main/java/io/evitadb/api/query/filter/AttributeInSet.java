@@ -59,7 +59,7 @@ import java.util.Arrays;
  * inSet("code","A","D")
  * inSet("code","A", "B")
  * </pre>
- * 
+ *
  * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -81,8 +81,10 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 	}
 
 	@Creator
-	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
-	                                               @Nonnull T... attributeValues) {
+	public <T extends Serializable> AttributeInSet(
+		@Nonnull @Classifier String attributeName,
+		@Nonnull T... attributeValues
+	) {
 		super(concat(attributeName, attributeValues));
 	}
 
@@ -97,7 +99,7 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length >= 2;
+		return isArgumentsNonNull() && getArguments().length >= 1;
 	}
 
 	@Nonnull

@@ -50,11 +50,9 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 
 		final CacheableHistogramContract histogram = object.compute();
 		kryo.writeObject(output, histogram.getMax());
-		kryo.writeObject(output, histogram.getRequestedBucketCount());
 		final CacheableBucket[] buckets = histogram.getBuckets();
 		output.writeVarInt(buckets.length, true);
 		for (CacheableBucket bucket : buckets) {
-			output.writeVarInt(bucket.index(), true);
 			output.writeVarInt(bucket.occurrences(), true);
 			kryo.writeObject(output, bucket.threshold());
 		}
@@ -66,19 +64,17 @@ public class FlattenedHistogramComputerSerializer extends AbstractFlattenedFormu
 		final long transactionalIdHash = input.readLong();
 		final long[] bitmapIds = readBitmapIds(input);
 		final BigDecimal max = kryo.readObject(input, BigDecimal.class);
-		final Integer requestedBucketCount = kryo.readObject(input, Integer.class);
 		final int bucketCount = input.readVarInt(true);
 		final CacheableBucket[] buckets = new CacheableBucket[bucketCount];
 		for(int i = 0; i < bucketCount; i++) {
-			final int index = input.readVarInt(true);
 			final int occurrences = input.readVarInt(true);
 			final BigDecimal threshold = kryo.readObject(input, BigDecimal.class);
-			buckets[i] = new CacheableBucket(index, threshold, occurrences);
+			buckets[i] = new CacheableBucket(threshold, occurrences);
 		}
 
 		return new FlattenedHistogramComputer(
 			originalHash, transactionalIdHash, bitmapIds,
-			new CacheableHistogram(buckets, max, requestedBucketCount)
+			new CacheableHistogram(buckets, max)
 		);
 	}
 

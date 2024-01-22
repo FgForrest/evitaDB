@@ -85,7 +85,6 @@ public class GrpcHistogramBuilder {
 		final Bucket[] originalBuckets = histogram.getBuckets();
 		final List<GrpcBucket> buckets = new ArrayList<>(originalBuckets.length);
 		Arrays.stream(originalBuckets).forEach(bucket -> buckets.add(GrpcBucket.newBuilder()
-			.setIndex(bucket.index())
 			.setThreshold(EvitaDataTypesConverter.toGrpcBigDecimal(bucket.threshold()))
 			.setOccurrences(bucket.occurrences())
 			.setRequested(bucket.requested())
@@ -93,7 +92,6 @@ public class GrpcHistogramBuilder {
 		return GrpcHistogram.newBuilder()
 			.setMin(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMin()))
 			.setMax(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMax()))
-			.setRequestedBucketCount(histogram.getRequestedBucketCount())
 			.setOverallCount(histogram.getOverallCount())
 			.addAllBuckets(buckets)
 			.build();

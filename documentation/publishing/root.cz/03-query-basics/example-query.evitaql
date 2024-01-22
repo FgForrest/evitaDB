@@ -1,0 +1,19 @@
+query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("status", "ACTIVE"),
+    attributeGreaterThan("battery-life", 10),
+    or(
+      attributeIs("validity", NULL),
+      attributeInRangeNow("validity")
+    )
+  ),
+  orderBy(
+    attributeNatural("orderedQuantity", DESC)
+  ),
+  require(
+    entityFetch(
+      attributeContentAll()
+    )
+  )
+)

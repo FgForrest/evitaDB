@@ -25,6 +25,8 @@ package io.evitadb.utils;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static io.evitadb.utils.StringUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -208,4 +210,40 @@ class StringUtilsTest {
 		assertEquals("a         ", StringUtils.rightPad("a", " ", 10));
 		assertEquals("dsfadfsadfsadfd", StringUtils.rightPad("dsfadfsadfsadfd", " ", 10));
 	}
+
+	@Test
+	void shouldFormatDurationLessThanADay() {
+		Duration duration = Duration.ofHours(5).plusMinutes(30).plusSeconds(15);
+		String formattedDuration = StringUtils.formatDuration(duration);
+		assertEquals("5h 30m 15s", formattedDuration);
+	}
+
+	@Test
+	void shouldFormatDurationExactlyOneDay() {
+		Duration duration = Duration.ofDays(1);
+		String formattedDuration = StringUtils.formatDuration(duration);
+		assertEquals("1d 0h 0m 0s", formattedDuration);
+	}
+
+	@Test
+	void shouldFormatDurationMoreThanOneDay() {
+		Duration duration = Duration.ofDays(2).plusHours(5).plusMinutes(30).plusSeconds(15);
+		String formattedDuration = StringUtils.formatDuration(duration);
+		assertEquals("2d 5h 30m 15s", formattedDuration);
+	}
+
+	@Test
+	void shouldFormatDurationMinutesOnly() {
+		Duration duration = Duration.ofMinutes(30).plusSeconds(15);
+		String formattedDuration = StringUtils.formatDuration(duration);
+		assertEquals("30m 15s", formattedDuration);
+	}
+
+	@Test
+	void shouldFormatZeroDuration() {
+		Duration duration = Duration.ZERO;
+		String formattedDuration = StringUtils.formatDuration(duration);
+		assertEquals("0s", formattedDuration);
+	}
+
 }

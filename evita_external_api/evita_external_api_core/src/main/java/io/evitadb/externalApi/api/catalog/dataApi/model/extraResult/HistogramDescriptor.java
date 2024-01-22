@@ -58,15 +58,6 @@ public interface HistogramDescriptor {
 			""")
 		.type(nonNull(BigDecimal.class))
 		.build();
-	PropertyDescriptor REQUESTED_BUCKET_COUNT = PropertyDescriptor.builder()
-		.name("requestedBucketCount")
-		.description("""
-			Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-			may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-			histogram.
-			""")
-		.type(nonNull(Integer.class))
-		.build();
 	PropertyDescriptor OVERALL_COUNT = PropertyDescriptor.builder()
 		.name("overallCount")
 		.description("""
@@ -97,7 +88,7 @@ public interface HistogramDescriptor {
 			- buckets are defined by their lower bounds (inclusive)
 			- the upper bound is the lower bound of the next bucket
 			""")
-		.staticFields(List.of(MIN, MAX, REQUESTED_BUCKET_COUNT, OVERALL_COUNT, BUCKETS))
+		.staticFields(List.of(MIN, MAX, OVERALL_COUNT, BUCKETS))
 		.build();
 
 	/**
@@ -107,14 +98,6 @@ public interface HistogramDescriptor {
 	 */
 	interface BucketDescriptor {
 
-		PropertyDescriptor INDEX = PropertyDescriptor.builder()
-			.name("index")
-			.description("""
-				Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-				will have index zero, second bucket / column one and so forth.
-				""")
-			.type(nonNull(Integer.class))
-			.build();
 		PropertyDescriptor THRESHOLD = PropertyDescriptor.builder()
 			.name("threshold")
 			.description("""
@@ -146,7 +129,7 @@ public interface HistogramDescriptor {
 			.description("""
 				Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 				""")
-			.staticFields(List.of(INDEX, THRESHOLD, OCCURRENCES, REQUESTED))
+			.staticFields(List.of(THRESHOLD, OCCURRENCES, REQUESTED))
 			.build();
 	}
 }

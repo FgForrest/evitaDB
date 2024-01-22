@@ -401,8 +401,7 @@ public class ResponseConverter {
 				.filter(Objects::nonNull)
 				.map(ResponseConverter::toBucket)
 				.toArray(Bucket[]::new),
-			toBigDecimal(grpcHistogram.getMax()),
-			grpcHistogram.getRequestedBucketCount()
+			toBigDecimal(grpcHistogram.getMax())
 		);
 	}
 
@@ -412,7 +411,6 @@ public class ResponseConverter {
 	@Nonnull
 	private static Bucket toBucket(@Nonnull GrpcBucket grpcBucket) {
 		return new Bucket(
-			grpcBucket.getIndex(),
 			toBigDecimal(grpcBucket.getThreshold()),
 			grpcBucket.getOccurrences(),
 			grpcBucket.getRequested()

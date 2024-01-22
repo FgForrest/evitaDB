@@ -70,11 +70,6 @@ public interface HistogramContract extends Serializable {
 		}
 
 		@Override
-		public int getRequestedBucketCount() {
-			return 0;
-		}
-
-		@Override
 		public int getOverallCount() {
 			return 0;
 		}
@@ -112,13 +107,6 @@ public interface HistogramContract extends Serializable {
 	BigDecimal getMax();
 
 	/**
-	 * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-	 * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-	 * histogram.
-	 */
-	int getRequestedBucketCount();
-
-	/**
 	 * Returns count of all entities that are covered by this histogram. It's plain sum of occurrences of all buckets
 	 * in the histogram.
 	 */
@@ -140,8 +128,6 @@ public interface HistogramContract extends Serializable {
 	/**
 	 * Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
 	 *
-	 * @param index       Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-	 *                    will have index zero, second bucket / column one and so forth.
 	 * @param threshold   Contains threshold (left bound - inclusive) of the bucket.
 	 * @param occurrences Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value
 	 *                    between previous bucket threshold (exclusive) and this bucket threshold (inclusive)
@@ -150,7 +136,6 @@ public interface HistogramContract extends Serializable {
 	 *                    (inclusive) of the constraint. False otherwise.
 	 */
 	record Bucket(
-		int index,
 		@Nonnull BigDecimal threshold,
 		int occurrences,
 		boolean requested

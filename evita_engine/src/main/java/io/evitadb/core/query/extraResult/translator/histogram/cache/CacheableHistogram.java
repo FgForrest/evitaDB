@@ -48,10 +48,9 @@ import java.util.function.Predicate;
 public class CacheableHistogram implements CacheableHistogramContract {
 	@Serial private static final long serialVersionUID = 6790616758491107665L;
 	private final BigDecimal max;
-	private final int requestedBucketCount;
 	@Getter private final CacheableBucket[] buckets;
 
-	public CacheableHistogram(@Nonnull CacheableBucket[] buckets, @Nonnull BigDecimal max, int requestedBucketCount) {
+	public CacheableHistogram(@Nonnull CacheableBucket[] buckets, @Nonnull BigDecimal max) {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
 		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
 		CacheableBucket lastBucket = null;
@@ -64,7 +63,6 @@ public class CacheableHistogram implements CacheableHistogramContract {
 		}
 		this.buckets = buckets;
 		this.max = max;
-		this.requestedBucketCount = requestedBucketCount;
 	}
 
 	@Nonnull
@@ -77,11 +75,6 @@ public class CacheableHistogram implements CacheableHistogramContract {
 	@Override
 	public BigDecimal getMax() {
 		return max;
-	}
-
-	@Override
-	public int getRequestedBucketCount() {
-		return requestedBucketCount;
 	}
 
 	@Override
@@ -103,15 +96,13 @@ public class CacheableHistogram implements CacheableHistogramContract {
 			Arrays.stream(buckets)
 				.map(
 					bucket -> new Bucket(
-						bucket.index(),
 						bucket.threshold(),
 						bucket.occurrences(),
 						requestedPredicate.test(bucket.threshold())
 					)
 				)
 				.toArray(Bucket[]::new),
-			max,
-			requestedBucketCount
+			max
 		);
 	}
 

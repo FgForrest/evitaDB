@@ -33,12 +33,12 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
+import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
-import io.grpc.Grpc;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -47,11 +47,7 @@ import java.net.SocketAddress;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEADER;
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ID_HEADER;
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.REQUEST_ID_HEADER;
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ADDRESS_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.*;
 
 /**
  * This class is used to intercept calls to gRPC services by setting a session to
@@ -64,6 +60,7 @@ import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CLIENT_ADDRESS_H
 public class ServerSessionInterceptor implements ServerInterceptor {
 	private static final Set<String> ENDPOINTS_NOT_REQUIRING_SESSION = CollectionUtils.createHashSet(32);
 	static {
+		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/ServerStatus");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadOnlySession");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateReadWriteSession");
 		ENDPOINTS_NOT_REQUIRING_SESSION.add("io.evitadb.externalApi.grpc.generated.EvitaService/CreateBinaryReadOnlySession");

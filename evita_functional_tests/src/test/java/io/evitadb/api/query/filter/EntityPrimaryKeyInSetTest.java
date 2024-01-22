@@ -43,7 +43,7 @@ class EntityPrimaryKeyInSetTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new EntityPrimaryKeyInSet().isApplicable());
+		assertTrue(new EntityPrimaryKeyInSet().isApplicable());
 		assertTrue(entityPrimaryKeyInSet(1).isApplicable());
 		assertTrue(entityPrimaryKeyInSet(1, 5, 7).isApplicable());
 	}

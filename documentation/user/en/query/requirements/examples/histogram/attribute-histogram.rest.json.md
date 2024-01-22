@@ -4,75 +4,215 @@
     "max": "508.00",
     "buckets": [
       {
-        "index": 0,
         "threshold": "15.90",
-        "occurrences": 1304,
-        "requested": false
+        "occurrences": 208,
+        "requested": true
       },
       {
-        "index": 1,
-        "threshold": "114.32",
-        "occurrences": 364,
-        "requested": false
+        "threshold": "40.51",
+        "occurrences": 129,
+        "requested": true
       },
       {
-        "index": 2,
-        "threshold": "212.74",
-        "occurrences": 2215,
-        "requested": false
+        "threshold": "65.12",
+        "occurrences": 954,
+        "requested": true
       },
       {
-        "index": 3,
-        "threshold": "311.16",
-        "occurrences": 27,
-        "requested": false
+        "threshold": "89.73",
+        "occurrences": 13,
+        "requested": true
       },
       {
-        "index": 4,
-        "threshold": "409.58",
+        "threshold": "114.34",
+        "occurrences": 50,
+        "requested": true
+      },
+      {
+        "threshold": "138.95",
+        "occurrences": 29,
+        "requested": true
+      },
+      {
+        "threshold": "163.56",
+        "occurrences": 119,
+        "requested": true
+      },
+      {
+        "threshold": "188.17",
+        "occurrences": 166,
+        "requested": true
+      },
+      {
+        "threshold": "212.78",
+        "occurrences": 730,
+        "requested": true
+      },
+      {
+        "threshold": "237.39",
+        "occurrences": 979,
+        "requested": true
+      },
+      {
+        "threshold": "262.00",
+        "occurrences": 490,
+        "requested": true
+      },
+      {
+        "threshold": "286.61",
+        "occurrences": 16,
+        "requested": true
+      },
+      {
+        "threshold": "311.22",
+        "occurrences": 25,
+        "requested": true
+      },
+      {
+        "threshold": "335.83",
+        "occurrences": 2,
+        "requested": true
+      },
+      {
+        "threshold": "360.44",
+        "occurrences": 0,
+        "requested": true
+      },
+      {
+        "threshold": "385.05",
+        "occurrences": 0,
+        "requested": true
+      },
+      {
+        "threshold": "409.66",
+        "occurrences": 0,
+        "requested": true
+      },
+      {
+        "threshold": "434.27",
+        "occurrences": 0,
+        "requested": true
+      },
+      {
+        "threshold": "458.88",
+        "occurrences": 0,
+        "requested": true
+      },
+      {
+        "threshold": "483.49",
         "occurrences": 1,
-        "requested": false
+        "requested": true
       }
     ],
-    "overallCount": 3911,
-    "min": "15.90"
+    "min": "15.90",
+    "overallCount": 3911
   },
   "height": {
     "max": "310.00",
     "buckets": [
       {
-        "index": 0,
         "threshold": "25.00",
-        "occurrences": 300,
-        "requested": false
+        "occurrences": 20,
+        "requested": true
       },
       {
-        "index": 1,
+        "threshold": "39.25",
+        "occurrences": 276,
+        "requested": true
+      },
+      {
+        "threshold": "53.50",
+        "occurrences": 2,
+        "requested": true
+      },
+      {
+        "threshold": "67.75",
+        "occurrences": 2,
+        "requested": true
+      },
+      {
         "threshold": "82.00",
-        "occurrences": 53,
-        "requested": false
+        "occurrences": 0,
+        "requested": true
       },
       {
-        "index": 2,
+        "threshold": "96.25",
+        "occurrences": 0,
+        "requested": true
+      },
+      {
+        "threshold": "110.50",
+        "occurrences": 2,
+        "requested": true
+      },
+      {
+        "threshold": "124.75",
+        "occurrences": 51,
+        "requested": true
+      },
+      {
         "threshold": "139.00",
-        "occurrences": 1123,
-        "requested": false
+        "occurrences": 168,
+        "requested": true
       },
       {
-        "index": 3,
+        "threshold": "153.25",
+        "occurrences": 830,
+        "requested": true
+      },
+      {
+        "threshold": "167.50",
+        "occurrences": 61,
+        "requested": true
+      },
+      {
+        "threshold": "181.75",
+        "occurrences": 64,
+        "requested": true
+      },
+      {
         "threshold": "196.00",
-        "occurrences": 151,
-        "requested": false
+        "occurrences": 24,
+        "requested": true
       },
       {
-        "index": 4,
+        "threshold": "210.25",
+        "occurrences": 4,
+        "requested": true
+      },
+      {
+        "threshold": "224.50",
+        "occurrences": 5,
+        "requested": true
+      },
+      {
+        "threshold": "238.75",
+        "occurrences": 118,
+        "requested": true
+      },
+      {
         "threshold": "253.00",
-        "occurrences": 70,
-        "requested": false
+        "occurrences": 20,
+        "requested": true
+      },
+      {
+        "threshold": "267.25",
+        "occurrences": 48,
+        "requested": true
+      },
+      {
+        "threshold": "281.50",
+        "occurrences": 1,
+        "requested": true
+      },
+      {
+        "threshold": "295.75",
+        "occurrences": 1,
+        "requested": true
       }
     ],
-    "overallCount": 1697,
-    "min": "25.00"
+    "min": "25.00",
+    "overallCount": 1697
   }
 }
 ```

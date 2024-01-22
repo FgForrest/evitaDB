@@ -614,14 +614,12 @@ public class GrpcAssertions {
 		assertEquals(expectedHistogram.getMin(), EvitaDataTypesConverter.toBigDecimal(histogramMin));
 		final GrpcBigDecimal histogramMax = actualHistogram.getMax();
 		assertEquals(expectedHistogram.getMax(), EvitaDataTypesConverter.toBigDecimal(histogramMax));
-		assertEquals(expectedHistogram.getRequestedBucketCount(), actualHistogram.getRequestedBucketCount());
 		assertEquals(expectedHistogram.getOverallCount(), actualHistogram.getOverallCount());
 		assertEquals(expectedHistogram.getBuckets().length, actualHistogram.getBucketsCount());
 
 		for (int i = 0; i < expectedHistogram.getBuckets().length; i++) {
 			final HistogramContract.Bucket expectedBucket = expectedHistogram.getBuckets()[i];
 			final GrpcHistogram.GrpcBucket actualBucket = actualHistogram.getBucketsList().get(i);
-			assertEquals(expectedBucket.index(), actualBucket.getIndex());
 			final GrpcBigDecimal bucketThreshold = actualBucket.getThreshold();
 			assertEquals(expectedBucket.threshold(), EvitaDataTypesConverter.toBigDecimal(bucketThreshold));
 			assertEquals(expectedBucket.occurrences(), actualBucket.getOccurrences());

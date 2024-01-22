@@ -110,15 +110,10 @@ private static final long serialVersionUID = 0L;
           }
           case 24: {
 
-            requestedBucketCount_ = input.readInt32();
-            break;
-          }
-          case 32: {
-
             overallCount_ = input.readInt32();
             break;
           }
-          case 42: {
+          case 34: {
             if (!((mutable_bitField0_ & 0x00000001) != 0)) {
               buckets_ = new java.util.ArrayList<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket>();
               mutable_bitField0_ |= 0x00000001;
@@ -165,17 +160,6 @@ private static final long serialVersionUID = 0L;
   public interface GrpcBucketOrBuilder extends
       // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket)
       com.google.protobuf.MessageOrBuilder {
-
-    /**
-     * <pre>
-     * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-     * will have index zero, second bucket / column one and so forth.
-     * </pre>
-     *
-     * <code>int32 index = 1;</code>
-     * @return The index.
-     */
-    int getIndex();
 
     /**
      * <pre>
@@ -274,11 +258,6 @@ private static final long serialVersionUID = 0L;
             case 0:
               done = true;
               break;
-            case 8: {
-
-              index_ = input.readInt32();
-              break;
-            }
             case 18: {
               io.evitadb.externalApi.grpc.generated.GrpcBigDecimal.Builder subBuilder = null;
               if (threshold_ != null) {
@@ -332,22 +311,6 @@ private static final long serialVersionUID = 0L;
       return io.evitadb.externalApi.grpc.generated.GrpcExtraResultsOuterClass.internal_static_io_evitadb_externalApi_grpc_generated_GrpcHistogram_GrpcBucket_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
               io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.class, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder.class);
-    }
-
-    public static final int INDEX_FIELD_NUMBER = 1;
-    private int index_;
-    /**
-     * <pre>
-     * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-     * will have index zero, second bucket / column one and so forth.
-     * </pre>
-     *
-     * <code>int32 index = 1;</code>
-     * @return The index.
-     */
-    @java.lang.Override
-    public int getIndex() {
-      return index_;
     }
 
     public static final int THRESHOLD_FIELD_NUMBER = 2;
@@ -433,9 +396,6 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public void writeTo(com.google.protobuf.CodedOutputStream output)
                         throws java.io.IOException {
-      if (index_ != 0) {
-        output.writeInt32(1, index_);
-      }
       if (threshold_ != null) {
         output.writeMessage(2, getThreshold());
       }
@@ -454,10 +414,6 @@ private static final long serialVersionUID = 0L;
       if (size != -1) return size;
 
       size = 0;
-      if (index_ != 0) {
-        size += com.google.protobuf.CodedOutputStream
-          .computeInt32Size(1, index_);
-      }
       if (threshold_ != null) {
         size += com.google.protobuf.CodedOutputStream
           .computeMessageSize(2, getThreshold());
@@ -485,8 +441,6 @@ private static final long serialVersionUID = 0L;
       }
       io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket other = (io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket) obj;
 
-      if (getIndex()
-          != other.getIndex()) return false;
       if (hasThreshold() != other.hasThreshold()) return false;
       if (hasThreshold()) {
         if (!getThreshold()
@@ -507,8 +461,6 @@ private static final long serialVersionUID = 0L;
       }
       int hash = 41;
       hash = (19 * hash) + getDescriptor().hashCode();
-      hash = (37 * hash) + INDEX_FIELD_NUMBER;
-      hash = (53 * hash) + getIndex();
       if (hasThreshold()) {
         hash = (37 * hash) + THRESHOLD_FIELD_NUMBER;
         hash = (53 * hash) + getThreshold().hashCode();
@@ -655,8 +607,6 @@ private static final long serialVersionUID = 0L;
       @java.lang.Override
       public Builder clear() {
         super.clear();
-        index_ = 0;
-
         if (thresholdBuilder_ == null) {
           threshold_ = null;
         } else {
@@ -693,7 +643,6 @@ private static final long serialVersionUID = 0L;
       @java.lang.Override
       public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buildPartial() {
         io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket result = new io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket(this);
-        result.index_ = index_;
         if (thresholdBuilder_ == null) {
           result.threshold_ = threshold_;
         } else {
@@ -749,9 +698,6 @@ private static final long serialVersionUID = 0L;
 
       public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket other) {
         if (other == io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.getDefaultInstance()) return this;
-        if (other.getIndex() != 0) {
-          setIndex(other.getIndex());
-        }
         if (other.hasThreshold()) {
           mergeThreshold(other.getThreshold());
         }
@@ -787,52 +733,6 @@ private static final long serialVersionUID = 0L;
             mergeFrom(parsedMessage);
           }
         }
-        return this;
-      }
-
-      private int index_ ;
-      /**
-       * <pre>
-       * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-       * will have index zero, second bucket / column one and so forth.
-       * </pre>
-       *
-       * <code>int32 index = 1;</code>
-       * @return The index.
-       */
-      @java.lang.Override
-      public int getIndex() {
-        return index_;
-      }
-      /**
-       * <pre>
-       * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-       * will have index zero, second bucket / column one and so forth.
-       * </pre>
-       *
-       * <code>int32 index = 1;</code>
-       * @param value The index to set.
-       * @return This builder for chaining.
-       */
-      public Builder setIndex(int value) {
-
-        index_ = value;
-        onChanged();
-        return this;
-      }
-      /**
-       * <pre>
-       * Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-       * will have index zero, second bucket / column one and so forth.
-       * </pre>
-       *
-       * <code>int32 index = 1;</code>
-       * @return This builder for chaining.
-       */
-      public Builder clearIndex() {
-
-        index_ = 0;
-        onChanged();
         return this;
       }
 
@@ -1217,24 +1117,7 @@ private static final long serialVersionUID = 0L;
     return getMax();
   }
 
-  public static final int REQUESTEDBUCKETCOUNT_FIELD_NUMBER = 3;
-  private int requestedBucketCount_;
-  /**
-   * <pre>
-   * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-   * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-   * histogram.
-   * </pre>
-   *
-   * <code>int32 requestedBucketCount = 3;</code>
-   * @return The requestedBucketCount.
-   */
-  @java.lang.Override
-  public int getRequestedBucketCount() {
-    return requestedBucketCount_;
-  }
-
-  public static final int OVERALLCOUNT_FIELD_NUMBER = 4;
+  public static final int OVERALLCOUNT_FIELD_NUMBER = 3;
   private int overallCount_;
   /**
    * <pre>
@@ -1242,7 +1125,7 @@ private static final long serialVersionUID = 0L;
    * in the histogram.
    * </pre>
    *
-   * <code>int32 overallCount = 4;</code>
+   * <code>int32 overallCount = 3;</code>
    * @return The overallCount.
    */
   @java.lang.Override
@@ -1250,7 +1133,7 @@ private static final long serialVersionUID = 0L;
     return overallCount_;
   }
 
-  public static final int BUCKETS_FIELD_NUMBER = 5;
+  public static final int BUCKETS_FIELD_NUMBER = 4;
   private java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> buckets_;
   /**
    * <pre>
@@ -1258,7 +1141,7 @@ private static final long serialVersionUID = 0L;
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
   public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> getBucketsList() {
@@ -1270,7 +1153,7 @@ private static final long serialVersionUID = 0L;
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
   public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
@@ -1283,7 +1166,7 @@ private static final long serialVersionUID = 0L;
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
   public int getBucketsCount() {
@@ -1295,7 +1178,7 @@ private static final long serialVersionUID = 0L;
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index) {
@@ -1307,7 +1190,7 @@ private static final long serialVersionUID = 0L;
    * values.
    * </pre>
    *
-   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
@@ -1335,14 +1218,11 @@ private static final long serialVersionUID = 0L;
     if (max_ != null) {
       output.writeMessage(2, getMax());
     }
-    if (requestedBucketCount_ != 0) {
-      output.writeInt32(3, requestedBucketCount_);
-    }
     if (overallCount_ != 0) {
-      output.writeInt32(4, overallCount_);
+      output.writeInt32(3, overallCount_);
     }
     for (int i = 0; i < buckets_.size(); i++) {
-      output.writeMessage(5, buckets_.get(i));
+      output.writeMessage(4, buckets_.get(i));
     }
     unknownFields.writeTo(output);
   }
@@ -1361,17 +1241,13 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(2, getMax());
     }
-    if (requestedBucketCount_ != 0) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(3, requestedBucketCount_);
-    }
     if (overallCount_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(4, overallCount_);
+        .computeInt32Size(3, overallCount_);
     }
     for (int i = 0; i < buckets_.size(); i++) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(5, buckets_.get(i));
+        .computeMessageSize(4, buckets_.get(i));
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -1398,8 +1274,6 @@ private static final long serialVersionUID = 0L;
       if (!getMax()
           .equals(other.getMax())) return false;
     }
-    if (getRequestedBucketCount()
-        != other.getRequestedBucketCount()) return false;
     if (getOverallCount()
         != other.getOverallCount()) return false;
     if (!getBucketsList()
@@ -1423,8 +1297,6 @@ private static final long serialVersionUID = 0L;
       hash = (37 * hash) + MAX_FIELD_NUMBER;
       hash = (53 * hash) + getMax().hashCode();
     }
-    hash = (37 * hash) + REQUESTEDBUCKETCOUNT_FIELD_NUMBER;
-    hash = (53 * hash) + getRequestedBucketCount();
     hash = (37 * hash) + OVERALLCOUNT_FIELD_NUMBER;
     hash = (53 * hash) + getOverallCount();
     if (getBucketsCount() > 0) {
@@ -1586,8 +1458,6 @@ private static final long serialVersionUID = 0L;
         max_ = null;
         maxBuilder_ = null;
       }
-      requestedBucketCount_ = 0;
-
       overallCount_ = 0;
 
       if (bucketsBuilder_ == null) {
@@ -1633,7 +1503,6 @@ private static final long serialVersionUID = 0L;
       } else {
         result.max_ = maxBuilder_.build();
       }
-      result.requestedBucketCount_ = requestedBucketCount_;
       result.overallCount_ = overallCount_;
       if (bucketsBuilder_ == null) {
         if (((bitField0_ & 0x00000001) != 0)) {
@@ -1697,9 +1566,6 @@ private static final long serialVersionUID = 0L;
       }
       if (other.hasMax()) {
         mergeMax(other.getMax());
-      }
-      if (other.getRequestedBucketCount() != 0) {
-        setRequestedBucketCount(other.getRequestedBucketCount());
       }
       if (other.getOverallCount() != 0) {
         setOverallCount(other.getOverallCount());
@@ -2097,55 +1963,6 @@ private static final long serialVersionUID = 0L;
       return maxBuilder_;
     }
 
-    private int requestedBucketCount_ ;
-    /**
-     * <pre>
-     * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-     * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-     * histogram.
-     * </pre>
-     *
-     * <code>int32 requestedBucketCount = 3;</code>
-     * @return The requestedBucketCount.
-     */
-    @java.lang.Override
-    public int getRequestedBucketCount() {
-      return requestedBucketCount_;
-    }
-    /**
-     * <pre>
-     * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-     * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-     * histogram.
-     * </pre>
-     *
-     * <code>int32 requestedBucketCount = 3;</code>
-     * @param value The requestedBucketCount to set.
-     * @return This builder for chaining.
-     */
-    public Builder setRequestedBucketCount(int value) {
-
-      requestedBucketCount_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Returns requested number of columns (buckets) in the histogram. This value (the maximum number of possible buckets)
-     * may be different from the actual number of buckets in the histogram because empty buckets are not present in the
-     * histogram.
-     * </pre>
-     *
-     * <code>int32 requestedBucketCount = 3;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearRequestedBucketCount() {
-
-      requestedBucketCount_ = 0;
-      onChanged();
-      return this;
-    }
-
     private int overallCount_ ;
     /**
      * <pre>
@@ -2153,7 +1970,7 @@ private static final long serialVersionUID = 0L;
      * in the histogram.
      * </pre>
      *
-     * <code>int32 overallCount = 4;</code>
+     * <code>int32 overallCount = 3;</code>
      * @return The overallCount.
      */
     @java.lang.Override
@@ -2166,7 +1983,7 @@ private static final long serialVersionUID = 0L;
      * in the histogram.
      * </pre>
      *
-     * <code>int32 overallCount = 4;</code>
+     * <code>int32 overallCount = 3;</code>
      * @param value The overallCount to set.
      * @return This builder for chaining.
      */
@@ -2182,7 +1999,7 @@ private static final long serialVersionUID = 0L;
      * in the histogram.
      * </pre>
      *
-     * <code>int32 overallCount = 4;</code>
+     * <code>int32 overallCount = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearOverallCount() {
@@ -2210,7 +2027,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> getBucketsList() {
       if (bucketsBuilder_ == null) {
@@ -2225,7 +2042,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public int getBucketsCount() {
       if (bucketsBuilder_ == null) {
@@ -2240,7 +2057,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket getBuckets(int index) {
       if (bucketsBuilder_ == null) {
@@ -2255,7 +2072,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder setBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
@@ -2277,7 +2094,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder setBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder builderForValue) {
@@ -2296,7 +2113,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
       if (bucketsBuilder_ == null) {
@@ -2317,7 +2134,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket value) {
@@ -2339,7 +2156,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(
         io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder builderForValue) {
@@ -2358,7 +2175,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addBuckets(
         int index, io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder builderForValue) {
@@ -2377,7 +2194,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder addAllBuckets(
         java.lang.Iterable<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket> values) {
@@ -2397,7 +2214,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder clearBuckets() {
       if (bucketsBuilder_ == null) {
@@ -2415,7 +2232,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public Builder removeBuckets(int index) {
       if (bucketsBuilder_ == null) {
@@ -2433,7 +2250,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder getBucketsBuilder(
         int index) {
@@ -2445,7 +2262,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder getBucketsOrBuilder(
         int index) {
@@ -2460,7 +2277,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucketOrBuilder>
          getBucketsOrBuilderList() {
@@ -2476,7 +2293,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder addBucketsBuilder() {
       return getBucketsFieldBuilder().addBuilder(
@@ -2488,7 +2305,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder addBucketsBuilder(
         int index) {
@@ -2501,7 +2318,7 @@ private static final long serialVersionUID = 0L;
      * values.
      * </pre>
      *
-     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 5;</code>
+     * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket buckets = 4;</code>
      */
     public java.util.List<io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket.Builder>
          getBucketsBuilderList() {

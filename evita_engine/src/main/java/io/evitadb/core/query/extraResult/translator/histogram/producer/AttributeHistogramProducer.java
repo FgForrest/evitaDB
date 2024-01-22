@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
@@ -86,6 +87,11 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	 */
 	private final int bucketCount;
 	/**
+	 * Contains behavior that was requested by the user in the query.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull private final HistogramBehavior behavior;
+	/**
 	 * Contains filtering formula tree that was used to produce results so that computed sub-results can be used for
 	 * sorting.
 	 */
@@ -103,11 +109,13 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	public AttributeHistogramProducer(
 		@Nonnull String entityType,
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@Nonnull Formula filterFormula,
 		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor
 	) {
 		this.entityType = entityType;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.filterFormula = filterFormula;
 		this.extraResultCacheAccessor = extraResultCacheAccessor;
 		this.histogramRequests = new HashMap<>();
@@ -116,12 +124,14 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	private AttributeHistogramProducer(
 		@Nonnull String entityType,
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@Nonnull Formula filterFormula,
 		@Nonnull ExtraResultCacheAccessor extraResultCacheAccessor,
 		@Nonnull Map<String, AttributeHistogramRequest> histogramRequests
 	) {
 		this.entityType = entityType;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.filterFormula = filterFormula;
 		this.extraResultCacheAccessor = extraResultCacheAccessor;
 		this.histogramRequests = histogramRequests;
@@ -376,7 +386,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						entityType,
 						new AttributeHistogramComputer(
 							histogramRequest.getAttributeName(),
-							optimizedFormula, bucketCount, histogramRequest
+							optimizedFormula, bucketCount, behavior, histogramRequest
 						)
 					).compute();
 					if (optimalHistogram == CacheableHistogramContract.EMPTY) {
@@ -386,7 +396,8 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 						return new AttributeHistogramWrapper(
 							entry.getKey(),
 							optimalHistogram.convertToHistogram(
-								ofNullable(userFilterFormulaPredicates.get(entry.getKey())).orElseGet(() -> value -> false)
+								ofNullable(userFilterFormulaPredicates.get(entry.getKey()))
+									.orElseGet(() -> value -> true)
 							)
 						);
 					}
@@ -405,7 +416,7 @@ public class AttributeHistogramProducer implements CacheableExtraResultProducer 
 	@Override
 	public AttributeHistogramProducer cloneInstance(@Nonnull ExtraResultCacheAccessor cacheAccessor) {
 		return new AttributeHistogramProducer(
-			entityType, bucketCount, filterFormula, cacheAccessor, histogramRequests
+			entityType, bucketCount, behavior, filterFormula, cacheAccessor, histogramRequests
 		);
 	}
 
