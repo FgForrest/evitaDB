@@ -2794,7 +2794,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -3376,7 +3375,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
