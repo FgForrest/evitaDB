@@ -43,7 +43,7 @@ class PriceInPriceListsTest {
 
 	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new PriceInPriceLists(new String[0]).isApplicable());
+		assertTrue(new PriceInPriceLists(new String[0]).isApplicable());
 		assertTrue(priceInPriceLists("A").isApplicable());
 		assertTrue(priceInPriceLists("A", "B").isApplicable());
 	}

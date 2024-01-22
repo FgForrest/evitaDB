@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -40,15 +41,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
-import io.evitadb.externalApi.grpc.generated.GrpcAttributeSpecialValueArray;
-import io.evitadb.externalApi.grpc.generated.GrpcEmptyHierarchicalEntityBehaviourArray;
-import io.evitadb.externalApi.grpc.generated.GrpcFacetStatisticsDepthArray;
-import io.evitadb.externalApi.grpc.generated.GrpcOrderDirectionArray;
-import io.evitadb.externalApi.grpc.generated.GrpcPriceContentModeArray;
-import io.evitadb.externalApi.grpc.generated.GrpcQueryPriceModeArray;
-import io.evitadb.externalApi.grpc.generated.GrpcStatisticsBaseArray;
-import io.evitadb.externalApi.grpc.generated.GrpcStatisticsTypeArray;
-import io.evitadb.externalApi.grpc.generated.GrpcQueryParam;
+import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.Builder;
 import io.evitadb.externalApi.grpc.generated.GrpcQueryParam.QueryParamCase;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
@@ -162,6 +155,8 @@ public final class QueryConverter {
 			return EvitaEnumConverter.toStatisticsBase(GrpcQueryParam.getStatisticsBase());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STATISTICSTYPE) {
 			return EvitaEnumConverter.toStatisticsType(GrpcQueryParam.getStatisticsType());
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.HISTOGRAMBEHAVIOR) {
+			return EvitaEnumConverter.toHistogramBehavior(GrpcQueryParam.getHistogramBehavior());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.STRINGARRAYVALUE) {
 			return toStringArray(GrpcQueryParam.getStringArrayValue());
 		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.INTEGERARRAYVALUE) {
@@ -234,6 +229,12 @@ public final class QueryConverter {
 				.stream()
 				.map(EvitaEnumConverter::toStatisticsType)
 				.toArray(StatisticsType[]::new);
+		} else if (GrpcQueryParam.getQueryParamCase() == QueryParamCase.HISTOGRAMBEHAVIORTYPEARRAYVALUE) {
+			return GrpcQueryParam.getHistogramBehaviorTypeArrayValue()
+				.getValueList()
+				.stream()
+				.map(EvitaEnumConverter::toHistogramBehavior)
+				.toArray(HistogramBehavior[]::new);
 		}
 		throw new EvitaInvalidUsageException("Unsupported Evita data type `" + GrpcQueryParam + "` in gRPC API.");
 	}
@@ -297,6 +298,8 @@ public final class QueryConverter {
 			builder.setStatisticsBase(EvitaEnumConverter.toGrpcStatisticsBase(statisticsBase));
 		} else if (parameter instanceof final StatisticsType statisticsType) {
 			builder.setStatisticsType(EvitaEnumConverter.toGrpcStatisticsType(statisticsType));
+		} else if (parameter instanceof final HistogramBehavior histogramBehavior) {
+			builder.setHistogramBehavior(EvitaEnumConverter.toGrpcHistogramBehavior(histogramBehavior));
 		} else if (parameter instanceof final String[] stringArrayValue) {
 			builder.setStringArrayValue(toGrpcStringArray(stringArrayValue));
 		} else if (parameter instanceof final Integer[] integerArrayValue) {
@@ -362,6 +365,10 @@ public final class QueryConverter {
 		} else if (parameter instanceof final StatisticsType[] statisticsTypeArrayValue) {
 			builder.setStatisticsTypeArrayValue(GrpcStatisticsTypeArray.newBuilder().addAllValue(
 				Arrays.stream(statisticsTypeArrayValue).map(EvitaEnumConverter::toGrpcStatisticsType).toList()
+			));
+		} else if (parameter instanceof final HistogramBehavior[] histogramBehaviorArrayValue) {
+			builder.setHistogramBehaviorTypeArrayValue(GrpcHistogramBehaviorTypeArray.newBuilder().addAllValue(
+				Arrays.stream(histogramBehaviorArrayValue).map(EvitaEnumConverter::toGrpcHistogramBehavior).toList()
 			));
 		} else {
 			throw new EvitaInvalidUsageException("Unsupported Evita data type `" + parameter + "` in gRPC API.");

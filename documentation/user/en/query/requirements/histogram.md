@@ -25,13 +25,17 @@ The histogram data structure is optimized for frontend rendering. It contains th
 - **`min`** - the minimum value of the attribute in the current filter context
 - **`max`** - the maximum value of the attribute in the current filter context
 - **`overallCount`** - the number of elements whose attribute value falls into any of the buckets (it's basically a sum of all bucket occurrences)
-- **`buckets`** - an array of buckets, each of which contains the following fields:
+- **`buckets`** - an *sorted* array of buckets, each of which contains the following fields:
   - **`index`** - the index of the bucket in the array
-  - **`threshold`** - the minimum value of the attribute in the bucket
-  - **`occurences`** - the number of elements whose attribute value falls into the bucket
-  - **`requested`** - contains `true` if the query contained [attributeBetween](../filtering/comparable.md#attribute-between)
-                      or [priceBetween](../filtering/price.md#price-between) constraint for particular attribute / price
-                      and the bucket threshold lies within the range (inclusive) of the constraint
+  - **`threshold`** - the minimum value of the attribute in the bucket, the maximum value is the threshold of the next bucket (or `max` for the last bucket)
+  - **`occurrences`** - the number of elements whose attribute value falls into the bucket
+  - **`requested`**:
+    - contains `true` if the query didn't contain any [attributeBetween](../filtering/comparable.md#attribute-between)
+      or [priceBetween](../filtering/price.md#price-between) constraints
+    - contains `true` if the query contained [attributeBetween](../filtering/comparable.md#attribute-between)
+      or [priceBetween](../filtering/price.md#price-between) constraint for particular attribute / price
+      and the bucket threshold lies within the range (inclusive) of the constraint
+    - contains `false` otherwise
 
 ## Attribute histogram
 
@@ -40,6 +44,7 @@ The histogram data structure is optimized for frontend rendering. It contains th
 ```evitaql-syntax
 attributeHistogram(
     argument:int!,
+    argument:enum(STANDARD|OPTIMIZED),
     argument:string+
 )
 ```
@@ -49,6 +54,13 @@ attributeHistogram(
     <dd>
         the number of columns (buckets) in the histogram; number should be chosen so that the histogram fits well
         into the available space on the screen
+    </dd>
+    <dt>argument:enum(STANDARD|OPTIMIZED)</dt>
+    <dd>
+        The behavior of the histogram calculation - either STANDARD (default), where exactly the requested number of
+        buckets is returned, or OPTIMIZED, where the number of columns is reduced when the data is sparse and there
+        would be large gaps (empty buckets) between buckets. This results in more compact histograms that provide
+        a better user experience.
     </dd>
     <dt>argument:string+</dt>
     <dd>
@@ -108,13 +120,65 @@ The histogram result in JSON format is a bit more verbose, but it's still quite 
 
 </Note>
 
+### Attribute histogram contents optimization
+
+During user testing, we found that histograms with scarce data are not very useful. Besides the fact that they don't
+look good, they are often harder to manipulate with the widget that controls the histogram and tries to stick to
+the bucket thresholds. Therefore, we have introduced a new histogram calculation mode - `OPTIMIZED`. In this mode,
+the histogram calculation algorithm tries to reduce the number of buckets when the data is sparse and there would be
+large gaps (empty buckets) between buckets. This results in more compact histograms that provide a better user
+experience.
+
+To demonstrate the optimization of the histogram, we will use the following example:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Optimized attribute histogram over `width` attribute](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql)
+
+</SourceCodeTabs>
+
+The simplified result looks like this:
+
+<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql.string.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The optimized result of `width` and `height` attribute histogram in JSON format
+
+</NoteTitle>
+
+The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
+
+<LS to="e,j,c">
+
+<MDInclude sourceVariable="extraResults.AttributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.attributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.attributeHistogram">[The result of optimized `width` attribute histogram](/documentation/user/en/query/requirements/examples/histogram/attribute-histogram-optimized.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+As you can see, the number of buckets has been adjusted to fit the data, contrary to the default behavior.
+
 ## Price histogram
 
 <LanguageSpecific to="evitaql,java,rest,csharp">
 
 ```evitaql-syntax
 priceHistogram(
-    argument:int!
+    argument:int!,
+    argument:enum(STANDARD|OPTIMIZED)
 )
 ```
 
@@ -123,6 +187,13 @@ priceHistogram(
     <dd>
         the number of columns (buckets) in the histogram; number should be chosen so that the histogram fits well
         into the available space on the screen
+    </dd>
+    <dt>argument:enum(STANDARD|OPTIMIZED)</dt>
+    <dd>
+        The behavior of the histogram calculation - either STANDARD (default), where exactly the requested number of
+        buckets is returned, or OPTIMIZED, where the number of columns is reduced when the data is sparse and there
+        would be large gaps (empty buckets) between buckets. This results in more compact histograms that provide
+        a better user experience.
     </dd>
 </dl>
 
@@ -178,3 +249,54 @@ The histogram result in JSON format is a bit more verbose, but it's still quite 
 </LanguageSpecific>
 
 </Note>
+
+### Price histogram contents optimization
+
+During user testing, we found that histograms with scarce data are not very useful. Besides the fact that they don't
+look good, they are often harder to manipulate with the widget that controls the histogram and tries to stick to
+the bucket thresholds. Therefore, we have introduced a new histogram calculation mode - `OPTIMIZED`. In this mode,
+the histogram calculation algorithm tries to reduce the number of buckets when the data is sparse and there would be
+large gaps (empty buckets) between buckets. This results in more compact histograms that provide a better user
+experience.
+
+To demonstrate the optimization of the histogram, we will use the following example:
+
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
+
+[Optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql)
+
+</SourceCodeTabs>
+
+The simplified result looks like this:
+
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.string.md)</MDInclude>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### The result of optimized price histogram in JSON format
+
+</NoteTitle>
+
+The optimized histogram result in JSON format is a bit more verbose, but it's still quite readable:
+
+<LS to="e,j,s">
+
+<MDInclude sourceVariable="extraResults.PriceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.evitaql.json.md)</MDInclude>
+
+</LS>
+<LS to="g">
+
+<MDInclude sourceVariable="data.queryProduct.extraResults.priceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.graphql.json.md)</MDInclude>
+
+</LS>
+<LS to="r">
+
+<MDInclude sourceVariable="extraResults.priceHistogram">[The result of optimized price histogram](/documentation/user/en/query/requirements/examples/histogram/price-histogram-optimized.rest.json.md)</MDInclude>
+
+</LS>
+
+</Note>
+
+As you can see, the number of buckets has been adjusted to fit the data, contrary to the default behavior.

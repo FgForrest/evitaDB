@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -291,6 +292,23 @@ public class EvitaEnumConverter {
 	}
 
 	/**
+	 * Converts {@link GrpcHistogramBehavior} to {@link HistogramBehavior}.
+	 *
+	 * @param grpcHistogramBehavior the {@link GrpcHistogramBehavior} to be converted
+	 * @return the converted {@link HistogramBehavior}
+	 * @throws EvitaInternalError if the given grpcHistogramBehavior is unrecognized
+	 */
+	@Nonnull
+	public static HistogramBehavior toHistogramBehavior(@Nonnull GrpcHistogramBehavior grpcHistogramBehavior) {
+		return switch (grpcHistogramBehavior.getNumber()) {
+			case 0 -> HistogramBehavior.STANDARD;
+			case 1 -> HistogramBehavior.OPTIMIZED;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote histogram behavior: " + grpcHistogramBehavior);
+		};
+	}
+
+	/**
 	 * Converts {@link StatisticsType} to {@link GrpcStatisticsType}.
 	 *
 	 * @param statisticsType the {@link StatisticsType} to be converted
@@ -301,6 +319,20 @@ public class EvitaEnumConverter {
 		return switch (statisticsType) {
 			case CHILDREN_COUNT -> GrpcStatisticsType.CHILDREN_COUNT;
 			case QUERIED_ENTITY_COUNT -> GrpcStatisticsType.QUERIED_ENTITY_COUNT;
+		};
+	}
+
+	/**
+	 * Converts {@link HistogramBehavior} to {@link GrpcHistogramBehavior}.
+	 *
+	 * @param histogramBehavior the {@link HistogramBehavior} to be converted
+	 * @return the converted {@link GrpcHistogramBehavior}
+	 */
+	@Nonnull
+	public static GrpcHistogramBehavior toGrpcHistogramBehavior(@Nonnull HistogramBehavior histogramBehavior) {
+		return switch (histogramBehavior) {
+			case STANDARD -> GrpcHistogramBehavior.STANDARD;
+			case OPTIMIZED -> GrpcHistogramBehavior.OPTIMIZED;
 		};
 	}
 

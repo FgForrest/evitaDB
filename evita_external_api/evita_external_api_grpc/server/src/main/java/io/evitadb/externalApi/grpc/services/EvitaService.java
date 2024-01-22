@@ -29,7 +29,9 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
+import io.evitadb.api.requestResponse.system.SystemStatus;
 import io.evitadb.core.Evita;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
@@ -252,6 +254,31 @@ public class EvitaService extends EvitaServiceGrpc.EvitaServiceImplBase {
 		executeWithClientContext(() -> {
 			evita.update(schemaMutations);
 			responseObserver.onNext(Empty.getDefaultInstance());
+			responseObserver.onCompleted();
+		});
+	}
+
+	/**
+	 * Retrieves the server status.
+	 *
+	 * @param request            the request for server status
+	 * @param responseObserver   the observer for receiving the server status response
+	 */
+	@Override
+	public void serverStatus(@Nonnull Empty request, @Nonnull StreamObserver<GrpcEvitaServerStatusResponse> responseObserver) {
+		executeWithClientContext(() -> {
+			final SystemStatus systemStatus = evita.getSystemStatus();
+			responseObserver.onNext(
+				GrpcEvitaServerStatusResponse
+					.newBuilder()
+					.setVersion(systemStatus.version())
+					.setStartedAt(EvitaDataTypesConverter.toGrpcOffsetDateTime(systemStatus.startedAt()))
+					.setUptime(systemStatus.uptime().toSeconds())
+					.setInstanceId(systemStatus.instanceId())
+					.setCatalogsCorrupted(systemStatus.catalogsCorrupted())
+					.setCatalogsOk(systemStatus.catalogsOk())
+					.build()
+			);
 			responseObserver.onCompleted();
 		});
 	}

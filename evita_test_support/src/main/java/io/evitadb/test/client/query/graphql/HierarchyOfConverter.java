@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -80,9 +80,10 @@ public class HierarchyOfConverter extends RequireConverter {
 			if (hierarchyOfSelf != null) {
 				final ArgumentSupplier[] arguments = hierarchyOfSelf.getOrderBy()
 					.map(orderBy -> new ArgumentSupplier[] {
-						offset -> new Argument(
+						(offset, multipleArguments) -> new Argument(
 							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
 							offset,
+							multipleArguments,
 							convertOrderConstraint(new EntityDataLocator(entityType), orderBy).orElse(null)
 						)
 					})
@@ -114,9 +115,10 @@ public class HierarchyOfConverter extends RequireConverter {
 						hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
 						if (hierarchyOfReference.getOrderBy().isPresent()) {
 							arguments.add(
-								offset -> new Argument(
+								(offset, multipleArguments) -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
 									offset,
+									multipleArguments,
 									convertOrderConstraint(
 										new EntityDataLocator(referencedEntityType),
 										hierarchyOfReference.getOrderBy().get()
@@ -128,9 +130,10 @@ public class HierarchyOfConverter extends RequireConverter {
 
 						if (hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
 							arguments.add(
-								offset -> new Argument(
+								(offset, multipleArguments) -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR,
 									offset,
+									multipleArguments,
 									hierarchyOfReference.getEmptyHierarchicalEntityBehaviour().name()
 								)
 							);
@@ -209,9 +212,10 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                 @Nonnull HierarchyFromNode fromNode) {
 		final List<ArgumentSupplier> arguments = new ArrayList<>(3);
 		arguments.add(
-			offset -> new Argument(
+			(offset, multipleArguments) -> new Argument(
 				HierarchyFromNodeHeaderDescriptor.NODE,
 				offset,
+				multipleArguments,
 				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode())
 					.orElseThrow(() -> new IllegalStateException("Missing required node constraint"))
 			)
@@ -284,9 +288,10 @@ public class HierarchyOfConverter extends RequireConverter {
 				.ifPresent(constraint -> siblingsArgument.putIfAbsent(HierarchyRequireHeaderDescriptor.STOP_AT.name(), constraint.value()));
 
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					HierarchyParentsHeaderDescriptor.SIBLINGS,
 					offset,
+					multipleArguments,
 					siblingsArgument
 				)
 			);
@@ -342,18 +347,20 @@ public class HierarchyOfConverter extends RequireConverter {
 	@Nonnull
 	private ArgumentSupplier getStopAtArgument(@Nonnull HierarchyStopAt stopAt,
 	                                           @Nonnull HierarchyDataLocator hierarchyDataLocator) {
-		return offset -> new Argument(
+		return (offset, multipleArguments) -> new Argument(
 			HierarchyRequireHeaderDescriptor.STOP_AT,
 			offset,
+			multipleArguments,
 			convertRequireConstraint(hierarchyDataLocator, stopAt).orElse(null)
 		);
 	}
 
 	@Nonnull
 	private ArgumentSupplier getStatisticsArgument(@Nonnull HierarchyStatistics statistics) {
-		return offset -> new Argument(
+		return (offset, multipleArguments) -> new Argument(
 			HierarchyRequireHeaderDescriptor.STATISTICS_BASE,
 			offset,
+			multipleArguments,
 			statistics.getStatisticsBase().name()
 		);
 	}

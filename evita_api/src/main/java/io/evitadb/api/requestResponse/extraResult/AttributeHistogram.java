@@ -52,7 +52,7 @@ public class AttributeHistogram implements EvitaResponseExtraResult {
 	 * Returns {@link Histogram} for the passed attribute when it was requested to be created by the query requirements.
 	 */
 	@Nullable
-	public HistogramContract getHistogram(String attributeName) {
+	public HistogramContract getHistogram(@Nonnull String attributeName) {
 		return histograms.get(attributeName);
 	}
 

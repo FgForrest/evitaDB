@@ -1,0 +1,18 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "attributeCodeStartsWith" : "alcatel",
+    "priceInPriceLists" : [
+      "basic"
+    ],
+    "priceInCurrency" : "EUR",
+    "priceValidInNow" : true
+  },
+  "require" : {
+    "priceHistogram" : {
+      "requestedBucketCount" : 20,
+      "behavior" : "OPTIMIZED"
+    }
+  }
+}

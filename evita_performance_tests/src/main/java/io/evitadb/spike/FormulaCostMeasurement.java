@@ -23,6 +23,7 @@
 
 package io.evitadb.spike;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.core.query.algebra.base.AndFormula;
@@ -247,7 +248,7 @@ public class FormulaCostMeasurement {
 		final AttributeHistogramComputer testedFormula = new AttributeHistogramComputer(
 			"test histogram",
 			bucketDataSet.getFormula(),
-			40,
+			40, HistogramBehavior.STANDARD,
 			bucketDataSet.getRequest()
 		);
 		blackhole.consume(testedFormula.compute());
@@ -256,7 +257,8 @@ public class FormulaCostMeasurement {
 	@Benchmark
 	public void priceHistogramComputer(PriceBucketRecordState bucketDataSet, Blackhole blackhole) {
 		final PriceHistogramComputer testedFormula = new PriceHistogramComputer(
-			40, 2, QueryPriceMode.WITH_TAX,
+			40, HistogramBehavior.STANDARD,
+			2, QueryPriceMode.WITH_TAX,
 			bucketDataSet.getFormulaA(),
 			bucketDataSet.getFormulaB(),
 			bucketDataSet.getFilteredPriceRecordAccessors(),

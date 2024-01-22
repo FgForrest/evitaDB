@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
@@ -79,6 +80,11 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	 */
 	private final int bucketCount;
 	/**
+	 * Contains behavior that was requested by the user in the query.
+	 * @see HistogramBehavior
+	 */
+	@Nonnull private final HistogramBehavior behavior;
+	/**
 	 * Contains original {@link AttributeHistogramRequest} that was collected during query examination.
 	 */
 	@Nonnull @Getter private final AttributeHistogramRequest request;
@@ -109,11 +115,13 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 		@Nonnull String attributeName,
 		@Nonnull Formula filterFormula,
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@Nonnull AttributeHistogramRequest request
 	) {
 		this.attributeName = attributeName;
 		this.filterFormula = filterFormula;
 		this.bucketCount = bucketCount;
+		this.behavior = behavior;
 		this.request = request;
 		this.onComputationCallback = null;
 	}
@@ -143,7 +151,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	@Override
 	public CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract> getCloneWithComputationCallback(@Nonnull Consumer<CacheableEvitaResponseExtraResultComputer<CacheableHistogramContract>> selfOperator) {
 		return new AttributeHistogramComputer(
-			attributeName, selfOperator, filterFormula, bucketCount, request
+			attributeName, selfOperator, filterFormula, bucketCount, behavior, request
 		);
 	}
 
@@ -154,6 +162,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 	private static <T extends Comparable<T>> HistogramDataCruncher<T> createHistogramDataCruncher(
 		@Nonnull AttributeHistogramComputer histogramComputer,
 		int bucketCount,
+		@Nonnull HistogramBehavior behavior,
 		@Nonnull ValueToRecordBitmap<T>[] buckets
 		) {
 		if (ArrayUtils.isEmpty(buckets)) {
@@ -163,21 +172,39 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			final AttributeHistogramRequest attributeHistogramRequest = histogramComputer.getRequest();
 			final ToIntFunction<T> converter = createNumberToIntegerConverter(attributeHistogramRequest);
 			final int decimalPlaces = attributeHistogramRequest.getDecimalPlaces();
-			//noinspection unchecked
-			return (HistogramDataCruncher<T>) HistogramDataCruncher.createOptimalHistogram(
-				" attribute `" + histogramComputer.getAttributeName() + "` histogram",
-				bucketCount,
-				decimalPlaces,
-				// combine all together - we want to have single bucket for single distinct value
-				buckets,
-				// value in the bucket represents the distinct value
-				bucket -> converter.applyAsInt(bucket.getValue()),
-				// number of records in the bucket represents the weight of it
-				bucket -> bucket.getRecordIds().size(),
-				// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
-				value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
-				value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
-			);
+			if (behavior == HistogramBehavior.OPTIMIZED) {
+				//noinspection unchecked
+				return (HistogramDataCruncher<T>) HistogramDataCruncher.createOptimalHistogram(
+					" attribute `" + histogramComputer.getAttributeName() + "` histogram",
+					bucketCount,
+					decimalPlaces,
+					// combine all together - we want to have single bucket for single distinct value
+					buckets,
+					// value in the bucket represents the distinct value
+					bucket -> converter.applyAsInt(bucket.getValue()),
+					// number of records in the bucket represents the weight of it
+					bucket -> bucket.getRecordIds().size(),
+					// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
+					value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
+				);
+			} else {
+				//noinspection unchecked
+				return (HistogramDataCruncher<T>) new HistogramDataCruncher<>(
+					" attribute `" + histogramComputer.getAttributeName() + "` histogram",
+					bucketCount,
+					decimalPlaces,
+					// combine all together - we want to have single bucket for single distinct value
+					buckets,
+					// value in the bucket represents the distinct value
+					bucket -> converter.applyAsInt(bucket.getValue()),
+					// number of records in the bucket represents the weight of it
+					bucket -> bucket.getRecordIds().size(),
+					// conversion method from / to BigDecimal that use histogramRequest#decimalPlaces for the conversion
+					value -> decimalPlaces == 0 ? new BigDecimal(value) : new BigDecimal(value).stripTrailingZeros().scaleByPowerOfTen(-1 * decimalPlaces),
+					value -> decimalPlaces == 0 ? value.intValueExact() : value.stripTrailingZeros().scaleByPowerOfTen(decimalPlaces).intValueExact()
+				);
+			}
 		}
 	}
 
@@ -274,6 +301,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 				LongStream.concat(
 					LongStream.of(
 						bucketCount,
+						behavior.ordinal(),
 						filterFormula.computeHash(hashFunction)
 					),
 					LongStream.of(
@@ -337,14 +365,14 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 
 	@Override
 	public long getOperationCost() {
-		return 3320;
+		// if the behavior is optimized we add 33% penalty because some histograms would need to be computed twice
+		return behavior == HistogramBehavior.STANDARD ? 2213 : 3320;
 	}
 
 	@Override
 	public long getCostToPerformanceRatio() {
 		return getCost() / (getOperationCost() * bucketCount);
 	}
-
 
 	@Nonnull
 	@Override
@@ -357,7 +385,7 @@ public class AttributeHistogramComputer implements CacheableEvitaResponseExtraRe
 			);
 			@SuppressWarnings("unchecked")
 			final HistogramDataCruncher<?> optimalHistogram = createHistogramDataCruncher(
-				this, bucketCount, histogramBuckets
+				this, bucketCount, behavior, histogramBuckets
 			);
 
 			if (optimalHistogram != null) {

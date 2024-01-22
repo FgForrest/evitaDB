@@ -53,7 +53,7 @@ filterConstraint
     | 'attributeLessThan'                   args = classifierWithValueArgs                                  # attributeLessThanConstraint
     | 'attributeLessThanEquals'             args = classifierWithValueArgs                                  # attributeLessThanEqualsConstraint
     | 'attributeBetween'                    args = classifierWithBetweenValuesArgs                          # attributeBetweenConstraint
-    | 'attributeInSet'                      args = classifierWithValueListArgs                              # attributeInSetConstraint
+    | 'attributeInSet'                      args = classifierWithOptionalValueListArgs                      # attributeInSetConstraint
     | 'attributeContains'                   args = classifierWithValueArgs                                  # attributeContainsConstraint
     | 'attributeStartsWith'                 args = classifierWithValueArgs                                  # attributeStartsWithConstraint
     | 'attributeEndsWith'                   args = classifierWithValueArgs                                  # attributeEndsWithConstraint
@@ -64,7 +64,7 @@ filterConstraint
     | 'attributeIsNotNull'                  args = classifierArgs                                           # attributeIsNotNullConstraint
     | 'attributeInRange'                    args = classifierWithValueArgs                                  # attributeInRangeConstraint
     | 'attributeInRangeNow'                 args = classifierArgs                                           # attributeInRangeNowConstraint
-    | 'entityPrimaryKeyInSet'               args = valueListArgs                                            # entityPrimaryKeyInSetConstraint
+    | 'entityPrimaryKeyInSet'               (emptyArgs | args = valueListArgs)                              # entityPrimaryKeyInSetConstraint
     | 'entityLocaleEquals'                  args = valueArgs                                                # entityLocaleEqualsConstraint
     | 'priceInCurrency'                     args = valueArgs                                                # priceInCurrencyConstraint
     | 'priceInPriceLists'                   (emptyArgs | args = classifierListArgs)                         # priceInPriceListsConstraints
@@ -151,8 +151,8 @@ requireConstraint
     | 'facetGroupsConjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsConjunctionConstraint
     | 'facetGroupsDisjunction'              args = classifierWithOptionalFilterConstraintArgs               # facetGroupsDisjunctionConstraint
     | 'facetGroupsNegation'                 args = classifierWithOptionalFilterConstraintArgs               # facetGroupsNegationConstraint
-    | 'attributeHistogram'                  args = valueWithClassifierListArgs                              # attributeHistogramConstraint
-    | 'priceHistogram'                      args = valueArgs                                                # priceHistogramConstraint
+    | 'attributeHistogram'                  args = attributeHistogramArgs                                   # attributeHistogramConstraint
+    | 'priceHistogram'                      args = priceHistogramArgs                                       # priceHistogramConstraint
     | 'distance'                            args = valueArgs                                                # hierarchyDistanceConstraint
     | 'level'                               args = valueArgs                                                # hierarchyLevelConstraint
     | 'node'                                args = filterConstraintArgs                                     # hierarchyNodeConstraint
@@ -207,6 +207,8 @@ classifierWithOptionalValueArgs :                   ARGS_OPENING classifier = cl
 
 classifierWithValueListArgs :                       ARGS_OPENING classifier = classifierToken ARGS_DELIMITER values = variadicValueTokens ARGS_CLOSING ;
 
+classifierWithOptionalValueListArgs :               ARGS_OPENING classifier = classifierToken (ARGS_DELIMITER values = variadicValueTokens)? ARGS_CLOSING ;
+
 classifierWithBetweenValuesArgs :                   ARGS_OPENING classifier = classifierToken ARGS_DELIMITER valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken ARGS_CLOSING ;
 
 valueArgs :                                         ARGS_OPENING value = valueToken ARGS_CLOSING ;
@@ -216,8 +218,6 @@ valueListArgs :                                     ARGS_OPENING values = variad
 betweenValuesArgs :                                 ARGS_OPENING valueFrom = valueToken ARGS_DELIMITER valueTo = valueToken ARGS_CLOSING ;
 
 classifierListArgs :                                ARGS_OPENING classifiers = variadicClassifierTokens ARGS_CLOSING ;
-
-valueWithClassifierListArgs :                       ARGS_OPENING value = valueToken ARGS_DELIMITER classifiers = variadicClassifierTokens ARGS_CLOSING ;
 
 classifierWithFilterConstraintArgs :                ARGS_OPENING classifier = classifierToken ARGS_DELIMITER filter = filterConstraint ARGS_CLOSING ;
 
@@ -309,6 +309,10 @@ facetSummaryOrderArgs :                             (
                                                         (orderBy = orderConstraint) |
                                                         (orderBy = orderConstraint ARGS_DELIMITER orderGroupBy = orderConstraint)
                                                     ) ;
+
+attributeHistogramArgs :                            ARGS_OPENING requestedBucketCount = valueToken ARGS_DELIMITER values = variadicValueTokens ARGS_CLOSING ;
+
+priceHistogramArgs :                                ARGS_OPENING requestedBucketCount = valueToken (ARGS_DELIMITER behaviour = valueToken)? ARGS_CLOSING ;
 
 hierarchyStatisticsArgs :                           ARGS_OPENING settings = variadicValueTokens ARGS_CLOSING ;
 

@@ -221,6 +221,12 @@ message GrpcStatisticsTypeArray {
   repeated GrpcStatisticsType value = 1;
 }
 
+// Wrapper for representing an array of HistogramBehavior enums.
+message GrpcHistogramBehaviorTypeArray {
+  // Value that supports storing a HistogramBehavior array.
+  repeated GrpcHistogramBehavior value = 1;
+}
+
 // Structure that holds one of the supported data type values, its type and version of stored value.
 message GrpcEvitaValue {
   // The stored value. May by only one of the following at the time.

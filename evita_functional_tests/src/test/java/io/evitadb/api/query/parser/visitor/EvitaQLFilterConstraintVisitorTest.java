@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -442,6 +442,15 @@ class EvitaQLFilterConstraintVisitorTest {
             )
         );
         assertEquals(attributeInSet("a", 100L, 150L), constraint5);
+
+        final FilterConstraint constraint6 = parseFilterConstraint("attributeInSet('a')");
+        assertEquals(attributeInSet("a"), constraint6);
+
+        final FilterConstraint constraint7 = parseFilterConstraint("attributeInSet('a', ?)", new int[0]);
+        assertEquals(attributeInSet("a"), constraint7);
+
+        final FilterConstraint constraint8 = parseFilterConstraint("attributeInSet('a', @pk1)", Map.of("pk1", new int[0]));
+        assertEquals(attributeInSet("a"), constraint8);
     }
 
     @Test
@@ -451,9 +460,7 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("attributeInSet('a',@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet()"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet(1,2)"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',2,'b',3)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("attributeInSet('a',SOME_ENUM)"));
     }
 
@@ -755,6 +762,14 @@ class EvitaQLFilterConstraintVisitorTest {
         final FilterConstraint constraint9 = parseFilterConstraint("entityPrimaryKeyInSet(@pk1,@pk2)", Map.of("pk1", 10, "pk2", 11));
         assertEquals(entityPrimaryKeyInSet(10, 11), constraint9);
 
+        final FilterConstraint constraint10 = parseFilterConstraint("entityPrimaryKeyInSet()");
+        assertEquals(entityPrimaryKeyInSet(), constraint10);
+
+        final FilterConstraint constraint11 = parseFilterConstraint("entityPrimaryKeyInSet(?)", new int[0]);
+        assertEquals(entityPrimaryKeyInSet(), constraint11);
+
+        final FilterConstraint constraint12 = parseFilterConstraint("entityPrimaryKeyInSet(@pk1)", Map.of("pk1", new int[0]));
+        assertEquals(entityPrimaryKeyInSet(), constraint12);
     }
 
     @Test
@@ -762,7 +777,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(?)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraint("entityPrimaryKeyInSet(@a)"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet"));
-        assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet()"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet('a','b')"));
         assertThrows(EvitaQLInvalidQueryError.class, () -> parseFilterConstraintUnsafe("entityPrimaryKeyInSet(1,'a',2)"));
@@ -862,6 +876,15 @@ class EvitaQLFilterConstraintVisitorTest {
 
         final FilterConstraint constraint14 = parseFilterConstraint("priceInPriceLists()");
         assertEquals(priceInPriceLists(), constraint14);
+
+        final FilterConstraint constraint15 = parseFilterConstraint("priceInPriceLists()");
+        assertEquals(priceInPriceLists(), constraint15);
+
+        final FilterConstraint constraint16 = parseFilterConstraint("priceInPriceLists(?)", (Object) new String[0]);
+        assertEquals(priceInPriceLists(), constraint16);
+
+        final FilterConstraint constraint17 = parseFilterConstraint("priceInPriceLists(@pk1)", Map.of("pk1", new String[0]));
+        assertEquals(priceInPriceLists(), constraint17);
     }
 
     @Test
