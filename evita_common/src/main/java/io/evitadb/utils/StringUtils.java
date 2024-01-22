@@ -35,6 +35,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
@@ -528,9 +529,37 @@ public class StringUtils {
 	}
 
 	/**
+	 * Formats duration to human readable format.
+	 * @param duration duration to be formatted
+	 * @return formatted duration
+	 */
+	@Nonnull
+	public static String formatDuration(@Nonnull Duration duration) {
+		long days = duration.toDaysPart();
+		long hours = duration.toHoursPart();
+		long minutes = duration.toMinutesPart();
+		long seconds = duration.toSecondsPart();
+
+		StringBuilder sb = new StringBuilder(32);
+
+		if (days > 0) {
+			sb.append(days).append("d ");
+		}
+		if (hours > 0 || days > 0) {
+			sb.append(hours).append("h ");
+		}
+		if (minutes > 0 || hours > 0 || days > 0) {
+			sb.append(minutes).append("m ");
+		}
+		sb.append(seconds).append("s");
+
+		return sb.toString().trim();
+	}
+
+	/**
 	 * <p>
 	 * Replace all occurrences of Strings within another String.
-	 * This is a private recursive helper method for {@link #replaceEachRepeatedly(String, String[], String[])} and
+	 * This is a private recursive helper method for {@link #replaceEach(String, String[], String[])} and
 	 * {@link #replaceEach(String, String[], String[])}
 	 * </p>
 	 *
