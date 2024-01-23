@@ -5,10 +5,9 @@ receivers:
         include_metadata: true
         cors:
           allowed_origins:
-            - http://localhost:4000
-            - http://localhost
+            - "*"
           allowed_headers:
-            - Example-Header
+            - "*"
           max_age: 7200
   filelog:
     include: [ "/tmp/evita-temp/*.log" ]
@@ -27,8 +26,8 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [otlp]
-      exporters: [otlp, logging]
+      receivers: [ otlp ]
+      exporters: [ otlp, logging ]
     logs:
       receivers: [ filelog ]
       exporters: [ loki ]

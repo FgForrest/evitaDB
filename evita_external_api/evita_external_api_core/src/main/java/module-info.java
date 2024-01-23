@@ -53,6 +53,7 @@ module evita.external.api.core {
 	exports io.evitadb.externalApi.certificate;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.sortableAttributeCompound;
 	exports io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.sortableAttributeCompound;
+	exports io.evitadb.externalApi.trace;
 
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
@@ -62,6 +63,7 @@ module evita.external.api.core {
 	requires jboss.threads;
 	requires undertow.core;
 	requires undertow.servlet;
+	requires jakarta.servlet;
 	requires com.fasterxml.jackson.databind;
 	requires xnio.api;
 	requires zero.allocation.hashing;
@@ -82,4 +84,5 @@ module evita.external.api.core {
 	requires io.opentelemetry.exporter.logging;
 	requires io.opentelemetry.exporter.otlp;
 	requires io.opentelemetry.sdk.autoconfigure;
+	requires io.opentelemetry.instrumentation.grpc_1_6;
 }

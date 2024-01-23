@@ -46,6 +46,7 @@ import io.evitadb.dataType.DataChunk;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -66,6 +67,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @RequiredArgsConstructor
+@Slf4j
 public class QueryPlan {
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
@@ -109,6 +111,7 @@ public class QueryPlan {
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
 		new QueryPlanStepExecutedEvent(QueryPhase.EXECUTION.name(), new Random().nextLong()).commit();
+		log.info("Query plan execution started.");
 
 		try {
 			// prefetch the entities to allow using them in filtering / sorting in next step

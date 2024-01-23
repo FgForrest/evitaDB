@@ -86,7 +86,7 @@ public abstract class ExternalApiClientContext  {
 			try (Scope ignored = span.makeCurrent()) {
 				internalClientContext.executeWithClientAndRequestId(
 					convertClientId(clientAddress, clientId),
-					sanitizeId(requestId),
+					sanitizeId(span.getSpanContext().getTraceId()),
 					lambda
 				);
 			} finally {
@@ -122,7 +122,7 @@ public abstract class ExternalApiClientContext  {
 			try (Scope ignored = span.makeCurrent()) {
 				return internalClientContext.executeWithClientAndRequestId(
 					convertClientId(clientAddress, clientId),
-					sanitizeId(requestId),
+					sanitizeId(span.getSpanContext().getTraceId()),
 					lambda
 				);
 			} finally {

@@ -24,8 +24,9 @@
 package io.evitadb.externalApi.utils;
 
 import io.evitadb.api.ClientContext;
+import io.evitadb.externalApi.trace.OpenTelemetryTracerSetup;
+import io.opentelemetry.context.Scope;
 import io.undertow.util.HeaderMap;
-import io.undertow.util.HeaderValues;
 
 import javax.annotation.Nonnull;
 import java.net.SocketAddress;
@@ -40,15 +41,26 @@ public abstract class JsonApiClientContext extends ExternalApiClientContext {
 	public void executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
 	                                          @Nonnull HeaderMap headers,
 	                                          @Nonnull Runnable lambda) {
-		HeaderValues clientId = headers.get("clientId");
-		HeaderValues requestId = headers.get("requestId");
-		super.executeWithClientAndRequestId(clientAddress, clientId != null ? clientId.toString() : null, requestId != null ? requestId.toString() : null, lambda);	}
+		try (Scope scope = OpenTelemetryTracerSetup.extractContextFromHeaders(headers).makeCurrent()) {
+			super.executeWithClientAndRequestId(
+				clientAddress,
+				headers.getFirst("clientId"),
+				headers.getFirst("requestId"),
+				lambda
+			);
+		}
+	}
 
 	public <T> T executeWithClientAndRequestId(@Nonnull SocketAddress clientAddress,
 	                                           @Nonnull HeaderMap headers,
 	                                           @Nonnull Supplier<T> lambda) {
-		HeaderValues clientId = headers.get("clientId");
-		HeaderValues requestId = headers.get("requestId");
-		return super.executeWithClientAndRequestId(clientAddress, clientId != null ? clientId.toString() : null, requestId != null ? requestId.toString() : null, lambda);
+		try (Scope scope = OpenTelemetryTracerSetup.extractContextFromHeaders(headers).makeCurrent()) {
+			return super.executeWithClientAndRequestId(
+				clientAddress,
+				headers.getFirst("clientId"),
+				headers.getFirst("requestId"),
+				lambda
+			);
+		}
 	}
 }

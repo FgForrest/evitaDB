@@ -31,8 +31,8 @@ import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.context.propagation.TextMapGetter;
 import io.opentelemetry.context.propagation.TextMapPropagator;
-import io.opentelemetry.context.propagation.TextMapSetter;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
+import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
@@ -41,7 +41,6 @@ import io.opentelemetry.semconv.ResourceAttributes;
 import io.undertow.util.HeaderMap;
 
 import javax.annotation.Nonnull;
-import java.net.HttpURLConnection;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,9 +52,9 @@ public class OpenTelemetryTracerSetup {
 	private static final TextMapGetter<HeaderMap> CONTEXT_GETTER =
 		new TextMapGetter<>() {
 			@Override
-			public String get(HeaderMap headers, String s) {
+			public String get(HeaderMap headers, @Nonnull String s) {
 				assert headers != null;
-				return headers.get(s).toString();
+				return headers.getFirst(s);
 			}
 
 			@Override
@@ -93,5 +92,9 @@ public class OpenTelemetryTracerSetup {
 	@Nonnull
 	public static Context extractContextFromHeaders(@Nonnull HeaderMap headers) {
 		return OPEN_TELEMETRY.getPropagators().getTextMapPropagator().extract(Context.current(), headers, CONTEXT_GETTER);
+	}
+	@Nonnull
+	public static GrpcTelemetry getGrpcTelemetry() {
+		return GrpcTelemetry.create(OPEN_TELEMETRY);
 	}
 }

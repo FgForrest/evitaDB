@@ -85,9 +85,6 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
      * Process every request with client context, so we can classify it in evitaDB.
      */
     private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
-        final String clientId = serverExchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
-        final String requestId = serverExchange.getRequestHeaders().getFirst(REQUEST_ID_HEADER);
-
         restHandlingContext.getClientContext().executeWithClientAndRequestId(
             serverExchange.getSourceAddress(),
             serverExchange.getRequestHeaders(),

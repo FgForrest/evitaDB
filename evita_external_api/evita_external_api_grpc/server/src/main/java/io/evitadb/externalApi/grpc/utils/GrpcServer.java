@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import io.evitadb.externalApi.grpc.services.EvitaSessionService;
 import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.trace.OpenTelemetryTracerSetup;
 import io.evitadb.utils.CertificateUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
@@ -126,7 +127,8 @@ public class GrpcServer {
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
 			.intercept(new ServerSessionInterceptor(evita))
-			.intercept(new GlobalExceptionHandlerInterceptor());
+			.intercept(new GlobalExceptionHandlerInterceptor())
+			.intercept(OpenTelemetryTracerSetup.getGrpcTelemetry().newServerInterceptor());
 		if (apiOptions.accessLog()) {
 			serverBuilder.intercept(new AccessLogInterceptor());
 		}
