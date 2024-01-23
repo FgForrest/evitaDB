@@ -52,7 +52,7 @@ to define a new catalog and create predefined schemas for multiple collections: 
 Each collection contains some attributes (either localized or non-localized), category is marked as a hierarchical entity
 that forms a tree, product is enabled to have prices:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" local>
+<SourceCodeTabs requires="/documentation/user/en/get-started/example/complete-startup.java" langSpecificTabOnly local>
 
 [Example of defining catalog and schema for entity collections](/documentation/user/en/get-started/example/define-catalog-with-schema.java)
 </SourceCodeTabs>

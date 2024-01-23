@@ -132,7 +132,7 @@ thousands of products.
 Open your Java IDE and create an <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
 instance:
 
-<SourceCodeTabs local>
+<SourceCodeTabs langSpecificTabOnly local>
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.java)
 </SourceCodeTabs>
 
@@ -165,7 +165,7 @@ If you need more hints for querying the data, try [the query API chapter](../use
 
 Open your .NET IDE and create an instance of <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>:
 
-<SourceCodeTabs local>
+<SourceCodeTabs langSpecificTabOnly local>
 [Connect the demo server](/documentation/user/en/get-started/example/connect-demo-server.cs)
 </SourceCodeTabs>
 
