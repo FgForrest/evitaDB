@@ -27,7 +27,7 @@ attributeNatural(
     <dd>
         the ordering direction (ascending or descending), **default value** is `ASC`
     </dd>
-</dl>            
+</dl>
 
 The constraint allows output entities to be sorted by their attributes in their natural order (numeric, alphabetical,
 temporal). It requires specification of a single [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
@@ -47,23 +47,23 @@ To sort products by the number of their sales (the best-selling products first),
 ##### List of products sorted by number attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of products sorted by number attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-non-localized.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -75,7 +75,7 @@ constraint in the `filterBy` part of the query:
 [List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.evitaql)
 </SourceCodeTabs>
 
-The correct <LanguageSpecific to="evitaql,java,rest,graphql">[collator](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/Collator.html)</LanguageSpecific><LanguageSpecific to="csharp">collator on the database side</LanguageSpecific> is used to 
+The correct <LS to="e,j,r,g">[collator](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/text/Collator.html)</LS><LS to="c">collator on the database side</LS> is used to
 order the localized attribute string, so that the order is consistent with the national customs of the language.
 
 <Note type="info">
@@ -85,23 +85,23 @@ order the localized attribute string, so that the order is consistent with the n
 ##### List of products sorted by localized attribute
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of products sorted by localized attribute](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-localized.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -122,27 +122,27 @@ attribute, they are not sorted by the second attribute, but by the primary key (
 ##### List of products sorted by multiple attributes
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of products sorted by multiple attributes](/documentation/user/en/query/ordering/examples/comparable/attribute-natural-multiple.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
-If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be 
+If we want to use fast "pre-sorted" indexes, there is no other way to do it, because the secondary order would not be
 known until a query time. If you want to sort by multiple attributes in the conventional way, you need to define the
 [sortable attribute compound](../../use/schema.md#sortable-attribute-compounds) in advance and use its name instead of
 the default attribute name. The sortable attribute compound will cover multiple attributes and prepares a special
@@ -152,7 +152,7 @@ In the query, you can then use the compound name instead of the default attribut
 ## Primary key natural
 
 ```evitaql-syntax
-primaryKeyNatural(   
+primaryKeyNatural(
     argument:enum(ASC|DESC)
 )
 ```
@@ -164,7 +164,7 @@ primaryKeyNatural(
     </dd>
 </dl>
 
-If no ordering constraint is specified in the query, the entities are sorted by their primary key in ascending order. 
+If no ordering constraint is specified in the query, the entities are sorted by their primary key in ascending order.
 If you want to sort them in descending order, you can use the `primaryKeyNatural` constraint with the `DESC` argument.
 Although the constraint also accepts the `ASC` argument, it doesn't make sense to use it because this is the default
 ordering behavior.
@@ -183,22 +183,22 @@ To sort products by their primary key in descending order, we can use the follow
 ##### List of products sorted by primary key in descending order
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of products sorted by primary key in descending order](/documentation/user/en/query/ordering/examples/comparable/primary-key-natural.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
