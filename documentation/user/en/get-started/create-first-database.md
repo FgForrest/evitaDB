@@ -9,7 +9,7 @@ proofreading: 'done'
 preferredLang: 'java'
 ---
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 We assume you already have the following snippet of the code from the [previous chapter](run-evitadb.md):
 
@@ -20,9 +20,9 @@ We assume you already have the following snippet of the code from the [previous 
 
 So the evitaDB instance is now up and running and ready to communicate.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql,rest,csharp">
+<LS to="g,r,c">
 
 We assume that you already have the following Docker image up and running from the [previous chapter](run-evitadb.md):
 
@@ -40,14 +40,14 @@ docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
 
 So the web API server is now up and running and ready to communicate.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,csharp">
+<LS to="j,c">
 
 ## Define a new catalog with a schema
 
-Now you can use <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass></LanguageSpecific>
+Now you can use <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass></LS>
 to define a new catalog and create predefined schemas for multiple collections: `Brand`, `Category` and `Product`.
 Each collection contains some attributes (either localized or non-localized), category is marked as a hierarchical entity
 that forms a tree, product is enabled to have prices:
@@ -57,9 +57,9 @@ that forms a tree, product is enabled to have prices:
 [Example of defining catalog and schema for entity collections](/documentation/user/en/get-started/example/define-catalog-with-schema.java)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ## Define a new catalog with a schema
 
@@ -82,9 +82,9 @@ a tree, product is enabled to have prices:
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-schema-for-catalog.graphql)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 ## Define a new catalog with a schema
 
@@ -107,9 +107,9 @@ a tree, product is enabled to have prices:
 [Example of creating empty catalog](/documentation/user/en/get-started/example/define-schema-for-catalog.rest)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,csharp">
+<LS to="j,c">
 
 ## Open session to catalog and insert your first entity
 
@@ -120,9 +120,9 @@ Once the catalog is created and the schema is known, you can insert a first enti
 [Example of inserting an entity](/documentation/user/en/get-started/example/create-first-entity.java)
 </SourceCodeTabs>
 
-The session is implicitly opened for the scope of the <LanguageSpecific to="java">`updateCatalog` method. The analogous method `queryCatalog` on
-the evitaDB contract</LanguageSpecific><LanguageSpecific to="csharp">`UpdateCatalog` method. The analogous method `QueryCatalog` on
-the evitaDB class level</LanguageSpecific> also opens a session, but only in read-only mode, which doesn't allow updating the catalog.
+The session is implicitly opened for the scope of the <LS to="j">`updateCatalog` method. The analogous method `queryCatalog` on
+the evitaDB contract</LS><LS to="c">`UpdateCatalog` method. The analogous method `QueryCatalog` on
+the evitaDB class level</LS> also opens a session, but only in read-only mode, which doesn't allow updating the catalog.
 Differentiating between read-write and read-only sessions allows evitaDB to optimize query processing and distribute
 the load in the cluster.
 
@@ -133,8 +133,8 @@ Let's see how you can retrieve the entity you just created in another read-only 
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.java)
 </SourceCodeTabs>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 ## Open session to catalog and insert your first entity
 
@@ -161,8 +161,8 @@ as mentioned above.
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.graphql)
 </SourceCodeTabs>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 ## Open session to catalog and insert your first entity
 
@@ -189,9 +189,9 @@ as mentioned above.
 [Example of reading an entity by primary key](/documentation/user/en/get-started/example/read-entity-by-pk.rest)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,graphql,rest,csharp">
+<LS to="j,g,r,c">
 
 ## Create a small dataset
 
@@ -205,9 +205,9 @@ Once you learn the basics, you can create a small dataset to work with:
 That's a lot of code, but in reality you'd probably write a transformation function from the primary model you already
 have in the relational database. The example shows how to define attributes, associated data, references, and prices.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,graphql,rest,csharp">
+<LS to="j,g,r,c">
 
 ## List existing entities
 
@@ -232,9 +232,9 @@ Or you can filter all products by price in EUR greater than €300 and order by 
 [Example of filtering and ordering products by price](/documentation/user/en/get-started/example/filter-order-products-by-price.java)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,csharp">
+<LS to="j,c">
 
 ## Update any of existing entities
 
@@ -248,13 +248,13 @@ Updating an entity is similar to creating a new entity:
 The main difference is that you first fetch the entity with all the data you want to update from the evitaDB server and
 apply changes to it. The fetched entity is immutable, so you need to open it for writing first. This action creates a
 builder that wraps the original immutable object and allows the changes to be captured. These changes are eventually
-collected and passed to the server in the <LanguageSpecific to="java">"`upsertVia`</LanguageSpecific><LanguageSpecific to="csharp">`UpsertVia`</LanguageSpecific> method.
+collected and passed to the server in the <LS to="j">"`upsertVia`</LS><LS to="c">`UpsertVia`</LS> method.
 
 For more information, see the [write API description](../use/api/write-data.md#upsert).
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ## Update any of existing entities
 
@@ -270,8 +270,8 @@ that mutate already existing data.
 
 For more information, see the [write API description](../use/api/write-data.md#upsert).
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 ## Update any of existing entities
 
@@ -287,62 +287,62 @@ that mutate already existing data.
 
 For more information, see the [write API description](../use/api/write-data.md#upsert).
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 ## Delete any of existing entities
 
 You can delete entity by is primary key:
 
-<LanguageSpecific to="java">
+<LS to="j">
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.java)
 </SourceCodeTabs>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by PK](/documentation/user/en/get-started/example/delete-entity-by-pk.cs)
 </SourceCodeTabs>
-</LanguageSpecific>
+</LS>
 
 Or, you can issue a query that removes all the entities that match the query:
 
-<LanguageSpecific to="java">
+<LS to="j">
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.java)
 </SourceCodeTabs>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" langSpecificTabOnly local>
 
 [Example of deleting entity by query](/documentation/user/en/get-started/example/delete-entity-by-query.cs)
 </SourceCodeTabs>
-</LanguageSpecific>
+</LS>
 
 When you delete a hierarchical entity, you can choose whether or not to delete it with all of its child entities:
 
-<LanguageSpecific to="java">
+<LS to="j">
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" local>
 
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.java)
 </SourceCodeTabs>
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 <SourceCodeTabs requires="/documentation/user/en/get-started/example/create-small-dataset.java" local>
 
 [Example of deleting hierarchical entity](/documentation/user/en/get-started/example/delete-hierarchical-entity.cs)
 </SourceCodeTabs>
-</LanguageSpecific>
+</LS>
 
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ## Delete any of existing entities
 
@@ -356,8 +356,8 @@ would use to insert, update or retrieve entities:
 
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 ## Delete any of existing entities
 
@@ -378,13 +378,13 @@ would use to insert, update or retrieve entities:
 
 For more complex examples and explanations, see the [write API chapter](../use/api/write-data.md#removal).
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql">
+<LS to="e">
 
 Creating new catalog in other APIs than Java, GraphQL and REST is being prepared.
 
-</LanguageSpecific>
+</LS>
 
 ## What's next?
 

@@ -9,7 +9,7 @@ proofreading: 'done'
 preferredLang: 'java'
 ---
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 ## Imperative schema definition
 
@@ -122,9 +122,9 @@ the [Java Connector chapter](../connectors/java.md#custom-contracts).
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 Unlike the Java approach, the GraphQL API supports only an imperative schema definition. The schema is defined using
 atomic mutations where each mutation adds, changes or removes a small part of the entire schema. To define an entire schema,
@@ -161,9 +161,9 @@ or update the schema of a specific entity collection at the same URL using a Gra
 [Imperative collection schema definition via GraphQL API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.graphql)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 Unlike the Java approach, the REST API supports only an imperative schema definition. The schema is defined using
 atomic mutations where each mutation adds, changes or removes a small part of the entire schema. To define an entire schema,
@@ -201,9 +201,9 @@ for the collection `Product` using a REST mutation of the selected collection li
 [Imperative collection schema definition via REST API](/documentation/user/en/use/api/example/imperative-collection-schema-definition.rest)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 
 Unlike the Java approach, the C# client supports only an imperative schema definition.
 The schema is defined using builder pattern, that is provided by <SourceClass>EvitaDB.Client/Models/Schemas/IEntitySchemaBuilder.cs</SourceClass> interface.
@@ -218,10 +218,10 @@ A schema can be programmatically defined this way:
 [Imperative schema definition via AP evitaDB API](/documentation/user/en/use/api/example/imperative-schema-definition.cs)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql">
+<LS to="e">
 Unfortunately, it is currently not possible to define a schema using EvitaQL. This extension is also not planned to be
 implemented in the near future, because we believe that sufficient options (Java, GraphQL, REST API) are available
 for schema definition.
-</LanguageSpecific>
+</LS>
