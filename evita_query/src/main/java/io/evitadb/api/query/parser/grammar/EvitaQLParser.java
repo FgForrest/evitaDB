@@ -1,38 +1,26 @@
-/*
- *
- *                         _ _        ____  ____
- *               _____   _(_) |_ __ _|  _ \| __ )
- *              / _ \ \ / / | __/ _` | | | |  _ \
- *             |  __/\ V /| | || (_| | |_| | |_) |
- *              \___| \_/ |_|\__\__,_|____/|____/
- *
- *   Copyright (c) 2023-2024
- *
- *   Licensed under the Business Source License, Version 1.1 (the "License");
- *   you may not use this file except in compliance with the License.
- *   You may obtain a copy of the License at
- *
- *   https://github.com/FgForrest/evitaDB/blob/main/LICENSE
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- */
-
 // Generated from EvitaQL.g4 by ANTLR 4.9.2
 
 package io.evitadb.api.query.parser.grammar;
 
-import org.antlr.v4.runtime.atn.*;
+import org.antlr.v4.runtime.NoViableAltException;
+import org.antlr.v4.runtime.Parser;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.RuntimeMetaData;
+import org.antlr.v4.runtime.TokenStream;
+import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.VocabularyImpl;
+import org.antlr.v4.runtime.atn.ATN;
+import org.antlr.v4.runtime.atn.ATNDeserializer;
+import org.antlr.v4.runtime.atn.ParserATNSimulator;
+import org.antlr.v4.runtime.atn.PredictionContextCache;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.*;
-import org.antlr.v4.runtime.misc.*;
-import org.antlr.v4.runtime.tree.*;
-import java.util.List;
-import java.util.Iterator;
+import org.antlr.v4.runtime.tree.ParseTreeListener;
+import org.antlr.v4.runtime.tree.ParseTreeVisitor;
+import org.antlr.v4.runtime.tree.TerminalNode;
+
 import java.util.ArrayList;
+import java.util.List;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 public class EvitaQLParser extends Parser {
@@ -42,97 +30,97 @@ public class EvitaQLParser extends Parser {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		T__0=1, T__1=2, T__2=3, T__3=4, T__4=5, T__5=6, T__6=7, T__7=8, T__8=9,
-		T__9=10, T__10=11, T__11=12, T__12=13, T__13=14, T__14=15, T__15=16, T__16=17,
-		T__17=18, T__18=19, T__19=20, T__20=21, T__21=22, T__22=23, T__23=24,
-		T__24=25, T__25=26, T__26=27, T__27=28, T__28=29, T__29=30, T__30=31,
-		T__31=32, T__32=33, T__33=34, T__34=35, T__35=36, T__36=37, T__37=38,
-		T__38=39, T__39=40, T__40=41, T__41=42, T__42=43, T__43=44, T__44=45,
-		T__45=46, T__46=47, T__47=48, T__48=49, T__49=50, T__50=51, T__51=52,
-		T__52=53, T__53=54, T__54=55, T__55=56, T__56=57, T__57=58, T__58=59,
-		T__59=60, T__60=61, T__61=62, T__62=63, T__63=64, T__64=65, T__65=66,
-		T__66=67, T__67=68, T__68=69, T__69=70, T__70=71, T__71=72, T__72=73,
-		T__73=74, T__74=75, T__75=76, T__76=77, T__77=78, T__78=79, T__79=80,
-		T__80=81, T__81=82, T__82=83, T__83=84, T__84=85, T__85=86, T__86=87,
-		T__87=88, T__88=89, T__89=90, T__90=91, T__91=92, T__92=93, T__93=94,
-		T__94=95, T__95=96, POSITIONAL_PARAMETER=97, NAMED_PARAMETER=98, STRING=99,
-		INT=100, FLOAT=101, BOOLEAN=102, DATE=103, TIME=104, DATE_TIME=105, OFFSET_DATE_TIME=106,
-		FLOAT_NUMBER_RANGE=107, INT_NUMBER_RANGE=108, DATE_TIME_RANGE=109, UUID=110,
-		ENUM=111, ARGS_OPENING=112, ARGS_CLOSING=113, ARGS_DELIMITER=114, COMMENT=115,
+		T__0=1, T__1=2, T__2=3, T__3=4, T__4=5, T__5=6, T__6=7, T__7=8, T__8=9, 
+		T__9=10, T__10=11, T__11=12, T__12=13, T__13=14, T__14=15, T__15=16, T__16=17, 
+		T__17=18, T__18=19, T__19=20, T__20=21, T__21=22, T__22=23, T__23=24, 
+		T__24=25, T__25=26, T__26=27, T__27=28, T__28=29, T__29=30, T__30=31, 
+		T__31=32, T__32=33, T__33=34, T__34=35, T__35=36, T__36=37, T__37=38, 
+		T__38=39, T__39=40, T__40=41, T__41=42, T__42=43, T__43=44, T__44=45, 
+		T__45=46, T__46=47, T__47=48, T__48=49, T__49=50, T__50=51, T__51=52, 
+		T__52=53, T__53=54, T__54=55, T__55=56, T__56=57, T__57=58, T__58=59, 
+		T__59=60, T__60=61, T__61=62, T__62=63, T__63=64, T__64=65, T__65=66, 
+		T__66=67, T__67=68, T__68=69, T__69=70, T__70=71, T__71=72, T__72=73, 
+		T__73=74, T__74=75, T__75=76, T__76=77, T__77=78, T__78=79, T__79=80, 
+		T__80=81, T__81=82, T__82=83, T__83=84, T__84=85, T__85=86, T__86=87, 
+		T__87=88, T__88=89, T__89=90, T__90=91, T__91=92, T__92=93, T__93=94, 
+		T__94=95, T__95=96, POSITIONAL_PARAMETER=97, NAMED_PARAMETER=98, STRING=99, 
+		INT=100, FLOAT=101, BOOLEAN=102, DATE=103, TIME=104, DATE_TIME=105, OFFSET_DATE_TIME=106, 
+		FLOAT_NUMBER_RANGE=107, INT_NUMBER_RANGE=108, DATE_TIME_RANGE=109, UUID=110, 
+		ENUM=111, ARGS_OPENING=112, ARGS_CLOSING=113, ARGS_DELIMITER=114, COMMENT=115, 
 		WHITESPACE=116, UNEXPECTED_CHAR=117;
 	public static final int
-		RULE_queryUnit = 0, RULE_headConstraintListUnit = 1, RULE_filterConstraintListUnit = 2,
-		RULE_orderConstraintListUnit = 3, RULE_requireConstraintListUnit = 4,
-		RULE_classifierTokenUnit = 5, RULE_valueTokenUnit = 6, RULE_query = 7,
-		RULE_constraint = 8, RULE_headConstraint = 9, RULE_filterConstraint = 10,
-		RULE_orderConstraint = 11, RULE_requireConstraint = 12, RULE_headConstraintList = 13,
-		RULE_filterConstraintList = 14, RULE_orderConstraintList = 15, RULE_requireConstraintList = 16,
-		RULE_constraintListArgs = 17, RULE_emptyArgs = 18, RULE_filterConstraintListArgs = 19,
-		RULE_filterConstraintArgs = 20, RULE_orderConstraintListArgs = 21, RULE_requireConstraintArgs = 22,
-		RULE_requireConstraintListArgs = 23, RULE_classifierArgs = 24, RULE_classifierWithValueArgs = 25,
-		RULE_classifierWithOptionalValueArgs = 26, RULE_classifierWithValueListArgs = 27,
-		RULE_classifierWithOptionalValueListArgs = 28, RULE_classifierWithBetweenValuesArgs = 29,
-		RULE_valueArgs = 30, RULE_valueListArgs = 31, RULE_betweenValuesArgs = 32,
-		RULE_classifierListArgs = 33, RULE_classifierWithFilterConstraintArgs = 34,
-		RULE_classifierWithOptionalFilterConstraintArgs = 35, RULE_classifierWithOrderConstraintListArgs = 36,
-		RULE_valueWithRequireConstraintListArgs = 37, RULE_hierarchyWithinConstraintArgs = 38,
-		RULE_hierarchyWithinSelfConstraintArgs = 39, RULE_hierarchyWithinRootConstraintArgs = 40,
-		RULE_hierarchyWithinRootSelfConstraintArgs = 41, RULE_attributeSetExactArgs = 42,
-		RULE_pageConstraintArgs = 43, RULE_stripConstraintArgs = 44, RULE_priceContentArgs = 45,
-		RULE_singleRefReferenceContent1Args = 46, RULE_singleRefReferenceContent2Args = 47,
-		RULE_singleRefReferenceContent3Args = 48, RULE_singleRefReferenceContent4Args = 49,
-		RULE_singleRefReferenceContent5Args = 50, RULE_singleRefReferenceContent6Args = 51,
-		RULE_singleRefReferenceContent7Args = 52, RULE_singleRefReferenceContent8Args = 53,
-		RULE_singleRefReferenceContentWithAttributes1Args = 54, RULE_singleRefReferenceContentWithAttributes2Args = 55,
-		RULE_singleRefReferenceContentWithAttributes3Args = 56, RULE_singleRefReferenceContentWithAttributes4Args = 57,
-		RULE_singleRefReferenceContentWithAttributes5Args = 58, RULE_singleRefReferenceContentWithAttributes6Args = 59,
-		RULE_singleRefReferenceContentWithAttributes7Args = 60, RULE_singleRefReferenceContentWithAttributes8Args = 61,
-		RULE_multipleRefsReferenceContentArgs = 62, RULE_allRefsReferenceContentArgs = 63,
-		RULE_allRefsWithAttributesReferenceContent1Args = 64, RULE_allRefsWithAttributesReferenceContent2Args = 65,
-		RULE_allRefsWithAttributesReferenceContent3Args = 66, RULE_singleRequireHierarchyContentArgs = 67,
-		RULE_allRequiresHierarchyContentArgs = 68, RULE_facetSummary1Args = 69,
-		RULE_facetSummary2Args = 70, RULE_facetSummaryOfReference1Args = 71, RULE_facetSummaryOfReference2Args = 72,
-		RULE_facetSummaryRequirementsArgs = 73, RULE_facetSummaryFilterArgs = 74,
-		RULE_facetSummaryOrderArgs = 75, RULE_attributeHistogramArgs = 76, RULE_priceHistogramArgs = 77,
-		RULE_hierarchyStatisticsArgs = 78, RULE_hierarchyRequireConstraintArgs = 79,
-		RULE_hierarchyFromNodeArgs = 80, RULE_fullHierarchyOfSelfArgs = 81, RULE_basicHierarchyOfReferenceArgs = 82,
-		RULE_basicHierarchyOfReferenceWithBehaviourArgs = 83, RULE_fullHierarchyOfReferenceArgs = 84,
-		RULE_fullHierarchyOfReferenceWithBehaviourArgs = 85, RULE_positionalParameter = 86,
-		RULE_namedParameter = 87, RULE_variadicClassifierTokens = 88, RULE_classifierToken = 89,
+		RULE_queryUnit = 0, RULE_headConstraintListUnit = 1, RULE_filterConstraintListUnit = 2, 
+		RULE_orderConstraintListUnit = 3, RULE_requireConstraintListUnit = 4, 
+		RULE_classifierTokenUnit = 5, RULE_valueTokenUnit = 6, RULE_query = 7, 
+		RULE_constraint = 8, RULE_headConstraint = 9, RULE_filterConstraint = 10, 
+		RULE_orderConstraint = 11, RULE_requireConstraint = 12, RULE_headConstraintList = 13, 
+		RULE_filterConstraintList = 14, RULE_orderConstraintList = 15, RULE_requireConstraintList = 16, 
+		RULE_constraintListArgs = 17, RULE_emptyArgs = 18, RULE_filterConstraintListArgs = 19, 
+		RULE_filterConstraintArgs = 20, RULE_orderConstraintListArgs = 21, RULE_requireConstraintArgs = 22, 
+		RULE_requireConstraintListArgs = 23, RULE_classifierArgs = 24, RULE_classifierWithValueArgs = 25, 
+		RULE_classifierWithOptionalValueArgs = 26, RULE_classifierWithValueListArgs = 27, 
+		RULE_classifierWithOptionalValueListArgs = 28, RULE_classifierWithBetweenValuesArgs = 29, 
+		RULE_valueArgs = 30, RULE_valueListArgs = 31, RULE_betweenValuesArgs = 32, 
+		RULE_classifierListArgs = 33, RULE_classifierWithFilterConstraintArgs = 34, 
+		RULE_classifierWithOptionalFilterConstraintArgs = 35, RULE_classifierWithOrderConstraintListArgs = 36, 
+		RULE_valueWithRequireConstraintListArgs = 37, RULE_hierarchyWithinConstraintArgs = 38, 
+		RULE_hierarchyWithinSelfConstraintArgs = 39, RULE_hierarchyWithinRootConstraintArgs = 40, 
+		RULE_hierarchyWithinRootSelfConstraintArgs = 41, RULE_attributeSetExactArgs = 42, 
+		RULE_pageConstraintArgs = 43, RULE_stripConstraintArgs = 44, RULE_priceContentArgs = 45, 
+		RULE_singleRefReferenceContent1Args = 46, RULE_singleRefReferenceContent2Args = 47, 
+		RULE_singleRefReferenceContent3Args = 48, RULE_singleRefReferenceContent4Args = 49, 
+		RULE_singleRefReferenceContent5Args = 50, RULE_singleRefReferenceContent6Args = 51, 
+		RULE_singleRefReferenceContent7Args = 52, RULE_singleRefReferenceContent8Args = 53, 
+		RULE_singleRefReferenceContentWithAttributes1Args = 54, RULE_singleRefReferenceContentWithAttributes2Args = 55, 
+		RULE_singleRefReferenceContentWithAttributes3Args = 56, RULE_singleRefReferenceContentWithAttributes4Args = 57, 
+		RULE_singleRefReferenceContentWithAttributes5Args = 58, RULE_singleRefReferenceContentWithAttributes6Args = 59, 
+		RULE_singleRefReferenceContentWithAttributes7Args = 60, RULE_singleRefReferenceContentWithAttributes8Args = 61, 
+		RULE_multipleRefsReferenceContentArgs = 62, RULE_allRefsReferenceContentArgs = 63, 
+		RULE_allRefsWithAttributesReferenceContent1Args = 64, RULE_allRefsWithAttributesReferenceContent2Args = 65, 
+		RULE_allRefsWithAttributesReferenceContent3Args = 66, RULE_singleRequireHierarchyContentArgs = 67, 
+		RULE_allRequiresHierarchyContentArgs = 68, RULE_facetSummary1Args = 69, 
+		RULE_facetSummary2Args = 70, RULE_facetSummaryOfReference1Args = 71, RULE_facetSummaryOfReference2Args = 72, 
+		RULE_facetSummaryRequirementsArgs = 73, RULE_facetSummaryFilterArgs = 74, 
+		RULE_facetSummaryOrderArgs = 75, RULE_attributeHistogramArgs = 76, RULE_priceHistogramArgs = 77, 
+		RULE_hierarchyStatisticsArgs = 78, RULE_hierarchyRequireConstraintArgs = 79, 
+		RULE_hierarchyFromNodeArgs = 80, RULE_fullHierarchyOfSelfArgs = 81, RULE_basicHierarchyOfReferenceArgs = 82, 
+		RULE_basicHierarchyOfReferenceWithBehaviourArgs = 83, RULE_fullHierarchyOfReferenceArgs = 84, 
+		RULE_fullHierarchyOfReferenceWithBehaviourArgs = 85, RULE_positionalParameter = 86, 
+		RULE_namedParameter = 87, RULE_variadicClassifierTokens = 88, RULE_classifierToken = 89, 
 		RULE_variadicValueTokens = 90, RULE_valueToken = 91;
 	private static String[] makeRuleNames() {
 		return new String[] {
-			"queryUnit", "headConstraintListUnit", "filterConstraintListUnit", "orderConstraintListUnit",
-			"requireConstraintListUnit", "classifierTokenUnit", "valueTokenUnit",
-			"query", "constraint", "headConstraint", "filterConstraint", "orderConstraint",
-			"requireConstraint", "headConstraintList", "filterConstraintList", "orderConstraintList",
-			"requireConstraintList", "constraintListArgs", "emptyArgs", "filterConstraintListArgs",
-			"filterConstraintArgs", "orderConstraintListArgs", "requireConstraintArgs",
-			"requireConstraintListArgs", "classifierArgs", "classifierWithValueArgs",
-			"classifierWithOptionalValueArgs", "classifierWithValueListArgs", "classifierWithOptionalValueListArgs",
-			"classifierWithBetweenValuesArgs", "valueArgs", "valueListArgs", "betweenValuesArgs",
-			"classifierListArgs", "classifierWithFilterConstraintArgs", "classifierWithOptionalFilterConstraintArgs",
-			"classifierWithOrderConstraintListArgs", "valueWithRequireConstraintListArgs",
-			"hierarchyWithinConstraintArgs", "hierarchyWithinSelfConstraintArgs",
-			"hierarchyWithinRootConstraintArgs", "hierarchyWithinRootSelfConstraintArgs",
-			"attributeSetExactArgs", "pageConstraintArgs", "stripConstraintArgs",
-			"priceContentArgs", "singleRefReferenceContent1Args", "singleRefReferenceContent2Args",
-			"singleRefReferenceContent3Args", "singleRefReferenceContent4Args", "singleRefReferenceContent5Args",
-			"singleRefReferenceContent6Args", "singleRefReferenceContent7Args", "singleRefReferenceContent8Args",
-			"singleRefReferenceContentWithAttributes1Args", "singleRefReferenceContentWithAttributes2Args",
-			"singleRefReferenceContentWithAttributes3Args", "singleRefReferenceContentWithAttributes4Args",
-			"singleRefReferenceContentWithAttributes5Args", "singleRefReferenceContentWithAttributes6Args",
-			"singleRefReferenceContentWithAttributes7Args", "singleRefReferenceContentWithAttributes8Args",
-			"multipleRefsReferenceContentArgs", "allRefsReferenceContentArgs", "allRefsWithAttributesReferenceContent1Args",
-			"allRefsWithAttributesReferenceContent2Args", "allRefsWithAttributesReferenceContent3Args",
-			"singleRequireHierarchyContentArgs", "allRequiresHierarchyContentArgs",
-			"facetSummary1Args", "facetSummary2Args", "facetSummaryOfReference1Args",
-			"facetSummaryOfReference2Args", "facetSummaryRequirementsArgs", "facetSummaryFilterArgs",
-			"facetSummaryOrderArgs", "attributeHistogramArgs", "priceHistogramArgs",
-			"hierarchyStatisticsArgs", "hierarchyRequireConstraintArgs", "hierarchyFromNodeArgs",
-			"fullHierarchyOfSelfArgs", "basicHierarchyOfReferenceArgs", "basicHierarchyOfReferenceWithBehaviourArgs",
-			"fullHierarchyOfReferenceArgs", "fullHierarchyOfReferenceWithBehaviourArgs",
-			"positionalParameter", "namedParameter", "variadicClassifierTokens",
+			"queryUnit", "headConstraintListUnit", "filterConstraintListUnit", "orderConstraintListUnit", 
+			"requireConstraintListUnit", "classifierTokenUnit", "valueTokenUnit", 
+			"query", "constraint", "headConstraint", "filterConstraint", "orderConstraint", 
+			"requireConstraint", "headConstraintList", "filterConstraintList", "orderConstraintList", 
+			"requireConstraintList", "constraintListArgs", "emptyArgs", "filterConstraintListArgs", 
+			"filterConstraintArgs", "orderConstraintListArgs", "requireConstraintArgs", 
+			"requireConstraintListArgs", "classifierArgs", "classifierWithValueArgs", 
+			"classifierWithOptionalValueArgs", "classifierWithValueListArgs", "classifierWithOptionalValueListArgs", 
+			"classifierWithBetweenValuesArgs", "valueArgs", "valueListArgs", "betweenValuesArgs", 
+			"classifierListArgs", "classifierWithFilterConstraintArgs", "classifierWithOptionalFilterConstraintArgs", 
+			"classifierWithOrderConstraintListArgs", "valueWithRequireConstraintListArgs", 
+			"hierarchyWithinConstraintArgs", "hierarchyWithinSelfConstraintArgs", 
+			"hierarchyWithinRootConstraintArgs", "hierarchyWithinRootSelfConstraintArgs", 
+			"attributeSetExactArgs", "pageConstraintArgs", "stripConstraintArgs", 
+			"priceContentArgs", "singleRefReferenceContent1Args", "singleRefReferenceContent2Args", 
+			"singleRefReferenceContent3Args", "singleRefReferenceContent4Args", "singleRefReferenceContent5Args", 
+			"singleRefReferenceContent6Args", "singleRefReferenceContent7Args", "singleRefReferenceContent8Args", 
+			"singleRefReferenceContentWithAttributes1Args", "singleRefReferenceContentWithAttributes2Args", 
+			"singleRefReferenceContentWithAttributes3Args", "singleRefReferenceContentWithAttributes4Args", 
+			"singleRefReferenceContentWithAttributes5Args", "singleRefReferenceContentWithAttributes6Args", 
+			"singleRefReferenceContentWithAttributes7Args", "singleRefReferenceContentWithAttributes8Args", 
+			"multipleRefsReferenceContentArgs", "allRefsReferenceContentArgs", "allRefsWithAttributesReferenceContent1Args", 
+			"allRefsWithAttributesReferenceContent2Args", "allRefsWithAttributesReferenceContent3Args", 
+			"singleRequireHierarchyContentArgs", "allRequiresHierarchyContentArgs", 
+			"facetSummary1Args", "facetSummary2Args", "facetSummaryOfReference1Args", 
+			"facetSummaryOfReference2Args", "facetSummaryRequirementsArgs", "facetSummaryFilterArgs", 
+			"facetSummaryOrderArgs", "attributeHistogramArgs", "priceHistogramArgs", 
+			"hierarchyStatisticsArgs", "hierarchyRequireConstraintArgs", "hierarchyFromNodeArgs", 
+			"fullHierarchyOfSelfArgs", "basicHierarchyOfReferenceArgs", "basicHierarchyOfReferenceWithBehaviourArgs", 
+			"fullHierarchyOfReferenceArgs", "fullHierarchyOfReferenceWithBehaviourArgs", 
+			"positionalParameter", "namedParameter", "variadicClassifierTokens", 
 			"classifierToken", "variadicValueTokens", "valueToken"
 		};
 	}
@@ -140,49 +128,49 @@ public class EvitaQLParser extends Parser {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "'query'", "'collection'", "'filterBy'", "'filterGroupBy'", "'and'",
-			"'or'", "'not'", "'userFilter'", "'attributeEquals'", "'attributeGreaterThan'",
-			"'attributeGreaterThanEquals'", "'attributeLessThan'", "'attributeLessThanEquals'",
-			"'attributeBetween'", "'attributeInSet'", "'attributeContains'", "'attributeStartsWith'",
-			"'attributeEndsWith'", "'attributeEqualsTrue'", "'attributeEqualsFalse'",
-			"'attributeIs'", "'attributeIsNull'", "'attributeIsNotNull'", "'attributeInRange'",
-			"'attributeInRangeNow'", "'entityPrimaryKeyInSet'", "'entityLocaleEquals'",
-			"'priceInCurrency'", "'priceInPriceLists'", "'priceValidInNow'", "'priceValidIn'",
-			"'priceBetween'", "'facetHaving'", "'referenceHaving'", "'hierarchyWithin'",
-			"'hierarchyWithinSelf'", "'hierarchyWithinRoot'", "'hierarchyWithinRootSelf'",
-			"'directRelation'", "'having'", "'excludingRoot'", "'excluding'", "'entityHaving'",
-			"'orderBy'", "'orderGroupBy'", "'attributeNatural'", "'attributeSetExact'",
-			"'attributeSetInFilter'", "'priceNatural'", "'random'", "'referenceProperty'",
-			"'entityPrimaryKeyNatural'", "'entityPrimaryKeyExact'", "'entityPrimaryKeyInFilter'",
-			"'entityProperty'", "'entityGroupProperty'", "'require'", "'page'", "'strip'",
-			"'entityFetch'", "'entityGroupFetch'", "'attributeContent'", "'attributeContentAll'",
-			"'priceContent'", "'priceContentAll'", "'priceContentRespectingFilter'",
-			"'associatedDataContent'", "'associatedDataContentAll'", "'referenceContentAll'",
-			"'referenceContent'", "'referenceContentAllWithAttributes'", "'referenceContentWithAttributes'",
-			"'hierarchyContent'", "'priceType'", "'dataInLocalesAll'", "'dataInLocales'",
-			"'facetSummary'", "'facetSummaryOfReference'", "'facetGroupsConjunction'",
-			"'facetGroupsDisjunction'", "'facetGroupsNegation'", "'attributeHistogram'",
-			"'priceHistogram'", "'distance'", "'level'", "'node'", "'stopAt'", "'statistics'",
-			"'fromRoot'", "'fromNode'", "'children'", "'siblings'", "'parents'",
-			"'hierarchyOfSelf'", "'hierarchyOfReference'", "'queryTelemetry'", "'?'",
-			null, null, null, null, null, null, null, null, null, null, null, null,
+			null, "'query'", "'collection'", "'filterBy'", "'filterGroupBy'", "'and'", 
+			"'or'", "'not'", "'userFilter'", "'attributeEquals'", "'attributeGreaterThan'", 
+			"'attributeGreaterThanEquals'", "'attributeLessThan'", "'attributeLessThanEquals'", 
+			"'attributeBetween'", "'attributeInSet'", "'attributeContains'", "'attributeStartsWith'", 
+			"'attributeEndsWith'", "'attributeEqualsTrue'", "'attributeEqualsFalse'", 
+			"'attributeIs'", "'attributeIsNull'", "'attributeIsNotNull'", "'attributeInRange'", 
+			"'attributeInRangeNow'", "'entityPrimaryKeyInSet'", "'entityLocaleEquals'", 
+			"'priceInCurrency'", "'priceInPriceLists'", "'priceValidInNow'", "'priceValidIn'", 
+			"'priceBetween'", "'facetHaving'", "'referenceHaving'", "'hierarchyWithin'", 
+			"'hierarchyWithinSelf'", "'hierarchyWithinRoot'", "'hierarchyWithinRootSelf'", 
+			"'directRelation'", "'having'", "'excludingRoot'", "'excluding'", "'entityHaving'", 
+			"'orderBy'", "'orderGroupBy'", "'attributeNatural'", "'attributeSetExact'", 
+			"'attributeSetInFilter'", "'priceNatural'", "'random'", "'referenceProperty'", 
+			"'entityPrimaryKeyNatural'", "'entityPrimaryKeyExact'", "'entityPrimaryKeyInFilter'", 
+			"'entityProperty'", "'entityGroupProperty'", "'require'", "'page'", "'strip'", 
+			"'entityFetch'", "'entityGroupFetch'", "'attributeContent'", "'attributeContentAll'", 
+			"'priceContent'", "'priceContentAll'", "'priceContentRespectingFilter'", 
+			"'associatedDataContent'", "'associatedDataContentAll'", "'referenceContentAll'", 
+			"'referenceContent'", "'referenceContentAllWithAttributes'", "'referenceContentWithAttributes'", 
+			"'hierarchyContent'", "'priceType'", "'dataInLocalesAll'", "'dataInLocales'", 
+			"'facetSummary'", "'facetSummaryOfReference'", "'facetGroupsConjunction'", 
+			"'facetGroupsDisjunction'", "'facetGroupsNegation'", "'attributeHistogram'", 
+			"'priceHistogram'", "'distance'", "'level'", "'node'", "'stopAt'", "'statistics'", 
+			"'fromRoot'", "'fromNode'", "'children'", "'siblings'", "'parents'", 
+			"'hierarchyOfSelf'", "'hierarchyOfReference'", "'queryTelemetry'", "'?'", 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
 			null, null, "'('", "')'", "','"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, null, null, null, null, null, null, null, null, null, null, null,
-			null, "POSITIONAL_PARAMETER", "NAMED_PARAMETER", "STRING", "INT", "FLOAT",
-			"BOOLEAN", "DATE", "TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE",
-			"INT_NUMBER_RANGE", "DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING",
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, null, null, null, null, null, null, null, null, null, null, null, 
+			null, "POSITIONAL_PARAMETER", "NAMED_PARAMETER", "STRING", "INT", "FLOAT", 
+			"BOOLEAN", "DATE", "TIME", "DATE_TIME", "OFFSET_DATE_TIME", "FLOAT_NUMBER_RANGE", 
+			"INT_NUMBER_RANGE", "DATE_TIME_RANGE", "UUID", "ENUM", "ARGS_OPENING", 
 			"ARGS_CLOSING", "ARGS_DELIMITER", "COMMENT", "WHITESPACE", "UNEXPECTED_CHAR"
 		};
 	}
@@ -791,7 +779,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_headConstraint; }
-
+	 
 		public HeadConstraintContext() { }
 		public void copyFrom(HeadConstraintContext ctx) {
 			super.copyFrom(ctx);
@@ -847,7 +835,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_filterConstraint; }
-
+	 
 		public FilterConstraintContext() { }
 		public void copyFrom(FilterConstraintContext ctx) {
 			super.copyFrom(ctx);
@@ -2227,7 +2215,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_orderConstraint; }
-
+	 
 		public OrderConstraintContext() { }
 		public void copyFrom(OrderConstraintContext ctx) {
 			super.copyFrom(ctx);
@@ -2717,7 +2705,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_requireConstraint; }
-
+	 
 		public RequireConstraintContext() { }
 		public void copyFrom(RequireConstraintContext ctx) {
 			super.copyFrom(ctx);
@@ -6489,7 +6477,7 @@ public class EvitaQLParser extends Parser {
 			match(ARGS_OPENING);
 			setState(690);
 			((ClassifierWithOrderConstraintListArgsContext)_localctx).classifier = classifierToken();
-			setState(693);
+			setState(693); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
@@ -6502,7 +6490,7 @@ public class EvitaQLParser extends Parser {
 				((ClassifierWithOrderConstraintListArgsContext)_localctx).constrains.add(((ClassifierWithOrderConstraintListArgsContext)_localctx).orderConstraint);
 				}
 				}
-				setState(695);
+				setState(695); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( _la==ARGS_DELIMITER );
@@ -9878,7 +9866,7 @@ public class EvitaQLParser extends Parser {
 			match(ARGS_OPENING);
 			setState(1113);
 			((FullHierarchyOfSelfArgsContext)_localctx).orderBy = orderConstraint();
-			setState(1116);
+			setState(1116); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
@@ -9891,7 +9879,7 @@ public class EvitaQLParser extends Parser {
 				((FullHierarchyOfSelfArgsContext)_localctx).requirements.add(((FullHierarchyOfSelfArgsContext)_localctx).requireConstraint);
 				}
 				}
-				setState(1118);
+				setState(1118); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( _la==ARGS_DELIMITER );
@@ -9959,7 +9947,7 @@ public class EvitaQLParser extends Parser {
 			match(ARGS_OPENING);
 			setState(1123);
 			((BasicHierarchyOfReferenceArgsContext)_localctx).referenceName = classifierToken();
-			setState(1126);
+			setState(1126); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
@@ -9972,7 +9960,7 @@ public class EvitaQLParser extends Parser {
 				((BasicHierarchyOfReferenceArgsContext)_localctx).requirements.add(((BasicHierarchyOfReferenceArgsContext)_localctx).requireConstraint);
 				}
 				}
-				setState(1128);
+				setState(1128); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( _la==ARGS_DELIMITER );
@@ -10048,7 +10036,7 @@ public class EvitaQLParser extends Parser {
 			match(ARGS_DELIMITER);
 			setState(1135);
 			((BasicHierarchyOfReferenceWithBehaviourArgsContext)_localctx).emptyHierarchicalEntityBehaviour = valueToken();
-			setState(1138);
+			setState(1138); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
@@ -10061,7 +10049,7 @@ public class EvitaQLParser extends Parser {
 				((BasicHierarchyOfReferenceWithBehaviourArgsContext)_localctx).requirements.add(((BasicHierarchyOfReferenceWithBehaviourArgsContext)_localctx).requireConstraint);
 				}
 				}
-				setState(1140);
+				setState(1140); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( _la==ARGS_DELIMITER );
@@ -10137,7 +10125,7 @@ public class EvitaQLParser extends Parser {
 			match(ARGS_DELIMITER);
 			setState(1147);
 			((FullHierarchyOfReferenceArgsContext)_localctx).orderBy = orderConstraint();
-			setState(1150);
+			setState(1150); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
@@ -10150,7 +10138,7 @@ public class EvitaQLParser extends Parser {
 				((FullHierarchyOfReferenceArgsContext)_localctx).requirements.add(((FullHierarchyOfReferenceArgsContext)_localctx).requireConstraint);
 				}
 				}
-				setState(1152);
+				setState(1152); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( _la==ARGS_DELIMITER );
@@ -10234,7 +10222,7 @@ public class EvitaQLParser extends Parser {
 			match(ARGS_DELIMITER);
 			setState(1161);
 			((FullHierarchyOfReferenceWithBehaviourArgsContext)_localctx).orderBy = orderConstraint();
-			setState(1164);
+			setState(1164); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
@@ -10247,7 +10235,7 @@ public class EvitaQLParser extends Parser {
 				((FullHierarchyOfReferenceWithBehaviourArgsContext)_localctx).requirements.add(((FullHierarchyOfReferenceWithBehaviourArgsContext)_localctx).requireConstraint);
 				}
 				}
-				setState(1166);
+				setState(1166); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( _la==ARGS_DELIMITER );
@@ -10355,7 +10343,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_variadicClassifierTokens; }
-
+	 
 		public VariadicClassifierTokensContext() { }
 		public void copyFrom(VariadicClassifierTokensContext ctx) {
 			super.copyFrom(ctx);
@@ -10472,7 +10460,7 @@ public class EvitaQLParser extends Parser {
 						((ExplicitVariadicClassifierTokensContext)_localctx).classifierToken = classifierToken();
 						((ExplicitVariadicClassifierTokensContext)_localctx).classifierTokens.add(((ExplicitVariadicClassifierTokensContext)_localctx).classifierToken);
 						}
-						}
+						} 
 					}
 					setState(1183);
 					_errHandler.sync(this);
@@ -10498,7 +10486,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_classifierToken; }
-
+	 
 		public ClassifierTokenContext() { }
 		public void copyFrom(ClassifierTokenContext ctx) {
 			super.copyFrom(ctx);
@@ -10611,7 +10599,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_variadicValueTokens; }
-
+	 
 		public VariadicValueTokensContext() { }
 		public void copyFrom(VariadicValueTokensContext ctx) {
 			super.copyFrom(ctx);
@@ -10752,7 +10740,7 @@ public class EvitaQLParser extends Parser {
 			super(parent, invokingState);
 		}
 		@Override public int getRuleIndex() { return RULE_valueToken; }
-
+	 
 		public ValueTokenContext() { }
 		public void copyFrom(ValueTokenContext ctx) {
 			super.copyFrom(ctx);

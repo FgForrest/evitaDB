@@ -221,14 +221,12 @@ message GrpcEntityTypesResponse {
 
 // Request for specifying a query to be executed.
 message GrpcQueryRequest {
-  // The entity type that is queried.
-  string collection = 1;
   // The string part of the parametrised query.
-  string query = 2;
+  string query = 1;
   // The positional query parameters.
-  repeated GrpcQueryParam positionalQueryParams = 3;
+  repeated GrpcQueryParam positionalQueryParams = 2;
   // The named query parameters.
-  map<string, GrpcQueryParam> namedQueryParams = 4;
+  map<string, GrpcQueryParam> namedQueryParams = 3;
 }
 
 // Response to Query request.
