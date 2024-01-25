@@ -185,7 +185,8 @@ public class UpsertPriceMutation extends PriceMutation implements SchemaEvolving
 			!Objects.equals(existingValue.taxRate(), taxRate) ||
 			!Objects.equals(existingValue.priceWithTax(), priceWithTax) ||
 			!Objects.equals(existingValue.validity(), validity) ||
-				existingValue.sellable() != sellable
+				existingValue.sellable() != sellable  ||
+				existingValue.dropped()
 		) {
 			return new Price(
 				existingValue.version() + 1,

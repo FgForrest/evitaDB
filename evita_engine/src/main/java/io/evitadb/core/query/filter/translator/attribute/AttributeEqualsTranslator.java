@@ -66,17 +66,22 @@ public class AttributeEqualsTranslator implements FilteringConstraintTranslator<
 		if (attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
 			globalAttributeSchema.isUniqueGlobally()) {
 			// when entity type is not known and attribute is unique globally - access catalog index instead
-			return filterByVisitor.applyOnGlobalUniqueIndex(
-				attributeDefinition, index -> {
-					final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
-						(Serializable) comparableValue, filterByVisitor.getLocale()
-					);
-					return entityReference == null ?
-						EmptyFormula.INSTANCE :
-						new MultipleEntityFormula(
-							filterByVisitor.translateEntityReference(entityReference)
+			return new AttributeFormula(
+				attributeDefinition.isLocalized() ?
+					new AttributeKey(attributeName, filterByVisitor.getLocale()) : new AttributeKey(attributeName),
+				filterByVisitor.applyOnGlobalUniqueIndex(
+					globalAttributeSchema,
+					index -> {
+						final EntityReferenceContract<EntityReference> entityReference = index.getEntityReferenceByUniqueValue(
+							(Serializable) comparableValue, filterByVisitor.getLocale()
 						);
-				}
+						return entityReference == null ?
+							EmptyFormula.INSTANCE :
+							new MultipleEntityFormula(
+								filterByVisitor.translateEntityReference(entityReference)
+							);
+					}
+				)
 			);
 		} else if (attributeDefinition.isUnique()) {
 			// if attribute is unique prefer O(1) hash map lookup over histogram

@@ -26,8 +26,10 @@ package io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.endpoint;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
 import io.evitadb.externalApi.rest.api.catalog.resolver.endpoint.CatalogRestHandlingContext;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.JsonRestHandler;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -39,14 +41,14 @@ import java.util.LinkedHashSet;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @Slf4j
-public abstract class EntityHandler<R extends EntityClassifier, CTX extends CatalogRestHandlingContext> extends JsonRestHandler<R, CTX> {
+public abstract class EntityHandler<CTX extends CatalogRestHandlingContext> extends JsonRestHandler<CTX> {
 
 	@Nonnull
 	private final EntityJsonSerializer entityJsonSerializer;
 
 	protected EntityHandler(@Nonnull CTX restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 	}
 
 	@Nonnull
@@ -57,7 +59,11 @@ public abstract class EntityHandler<R extends EntityClassifier, CTX extends Cata
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull R deletedEntity) {
-		return entityJsonSerializer.serialize(deletedEntity);
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object deletedEntity) {
+		Assert.isPremiseValid(
+			deletedEntity instanceof EntityClassifier,
+			() -> new RestInternalError("Entity must be instance of EntityClassifier, but got `" + deletedEntity.getClass().getName() + "`.")
+		);
+		return entityJsonSerializer.serialize((EntityClassifier) deletedEntity, restHandlingContext.getCatalogSchema());
 	}
 }

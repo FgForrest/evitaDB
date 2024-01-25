@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,12 +23,11 @@
 
 package io.evitadb.externalApi.grpc.builders.query.extraResults;
 
-import com.google.protobuf.ByteString;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
-import io.evitadb.externalApi.grpc.generated.GrpcBigDecimal;
+import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram;
 import io.evitadb.externalApi.grpc.generated.GrpcHistogram.GrpcBucket;
 import lombok.AccessLevel;
@@ -86,31 +85,13 @@ public class GrpcHistogramBuilder {
 		final Bucket[] originalBuckets = histogram.getBuckets();
 		final List<GrpcBucket> buckets = new ArrayList<>(originalBuckets.length);
 		Arrays.stream(originalBuckets).forEach(bucket -> buckets.add(GrpcBucket.newBuilder()
-			.setIndex(bucket.getIndex())
-			.setThreshold(
-				GrpcBigDecimal.newBuilder().setValue(ByteString.copyFrom(bucket.getThreshold().unscaledValue().toByteArray()))
-					.setValueString(bucket.getThreshold().toString())
-					.setPrecision(bucket.getThreshold().precision())
-					.setScale(bucket.getThreshold().scale())
-					.build()
-			)
-			.setOccurrences(bucket.getOccurrences())
+			.setThreshold(EvitaDataTypesConverter.toGrpcBigDecimal(bucket.threshold()))
+			.setOccurrences(bucket.occurrences())
+			.setRequested(bucket.requested())
 			.build()));
 		return GrpcHistogram.newBuilder()
-			.setMin(
-				GrpcBigDecimal.newBuilder().setValue(ByteString.copyFrom(histogram.getMin().unscaledValue().toByteArray()))
-					.setValueString(histogram.getMin().toString())
-					.setPrecision(histogram.getMin().precision())
-					.setScale(histogram.getMin().scale())
-					.build()
-			)
-			.setMax(
-				GrpcBigDecimal.newBuilder().setValue(ByteString.copyFrom(histogram.getMax().unscaledValue().toByteArray()))
-					.setValueString(histogram.getMax().toString())
-					.setPrecision(histogram.getMax().precision())
-					.setScale(histogram.getMax().scale())
-					.build()
-			)
+			.setMin(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMin()))
+			.setMax(EvitaDataTypesConverter.toGrpcBigDecimal(histogram.getMax()))
 			.setOverallCount(histogram.getOverallCount())
 			.addAllBuckets(buckets)
 			.build();

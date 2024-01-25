@@ -28,12 +28,13 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.EvitaSession;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
@@ -61,6 +62,8 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
@@ -84,7 +87,7 @@ class AttributeBitmapFilterTest {
 	private AttributeSchemaAccessor attributeSchemaAccessor;
 	private CatalogSchema catalogSchema;
 	private EntitySchemaContract entitySchema;
-	private Map<Integer, Entity> entities;
+	private Map<Integer, SealedEntity> entities;
 
 	@BeforeEach
 	void setUp() {
@@ -93,7 +96,7 @@ class AttributeBitmapFilterTest {
 			TestConstants.TEST_CATALOG,
 			NamingConvention.generate(TestConstants.TEST_CATALOG),
 			EnumSet.allOf(CatalogEvolutionMode.class),
-			entityType -> null
+			new EmptyEntitySchemaAccessor()
 		);
 		final EvitaSession mockSession = Mockito.mock(EvitaSession.class);
 		Mockito.when(mockSession.getCatalogSchema()).thenReturn(new CatalogSchemaDecorator(catalogSchema));
@@ -496,4 +499,17 @@ class AttributeBitmapFilterTest {
 		);
 	}
 
+	private static class EmptyEntitySchemaAccessor implements EntitySchemaProvider {
+		@Nonnull
+		@Override
+		public Collection<EntitySchemaContract> getEntitySchemas() {
+			return Collections.emptyList();
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+			return Optional.empty();
+		}
+	}
 }

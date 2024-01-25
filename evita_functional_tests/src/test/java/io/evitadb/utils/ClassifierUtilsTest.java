@@ -40,44 +40,54 @@ class ClassifierUtilsTest {
 
 	@Test
 	void shouldRefuseNationalCharacters() {
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "Žlutý_kůňPěl-ódy"));
+		for (ClassifierType classifierType : ClassifierType.values()) {
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "Žlutý_kůňPěl-ódy"));
+		}
 	}
 
 	@Test
 	void shouldHaveValidClassifierFormat() {
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "foobar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "fooBar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "foo:::bar-09_1.2/foo\\bar`20"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "fooBar09"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "f9ooBar09"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "foo-bar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "foo_bar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "FOO_BAR"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "FOO_BAR09"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "FOO_BAR_09"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "foo09Bar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "FBar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "Foo_Bar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "URLBar"));
-		assertDoesNotThrow(() -> validateClassifierFormat(ClassifierType.ENTITY, "fooB2C"));
+		for (ClassifierType classifierType : ClassifierType.values()) {
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "foobar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "fooBar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "fooBar09"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "f9ooBar09"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "foo-bar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "foo_bar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "FOO_BAR"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "FOO_BAR09"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "FOO_BAR_09"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "foo09Bar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "FBar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "Foo_Bar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "URLBar"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "fooB2C"));
+			assertDoesNotThrow(() -> validateClassifierFormat(classifierType, "a".repeat(255)));
+		}
 	}
 
 	@Test
 	void shouldNotHaveValidClassifierFormat() {
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, ""));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "  "));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, " fooBar "));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "09fooBar"));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "-foo-bar"));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "_foo_bar"));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "íáš"));
-		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ENTITY, "foo bar"));
+		for (ClassifierType classifierType : ClassifierType.values()) {
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, ""));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "  "));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, " fooBar "));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "09fooBar"));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "-foo-bar"));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "_foo_bar"));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "íáš"));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "foo bar"));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "foo:::bar-09_1.2/foo\\bar`20"));
+			assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(classifierType, "b".repeat(256)));
+		}
 	}
 
 	@Test
-	void shouldRefuseInvalidCatalogName() {
-		assertThrows(InvalidClassifierFormatException.class, () -> ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, "ščř"));
-		assertThrows(InvalidClassifierFormatException.class, () -> ClassifierUtils.validateClassifierFormat(ClassifierType.CATALOG, "a".repeat(300)));
+	void shouldNotAcceptKeywords() {
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primaryKey"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PRIMARY_KEY"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary-key"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "primary_key"));
+		assertThrows(InvalidClassifierFormatException.class, () -> validateClassifierFormat(ClassifierType.ATTRIBUTE, "PrimaryKey"));
 	}
-
 }

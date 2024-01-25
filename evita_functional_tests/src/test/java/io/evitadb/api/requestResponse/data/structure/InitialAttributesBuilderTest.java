@@ -25,13 +25,12 @@ package io.evitadb.api.requestResponse.data.structure;
 
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import org.junit.jupiter.api.Test;
@@ -48,17 +47,17 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class InitialAttributesBuilderTest extends AbstractBuilderTest {
-	final InitialAttributesBuilder attributes = new InitialAttributesBuilder(EntitySchema._internalBuild("whatever"), null);
+	final InitialEntityAttributesBuilder attributes = new InitialEntityAttributesBuilder(EntitySchema._internalBuild("whatever"));
 
 	@Test
 	void shouldStoreNewValueAndRetrieveIt() {
-		final Attributes attributes = this.attributes.setAttribute("abc", "DEF").build();
+		final EntityAttributes attributes = this.attributes.setAttribute("abc", "DEF").build();
 		assertEquals("DEF", attributes.getAttribute("abc"));
 	}
 
 	@Test
 	void shouldOverrideOneOperationWithAnother() {
-		final Attributes attributes = this.attributes
+		final EntityAttributes attributes = this.attributes
 			.setAttribute("abc", "DEF")
 			.setAttribute("abc", "RTE")
 			.build();
@@ -70,13 +69,13 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		assertThrows(
 			UnsupportedOperationException.class,
 			() -> this.attributes
-				.mutateAttribute(new ApplyDeltaAttributeMutation("abc", 1))
+				.mutateAttribute(new ApplyDeltaAttributeMutation<>("abc", 1))
 		);
 	}
 
 	@Test
 	void shouldFailWithClassCastIfMappingToDifferentType() {
-		final Attributes attributes = this.attributes.setAttribute("abc", "DEF").build();
+		final EntityAttributes attributes = this.attributes.setAttribute("abc", "DEF").build();
 		assertThrows(ClassCastException.class, () -> {
 			final Integer someInt = attributes.getAttribute("abc");
 			fail("Should not be executed at all!");
@@ -85,13 +84,13 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldStoreNewValueArrayAndRetrieveIt() {
-		final Attributes attributes = this.attributes.setAttribute("abc", new String[]{"DEF", "XYZ"}).build();
+		final EntityAttributes attributes = this.attributes.setAttribute("abc", new String[]{"DEF", "XYZ"}).build();
 		assertArrayEquals(new String[]{"DEF", "XYZ"}, attributes.getAttributeArray("abc"));
 	}
 
 	@Test
 	void shouldRemoveValue() {
-		final Attributes attributes = this.attributes.setAttribute("abc", "DEF")
+		final EntityAttributes attributes = this.attributes.setAttribute("abc", "DEF")
 			.removeAttribute("abc")
 			.build();
 		assertFalse(attributes.attributeValues.containsKey(new AttributeKey("abc")));
@@ -99,7 +98,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemovePreviouslySetValue() {
-		final Attributes attributes = this.attributes.setAttribute("abc", "DEF")
+		final EntityAttributes attributes = this.attributes.setAttribute("abc", "DEF")
 			.setAttribute("abc", "DEF")
 			.removeAttribute("abc")
 			.build();
@@ -108,7 +107,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnAttributeNames() {
-		final Attributes attributes = this.attributes
+		final EntityAttributes attributes = this.attributes
 			.setAttribute("abc", 1)
 			.setAttribute("def", IntegerNumberRange.between(4, 8))
 			.build();
@@ -121,7 +120,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSupportLocalizedAttributes() {
-		final AttributesBuilder builder = this.attributes
+		final InitialEntityAttributesBuilder builder = this.attributes
 			.setAttribute("abc", 1)
 			.setAttribute("def", IntegerNumberRange.between(4, 8))
 			.setAttribute("dd", new BigDecimal("1.123"))
@@ -135,7 +134,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		assertEquals("Tschüss", builder.getAttribute("greetings", Locale.GERMAN));
 		assertNull(builder.getAttribute("greetings", Locale.FRENCH));
 
-		final Attributes attributes = builder.build();
+		final EntityAttributes attributes = builder.build();
 		final Set<String> names = attributes.getAttributeNames();
 		assertEquals(4, names.size());
 		assertTrue(names.contains("abc"));
@@ -164,7 +163,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldDefineAttributeTypesAlongTheWay() {
-		final Attributes attributes = this.attributes
+		final EntityAttributes attributes = this.attributes
 			.setAttribute("abc", 1)
 			.setAttribute("def", IntegerNumberRange.between(4, 8))
 			.setAttribute("dd", new BigDecimal("1.123"))
@@ -180,19 +179,19 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		assertTrue(names.contains("greetings"));
 
 		assertEquals(
-			AttributeSchema._internalBuild("abc", false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("abc", null, false, false, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("abc").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("def", false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("def", null, false, false, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("def").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("dd", false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("dd", null, false, false, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("dd").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("greetings", false, false, false, true, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}
@@ -209,7 +208,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaStrictly()
 			.toInstance();
 
-		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema, null);
+		final InitialEntityAttributesBuilder attrBuilder = new InitialEntityAttributesBuilder(updatedSchema);
 		// try to add unknown attribute
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("new", "A"));
 		// try to add attribute with bad type
@@ -221,7 +220,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		// try to add attribute as non-localized, when it is
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("int", 1));
 		// try to set attributes correctly
-		final Attributes attrs = attrBuilder
+		final EntityAttributes attrs = attrBuilder
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.build();
@@ -244,7 +243,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaButAllow(EvolutionMode.ADDING_ATTRIBUTES)
 			.toInstance();
 
-		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema, null);
+		final InitialEntityAttributesBuilder attrBuilder = new InitialEntityAttributesBuilder(updatedSchema);
 		// try to add unknown attribute
 		attrBuilder.setAttribute("new", "A");
 		// try to add unknown localized attribute
@@ -260,7 +259,7 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 		// try to add attribute as non-localized, when it is
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("int", 1));
 		// try to set attributes correctly
-		final Attributes attrs = attrBuilder
+		final EntityAttributes attrs = attrBuilder
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.build();
@@ -285,8 +284,8 @@ class InitialAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaButAllow(EvolutionMode.ADDING_LOCALES)
 			.toInstance();
 
-		final InitialAttributesBuilder attrBuilder = new InitialAttributesBuilder(updatedSchema, null);
-		final Attributes attrs = attrBuilder
+		final InitialEntityAttributesBuilder attrBuilder = new InitialEntityAttributesBuilder(updatedSchema);
+		final EntityAttributes attrs = attrBuilder
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.setAttribute("int", Locale.GERMAN, 7)

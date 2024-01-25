@@ -46,14 +46,14 @@ import java.util.Map;
 @Immutable
 @ThreadSafe
 @EqualsAndHashCode
-public sealed class AttributeSchema implements AttributeSchemaContract permits GlobalAttributeSchema {
+public sealed class AttributeSchema implements AttributeSchemaContract permits EntityAttributeSchema, GlobalAttributeSchema {
 	@Serial private static final long serialVersionUID = 1340876688998990217L;
 
 	@Getter @Nonnull private final String name;
 	@Getter @Nonnull private final Map<NamingConvention, String> nameVariants;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter private final boolean unique;
+	@Getter private final AttributeUniquenessType uniquenessType;
 	@Getter private final boolean filterable;
 	@Getter private final boolean sortable;
 	@Getter private final boolean localized;
@@ -69,11 +69,15 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 	 *
 	 * Do not use this method from in the client code!
 	 */
-	public static AttributeSchema _internalBuild(@Nonnull String name, @Nonnull Class<? extends Serializable> type, boolean localized) {
+	public static AttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Class<? extends Serializable> type,
+		boolean localized
+	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			false, false, false, localized, false,
+			null, false, false, localized, false,
 			type, null,
 			0
 		);
@@ -85,7 +89,16 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 	 *
 	 * Do not use this method from in the client code!
 	 */
-	public static <T extends Serializable> AttributeSchema _internalBuild(@Nonnull String name, boolean unique, boolean filterable, boolean sortable, boolean localized, boolean nullable, @Nonnull Class<T> type, @Nullable T defaultValue) {
+	public static <T extends Serializable> AttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable AttributeUniquenessType unique,
+		boolean filterable,
+		boolean sortable,
+		boolean localized,
+		boolean nullable,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue
+	) {
 		if ((filterable || sortable) && BigDecimal.class.equals(type)) {
 			throw new EvitaInvalidUsageException(
 				"IndexedDecimalPlaces must be specified for attributes of type BigDecimal (attribute: " + name + ")!"
@@ -106,7 +119,19 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 	 *
 	 * Do not use this method from in the client code!
 	 */
-	public static <T extends Serializable> AttributeSchema _internalBuild(@Nonnull String name, @Nullable String description, @Nullable String deprecationNotice, boolean unique, boolean filterable, boolean sortable, boolean localized, boolean nullable, @Nonnull Class<T> type, @Nullable T defaultValue, int indexedDecimalPlaces) {
+	public static <T extends Serializable> AttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable AttributeUniquenessType unique,
+		boolean filterable,
+		boolean sortable,
+		boolean localized,
+		boolean nullable,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
 		return new AttributeSchema(
 			name, NamingConvention.generate(name),
 			description, deprecationNotice,
@@ -122,7 +147,20 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 	 *
 	 * Do not use this method from in the client code!
 	 */
-	public static <T extends Serializable> AttributeSchema _internalBuild(@Nonnull String name, @Nonnull Map<NamingConvention, String> nameVariants, @Nullable String description, @Nullable String deprecationNotice, boolean unique, boolean filterable, boolean sortable, boolean localized, boolean nullable, @Nonnull Class<T> type, @Nullable T defaultValue, int indexedDecimalPlaces) {
+	public static <T extends Serializable> AttributeSchema _internalBuild(
+		@Nonnull String name,
+		@Nonnull Map<NamingConvention, String> nameVariants,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable AttributeUniquenessType unique,
+		boolean filterable,
+		boolean sortable,
+		boolean localized,
+		boolean nullable,
+		@Nonnull Class<T> type,
+		@Nullable T defaultValue,
+		int indexedDecimalPlaces
+	) {
 		return new AttributeSchema(
 			name, nameVariants,
 			description, deprecationNotice,
@@ -137,7 +175,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 		@Nonnull Map<NamingConvention, String> nameVariants,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
+		@Nullable AttributeUniquenessType uniquenessType,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
@@ -150,7 +188,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 		this.nameVariants = nameVariants;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.unique = unique;
+		this.uniquenessType = uniquenessType == null ? AttributeUniquenessType.NOT_UNIQUE : uniquenessType;
 		this.filterable = filterable;
 		this.sortable = sortable;
 		this.localized = localized;
@@ -169,10 +207,20 @@ public sealed class AttributeSchema implements AttributeSchemaContract permits G
 	}
 
 	@Override
+	public boolean isUnique() {
+		return uniquenessType != AttributeUniquenessType.NOT_UNIQUE;
+	}
+
+	@Override
+	public boolean isUniqueWithinLocale() {
+		return uniquenessType == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+	}
+
+	@Override
 	public String toString() {
 		return "AttributeSchema{" +
 			"name='" + name + '\'' +
-			", unique=" + unique +
+			", unique=" + uniquenessType +
 			", filterable=" + filterable +
 			", sortable=" + sortable +
 			", localized=" + localized +

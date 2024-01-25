@@ -222,7 +222,7 @@ public interface InternalSchemaBuilderHelper {
 	 * @return the new impact level if more significant than the existing one, otherwise the existing one
 	 */
 	@Nonnull
-	default MutationImpact updateMutationImpact(@Nonnull MutationImpact existingImpactLevel, MutationImpact newImpactLevel) {
+	default MutationImpact updateMutationImpact(@Nonnull MutationImpact existingImpactLevel, @Nullable MutationImpact newImpactLevel) {
 		return updateMutationImpactInternal(existingImpactLevel, newImpactLevel);
 	}
 
@@ -351,7 +351,7 @@ public interface InternalSchemaBuilderHelper {
 	default void checkSortableTraits(
 		@Nonnull String compoundSchemaName,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
-		@Nonnull Map<String, AttributeSchemaContract> attributeSchemas
+		@Nonnull Map<String, ? extends AttributeSchemaContract> attributeSchemas
 	) {
 		for (AttributeElement attributeElement : compoundSchemaContract.getAttributeElements()) {
 			final AttributeSchemaContract attributeSchema = attributeSchemas.get(attributeElement.attributeName());

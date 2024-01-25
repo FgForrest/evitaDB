@@ -23,6 +23,7 @@
 
 package io.evitadb.documentation.rest;
 
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContextFactory;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -44,17 +45,17 @@ public class RestTestContextFactory implements TestContextFactory<RestTestContex
 	private final AtomicReference<RestTestContext> testContextRef = new AtomicReference<>();
 
 	@Override
-	public DynamicTest getInitTest() {
+	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
-			"Init Evita Demo connection",
-			() -> testContextRef.set(new RestTestContext())
+			"Init Evita REST connection (" + profile + ")",
+			() -> testContextRef.set(new RestTestContext(profile))
 		);
 	}
 
 	@Override
-	public DynamicTest getTearDownTest() {
+	public DynamicTest getTearDownTest(@Nonnull Environment profile) {
 		return dynamicTest(
-			"Destroy Evita Demo connection",
+			"Destroy Evita REST connection (" + profile + ")",
 			() -> {}
 		);
 	}

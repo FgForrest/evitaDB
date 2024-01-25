@@ -45,6 +45,7 @@ private static final long serialVersionUID = 0L;
   }
   private GrpcCreateAttributeSchemaMutation() {
     name_ = "";
+    unique_ = 0;
     type_ = 0;
   }
 
@@ -111,8 +112,9 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 32: {
+            int rawValue = input.readEnum();
 
-            unique_ = input.readBool();
+            unique_ = rawValue;
             break;
           }
           case 40: {
@@ -136,17 +138,22 @@ private static final long serialVersionUID = 0L;
             break;
           }
           case 72: {
+
+            representative_ = input.readBool();
+            break;
+          }
+          case 80: {
             int rawValue = input.readEnum();
 
             type_ = rawValue;
             break;
           }
-          case 80: {
+          case 88: {
 
             indexedDecimalPlaces_ = input.readInt32();
             break;
           }
-          case 90: {
+          case 98: {
             io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder subBuilder = null;
             if (defaultValue_ != null) {
               subBuilder = defaultValue_.toBuilder();
@@ -320,19 +327,32 @@ private static final long serialVersionUID = 0L;
   }
 
   public static final int UNIQUE_FIELD_NUMBER = 4;
-  private boolean unique_;
+  private int unique_;
   /**
    * <pre>
    * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>bool unique = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  @java.lang.Override public int getUniqueValue() {
+    return unique_;
+  }
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
    * @return The unique.
    */
-  @java.lang.Override
-  public boolean getUnique() {
-    return unique_;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
   }
 
   public static final int FILTERABLE_FIELD_NUMBER = 5;
@@ -401,14 +421,33 @@ private static final long serialVersionUID = 0L;
     return nullable_;
   }
 
-  public static final int TYPE_FIELD_NUMBER = 9;
+  public static final int REPRESENTATIVE_FIELD_NUMBER = 9;
+  private boolean representative_;
+  /**
+   * <pre>
+   * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+   * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+   * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+   * helpful to developers in quickly finding their way around the data. There should be very few representative
+   * attributes in the entity type, and the unique ones are usually the best to choose.
+   * </pre>
+   *
+   * <code>bool representative = 9;</code>
+   * @return The representative.
+   */
+  @java.lang.Override
+  public boolean getRepresentative() {
+    return representative_;
+  }
+
+  public static final int TYPE_FIELD_NUMBER = 10;
   private int type_;
   /**
    * <pre>
    * Type of the attribute. Must be one of supported data types or its array.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
    * @return The enum numeric value on the wire for type.
    */
   @java.lang.Override public int getTypeValue() {
@@ -419,7 +458,7 @@ private static final long serialVersionUID = 0L;
    * Type of the attribute. Must be one of supported data types or its array.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
    * @return The type.
    */
   @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType() {
@@ -428,7 +467,7 @@ private static final long serialVersionUID = 0L;
     return result == null ? io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.UNRECOGNIZED : result;
   }
 
-  public static final int INDEXEDDECIMALPLACES_FIELD_NUMBER = 10;
+  public static final int INDEXEDDECIMALPLACES_FIELD_NUMBER = 11;
   private int indexedDecimalPlaces_;
   /**
    * <pre>
@@ -438,7 +477,7 @@ private static final long serialVersionUID = 0L;
    *	of ten using `indexedDecimalPlaces` as exponent.
    * </pre>
    *
-   * <code>int32 indexedDecimalPlaces = 10;</code>
+   * <code>int32 indexedDecimalPlaces = 11;</code>
    * @return The indexedDecimalPlaces.
    */
   @java.lang.Override
@@ -446,7 +485,7 @@ private static final long serialVersionUID = 0L;
     return indexedDecimalPlaces_;
   }
 
-  public static final int DEFAULTVALUE_FIELD_NUMBER = 11;
+  public static final int DEFAULTVALUE_FIELD_NUMBER = 12;
   private io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue_;
   /**
    * <pre>
@@ -454,7 +493,7 @@ private static final long serialVersionUID = 0L;
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    * @return Whether the defaultValue field is set.
    */
   @java.lang.Override
@@ -467,7 +506,7 @@ private static final long serialVersionUID = 0L;
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    * @return The defaultValue.
    */
   @java.lang.Override
@@ -480,7 +519,7 @@ private static final long serialVersionUID = 0L;
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
    */
   @java.lang.Override
   public io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder() {
@@ -510,8 +549,8 @@ private static final long serialVersionUID = 0L;
     if (deprecationNotice_ != null) {
       output.writeMessage(3, getDeprecationNotice());
     }
-    if (unique_ != false) {
-      output.writeBool(4, unique_);
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
+      output.writeEnum(4, unique_);
     }
     if (filterable_ != false) {
       output.writeBool(5, filterable_);
@@ -525,14 +564,17 @@ private static final long serialVersionUID = 0L;
     if (nullable_ != false) {
       output.writeBool(8, nullable_);
     }
+    if (representative_ != false) {
+      output.writeBool(9, representative_);
+    }
     if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.STRING.getNumber()) {
-      output.writeEnum(9, type_);
+      output.writeEnum(10, type_);
     }
     if (indexedDecimalPlaces_ != 0) {
-      output.writeInt32(10, indexedDecimalPlaces_);
+      output.writeInt32(11, indexedDecimalPlaces_);
     }
     if (defaultValue_ != null) {
-      output.writeMessage(11, getDefaultValue());
+      output.writeMessage(12, getDefaultValue());
     }
     unknownFields.writeTo(output);
   }
@@ -554,9 +596,9 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeMessageSize(3, getDeprecationNotice());
     }
-    if (unique_ != false) {
+    if (unique_ != io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.NOT_UNIQUE.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(4, unique_);
+        .computeEnumSize(4, unique_);
     }
     if (filterable_ != false) {
       size += com.google.protobuf.CodedOutputStream
@@ -574,17 +616,21 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeBoolSize(8, nullable_);
     }
+    if (representative_ != false) {
+      size += com.google.protobuf.CodedOutputStream
+        .computeBoolSize(9, representative_);
+    }
     if (type_ != io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType.STRING.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeEnumSize(9, type_);
+        .computeEnumSize(10, type_);
     }
     if (indexedDecimalPlaces_ != 0) {
       size += com.google.protobuf.CodedOutputStream
-        .computeInt32Size(10, indexedDecimalPlaces_);
+        .computeInt32Size(11, indexedDecimalPlaces_);
     }
     if (defaultValue_ != null) {
       size += com.google.protobuf.CodedOutputStream
-        .computeMessageSize(11, getDefaultValue());
+        .computeMessageSize(12, getDefaultValue());
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -613,8 +659,7 @@ private static final long serialVersionUID = 0L;
       if (!getDeprecationNotice()
           .equals(other.getDeprecationNotice())) return false;
     }
-    if (getUnique()
-        != other.getUnique()) return false;
+    if (unique_ != other.unique_) return false;
     if (getFilterable()
         != other.getFilterable()) return false;
     if (getSortable()
@@ -623,6 +668,8 @@ private static final long serialVersionUID = 0L;
         != other.getLocalized()) return false;
     if (getNullable()
         != other.getNullable()) return false;
+    if (getRepresentative()
+        != other.getRepresentative()) return false;
     if (type_ != other.type_) return false;
     if (getIndexedDecimalPlaces()
         != other.getIndexedDecimalPlaces()) return false;
@@ -653,8 +700,7 @@ private static final long serialVersionUID = 0L;
       hash = (53 * hash) + getDeprecationNotice().hashCode();
     }
     hash = (37 * hash) + UNIQUE_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getUnique());
+    hash = (53 * hash) + unique_;
     hash = (37 * hash) + FILTERABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getFilterable());
@@ -667,6 +713,9 @@ private static final long serialVersionUID = 0L;
     hash = (37 * hash) + NULLABLE_FIELD_NUMBER;
     hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
         getNullable());
+    hash = (37 * hash) + REPRESENTATIVE_FIELD_NUMBER;
+    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+        getRepresentative());
     hash = (37 * hash) + TYPE_FIELD_NUMBER;
     hash = (53 * hash) + type_;
     hash = (37 * hash) + INDEXEDDECIMALPLACES_FIELD_NUMBER;
@@ -827,7 +876,7 @@ private static final long serialVersionUID = 0L;
         deprecationNotice_ = null;
         deprecationNoticeBuilder_ = null;
       }
-      unique_ = false;
+      unique_ = 0;
 
       filterable_ = false;
 
@@ -836,6 +885,8 @@ private static final long serialVersionUID = 0L;
       localized_ = false;
 
       nullable_ = false;
+
+      representative_ = false;
 
       type_ = 0;
 
@@ -889,6 +940,7 @@ private static final long serialVersionUID = 0L;
       result.sortable_ = sortable_;
       result.localized_ = localized_;
       result.nullable_ = nullable_;
+      result.representative_ = representative_;
       result.type_ = type_;
       result.indexedDecimalPlaces_ = indexedDecimalPlaces_;
       if (defaultValueBuilder_ == null) {
@@ -954,8 +1006,8 @@ private static final long serialVersionUID = 0L;
       if (other.hasDeprecationNotice()) {
         mergeDeprecationNotice(other.getDeprecationNotice());
       }
-      if (other.getUnique() != false) {
-        setUnique(other.getUnique());
+      if (other.unique_ != 0) {
+        setUniqueValue(other.getUniqueValue());
       }
       if (other.getFilterable() != false) {
         setFilterable(other.getFilterable());
@@ -968,6 +1020,9 @@ private static final long serialVersionUID = 0L;
       }
       if (other.getNullable() != false) {
         setNullable(other.getNullable());
+      }
+      if (other.getRepresentative() != false) {
+        setRepresentative(other.getRepresentative());
       }
       if (other.type_ != 0) {
         setTypeValue(other.getTypeValue());
@@ -1431,18 +1486,17 @@ private static final long serialVersionUID = 0L;
       return deprecationNoticeBuilder_;
     }
 
-    private boolean unique_ ;
+    private int unique_ = 0;
     /**
      * <pre>
      * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
-     * @return The unique.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @return The enum numeric value on the wire for unique.
      */
-    @java.lang.Override
-    public boolean getUnique() {
+    @java.lang.Override public int getUniqueValue() {
       return unique_;
     }
     /**
@@ -1451,11 +1505,11 @@ private static final long serialVersionUID = 0L;
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
-     * @param value The unique to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @param value The enum numeric value on the wire for unique to set.
      * @return This builder for chaining.
      */
-    public Builder setUnique(boolean value) {
+    public Builder setUniqueValue(int value) {
       
       unique_ = value;
       onChanged();
@@ -1467,12 +1521,46 @@ private static final long serialVersionUID = 0L;
      * having certain value of this attribute among other entities in the same collection.
      * </pre>
      *
-     * <code>bool unique = 4;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @return The unique.
+     */
+    @java.lang.Override
+    public io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType result = io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.valueOf(unique_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType.UNRECOGNIZED : result;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+     * @param value The unique to set.
+     * @return This builder for chaining.
+     */
+    public Builder setUnique(io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
+      
+      unique_ = value.getNumber();
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+     * having certain value of this attribute among other entities in the same collection.
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
      * @return This builder for chaining.
      */
     public Builder clearUnique() {
       
-      unique_ = false;
+      unique_ = 0;
       onChanged();
       return this;
     }
@@ -1667,13 +1755,68 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
+    private boolean representative_ ;
+    /**
+     * <pre>
+     * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+     * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+     * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+     * helpful to developers in quickly finding their way around the data. There should be very few representative
+     * attributes in the entity type, and the unique ones are usually the best to choose.
+     * </pre>
+     *
+     * <code>bool representative = 9;</code>
+     * @return The representative.
+     */
+    @java.lang.Override
+    public boolean getRepresentative() {
+      return representative_;
+    }
+    /**
+     * <pre>
+     * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+     * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+     * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+     * helpful to developers in quickly finding their way around the data. There should be very few representative
+     * attributes in the entity type, and the unique ones are usually the best to choose.
+     * </pre>
+     *
+     * <code>bool representative = 9;</code>
+     * @param value The representative to set.
+     * @return This builder for chaining.
+     */
+    public Builder setRepresentative(boolean value) {
+      
+      representative_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+     * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+     * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+     * helpful to developers in quickly finding their way around the data. There should be very few representative
+     * attributes in the entity type, and the unique ones are usually the best to choose.
+     * </pre>
+     *
+     * <code>bool representative = 9;</code>
+     * @return This builder for chaining.
+     */
+    public Builder clearRepresentative() {
+      
+      representative_ = false;
+      onChanged();
+      return this;
+    }
+
     private int type_ = 0;
     /**
      * <pre>
      * Type of the attribute. Must be one of supported data types or its array.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
      * @return The enum numeric value on the wire for type.
      */
     @java.lang.Override public int getTypeValue() {
@@ -1684,7 +1827,7 @@ private static final long serialVersionUID = 0L;
      * Type of the attribute. Must be one of supported data types or its array.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
      * @param value The enum numeric value on the wire for type to set.
      * @return This builder for chaining.
      */
@@ -1699,7 +1842,7 @@ private static final long serialVersionUID = 0L;
      * Type of the attribute. Must be one of supported data types or its array.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
      * @return The type.
      */
     @java.lang.Override
@@ -1713,7 +1856,7 @@ private static final long serialVersionUID = 0L;
      * Type of the attribute. Must be one of supported data types or its array.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
      * @param value The type to set.
      * @return This builder for chaining.
      */
@@ -1731,7 +1874,7 @@ private static final long serialVersionUID = 0L;
      * Type of the attribute. Must be one of supported data types or its array.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 9;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
      * @return This builder for chaining.
      */
     public Builder clearType() {
@@ -1750,7 +1893,7 @@ private static final long serialVersionUID = 0L;
      *	of ten using `indexedDecimalPlaces` as exponent.
      * </pre>
      *
-     * <code>int32 indexedDecimalPlaces = 10;</code>
+     * <code>int32 indexedDecimalPlaces = 11;</code>
      * @return The indexedDecimalPlaces.
      */
     @java.lang.Override
@@ -1765,7 +1908,7 @@ private static final long serialVersionUID = 0L;
      *	of ten using `indexedDecimalPlaces` as exponent.
      * </pre>
      *
-     * <code>int32 indexedDecimalPlaces = 10;</code>
+     * <code>int32 indexedDecimalPlaces = 11;</code>
      * @param value The indexedDecimalPlaces to set.
      * @return This builder for chaining.
      */
@@ -1783,7 +1926,7 @@ private static final long serialVersionUID = 0L;
      *	of ten using `indexedDecimalPlaces` as exponent.
      * </pre>
      *
-     * <code>int32 indexedDecimalPlaces = 10;</code>
+     * <code>int32 indexedDecimalPlaces = 11;</code>
      * @return This builder for chaining.
      */
     public Builder clearIndexedDecimalPlaces() {
@@ -1802,7 +1945,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      * @return Whether the defaultValue field is set.
      */
     public boolean hasDefaultValue() {
@@ -1814,7 +1957,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      * @return The defaultValue.
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue() {
@@ -1830,7 +1973,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder setDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
       if (defaultValueBuilder_ == null) {
@@ -1851,7 +1994,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder setDefaultValue(
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder builderForValue) {
@@ -1870,7 +2013,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder mergeDefaultValue(io.evitadb.externalApi.grpc.generated.GrpcEvitaValue value) {
       if (defaultValueBuilder_ == null) {
@@ -1893,7 +2036,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public Builder clearDefaultValue() {
       if (defaultValueBuilder_ == null) {
@@ -1912,7 +2055,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder getDefaultValueBuilder() {
       
@@ -1925,7 +2068,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     public io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder() {
       if (defaultValueBuilder_ != null) {
@@ -1941,7 +2084,7 @@ private static final long serialVersionUID = 0L;
      * non-null checks even if no attributes of such name are specified.
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 11;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
      */
     private com.google.protobuf.SingleFieldBuilderV3<
         io.evitadb.externalApi.grpc.generated.GrpcEvitaValue, io.evitadb.externalApi.grpc.generated.GrpcEvitaValue.Builder, io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder> 

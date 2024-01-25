@@ -23,6 +23,7 @@
 
 package io.evitadb.test.extension;
 
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.extension.EvitaParameterResolver.DataSetInfo;
 import io.evitadb.utils.Assert;
@@ -113,6 +114,7 @@ public class CleaningTestExecutionListener implements TestExecutionListener, Evi
 		} else {
 			Assert.isTrue(STORAGE_PATH.toFile().mkdirs(), "Fail to create directory: " + STORAGE_PATH);
 		}
+		System.setProperty(DevelopmentConstants.TEST_RUN, "true");
 		this.testsStarted = System.nanoTime();
 	}
 

@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.api.catalog.mutation.TestMutationResolvingExceptionFactory;
@@ -58,10 +59,11 @@ class CreateAttributeSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
-			true,
+			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
 			false,
 			true,
 			false,
+			true,
 			true,
 			String.class,
 			"defaultCode",
@@ -73,11 +75,12 @@ class CreateAttributeSchemaMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), true)
+				.e(CreateAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
 				.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), false)
 				.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), true)
 				.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), false)
 				.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), true)
+				.e(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), true)
 				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), String.class)
 				.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 				.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), 2)
@@ -90,11 +93,12 @@ class CreateAttributeSchemaMutationConverterTest {
 				.e(AttributeSchemaMutationDescriptor.NAME.name(), "code")
 				.e(CreateAttributeSchemaMutationDescriptor.DESCRIPTION.name(), "desc")
 				.e(CreateAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE.name(), "depr")
-				.e(CreateAttributeSchemaMutationDescriptor.UNIQUE.name(), "true")
+				.e(CreateAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE.name(), AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION.name())
 				.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE.name(), "false")
 				.e(CreateAttributeSchemaMutationDescriptor.SORTABLE.name(), "true")
 				.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), "false")
 				.e(CreateAttributeSchemaMutationDescriptor.NULLABLE.name(), "true")
+				.e(CreateAttributeSchemaMutationDescriptor.REPRESENTATIVE.name(), "true")
 				.e(CreateAttributeSchemaMutationDescriptor.TYPE.name(), "String")
 				.e(CreateAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), "defaultCode")
 				.e(CreateAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES.name(), "2")
@@ -106,6 +110,7 @@ class CreateAttributeSchemaMutationConverterTest {
 	void shouldResolveInputToLocalMutationWithOnlyRequiredData() {
 		final CreateAttributeSchemaMutation expectedMutation = new CreateAttributeSchemaMutation(
 			"code",
+			null,
 			null,
 			null,
 			false,

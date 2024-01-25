@@ -27,15 +27,15 @@ import io.evitadb.api.exception.InvalidDataTypeMutationException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.AttributesEditor.AttributesBuilder;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,19 +53,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 class ExistingAttributesBuilderTest extends AbstractBuilderTest {
-	private Attributes initialAttributes;
+	private EntityAttributes initialAttributes;
 
 	@BeforeEach
 	void setUp() {
-		initialAttributes = new InitialAttributesBuilder(
+		initialAttributes = new InitialEntityAttributesBuilder(
 			new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
 				.verifySchemaButCreateOnTheFly()
 				.withAttribute("int", Integer.class)
 				.withAttribute("range", IntegerNumberRange.class)
 				.withAttribute("bigDecimal", BigDecimal.class)
 				.withAttribute("greetings", String.class, whichIs -> whichIs.localized())
-				.toInstance(),
-			null
+				.toInstance()
 		)
 			.setAttribute("int", 1)
 			.setAttribute("range", IntegerNumberRange.between(4, 8))
@@ -77,13 +76,13 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldOverrideExistingAttributeWithNewValue() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("int", 10);
 
 		assertEquals(Integer.valueOf(10), builder.getAttribute("int"));
 		assertEquals(Integer.valueOf(1), initialAttributes.getAttribute("int"));
 
-		final Attributes newVersion = builder.build();
+		final Attributes<EntityAttributeSchemaContract> newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(10), newVersion.getAttribute("int"));
 		assertEquals(2L, newVersion.getAttributeValue(new AttributeKey("int")).orElseThrow().version());
@@ -92,7 +91,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSkipMutationsThatMeansNoChange() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("int", 1)
 			.setAttribute("range", IntegerNumberRange.between(5, 11))
 			.setAttribute("range", IntegerNumberRange.between(4, 8));
@@ -102,7 +101,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAddLocalizedArray() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("localizedArray", Locale.ENGLISH, new Integer[]{1, 5})
 			.setAttribute("localizedArray", new Locale("cs"), new Integer[]{6, 7});
 
@@ -112,25 +111,25 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldIgnoreMutationsThatProduceTheEquivalentAttribute() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("int", 1);
 
 		assertEquals(Integer.valueOf(1), builder.getAttribute("int"));
 		assertSame(builder.getAttribute("int"), initialAttributes.getAttribute("int"));
 
-		final Attributes newVersion = builder.build();
+		final Attributes<EntityAttributeSchemaContract> newVersion = builder.build();
 		assertSame(newVersion.getAttribute("int"), initialAttributes.getAttribute("int"));
 	}
 
 	@Test
 	void shouldRemoveExistingAttribute() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.removeAttribute("int");
 
 		assertNull(builder.getAttribute("int"));
 		assertEquals(Integer.valueOf(1), initialAttributes.getAttribute("int"));
 
-		final Attributes newVersion = builder.build();
+		final Attributes<EntityAttributeSchemaContract> newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(1), newVersion.getAttribute("int"));
 		final AttributeValue attributeValue = newVersion.getAttributeValue(new AttributeKey("int")).orElseThrow();
@@ -142,7 +141,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldRemoveExistingLocalizedAttribute() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.removeAttribute("greetings", Locale.GERMAN);
 
 		assertNull(builder.getAttribute("greetings", Locale.GERMAN));
@@ -150,7 +149,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		assertEquals(1L, initialAttributes.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN)).orElseThrow().version());
 		assertEquals(1L, initialAttributes.getAttributeValue(new AttributeKey("greetings", Locale.ENGLISH)).orElseThrow().version());
 
-		final Attributes newVersion = builder.build();
+		final Attributes<EntityAttributeSchemaContract> newVersion = builder.build();
 
 		assertEquals("Tschüss", newVersion.getAttribute("greetings", Locale.GERMAN));
 		final AttributeValue germanGreeting = newVersion.getAttributeValue(new AttributeKey("greetings", Locale.GERMAN)).orElseThrow();
@@ -165,59 +164,59 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldSucceedToAddNewAttribute() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("short", (short) 10);
 
 		assertEquals(Short.valueOf((short) 10), builder.getAttribute("short"));
 
-		final Attributes newVersion = builder.build();
+		final Attributes<EntityAttributeSchemaContract> newVersion = builder.build();
 
 		assertEquals(Short.valueOf((short) 10), newVersion.getAttribute("short"));
 	}
 
 	@Test
 	void shouldUpdateSchemaAlongTheWay() {
-		final ExistingAttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes);
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes);
 		builder.setAttribute("short", (short) 4);
-		final Attributes attributes = builder.build();
+		final Attributes<EntityAttributeSchemaContract> attributes = builder.build();
 
 		assertEquals(
-			AttributeSchema._internalBuild("int", false, false, false, false, false, Integer.class, null),
+			EntityAttributeSchema._internalBuild("int", null, false, false, false, false, false, Integer.class, null),
 			attributes.getAttributeSchema("int").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("short", false, false, false, false, false, Short.class, null),
+			EntityAttributeSchema._internalBuild("short", null, false, false, false, false, false, Short.class, null),
 			attributes.getAttributeSchema("short").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("range", false, false, false, false, false, IntegerNumberRange.class, null),
+			EntityAttributeSchema._internalBuild("range", null, false, false, false, false, false, IntegerNumberRange.class, null),
 			attributes.getAttributeSchema("range").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("bigDecimal", false, false, false, false, false, BigDecimal.class, null),
+			EntityAttributeSchema._internalBuild("bigDecimal", null, false, false, false, false, false, BigDecimal.class, null),
 			attributes.getAttributeSchema("bigDecimal").orElse(null)
 		);
 		assertEquals(
-			AttributeSchema._internalBuild("greetings", false, false, false, true, false, String.class, null),
+			EntityAttributeSchema._internalBuild("greetings", null, false, false, true, false, false, String.class, null),
 			attributes.getAttributeSchema("greetings").orElse(null)
 		);
 	}
 
 	@Test
 	void shouldAllowAddMutation() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.mutateAttribute(new ApplyDeltaAttributeMutation<>("int", 2));
 
 		assertEquals(Integer.valueOf(3), builder.getAttribute("int"));
 
-		final Attributes newVersion = builder.build();
+		final Attributes<EntityAttributeSchemaContract> newVersion = builder.build();
 
 		assertEquals(Integer.valueOf(3), newVersion.getAttribute("int"));
 	}
 
 	@Test
 	void shouldReturnAccumulatedMutations() {
-		final AttributesBuilder builder = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("int", 10)
 			.removeAttribute("int")
 			.setAttribute("short", (short) 5)
@@ -239,12 +238,12 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			.withLocale(Locale.ENGLISH)
 			.toInstance();
 
-		final Attributes attrs = new InitialAttributesBuilder(updatedSchema, null)
+		final Attributes<EntityAttributeSchemaContract> attrs = new InitialEntityAttributesBuilder(updatedSchema)
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.build();
 
-		final ExistingAttributesBuilder attrBuilder = new ExistingAttributesBuilder(updatedSchema, null, attrs);
+		final ExistingEntityAttributesBuilder attrBuilder = new ExistingEntityAttributesBuilder(updatedSchema, attrs);
 		// try to add unknown attribute
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("new", "A"));
 		// try to add attribute with bad type
@@ -256,7 +255,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		// try to add attribute as non-localized, when it is
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("int", 1));
 		// try to set attributes correctly
-		final Attributes newAttrs = attrBuilder
+		final Attributes<EntityAttributeSchemaContract> newAttrs = attrBuilder
 			.setAttribute("string", "Hello")
 			.setAttribute("int", Locale.ENGLISH, 7)
 			.build();
@@ -281,12 +280,12 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaButAllow(EvolutionMode.ADDING_ATTRIBUTES)
 			.toInstance();
 
-		final Attributes attrs = new InitialAttributesBuilder(updatedSchema, null)
+		final Attributes<EntityAttributeSchemaContract> attrs = new InitialEntityAttributesBuilder(updatedSchema)
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.build();
 
-		final ExistingAttributesBuilder attrBuilder = new ExistingAttributesBuilder(updatedSchema, null, attrs);
+		final ExistingEntityAttributesBuilder attrBuilder = new ExistingEntityAttributesBuilder(updatedSchema, attrs);
 		// try to add unknown attribute
 		attrBuilder.setAttribute("new", "A");
 		// try to add unknown localized attribute
@@ -302,7 +301,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 		// try to add attribute as non-localized, when it is
 		assertThrows(InvalidMutationException.class, () -> attrBuilder.setAttribute("int", 1));
 		// try to set attributes correctly
-		final Attributes updatedAttrs = attrBuilder
+		final Attributes<EntityAttributeSchemaContract> updatedAttrs = attrBuilder
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.build();
@@ -327,13 +326,13 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			.verifySchemaButAllow(EvolutionMode.ADDING_LOCALES)
 			.toInstance();
 
-		final Attributes attrs = new InitialAttributesBuilder(updatedSchema, null)
+		final Attributes<EntityAttributeSchemaContract> attrs = new InitialEntityAttributesBuilder(updatedSchema)
 			.setAttribute("string", "Hi")
 			.setAttribute("int", Locale.ENGLISH, 5)
 			.build();
 
-		final ExistingAttributesBuilder attrBuilder = new ExistingAttributesBuilder(updatedSchema, null, attrs);
-		final Attributes updatedAttrs = attrBuilder
+		final ExistingEntityAttributesBuilder attrBuilder = new ExistingEntityAttributesBuilder(updatedSchema, attrs);
+		final Attributes<EntityAttributeSchemaContract> updatedAttrs = attrBuilder
 			.setAttribute("string", "Hello")
 			.setAttribute("int", Locale.ENGLISH, 9)
 			.setAttribute("int", Locale.GERMAN, 10)
@@ -347,7 +346,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldReturnOriginalAttributesInstanceWhenNothingHasChanged() {
-		final Attributes newAttributes = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final Attributes<EntityAttributeSchemaContract> newAttributes = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.setAttribute("int", 1)
 			.setAttribute("range", IntegerNumberRange.between(4, 8))
 			.setAttribute("bigDecimal", new BigDecimal("1.123"))
@@ -362,32 +361,30 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 	void shouldFailToAddIncompatibleMutation() {
 		assertThrows(
 			InvalidDataTypeMutationException.class,
-			() -> new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+			() -> new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 				.addMutation(new UpsertAttributeMutation("int", "a"))
 		);
 	}
 
 	@Test
-	void shouldFailRemovingNonExistingAttribute() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
-				.addMutation(new RemoveAttributeMutation("abc"))
-		);
+	void shouldIgnoreInvalidMutation() {
+		final ExistingEntityAttributesBuilder builder = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes);
+		builder.addMutation(new RemoveAttributeMutation("abc"));
+		assertEquals(0L, builder.buildChangeSet().count());
 	}
 
 	@Test
 	void shouldFailToApplyDeltaOnNonExistingAttribute() {
 		assertThrows(
 			EvitaInvalidUsageException.class,
-			() -> new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+			() -> new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 				.addMutation(new ApplyDeltaAttributeMutation<>("newInt", 10))
 		);
 	}
 
 	@Test
 	void shouldAllowCombiningMultipleMutationsAtOnce() {
-		final Attributes newAttributes = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final Attributes<EntityAttributeSchemaContract> newAttributes = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.addMutation(new UpsertAttributeMutation("newInt", 10))
 			.addMutation(new ApplyDeltaAttributeMutation<>("newInt", -1))
 			.addMutation(new ApplyDeltaAttributeMutation<>("newInt", -4))
@@ -398,7 +395,7 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 	@Test
 	void shouldAllowCombiningCreateAndRemoveMutationAtOnce() {
-		final Attributes newAttributes = new ExistingAttributesBuilder(PRODUCT_SCHEMA, null, initialAttributes)
+		final Attributes<EntityAttributeSchemaContract> newAttributes = new ExistingEntityAttributesBuilder(PRODUCT_SCHEMA, initialAttributes)
 			.addMutation(new UpsertAttributeMutation("newInt", 10))
 			.addMutation(new RemoveAttributeMutation("newInt"))
 			.build();

@@ -1,0 +1,12 @@
+query(
+    collection("Product"),
+    filterBy(
+        priceInCurrency("EUR")
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)

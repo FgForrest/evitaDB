@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
@@ -62,7 +63,7 @@ import java.util.function.BooleanSupplier;
 @SuppressWarnings("unchecked")
 public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeSchemaEditor<T>, S extends AttributeSchemaContract>
 	implements AttributeSchemaEditor<T>, InternalSchemaBuilderHelper
-	permits AttributeSchemaBuilder, GlobalAttributeSchemaBuilder {
+	permits AttributeSchemaBuilder, EntityAttributeSchemaBuilder, GlobalAttributeSchemaBuilder {
 	@Serial private static final long serialVersionUID = -1519084392486171781L;
 	protected final S baseSchema;
 	protected final CatalogSchemaContract catalogSchema;
@@ -161,7 +162,22 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			addMutations(
 				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
-					true
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T uniqueWithinLocale() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 				)
 			)
 		);
@@ -174,9 +190,26 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		this.updatedSchemaDirty = updateMutationImpact(
 			this.updatedSchemaDirty,
 			addMutations(
-				new SetAttributeSchemaFilterableMutation(
+				new SetAttributeSchemaUniqueMutation(
 					baseSchema.getName(),
-					decider.getAsBoolean()
+					decider.getAsBoolean() ?
+						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION : AttributeUniquenessType.NOT_UNIQUE
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T uniqueWithinLocale(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaUniqueMutation(
+					baseSchema.getName(),
+					decider.getAsBoolean() ?
+						AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE : AttributeUniquenessType.NOT_UNIQUE
 				)
 			)
 		);
@@ -359,7 +392,7 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 			// apply the mutations not reflected in the schema
 			for (int i = lastMutationReflectedInSchema; i < attributeMutations.size(); i++) {
 				final AttributeSchemaMutation mutation = attributeMutations.get(i);
-				currentSchema = mutation.mutate(null, currentSchema);
+				currentSchema = mutation.mutate(null, currentSchema, getAttributeSchemaType());
 				if (currentSchema == null) {
 					throw new EvitaInternalError("Attribute unexpectedly removed from inside!");
 				}
@@ -371,6 +404,11 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		}
 		return this.updatedSchema;
 	}
+
+	/**
+	 * Returns the type of the attribute this builder builds.
+	 */
+	protected abstract Class<S> getAttributeSchemaType();
 
 	/**
 	 * Method allows adding specific mutation on the fly.

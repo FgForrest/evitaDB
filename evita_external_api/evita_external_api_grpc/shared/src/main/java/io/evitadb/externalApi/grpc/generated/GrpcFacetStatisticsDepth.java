@@ -129,7 +129,7 @@ public enum GrpcFacetStatisticsDepth
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(6);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(8);
   }
 
   private static final GrpcFacetStatisticsDepth[] VALUES = values();

@@ -1347,20 +1347,7 @@ public class CatalogGraphQLListEntitiesQueryFunctionalTest extends CatalogGraphQ
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities);
 
 		final List<Map<String, Object>> expectedBody = entities.stream()
-			.map(entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e(EntityDescriptor.PRICES.name(), List.of(
-						map()
-							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
-							.build()
-					))
-					.build()
-			)
+			.map(this::createEntityDtoWithPrices)
 			.toList();
 
 		tester.test(TEST_CATALOG)

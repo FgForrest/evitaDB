@@ -33,6 +33,8 @@ import io.evitadb.externalApi.configuration.ApiWithSpecificPrefix;
 import io.evitadb.externalApi.configuration.CertificatePath;
 import io.evitadb.externalApi.configuration.HostDefinition;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
+import io.evitadb.externalApi.log.NoopAccessLogReceiver;
+import io.evitadb.externalApi.log.Slf4JAccessLogReceiver;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CertificateUtils;
 import io.evitadb.utils.ConsoleWriter;
@@ -44,6 +46,9 @@ import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.PathHandler;
+import io.undertow.server.handlers.accesslog.AccessLogHandler;
+import io.undertow.server.handlers.accesslog.AccessLogReceiver;
+import io.undertow.server.handlers.accesslog.DefaultAccessLogReceiver;
 import io.undertow.server.handlers.encoding.ContentEncodingRepository;
 import io.undertow.server.handlers.encoding.DeflateEncodingProvider;
 import io.undertow.server.handlers.encoding.EncodingHandler;
@@ -53,6 +58,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.jboss.threads.EnhancedQueueExecutor;
 import org.xnio.Xnio;
+import org.xnio.XnioWorker;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -85,6 +91,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -181,7 +188,8 @@ public class ExternalApiServer implements AutoCloseable {
 
 			rootCaFingerPrint.ifPresent(it -> {
 				ConsoleWriter.write(StringUtils.rightPad("Root CA Certificate fingerprint: ", " ", PADDING_START_UP));
-				ConsoleWriter.write(it + "\n", ConsoleColor.BRIGHT_YELLOW);
+				ConsoleWriter.write(it, ConsoleColor.BRIGHT_YELLOW);
+				ConsoleWriter.write("\n", ConsoleColor.WHITE);
 			});
 
 		} catch (NoSuchAlgorithmException | UnrecoverableKeyException | CertificateException | KeyStoreException |
@@ -367,10 +375,25 @@ public class ExternalApiServer implements AutoCloseable {
 			return;
 		}
 
-		registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
-		rootServer.stop();
+		try {
+			registeredApiProviders.values().forEach(ExternalApiProvider::beforeStop);
+			rootServer.stop();
+			final XnioWorker worker = rootServer.getWorker();
+			worker.shutdown();
+			try {
+				if (!worker.awaitTermination(5000, TimeUnit.MILLISECONDS)) {
+					worker.shutdownNow();
+				}
+			} catch (InterruptedException e) {
+				worker.shutdownNow();
+				Thread.currentThread().interrupt();
+				throw new RuntimeException(e);
+			}
 
-		ConsoleWriter.write("External APIs stopped.\n");
+			ConsoleWriter.write("External APIs stopped.\n");
+		} catch (Exception ex) {
+			ConsoleWriter.write("Failed to stop external APIs in dedicated time (5 secs.).\n");
+		}
 	}
 
 	private void configureUndertow(
@@ -432,6 +455,8 @@ public class ExternalApiServer implements AutoCloseable {
 			 */
 			.setServerOption(UndertowOptions.MAX_ENTITY_SIZE, 2_097_152L);
 
+		final AccessLogReceiver accessLogReceiver = apiOptions.accessLog() ? new Slf4JAccessLogReceiver() : new NoopAccessLogReceiver();
+
 		final SSLContext sslContext = configureSSLContext(certificatePath, serverCertificateManager);
 		final Map<HostKey, PathHandler> undertowSetupHosts = createHashMap(10);
 		for (ExternalApiProvider<?> registeredApiProvider : registeredApiProviders.values()) {
@@ -468,10 +493,18 @@ public class ExternalApiServer implements AutoCloseable {
 					)
 						.setNext(fallbackHandler);
 
+					// we want to log all requests coming into the Undertow server
+					final HttpHandler accessLogHandler = new AccessLogHandler(
+						compressionHandler,
+						accessLogReceiver,
+						"combined",
+						ExternalApiServer.class.getClassLoader()
+					);
+
 					if (configuration.isTlsEnabled()) {
-						undertowBuilder.addHttpsListener(host.port(), host.host().getHostAddress(), sslContext, compressionHandler);
+						undertowBuilder.addHttpsListener(host.port(), host.host().getHostAddress(), sslContext, accessLogHandler);
 					} else {
-						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), compressionHandler);
+						undertowBuilder.addHttpListener(host.port(), host.host().getHostAddress(), accessLogHandler);
 					}
 				}
 
@@ -487,11 +520,15 @@ public class ExternalApiServer implements AutoCloseable {
 			ConsoleWriter.write(
 				StringUtils.rightPad("API `" + registeredApiProvider.getCode() + "` listening on ", " ", PADDING_START_UP)
 			);
-			ConsoleWriter.write(
-				String.join(", ", configuration.getBaseUrls()) + "\n",
-				ConsoleColor.DARK_BLUE,
-				ConsoleDecoration.UNDERLINE
-			);
+			final String[] baseUrls = configuration.getBaseUrls(apiOptions.exposedOn());
+			for (int i = 0; i < baseUrls.length; i++) {
+				final String url = baseUrls[i];
+				if (i > 0) {
+					ConsoleWriter.write(", ", ConsoleColor.WHITE);
+				}
+				ConsoleWriter.write(url, ConsoleColor.DARK_BLUE, ConsoleDecoration.UNDERLINE);
+			}
+			ConsoleWriter.write("\n", ConsoleColor.WHITE);
 
 			if (registeredApiProvider instanceof ExternalApiProviderWithConsoleOutput consoleOutput) {
 				consoleOutput.writeToConsole();

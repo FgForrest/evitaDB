@@ -31,6 +31,8 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Optional;
+
 /**
  * This {@link Serializer} implementation reads/writes {@link FacetGroupsConjunction} from/to binary format.
  *
@@ -42,8 +44,8 @@ public class FacetGroupsConjunctionSerializer extends Serializer<FacetGroupsConj
 	@Override
 	public void write(Kryo kryo, Output output, FacetGroupsConjunction object) {
 		output.writeString(object.getReferenceName());
-		final FilterBy facetGroups = object.getFacetGroups();
-		kryo.writeObjectOrNull(output, facetGroups, FilterBy.class);
+		final Optional<FilterBy> facetGroups = object.getFacetGroups();
+		kryo.writeObjectOrNull(output, facetGroups.orElse(null), FilterBy.class);
 	}
 
 	@Override

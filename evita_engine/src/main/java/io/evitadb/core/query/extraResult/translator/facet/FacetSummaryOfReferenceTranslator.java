@@ -24,11 +24,19 @@
 package io.evitadb.core.query.extraResult.translator.facet;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
+import io.evitadb.api.query.require.EntityFetch;
+import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
@@ -42,7 +50,9 @@ import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FacetSummaryProducer;
 import io.evitadb.core.query.extraResult.translator.facet.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -53,12 +63,14 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isTrue;
+import static java.util.Optional.ofNullable;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummaryOfReference} to {@link FacetSummaryProducer}.
@@ -68,6 +80,193 @@ import static io.evitadb.utils.Assert.isTrue;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FacetSummaryOfReferenceTranslator implements RequireConstraintTranslator<FacetSummaryOfReference>, SelfTraversingTranslator {
+
+	/**
+	 * Creates a predicate for filtering facet groups.
+	 *
+	 * @param filterGroupBy      the filter group to apply
+	 * @param extraResultPlanner the extra result planning visitor
+	 * @param referenceSchema    the reference schema contract
+	 * @param required           indicates if the facet groups are required
+	 * @return the predicate for filtering facet groups, or null if not required
+	 */
+	@Nullable
+	static IntPredicate createFacetGroupPredicate(
+		@Nullable FilterGroupBy filterGroupBy,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
+	) {
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedGroupTypeManaged(),
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+			return null;
+		}
+		return new FilteringFormulaPredicate(
+			extraResultPlanner.getQueryContext(),
+			new FilterBy(filterGroupBy.getChildren()),
+			referenceSchema.getReferencedGroupType(),
+			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
+		);
+	}
+
+	/**
+	 * Creates a predicate for filtering facets.
+	 *
+	 * @param filterBy           The filter criteria.
+	 * @param extraResultPlanner The visitor for planning extra result queries.
+	 * @param referenceSchema    The schema of the referenced entity.
+	 * @param required           Indicates if the facet is required.
+	 * @return The created facet predicate.
+	 */
+	@Nullable
+	static IntPredicate createFacetPredicate(
+		@Nonnull FilterBy filterBy,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
+	) {
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedEntityTypeManaged(),
+				() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be filtered because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
+			return pk -> false;
+		}
+
+		return new FilteringFormulaPredicate(
+			extraResultPlanner.getQueryContext(),
+			filterBy,
+			referenceSchema.getReferencedEntityType(),
+			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
+		);
+	}
+
+	/**
+	 * Creates a facet sorter based on the provided parameters.
+	 *
+	 * @param orderBy            the ordering criteria for the facet
+	 * @param locale             the locale used for sorting
+	 * @param extraResultPlanner the extra result planning visitor
+	 * @param referenceSchema    the reference schema contract
+	 * @param required           indicates whether sorting is required or optional
+	 * @return the created facet sorter, or null if the reference schema is not managed and sorting is not required
+	 */
+	@Nullable
+	static Sorter createFacetSorter(
+		@Nonnull OrderBy orderBy,
+		@Nullable Locale locale,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
+	) {
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedEntityTypeManaged(),
+				() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedEntityTypeManaged()) {
+			return null;
+		}
+		return extraResultPlanner.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType())
+			.map(ix -> extraResultPlanner.createSorter(
+					orderBy,
+					locale,
+					ix,
+					referenceSchema.getReferencedEntityType(),
+					() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
+				)
+			)
+			.orElse(NoSorter.INSTANCE);
+	}
+
+	/**
+	 * Creates a sorter for facet group ordering.
+	 *
+	 * @param orderBy            The order by criteria for the facet groups.
+	 * @param locale             The locale used for sorting.
+	 * @param extraResultPlanner The extra result planner used for sorting.
+	 * @param referenceSchema    The reference schema for the facet groups.
+	 * @param required           Indicates if sorting is required.
+	 * @return The created sorter for facet group ordering, or null if not required.
+	 */
+	@Nullable
+	static Sorter createFacetGroupSorter(
+		@Nullable OrderGroupBy orderBy,
+		@Nullable Locale locale,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean required
+	) {
+		if (required) {
+			Assert.isTrue(
+				referenceSchema.isReferencedGroupTypeManaged(),
+				() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
+					"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
+			);
+		} else if (!referenceSchema.isReferencedGroupTypeManaged()) {
+			return null;
+		}
+
+		return extraResultPlanner.getGlobalEntityIndexIfExists(referenceSchema.getReferencedGroupType())
+			.map(ix -> extraResultPlanner.createSorter(
+					orderBy,
+					locale,
+					ix,
+					referenceSchema.getReferencedGroupType(),
+					() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
+				)
+			)
+			.orElse(NoSorter.INSTANCE);
+	}
+
+	/**
+	 * Finds the Locale based on the given filter constraint.
+	 *
+	 * @param filterBy the filter constraint to search for Locale
+	 * @return the Locale found or null if not found
+	 */
+	@Nullable
+	static Locale findLocale(@Nullable GenericConstraint<FilterConstraint> filterBy) {
+		return filterBy == null ?
+			null :
+			ofNullable(
+				FinderVisitor.findConstraint(
+					filterBy,
+					it -> it instanceof EntityLocaleEquals,
+					it -> it instanceof SeparateEntityScopeContainer
+				)
+			)
+				.map(it -> ((EntityLocaleEquals) it).getLocale())
+				.orElse(null);
+	}
+
+	/**
+	 * Verify the fetch requirement for a given referenced type.
+	 *
+	 * @param referencedType     the type to be referenced
+	 * @param requirement        the fetch requirement to be verified
+	 * @param extraResultPlanner the visitor used for extra result planning
+	 * @param <T>                the type of the fetch requirement
+	 * @return the verified fetch requirement
+	 */
+	@Nonnull
+	private static <T extends EntityFetchRequire> T verifyFetch(
+		@Nonnull String referencedType,
+		@Nonnull T requirement,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
+	) {
+		final EntitySchemaContract referencedSchema = extraResultPlanner.getSchema(referencedType);
+		EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(referencedSchema, requirement, extraResultPlanner);
+		return requirement;
+	}
 
 	@Override
 	public ExtraResultProducer apply(FacetSummaryOfReference facetSummaryOfReference, ExtraResultPlanningVisitor extraResultPlanner) {
@@ -95,9 +294,8 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 				)
 			);
 		// collect all facet statistics
-		final TargetIndexes<EntityIndex<?>> indexSetToUse = extraResultPlanner.getIndexSetToUse();
-		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexes()
-			.stream()
+		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final List<Map<String, FacetReferenceIndex>> facetIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
 			.map(EntityIndex::getFacetingEntities)
 			.collect(Collectors.toList());
 
@@ -116,83 +314,27 @@ public class FacetSummaryOfReferenceTranslator implements RequireConstraintTrans
 			);
 		}
 
+		final EntityFetch facetEntityRequirement = facetSummaryOfReference.getFacetEntityRequirement()
+			.map(it -> verifyFetch(referenceSchema.getReferencedEntityType(), it, extraResultPlanner))
+			.orElse(null);
+		final EntityGroupFetch groupEntityRequirement = facetSummaryOfReference.getGroupEntityRequirement()
+			.map(
+				it -> ofNullable(referenceSchema.getReferencedGroupType())
+					.map(group -> verifyFetch(group, it, extraResultPlanner))
+					.orElse(it)
+			)
+			.orElse(null);
 		facetSummaryProducer.requireReferenceFacetSummary(
 			referenceSchema,
-			facetSummaryOfReference.getFacetStatisticsDepth(),
-			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, extraResultPlanner, referenceSchema)).orElse(null),
-			facetSummaryOfReference.getFacetEntityRequirement().orElse(null),
-			facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
+			facetSummaryOfReference.getStatisticsDepth(),
+			facetSummaryOfReference.getFilterBy().map(it -> createFacetPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getFilterGroupBy().map(it -> createFacetGroupPredicate(it, extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getOrderBy().map(it -> createFacetSorter(it, findLocale(facetSummaryOfReference.getFilterBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetSummaryOfReference.getOrderGroupBy().map(it -> createFacetGroupSorter(it, findLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null)), extraResultPlanner, referenceSchema, true)).orElse(null),
+			facetEntityRequirement,
+			groupEntityRequirement
 		);
 		return facetSummaryProducer;
-	}
-
-	@Nullable
-	static IntPredicate createFacetGroupPredicate(
-		@Nullable FilterGroupBy filterGroupBy,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		return new FilteringFormulaPredicate(
-			extraResultPlanner.getQueryContext(),
-			new FilterBy(filterGroupBy.getChildren()),
-			referenceSchema.getReferencedGroupType(),
-			() -> "Facet summary of `" + referenceSchema.getName() + "` group filter: " + filterGroupBy
-		);
-	}
-
-	@Nullable
-	static IntPredicate createFacetPredicate(
-		@Nonnull FilterBy filterBy,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		return new FilteringFormulaPredicate(
-			extraResultPlanner.getQueryContext(),
-			filterBy,
-			referenceSchema.getReferencedEntityType(),
-			() -> "Facet summary of `" + referenceSchema.getName() + "` facet filter: " + filterBy
-		);
-	}
-
-	@Nullable
-	static Sorter createFacetSorter(
-		@Nonnull OrderBy orderBy,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		Assert.isTrue(
-			referenceSchema.isReferencedEntityTypeManaged(),
-			() -> "Facets of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
-				"non-managed entity type `" + referenceSchema.getReferencedEntityType() + "`."
-		);
-		return extraResultPlanner.createSorter(
-			orderBy,
-			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedEntityType()),
-			referenceSchema.getReferencedEntityType(),
-			() -> "Facet summary `" + referenceSchema.getName() + "` facet ordering: " + orderBy
-		);
-	}
-
-	@Nullable
-	static Sorter createFacetGroupSorter(
-		@Nullable OrderGroupBy orderBy,
-		@Nonnull ExtraResultPlanningVisitor extraResultPlanner,
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		Assert.isTrue(
-			referenceSchema.isReferencedGroupTypeManaged(),
-			() -> "Facet groups of reference `" + referenceSchema.getName() + "` cannot be sorted because they relate to " +
-				"non-managed entity type `" + referenceSchema.getReferencedGroupType() + "`."
-		);
-		return extraResultPlanner.createSorter(
-			orderBy,
-			extraResultPlanner.getGlobalEntityIndex(referenceSchema.getReferencedGroupType()),
-			referenceSchema.getReferencedGroupType(),
-			() -> "Facet summary `" + referenceSchema.getName() + "` group ordering: " + orderBy
-		);
 	}
 
 }

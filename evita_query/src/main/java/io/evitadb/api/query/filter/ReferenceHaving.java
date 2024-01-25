@@ -37,36 +37,44 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `referenceAttribute` container is filtering query that filters returned entities by their reference
- * attributes that must match the inner condition.
+ * The `referenceHaving` constraint eliminates entities which has no reference of particular name satisfying set of
+ * filtering constraints. You can examine either the attributes specified on the relation itself or wrap the filtering
+ * constraint in {@link EntityHaving} constraint to examine the attributes of the referenced entity.
+ * The constraint is similar to SQL <a href="https://www.w3schools.com/sql/sql_exists.asp">`EXISTS`</a> operator.
  *
- * Example:
+ * Example (select entities having reference brand with category attribute equal to alternativeProduct):
  *
- * ```
+ * <pre>
  * referenceHavingAttribute(
- * 'CATEGORY',
- * eq('code', 'KITCHENWARE')
+ *     "brand",
+ *     attributeEquals("category", "alternativeProduct")
  * )
- * ```
+ * </pre>
  *
- * or
+ * Example (select entities having any reference brand):
  *
- * ```
+ * <pre>
+ * referenceHavingAttribute("brand")
+ * </pre>
+ *
+ * Example (select entities having any reference brand of primary key 1):
+ *
+ * <pre>
  * referenceHavingAttribute(
- * 'CATEGORY',
- * and(
- * isTrue('visible'),
- * eq('code', 'KITCHENWARE')
+ *     "brand",
+ *     entityPrimaryKeyInSet(1)
  * )
- * )
- * ```
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/references#reference-having">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "having",
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
-		"match any of the passed entity primary keys. This container resembles the SQL inner join clauses.",
+		"match the inner filter constraint. This container resembles the SQL inner join clauses.",
+	userDocsLink = "/documentation/query/filtering/references#reference-having",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class ReferenceHaving extends AbstractFilterConstraintContainer implements ReferenceConstraint<FilterConstraint>, SeparateEntityScopeContainer {
@@ -76,11 +84,8 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 		super(arguments, children);
 	}
 
-	/**
-	 * Private constructor that creates unnecessary / not applicable version of the query.
-	 */
-	private ReferenceHaving(@Nonnull @Classifier String referenceName) {
-		super(referenceName);
+	public ReferenceHaving(@Nonnull @Classifier String referenceName) {
+		super(new Serializable[]{referenceName});
 	}
 
 	@Creator
@@ -99,7 +104,12 @@ public class ReferenceHaving extends AbstractFilterConstraintContainer implement
 
 	@Override
 	public boolean isNecessary() {
-		return getArguments().length == 1 && getChildren().length >= 1;
+		return getArguments().length == 1;
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return getArguments().length == 1;
 	}
 
 	@AliasForParameter("filter")

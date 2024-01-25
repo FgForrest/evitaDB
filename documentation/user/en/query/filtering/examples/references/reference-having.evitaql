@@ -1,0 +1,17 @@
+query(
+    collection("Product"),
+    filterBy(
+        referenceHaving(
+            "relatedProducts",
+            attributeEquals("category", "alternativeProduct")
+        )
+    ),
+    require(
+        entityFetch(
+            referenceContentWithAttributes(
+                "relatedProducts",
+                attributeContent("category")
+            )
+        )
+    )
+)

@@ -23,6 +23,8 @@
 
 package io.evitadb.core.query.algebra;
 
+import javax.annotation.Nonnull;
+
 /**
  * This interface allows using <a href="https://en.wikipedia.org/wiki/Visitor_pattern">visitor pattern</a> upon
  * formula tree.
@@ -34,6 +36,6 @@ public interface FormulaVisitor {
 	/**
 	 * Method is called on each and every formula in the tree.
 	 */
-	void visit(Formula formula);
+	void visit(@Nonnull Formula formula);
 
 }

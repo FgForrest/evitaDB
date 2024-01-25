@@ -1,12 +1,13 @@
 ---
 title: Constant filtering
 perex: |
-  If you need to retrieve entities by their entity primary keys, or verify that entities with particular primary keys 
-  exist in the database, the constant filter constraint is the place to go. Filtering entities by their primary keys is 
-  the fastest way to access entities in evitaDB. 
+  If you need to retrieve entities by their entity primary keys, or verify that entities with particular primary keys
+  exist in the database, the constant filter constraint is the place to go. Filtering entities by their primary keys is
+  the fastest way to access entities in evitaDB.
 date: '26.5.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
+preferredLang: 'evitaql'
 ---
 
 ## Entity primary key in set
@@ -24,7 +25,7 @@ entityPrimaryKeyInSet(
     </dd>
 </dl>
 
-The constraint limits the list of returned entities by exactly specifying their entity primary keys. 
+The constraint limits the list of returned entities by exactly specifying their entity primary keys.
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -37,8 +38,8 @@ their primary keys, unless the `orderBy` clause is used in the query.
 
 <Note type="info">
 
-If you want the entities to be returned in the exact order of the primary keys used in the argument 
-of the `entityPrimaryKeyInSet` constraint, use the 
+If you want the entities to be returned in the exact order of the primary keys used in the argument
+of the `entityPrimaryKeyInSet` constraint, use the
 [`entityPrimaryKeyInFilter`](../ordering/constant.md#exact-entity-primary-key-order-used-in-filter)
 ordering constraint.
 
@@ -51,22 +52,22 @@ ordering constraint.
 ##### List of products filtered by entity primary key
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Entities filtered by the primary keys](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Entities filtered by the primary keys](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Entities filtered by the primary keys](/documentation/user/en/query/filtering/examples/constant/entity-primary-key-in-set.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

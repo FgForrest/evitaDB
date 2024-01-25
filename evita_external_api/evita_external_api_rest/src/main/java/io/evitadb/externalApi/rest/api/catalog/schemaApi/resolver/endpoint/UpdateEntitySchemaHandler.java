@@ -70,7 +70,7 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntitySchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
 
 		final List<EntitySchemaMutation> schemaMutations = new LinkedList<>();
@@ -80,12 +80,12 @@ public class UpdateEntitySchemaHandler extends EntitySchemaHandler {
 			schemaMutations.addAll(mutationAggregateResolver.convert(schemaMutationsIterator.next()));
 		}
 		final ModifyEntitySchemaMutation entitySchemaMutation = new ModifyEntitySchemaMutation(
-			restApiHandlingContext.getEntityType(),
+			restHandlingContext.getEntityType(),
 			schemaMutations.toArray(EntitySchemaMutation[]::new)
 		);
 
 		final EntitySchemaContract updatedEntitySchema = exchange.session().updateAndFetchEntitySchema(entitySchemaMutation);
-		return new SuccessEndpointResponse<>(updatedEntitySchema);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedEntitySchema));
 	}
 
 	@Nonnull

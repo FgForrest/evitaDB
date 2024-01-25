@@ -47,8 +47,8 @@ public class GetCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<CatalogSchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return new SuccessEndpointResponse<>(exchange.session().getCatalogSchema());
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, exchange.session().getCatalogSchema()));
 	}
 
 	@Nonnull

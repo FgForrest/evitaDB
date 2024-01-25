@@ -33,36 +33,58 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
- * This `facetGroupsNegation` requirement allows specifying facet relation inside facet groups of certain primary ids. Negative facet
- * groups results in omitting all entities that have requested facet in query result. First mandatory argument specifies
- * entity type of the facet group, secondary argument allows to define one more facet group ids that should be considered
- * negative.
+ * The `facetGroupsNegation` changes the behavior of the facet option in all facet groups specified in the filterBy
+ * constraint. Instead of returning only those items that have a reference to that particular faceted entity, the query
+ * result will return only those items that don't have a reference to it.
  *
  * Example:
  *
- * ```
- * facetGroupsNegation('parameterType', 1, 8, 15)
- * ```
+ * <pre>
+ * query(
+ *     collection("Product"),
+ *     require(
+ *         facetSummaryOfReference(
+ *             "parameterValues",
+ *             IMPACT,
+ *             filterBy(attributeContains("code", "4")),
+ *             filterGroupBy(attributeInSet("code", "ram-memory", "rom-memory")),
+ *             entityFetch(attributeContent("code")),
+ *             entityGroupFetch(attributeContent("code"))
+ *         ),
+ *         facetGroupsNegation(
+ *             "parameterValues",
+ *             filterBy(
+ *               attributeInSet("code", "ram-memory")
+ *             )
+ *         )
+ *     )
+ * )
+ * </pre>
  *
- * This statement means, that facets in 'parameterType' groups `1`, `8`, `15` will be joined with boolean AND NOT relation
- * when selected.
+ * The predicted results in the negated groups are far greater than the numbers produced by the default behavior.
+ * Selecting any option in the RAM facet group predicts returning thousands of results, while the ROM facet group with
+ * default behavior predicts only a dozen of them.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-negation">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsNegation",
 	shortDescription = "[Negates](https://en.wikipedia.org/wiki/Negation) the meaning of selected facets in specified " +
-		"facet groups in the sense that their selection would return entities that don't have any of those facets."
+		"facet groups in the sense that their selection would return entities that don't have any of those facets.",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-negation"
 )
 public class FacetGroupsNegation extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 3993873252481237893L;
@@ -76,8 +98,10 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 
 	@Creator
 	public FacetGroupsNegation(@Nonnull @Classifier String referenceName,
-	                           @Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
-		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
+	                           @Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy) {
+		super(
+			new Serializable[]{referenceName}, NO_CHILDREN, filterBy
+		);
 	}
 
 	/**
@@ -93,17 +117,16 @@ public class FacetGroupsNegation extends AbstractRequireConstraintContainer impl
 	 */
 	@AliasForParameter("filterBy")
 	@Nonnull
-	public FilterBy getFacetGroups() {
+	public Optional<FilterBy> getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())
 			.filter(child -> child instanceof FilterBy)
 			.map(FilterBy.class::cast)
-			.findAny()
-			.orElseThrow(() -> new EvitaInvalidUsageException("FacetGroupsNegation requires FilterBy constraint."));
+			.findAny();
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0 && getAdditionalChildrenCount() > 0;
+		return isArgumentsNonNull() && getArguments().length > 0;
 	}
 
 	@Nonnull

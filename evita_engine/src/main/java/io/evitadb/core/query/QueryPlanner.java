@@ -36,8 +36,8 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
+import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.CacheDisabledExtraResultAccessor;
 import io.evitadb.core.query.extraResult.CacheTranslatingExtraResultAccessor;
 import io.evitadb.core.query.extraResult.CacheableExtraResultProducer;
@@ -49,8 +49,10 @@ import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.CacheableSorter;
 import io.evitadb.core.query.sort.ConditionalSorter;
+import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
+import io.evitadb.core.query.sort.primaryKey.TranslatedPrimaryKeySorter;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexType;
@@ -118,7 +120,7 @@ public class QueryPlanner {
 		context.pushStep(QueryPhase.PLANNING);
 		try {
 			// determine the indexes that should be used for filtering
-			final IndexSelectionResult indexSelectionResult = selectIndexes(context);
+			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
 			// if we found empty target index, we may quickly return empty result - one key condition is not fulfilled
 			if (indexSelectionResult.isEmpty()) {
@@ -175,7 +177,7 @@ public class QueryPlanner {
 		context.pushStep(QueryPhase.PLANNING_NESTED_QUERY);
 		try {
 			// determine the indexes that should be used for filtering
-			final IndexSelectionResult indexSelectionResult = selectIndexes(context);
+			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
 			// if we found empty target index, we may quickly return empty result - one key condition is not fulfilled
 			if (indexSelectionResult.isEmpty()) {
@@ -218,13 +220,14 @@ public class QueryPlanner {
 	 * {@link EntityIndexType#REFERENCED_ENTITY} or {@link EntityIndexType#REFERENCED_HIERARCHY_NODE} that contains
 	 * limited subset of the entities related to that placement/relation.
 	 */
-	private static IndexSelectionResult selectIndexes(@Nonnull QueryContext queryContext) {
+	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryContext queryContext) {
 		queryContext.pushStep(QueryPhase.PLANNING_INDEX_USAGE);
 		try {
 			final IndexSelectionVisitor indexSelectionVisitor = new IndexSelectionVisitor(queryContext);
 			ofNullable(queryContext.getFilterBy()).ifPresent(indexSelectionVisitor::visit);
-			return new IndexSelectionResult(
-				indexSelectionVisitor.getTargetIndexes(),
+			//noinspection rawtypes,unchecked
+			return new IndexSelectionResult<>(
+				(List)indexSelectionVisitor.getTargetIndexes(),
 				indexSelectionVisitor.isTargetIndexQueriedByOtherConstraints()
 			);
 		} finally {
@@ -259,7 +262,8 @@ public class QueryPlanner {
 					);
 
 					final PrefetchFormulaVisitor prefetchFormulaVisitor = createPrefetchFormulaVisitor(targetIndex);
-					ofNullable(prefetchFormulaVisitor).ifPresent(filterByVisitor::registerFormulaPostProcessorIfNotPresent);
+					ofNullable(prefetchFormulaVisitor)
+						.ifPresent(it -> filterByVisitor.registerFormulaPostProcessorIfNotPresent(PrefetchFormulaVisitor.class, () -> it));
 					ofNullable(queryContext.getFilterBy()).ifPresent(filterByVisitor::visit);
 					// we need the original trees to contain only non-cached forms of formula if debug mode is enabled
 					if (debugCachedVariantTrees) {
@@ -340,7 +344,7 @@ public class QueryPlanner {
 		@Nonnull QueryContext queryContext
 	) {
 		if (sorter == null) {
-			return sorter;
+			return null;
 		} else {
 			final LongHashFunction hashFunction = CacheSupervisor.createHashFunction();
 			final LinkedList<Sorter> sorters = new LinkedList<>();
@@ -397,7 +401,7 @@ public class QueryPlanner {
 	 * {@link SelectionFormula} which would also limit its performance boost to a large extent.
 	 */
 	@Nullable
-	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(@Nonnull TargetIndexes targetIndex) {
+	private static PrefetchFormulaVisitor createPrefetchFormulaVisitor(@Nonnull TargetIndexes<?> targetIndex) {
 		if (targetIndex.isGlobalIndex() || targetIndex.isCatalogIndex()) {
 			return new PrefetchFormulaVisitor();
 		} else {
@@ -410,9 +414,10 @@ public class QueryPlanner {
 	 * and slices appropriate part of the result to respect limit/offset requirements from the query. No sorting/slicing
 	 * is done in this method, only the instance of {@link Sorter} capable of doing it is created and returned.
 	 */
+	@Nonnull
 	private static List<QueryPlanBuilder> createSorter(
 		@Nonnull QueryContext queryContext,
-		@Nonnull List<TargetIndexes<?>> targetIndexes,
+		@Nonnull List<? extends TargetIndexes<?>> targetIndexes,
 		@Nonnull List<QueryPlanBuilder> builders
 	) {
 		queryContext.pushStep(QueryPhase.PLANNING_SORT);
@@ -430,7 +435,7 @@ public class QueryPlanner {
 					// in case of debug cached variant tree or the entity is not known, we cannot use cache here
 					// and we need to retain original non-cached sorter
 					final Sorter sorter = orderByVisitor.getSorter();
-					builder.appendSorter(sorter);
+					builder.appendSorter(replaceNoSorterIfNecessary(queryContext, sorter));
 				} finally {
 					if (multipleAlternatives) {
 						queryContext.popStep();
@@ -453,7 +458,7 @@ public class QueryPlanner {
 									queryContext, builder.getFilterFormula(),
 									builder.getTargetIndexes(),
 									builder.getPrefetchFormulaVisitor(),
-									replacedSorter
+									replaceNoSorterIfNecessary(queryContext, replacedSorter)
 								)
 							);
 						} else {
@@ -470,11 +475,32 @@ public class QueryPlanner {
 	}
 
 	/**
+	 * This method replaces no sorter - which should always represent primary keys in ascending order - with the special
+	 * implementation in case the entity is not known in the query. In such case the primary keys are translated
+	 * different ids and those ids are translated back at the end of the query. Unfortunately the order of the translated
+	 * keys might be different than the original order of the primary keys, so we need to sort them here according to
+	 * their original primary keys order in ascending fashion.
+	 *
+	 * @param queryContext query context
+	 * @param sorter identified sorter
+	 * @return sorter in input or new implementation that ensures proper sorting by primary keys in ascending order
+	 */
+	@Nonnull
+	private static Sorter replaceNoSorterIfNecessary(@Nonnull QueryContext queryContext, @Nonnull Sorter sorter) {
+		if (sorter instanceof NoSorter && !queryContext.isEntityTypeKnown()) {
+			return TranslatedPrimaryKeySorter.INSTANCE;
+		} else {
+			return sorter;
+		}
+	}
+
+	/**
 	 * Method creates list of {@link ExtraResultProducer} implementations that fabricate requested extra data structures
 	 * that are somehow connected with the processed query taking existing formula and their memoized results into
 	 * account (which is a great advantage comparing to computation in multiple requests as needed in other database
 	 * solutions).
 	 */
+	@Nonnull
 	private static List<QueryPlanBuilder> createExtraResultProducers(
 		@Nonnull QueryContext queryContext,
 		@Nonnull List<QueryPlanBuilder> builders

@@ -1191,20 +1191,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 			.body(ERRORS_PATH, nullValue())
 			.body(
 				GET_PRODUCT_PATH,
-				equalTo(
-					map()
-						.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-						.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-						.e(EntityDescriptor.PRICES.name(), List.of(
-							map()
-								.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-								.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-								.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-								.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
-								.build()
-						))
-						.build()
-				)
+				equalTo(createEntityDtoWithPrices(entity))
 			);
 	}
 

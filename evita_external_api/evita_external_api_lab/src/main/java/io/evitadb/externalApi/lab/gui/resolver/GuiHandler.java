@@ -59,11 +59,15 @@ import java.util.regex.Pattern;
  */
 public class GuiHandler extends ResourceHandler {
 
-	public static final Encoder BASE_64_ENCODER = Base64.getEncoder();
+	private static final Encoder BASE_64_ENCODER = Base64.getEncoder();
+
 	private static final String EVITALAB_SERVER_NAME_COOKIE = "evitalab_servername";
 	private static final String EVITALAB_READONLY_COOKIE = "evitalab_readonly";
 	private static final String EVITALAB_PRECONFIGURED_CONNECTIONS_COOKIE = "evitalab_pconnections";
-	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
+
+	private static final Pattern ASSETS_PATTERN = Pattern.compile("/assets/([a-zA-Z0-9\\-]+/)*[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
+	private static final Pattern ROOT_ASSETS_PATTERN = Pattern.compile("(/logo)?/[a-zA-Z0-9\\-]+\\.[a-z0-9]+");
+
 	@Nonnull private final LabConfig labConfig;
 	@Nonnull private final String serverName;
 	@Nonnull private final ApiOptions apiOptions;
@@ -149,9 +153,9 @@ public class GuiHandler extends ResourceHandler {
 		final EvitaDBConnection selfConnection = new EvitaDBConnection(
 			null,
 			serverName,
-			labConfig.getBaseUrls()[0] + LabManager.LAB_API_URL_PREFIX,
-			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls()[0]).orElse(null),
-			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls()[0]).orElse(null)
+			labConfig.getBaseUrls(apiOptions.exposedOn())[0] + LabManager.LAB_API_URL_PREFIX,
+			Optional.ofNullable(restConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null),
+			Optional.ofNullable(graphQLConfig).map(it -> it.getBaseUrls(apiOptions.exposedOn())[0]).orElse(null)
 		);
 		return List.of(selfConnection);
 	}
@@ -172,8 +176,8 @@ public class GuiHandler extends ResourceHandler {
 				return null;
 			} else if (path.isEmpty() || path.equals("/index.html")) {
 				return resourceManager.getResource("index.html");
-			} else if (path.equals("/favicon.ico")) {
-				return resourceManager.getResource("favicon.ico");
+			} else if (ROOT_ASSETS_PATTERN.matcher(path).matches()) {
+				return resourceManager.getResource(path.substring(1));
 			} else if (ASSETS_PATTERN.matcher(path).matches()) {
 				return resourceManager.getResource(path);
 			} else {

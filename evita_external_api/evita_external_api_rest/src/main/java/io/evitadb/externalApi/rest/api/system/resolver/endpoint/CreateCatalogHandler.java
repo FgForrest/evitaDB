@@ -51,13 +51,13 @@ public class CreateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final CreateCatalogRequestDto requestBody = parseRequestBody(exchange, CreateCatalogRequestDto.class);
 
-		restApiHandlingContext.getEvita().defineCatalog(requestBody.name());
-		final CatalogContract newCatalog = restApiHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
+		restHandlingContext.getEvita().defineCatalog(requestBody.name());
+		final CatalogContract newCatalog = restHandlingContext.getEvita().getCatalogInstanceOrThrowException(requestBody.name());
 
-		return new SuccessEndpointResponse<>(newCatalog);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, newCatalog));
 	}
 
 	@Nonnull

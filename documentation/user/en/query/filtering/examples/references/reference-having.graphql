@@ -1,0 +1,23 @@
+{
+  queryProduct(
+    filterBy: {
+      referenceRelatedProductsHaving: [
+        {
+          attributeCategoryEquals: "alternativeProduct"
+        }
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        relatedProducts {
+          referencedPrimaryKey
+          attributes {
+            category
+          }
+        }
+      }
+    }
+  }
+}

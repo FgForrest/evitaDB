@@ -1,0 +1,22 @@
+query(
+    collection("Product"),
+    filterBy(
+        referenceHaving(
+            "brand",
+            entityHaving(
+                attributeEquals("code", "apple")
+            )
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent("code"),
+            referenceContent(
+                "brand",
+                entityFetch(
+                    attributeContent("code")
+                )
+            )
+        )
+    )
+)

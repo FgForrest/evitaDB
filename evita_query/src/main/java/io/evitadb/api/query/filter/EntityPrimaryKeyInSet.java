@@ -35,19 +35,16 @@ import java.io.Serializable;
 import java.util.Arrays;
 
 /**
- * This `primaryKey` is query that accepts set of {@link Integer}
- * that represents primary keys of the entities that should be returned.
- *
- * Function returns true if entity primary key is part of the passed set of integers.
- * This form of entity lookup function is the fastest one.
- *
- * Only single `primaryKey` query can be used in the query.
+ * The `entityPrimaryKeyInSet` constraint limits the list of returned entities by exactly specifying their entity
+ * primary keys.
  *
  * Example:
  *
- * ```
+ * <pre>
  * primaryKey(1, 2, 3)
- * ```
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/constant#entity-primary-key-in-set">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -55,10 +52,11 @@ import java.util.Arrays;
 	name = "inSet",
 	shortDescription = "The constraint checks if primary key of the entity equals to at least one of the passed values. " +
 		"The constraint is equivalent to one or more `equals` constraints combined with logical OR.",
+	userDocsLink = "/documentation/query/filtering/constant#entity-primary-key-in-set",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
-	implements EntityConstraint<FilterConstraint>, IndexUsingConstraint {
+	implements EntityConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -6950287451642746676L;
 
 	private EntityPrimaryKeyInSet(Serializable... arguments) {
@@ -78,6 +76,11 @@ public class EntityPrimaryKeyInSet extends AbstractFilterConstraintLeaf
 		return Arrays.stream(getArguments())
 			.mapToInt(Integer.class::cast)
 			.toArray();
+	}
+
+	@Override
+	public boolean isApplicable() {
+		return true;
 	}
 
 	@Nonnull

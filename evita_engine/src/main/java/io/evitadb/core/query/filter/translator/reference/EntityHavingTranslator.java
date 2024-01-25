@@ -89,6 +89,9 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 					ofNullable(entityNestedQueryComparator)
 						.map(EntityNestedQueryComparator::getOrderBy)
 						.map(it -> new OrderBy(it.getChildren()))
+						.orElse(null),
+					ofNullable(entityNestedQueryComparator)
+						.map(EntityNestedQueryComparator::getLocale)
 						.orElse(null)
 				),
 				filterByVisitor.getEvitaSession()

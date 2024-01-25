@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
@@ -59,7 +60,7 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			output.writeBoolean(true);
 			kryo.writeClassAndObject(output, attributeSchema.getDefaultValue());
 		}
-		output.writeBoolean(attributeSchema.isUnique());
+		output.writeVarInt(attributeSchema.getUniquenessType().ordinal(), true);
 		output.writeBoolean(attributeSchema.isLocalized());
 		output.writeBoolean(attributeSchema.isFilterable());
 		output.writeBoolean(attributeSchema.isSortable());
@@ -93,7 +94,7 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		}
 		final Class type = kryo.readClass(input).getType();
 		final Object defaultValue = input.readBoolean() ? kryo.readClassAndObject(input) : null;
-		final boolean unique = input.readBoolean();
+		final AttributeUniquenessType unique = AttributeUniquenessType.values()[input.readVarInt(true)];
 		final boolean localized = input.readBoolean();
 		final boolean filterable = input.readBoolean();
 		final boolean sortable = input.readBoolean();
@@ -103,7 +104,8 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, sortable, localized, nullable, type, (Serializable) defaultValue, indexedDecimalPlaces
+			unique, filterable, sortable, localized, nullable,
+			type, (Serializable) defaultValue, indexedDecimalPlaces
 		);
 	}
 

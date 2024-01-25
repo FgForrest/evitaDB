@@ -37,8 +37,8 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-public interface SortableAttributeCompoundSchemaProviderEditor<T extends SortableAttributeCompoundSchemaProviderEditor<T>>
-	extends SortableAttributeCompoundSchemaProvider {
+public interface SortableAttributeCompoundSchemaProviderEditor<T extends SortableAttributeCompoundSchemaProviderEditor<T, S>, S extends AttributeSchemaContract>
+	extends SortableAttributeCompoundSchemaProvider<S> {
 
 	/**
 	 * Adds new {@link SortableAttributeCompoundSchemaContract} to the entity or reference.

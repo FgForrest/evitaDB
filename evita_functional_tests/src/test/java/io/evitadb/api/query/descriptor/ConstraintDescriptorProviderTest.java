@@ -58,7 +58,7 @@ class ConstraintDescriptorProviderTest {
 
 	@Test
 	void shouldHaveProcessedConstraints() {
-		assertEquals(89, ConstraintDescriptorProvider.getAllConstraints().size());
+		assertEquals(90, ConstraintDescriptorProvider.getAllConstraints().size());
 	}
 
 	@Test
@@ -135,7 +135,7 @@ class ConstraintDescriptorProviderTest {
 	@Test
 	void shouldFindAllConstraintsForSpecificType() {
 		assertEquals(36, ConstraintDescriptorProvider.getConstraints(ConstraintType.FILTER).size());
-		assertEquals(12, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
+		assertEquals(13, ConstraintDescriptorProvider.getConstraints(ConstraintType.ORDER).size());
 	}
 
 	@Test
@@ -221,7 +221,8 @@ class ConstraintDescriptorProviderTest {
 
 	@ConstraintDefinition(
 		name = "something",
-		shortDescription = "This is a constraint."
+		shortDescription = "This is a constraint.",
+		userDocsLink = "/link"
 	)
 	private static class UnknownConstraint extends ConstraintLeaf<FilterConstraint> implements FilterConstraint, AttributeConstraint<FilterConstraint> {
 

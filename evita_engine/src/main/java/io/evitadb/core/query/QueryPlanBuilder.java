@@ -26,7 +26,7 @@ package io.evitadb.core.query;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula.PrefetchFormulaVisitor;
+import io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NoSorter;
@@ -60,7 +60,7 @@ public class QueryPlanBuilder implements PrefetchRequirementCollector {
 	 * Indexes that were used for creating {@link #filterFormula}.
 	 */
 	@Nonnull
-	@Getter private final TargetIndexes targetIndexes;
+	@Getter private final TargetIndexes<?> targetIndexes;
 	/**
 	 * Optional visitor that collected information about target entities so that they can
 	 * be fetched upfront and filtered/ordered by their properties.

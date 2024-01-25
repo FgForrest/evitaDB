@@ -39,13 +39,47 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /**
- * TOBEDONE JNO docs
+ * The `entityGroupFetch` requirement is similar to {@link EntityFetch} but is used to trigger loading one or more
+ * referenced group entities in the {@link ReferenceContent} parent.
+ *
+ * Example:
+ *
+ * <pre>
+ * query(
+ *     collection("Brand"),
+ *     filterBy(
+ *         entityPrimaryKeyInSet(64703),
+ *         entityLocaleEquals("en")
+ *     ),
+ *     require(
+ *         entityFetch(
+ *             referenceContent(
+ *                "parameterValues",
+ *                entityGroupFetch(
+ *                   attributeContent("code", "name")
+ *                )
+*              )
+ *         )
+ *     )
+ * )
+ * </pre>
+ *
+ * See internal contents available for fetching in {@link EntityContentRequire}:
+ *
+ * - {@link AttributeContent}
+ * - {@link AssociatedDataContent}
+ * - {@link PriceContent}
+ * - {@link HierarchyContent}
+ * - {@link ReferenceContent}
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#entity-group-fetch">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "groupFetch",
 	shortDescription = "Returns richer group entities instead of just entity references (empty container returns only entity body).",
+	userDocsLink = "/documentation/query/requirements/fetching#entity-group-fetch",
 	supportedIn = {ConstraintDomain.FACET}
 )
 public class EntityGroupFetch extends AbstractRequireConstraintContainer implements EntityFetchRequire {

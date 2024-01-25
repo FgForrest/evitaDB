@@ -24,10 +24,13 @@
 package io.evitadb.api.requestResponse.schema;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.data.ContentComparator;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.Set;
 
@@ -45,6 +48,7 @@ import java.util.Set;
 public interface CatalogSchemaContract
 	extends NamedSchemaContract,
 	ContentComparator<CatalogSchemaContract>,
+	EntitySchemaProvider,
 	AttributeSchemaProvider<GlobalAttributeSchemaContract> {
 
 	/**
@@ -62,6 +66,14 @@ public interface CatalogSchemaContract
 	Set<CatalogEvolutionMode> getCatalogEvolutionMode();
 
 	/**
+	 * Returns a collection of all entity schemas in catalog.
+	 *
+	 * @return a collection of entity schemas in catalog
+	 */
+	@Nonnull
+	Collection<EntitySchemaContract> getEntitySchemas();
+
+	/**
 	 * Returns entity schema that is connected with passed `entityType` or NULL if such entity collection doesn't
 	 * exist.
 	 */
@@ -77,5 +89,13 @@ public interface CatalogSchemaContract
 		return getEntitySchema(entityType)
 			.orElseThrow(() -> new EvitaInvalidUsageException("Schema for entity with name `" + entityType + "` was not found!"));
 	}
+
+	/**
+	 * Validates the current state of the object. If the object is not valid, {@link SchemaAlteringException} is thrown.
+	 * Method validates all entity schemas using {@link EntitySchemaContract#validate(CatalogSchemaContract)}.
+	 *
+	 * @throws SchemaAlteringException if current schema contains validation errors
+	 */
+	void validate() throws SchemaAlteringException;
 
 }

@@ -23,6 +23,7 @@
 
 package io.evitadb.documentation.java;
 
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContextFactory;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -44,17 +45,17 @@ public class JavaTestContextFactory implements TestContextFactory<JavaTestContex
 	private final AtomicReference<JavaTestContext> testContextRef = new AtomicReference<>();
 
 	@Override
-	public DynamicTest getInitTest() {
+	public DynamicTest getInitTest(@Nonnull Environment profile) {
 		return dynamicTest(
-			"Init JShell",
-			() -> testContextRef.set(new JavaTestContext())
+			"Init JShell (" + profile + ")",
+			() -> testContextRef.set(new JavaTestContext(profile))
 		);
 	}
 
 	@Override
-	public DynamicTest getTearDownTest() {
+	public DynamicTest getTearDownTest(@Nonnull Environment profile) {
 		return dynamicTest(
-			"Destroy JShell",
+			"Destroy JShell (" + profile + ")",
 			() -> getContext().getJShell().close()
 		);
 	}

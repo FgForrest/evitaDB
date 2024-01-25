@@ -134,8 +134,8 @@
 			"path": "/query/filtering/hierarchy.md"
 		  },
 		  {
-			"title": "Special",
-			"path": "/query/filtering/special.md"
+			"title": "Behavioral",
+			"path": "/query/filtering/behavioral.md"
 		  }
 		]
 	  },
@@ -147,8 +147,8 @@
 			"path": "/query/ordering/constant.md"
 		  },
 		  {
-			"title": "Natural",
-			"path": "/query/ordering/natural.md"
+			"title": "Comparable",
+			"path": "/query/ordering/comparable.md"
 		  },
 		  {
 			"title": "Price",
@@ -190,6 +190,10 @@
 		  {
 			"title": "Histogram",
 			"path": "/query/requirements/histogram.md"
+		  },
+		  {
+			"title": "Telemetry",
+			"path": "/query/requirements/telemetry.md"
 		  }
 		]
 	  }
@@ -230,6 +234,10 @@
 	  {
 		"title": "Bulk vs. incremental indexing",
 		"path" : "/deep-dive/bulk-vs-incremental-indexing.md"
+	  },
+	  {
+		"title": "Price for sale calculation",
+		"path" : "/deep-dive/price-for-sale-calculation.md"
 	  },
 	  {
 		"title": "Transactions",

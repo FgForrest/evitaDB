@@ -1,0 +1,14 @@
+query(
+    collection("Product"),
+    filterBy(
+        entityLocaleEquals("cs")
+    ),
+    orderBy(
+        entityPrimaryKeyNatural(DESC)
+    ),
+    require(
+        entityFetch(
+            attributeContent("name")
+        )
+    )
+)

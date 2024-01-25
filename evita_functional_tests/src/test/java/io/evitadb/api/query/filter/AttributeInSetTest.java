@@ -44,7 +44,7 @@ class AttributeInSetTest {
 	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new AttributeInSet(null).isApplicable());
-		assertFalse(new AttributeInSet("refs").isApplicable());
+		assertTrue(new AttributeInSet("refs").isApplicable());
 		assertTrue(attributeInSet("refs", 1).isApplicable());
 		assertTrue(attributeInSet("refs", 1, 2).isApplicable());
 	}

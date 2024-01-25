@@ -1,0 +1,8 @@
+{
+  listProduct(
+    limit: 5
+    offset: 10
+  ) {
+    primaryKey
+  }
+}

@@ -39,6 +39,7 @@ import io.evitadb.api.query.require.Require;
 import org.antlr.v4.runtime.ParserRuleContext;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -64,7 +65,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
                     .map(con -> con.accept(constraintVisitor))
                     .collect(Collectors.toList());
 
-                final Collection collectionConstraint = findEntitiesConstraint(ctx, constraints);
+                final Collection collectionConstraint = findCollectionConstraint(ctx, constraints);
                 final FilterBy filterByConstraint = findFilterByConstraint(ctx, constraints);
                 final OrderBy orderByConstraint = findOrderByConstraint(ctx, constraints);
                 final Require requireConstraint = findRequireConstraint(ctx, constraints);
@@ -86,12 +87,16 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      * @return found {@link Collection}
      * @throws EvitaQLInvalidQueryError if no appropriated constraint found
      */
-    protected Collection findEntitiesConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
+    @Nullable
+    protected Collection findCollectionConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
         final List<Constraint<?>> headConstraints = topLevelConstraints.stream()
                 .filter(HeadConstraint.class::isInstance)
                 .toList();
 
-        if ((headConstraints.size() != 1) || !(headConstraints.get(0) instanceof Collection)) {
+        if (headConstraints.isEmpty()) {
+            return null;
+        }
+        if ((headConstraints.size() > 1) || !(headConstraints.get(0) instanceof Collection)) {
             throw new EvitaQLInvalidQueryError(
                 ctx,
                 "Query can have only one top level head constraint -> `collection`."
@@ -107,6 +112,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      * @return {@code null} if not appropriated constraint found or found {@link FilterBy}
      * @throws EvitaQLInvalidQueryError if there is more top level filter constraints or found constraint is not appropriated type
      */
+    @Nullable
     protected FilterBy findFilterByConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
         final List<Constraint<?>> filterConstraints = topLevelConstraints.stream()
                 .filter(FilterConstraint.class::isInstance)
@@ -131,6 +137,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      * @return {@code null} if not appropriated constraint found or found {@link OrderBy}
      * @throws EvitaQLInvalidQueryError if there is more top level order constraints or found constraint is not appropriated type
      */
+    @Nullable
     protected OrderBy findOrderByConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
         final List<Constraint<?>> orderConstraints = topLevelConstraints.stream()
                 .filter(OrderConstraint.class::isInstance)
@@ -155,6 +162,7 @@ public class EvitaQLQueryVisitor extends EvitaQLBaseVisitor<Query> {
      * @return {@code null} if not appropriated constraint found or found {@link Require}
      * @throws EvitaQLInvalidQueryError if there is more top level require constraints or found constraint is not appropriated type
      */
+    @Nullable
     protected Require findRequireConstraint(@Nonnull ParserRuleContext ctx, @Nonnull List<Constraint<?>> topLevelConstraints) {
         final List<Constraint<?>> requireConstraints = topLevelConstraints.stream()
                 .filter(RequireConstraint.class::isInstance)

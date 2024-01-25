@@ -54,12 +54,12 @@ import java.util.stream.Stream;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AttributesContract extends Serializable {
+public interface AttributesContract<S extends AttributeSchemaContract> extends Serializable, AttributesAvailabilityChecker {
 
 	/**
 	 * Returns true if single attribute differs between first and second instance.
 	 */
-	static boolean anyAttributeDifferBetween(AttributesContract first, AttributesContract second) {
+	static <S extends AttributeSchemaContract> boolean anyAttributeDifferBetween(AttributesContract<S> first, AttributesContract<S> second) {
 		final Collection<AttributeValue> thisValues = first.attributesAvailable() ? first.getAttributeValues() : Collections.emptyList();
 		final Collection<AttributeValue> otherValues = second.attributesAvailable() ? second.getAttributeValues() : Collections.emptyList();
 
@@ -82,33 +82,6 @@ public interface AttributesContract extends Serializable {
 				});
 		}
 	}
-
-	/**
-	 * Returns true if entity attributes were fetched along with the entity. Calling this method before calling any
-	 * other method that requires attributes to be fetched will allow you to avoid {@link ContextMissingException}.
-	 */
-	boolean attributesAvailable();
-
-	/**
-	 * Returns true if entity attributes were fetched in specified locale along with the entity. Calling this method
-	 * before calling any other method that requires attributes to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 */
-	boolean attributesAvailable(@Nonnull Locale locale);
-
-	/**
-	 * Returns true if entity attribute of particular name was fetched along with the entity. Calling this method
-	 * before calling any other method that requires attributes to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 */
-	boolean attributeAvailable(@Nonnull String attributeName);
-
-	/**
-	 * Returns true if entity attribute of particular name in particular locale was fetched along with the entity.
-	 * Calling this method before calling any other method that requires attributes to be fetched will allow you to
-	 * avoid {@link ContextMissingException}.
-	 */
-	boolean attributeAvailable(@Nonnull String attributeName, @Nonnull Locale locale);
 
 	/**
 	 * Returns value associated with the key or null when the attribute is missing.
@@ -265,7 +238,7 @@ public interface AttributesContract extends Serializable {
 	 * Returns definition for the attribute of specified name.
 	 */
 	@Nonnull
-	Optional<AttributeSchemaContract> getAttributeSchema(@Nonnull String attributeName);
+	Optional<S> getAttributeSchema(@Nonnull String attributeName);
 
 	/**
 	 * Returns set of all attribute names registered in this attribute set. The result set is not limited to the set

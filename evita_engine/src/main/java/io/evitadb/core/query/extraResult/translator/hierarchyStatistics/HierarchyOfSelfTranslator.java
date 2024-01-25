@@ -49,6 +49,7 @@ import io.evitadb.utils.Assert;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link HierarchyOfSelf} to
@@ -74,17 +75,6 @@ public class HierarchyOfSelfTranslator
 		// prepare shared data from the context
 		final EvitaRequest evitaRequest = extraResultPlanner.getEvitaRequest();
 		final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(null);
-		final GlobalEntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(queriedEntityType);
-		final Sorter sorter = hierarchyOfSelf.getOrderBy()
-			.map(
-				it -> extraResultPlanner.createSorter(
-					it,
-					globalIndex,
-					queriedEntityType,
-					() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
-				)
-			)
-			.orElse(null);
 
 		// retrieve existing producer or create new one
 		final HierarchyStatisticsProducer hierarchyStatisticsProducer = getHierarchyStatisticsProducer(
@@ -93,73 +83,89 @@ public class HierarchyOfSelfTranslator
 		// we need to register producer prematurely
 		extraResultPlanner.registerProducer(hierarchyStatisticsProducer);
 
-		// the request is simple - we use global index of current entity
-		hierarchyStatisticsProducer.interpret(
-			entitySchema,
-			null,
-			extraResultPlanner.getAttributeSchemaAccessor(),
-			hierarchyWithin,
-			globalIndex,
-			extraResultPlanner.getPrefetchRequirementCollector(),
-			(nodeId, statisticsBase) -> {
-				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
-					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
-				final Formula childrenExceptSelfFormula = FormulaFactory.not(
-					new ConstantFormula(new BaseBitmap(nodeId)),
-					globalIndex.getHierarchyNodesForParentFormula(nodeId)
-				);
-				if (filter == null || !filter.isApplicable()) {
-					return childrenExceptSelfFormula;
-				} else {
-					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
-						Collections.singletonList(globalIndex),
-						filter,
-						() -> createFilterFormula(
-							extraResultPlanner.getQueryContext(),
+		final Optional<GlobalEntityIndex> targetGlobalIndexRef = extraResultPlanner.getGlobalEntityIndexIfExists(queriedEntityType);
+		if (targetGlobalIndexRef.isPresent()) {
+			final GlobalEntityIndex globalIndex = targetGlobalIndexRef.get();
+			final Sorter sorter = hierarchyOfSelf.getOrderBy()
+				.map(
+					it -> extraResultPlanner.createSorter(
+						it,
+						null,
+						globalIndex,
+						queriedEntityType,
+						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+					)
+				)
+				.orElse(null);
+
+			// the request is simple - we use global index of current entity
+			hierarchyStatisticsProducer.interpret(
+				entitySchema,
+				null,
+				extraResultPlanner.getAttributeSchemaAccessor(),
+				hierarchyWithin,
+				globalIndex,
+				extraResultPlanner.getPrefetchRequirementCollector(),
+				(nodeId, statisticsBase) -> {
+					final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+						extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
+						extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
+					final Formula childrenExceptSelfFormula = FormulaFactory.not(
+						new ConstantFormula(new BaseBitmap(nodeId)),
+						globalIndex.getHierarchyNodesForParentFormula(nodeId)
+					);
+					if (filter == null || !filter.isApplicable()) {
+						return childrenExceptSelfFormula;
+					} else {
+						final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+							Collections.singletonList(globalIndex),
 							filter,
-							GlobalEntityIndex.class,
-							globalIndex,
-							extraResultPlanner.getAttributeSchemaAccessor()
-						)
-					);
-					return FormulaFactory.and(
-						baseFormula,
-						childrenExceptSelfFormula
-					);
-				}
-			},
-			statisticsBase -> {
-				final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-					extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
-					extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
-				if (filter == null || !filter.isApplicable()) {
-					return HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
-				} else {
-					final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
-						Collections.singletonList(globalIndex),
-						filter,
-						() -> createFilterFormula(
-							extraResultPlanner.getQueryContext(),
+							() -> createFilterFormula(
+								extraResultPlanner.getQueryContext(),
+								filter,
+								GlobalEntityIndex.class,
+								globalIndex,
+								extraResultPlanner.getAttributeSchemaAccessor()
+							)
+						);
+						return FormulaFactory.and(
+							baseFormula,
+							childrenExceptSelfFormula
+						);
+					}
+				},
+				statisticsBase -> {
+					final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+						extraResultPlanner.getFilterByWithoutHierarchyFilter(null) :
+						extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(null);
+					if (filter == null || !filter.isApplicable()) {
+						return HierarchyFilteringPredicate.ACCEPT_ALL_NODES_PREDICATE;
+					} else {
+						final Formula baseFormula = extraResultPlanner.computeOnlyOnce(
+							Collections.singletonList(globalIndex),
 							filter,
-							GlobalEntityIndex.class,
-							globalIndex,
-							extraResultPlanner.getAttributeSchemaAccessor()
-						)
-					);
-					return new FilteringFormulaHierarchyEntityPredicate(
-						filter, baseFormula
-					);
+							() -> createFilterFormula(
+								extraResultPlanner.getQueryContext(),
+								filter,
+								GlobalEntityIndex.class,
+								globalIndex,
+								extraResultPlanner.getAttributeSchemaAccessor()
+							)
+						);
+						return new FilteringFormulaHierarchyEntityPredicate(
+							filter, baseFormula
+						);
+					}
+				},
+				EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
+				sorter,
+				() -> {
+					for (RequireConstraint child : hierarchyOfSelf) {
+						child.accept(extraResultPlanner);
+					}
 				}
-			},
-			EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
-			sorter,
-			() -> {
-				for (RequireConstraint child : hierarchyOfSelf) {
-					child.accept(extraResultPlanner);
-				}
-			}
-		);
+			);
+		}
 
 		return hierarchyStatisticsProducer;
 	}

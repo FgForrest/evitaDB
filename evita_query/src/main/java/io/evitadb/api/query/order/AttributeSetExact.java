@@ -49,7 +49,7 @@ import java.util.Arrays;
  *       attributeEqualsTrue("shortcut")
  *    ),
  *    orderBy(
- *       attributeSetExact('code', 't-shirt', 'sweater', 'pants')
+ *       attributeSetExact("code", "t-shirt", "sweater", "pants")
  *    )
  * )
  * </pre>
@@ -58,12 +58,15 @@ import java.util.Arrays;
  * stated in the second to Nth argument of this ordering constraint. If there are entities, that have not the attribute
  * `code` , then they will be present at the end of the output in ascending order of their primary keys (or they will be
  * sorted by additional ordering constraint in the chain).
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-attribute-value-order">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "setExact",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified in arguments matching the entity attribute of specified name.",
+	userDocsLink = "/documentation/query/ordering/constant#exact-entity-attribute-value-order",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )

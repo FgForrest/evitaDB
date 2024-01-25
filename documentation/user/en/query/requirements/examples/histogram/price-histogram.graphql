@@ -1,0 +1,24 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceInCurrency: EUR,
+      priceValidInNow: true
+    }
+  ) {
+    extraResults {
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(requestedCount: 20) {
+          threshold
+          occurrences
+          requested
+        }
+      }
+    }
+  }
+}

@@ -29,8 +29,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogSchema;
 import io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeSchema;
@@ -84,26 +84,24 @@ public class CatalogSchemaConverter {
 	 * Creates {@link SealedCatalogSchema} from the {@link GrpcCatalogSchema}.
 	 */
 	@Nonnull
-	public static CatalogSchema convert(@Nonnull GrpcCatalogSchema catalogSchema) {
+	public static CatalogSchema convert(@Nonnull GrpcCatalogSchema catalogSchema, @Nonnull EntitySchemaProvider entitySchemaProvider) {
 		return CatalogSchema._internalBuild(
-				catalogSchema.getVersion(),
-				catalogSchema.getName(),
-				NamingConvention.generate(catalogSchema.getName()),
-				catalogSchema.hasDescription() ? catalogSchema.getDescription().getValue() : null,
-				catalogSchema.getCatalogEvolutionModeList()
-					.stream()
-					.map(EvitaEnumConverter::toCatalogEvolutionMode)
-					.collect(Collectors.toSet()),
-				catalogSchema.getAttributesMap()
-					.entrySet()
-					.stream()
-					.collect(Collectors.toMap(
-						Entry::getKey,
-						it -> toGlobalAttributeSchema(it.getValue())
-					)),
-				__ -> {
-					throw new EvitaInternalError("Unsupported operation. Missing current session.");
-				}
+			catalogSchema.getVersion(),
+			catalogSchema.getName(),
+			NamingConvention.generate(catalogSchema.getName()),
+			catalogSchema.hasDescription() ? catalogSchema.getDescription().getValue() : null,
+			catalogSchema.getCatalogEvolutionModeList()
+				.stream()
+				.map(EvitaEnumConverter::toCatalogEvolutionMode)
+				.collect(Collectors.toSet()),
+			catalogSchema.getAttributesMap()
+				.entrySet()
+				.stream()
+				.collect(Collectors.toMap(
+					Entry::getKey,
+					it -> toGlobalAttributeSchema(it.getValue())
+				)),
+			entitySchemaProvider
 		);
 	}
 
@@ -133,14 +131,14 @@ public class CatalogSchemaConverter {
 	private static GrpcGlobalAttributeSchema toGrpcGlobalAttributeSchema(@Nonnull GlobalAttributeSchemaContract attributeSchema) {
 		final Builder builder = GrpcGlobalAttributeSchema.newBuilder()
 			.setName(attributeSchema.getName())
-			.setUnique(attributeSchema.isUnique())
+			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(attributeSchema.getUniquenessType()))
 			.setFilterable(attributeSchema.isFilterable())
 			.setSortable(attributeSchema.isSortable())
 			.setLocalized(attributeSchema.isLocalized())
 			.setNullable(attributeSchema.isNullable())
 			.setType(EvitaDataTypesConverter.toGrpcEvitaDataType(attributeSchema.getType()))
 			.setIndexedDecimalPlaces(attributeSchema.getIndexedDecimalPlaces())
-			.setUniqueGlobally(attributeSchema.isUniqueGlobally());
+			.setUniqueGlobally(EvitaEnumConverter.toGrpcGlobalAttributeUniquenessType(attributeSchema.getGlobalUniquenessType()));
 
 		ofNullable(attributeSchema.getDefaultValue())
 			.ifPresent(it -> builder.setDefaultValue(EvitaDataTypesConverter.toGrpcEvitaValue(it, null)));
@@ -161,12 +159,13 @@ public class CatalogSchemaConverter {
 			attributeSchema.getName(),
 			attributeSchema.hasDescription() ? attributeSchema.getDescription().getValue() : null,
 			attributeSchema.hasDeprecationNotice() ? attributeSchema.getDeprecationNotice().getValue() : null,
-			attributeSchema.getUnique(),
-			attributeSchema.getUniqueGlobally(),
+			EvitaEnumConverter.toAttributeUniquenessType(attributeSchema.getUnique()),
+			EvitaEnumConverter.toGlobalAttributeUniquenessType(attributeSchema.getUniqueGlobally()),
 			attributeSchema.getFilterable(),
 			attributeSchema.getSortable(),
 			attributeSchema.getLocalized(),
 			attributeSchema.getNullable(),
+			attributeSchema.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 			attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 			attributeSchema.getIndexedDecimalPlaces()

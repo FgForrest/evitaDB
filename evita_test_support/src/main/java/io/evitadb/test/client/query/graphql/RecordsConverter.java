@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
@@ -47,9 +48,10 @@ public class RecordsConverter extends RequireConverter {
 
 	private final EntityFetchConverter entityFetchConverter;
 
-	public RecordsConverter(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+	public RecordsConverter(@Nonnull CatalogSchemaContract catalogSchema,
+	                        @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder requireBuilder,
@@ -92,12 +94,16 @@ public class RecordsConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		} else {
 			return new ArgumentSupplier[] {
-				__ -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					RecordPageFieldHeaderDescriptor.NUMBER,
+					offset,
+					multipleArguments,
 					page.getPageNumber()
 				),
-				__ -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					RecordPageFieldHeaderDescriptor.SIZE,
+					offset,
+					multipleArguments,
 					page.getPageSize()
 				)
 			};
@@ -111,12 +117,16 @@ public class RecordsConverter extends RequireConverter {
 			return new ArgumentSupplier[0];
 		} else {
 			return new ArgumentSupplier[] {
-				__ -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					RecordStripFieldHeaderDescriptor.OFFSET,
+					offset,
+					multipleArguments,
 					strip.getOffset()
 				),
-				__ -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					RecordStripFieldHeaderDescriptor.LIMIT,
+					offset,
+					multipleArguments,
 					strip.getLimit()
 				)
 			};

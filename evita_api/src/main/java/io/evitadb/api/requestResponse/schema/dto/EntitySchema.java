@@ -23,9 +23,13 @@
 
 package io.evitadb.api.requestResponse.schema.dto;
 
+import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -48,6 +52,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -87,13 +92,13 @@ public final class EntitySchema implements EntitySchemaContract {
 	/**
 	 * Contains index of all {@link AttributeSchema} that could be used as attributes of entity of this type.
 	 */
-	private final Map<String, AttributeSchema> attributes;
+	private final Map<String, EntityAttributeSchemaContract> attributes;
 	/**
 	 * Index of attribute names that allows to quickly lookup attribute schemas by attribute name in specific naming
 	 * convention. Key is the name in specific name convention, value is array of size {@link NamingConvention#values()}
 	 * where reference to {@link AttributeSchema} is placed on index of naming convention that matches the key.
 	 */
-	private final Map<String, AttributeSchema[]> attributeNameIndex;
+	private final Map<String, EntityAttributeSchemaContract[]> attributeNameIndex;
 	/**
 	 * Contains index of all {@link AssociatedDataSchema} that could be used as associated data of entity of this type.
 	 */
@@ -123,7 +128,7 @@ public final class EntitySchema implements EntitySchemaContract {
 	/**
 	 * Contains all definitions of the attributes that return false in method {@link AttributeSchema#isNullable()}.
 	 */
-	@Getter private final Collection<AttributeSchema> nonNullableAttributes;
+	@Getter private final Collection<EntityAttributeSchemaContract> nonNullableAttributes;
 	/**
 	 * Contains all definitions of the associated data that return false in method {@link AssociatedDataSchema#isNullable()}.
 	 */
@@ -149,27 +154,6 @@ public final class EntitySchema implements EntitySchemaContract {
 			_internalAddNameVariantsToIndex(nameIndex, schema, nameVariantsFetcher);
 		}
 		return Collections.unmodifiableMap(nameIndex);
-	}
-
-	/**
-	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
-	 */
-	static <T> void _internalAddNameVariantsToIndex(
-		@Nonnull Map<String, T[]> nameIndex,
-		@Nonnull T schema,
-		@Nonnull Function<T, Map<NamingConvention, String>> nameVariantsFetcher
-	) {
-		for (Entry<NamingConvention, String> entry : nameVariantsFetcher.apply(schema).entrySet()) {
-			nameIndex.compute(
-				entry.getValue(),
-				(theName, existingArray) -> {
-					@SuppressWarnings("unchecked") final T[] result = existingArray == null ?
-						(T[]) Array.newInstance(schema.getClass(), NamingConvention.values().length) : existingArray;
-					result[entry.getKey().ordinal()] = schema;
-					return result;
-				}
-			);
-		}
 	}
 
 	/**
@@ -211,7 +195,7 @@ public final class EntitySchema implements EntitySchemaContract {
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
 		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
 		@Nonnull Map<String, ReferenceSchemaContract> references,
 		@Nonnull Set<EvolutionMode> evolutionMode,
@@ -244,7 +228,7 @@ public final class EntitySchema implements EntitySchemaContract {
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
 		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
 		@Nonnull Map<String, ReferenceSchemaContract> references,
 		@Nonnull Set<EvolutionMode> evolutionMode,
@@ -266,11 +250,62 @@ public final class EntitySchema implements EntitySchemaContract {
 	}
 
 	/**
+	 * Method generates name variant index used for quickly looking up for schemas by name in specific name convention.
+	 */
+	static <T> void _internalAddNameVariantsToIndex(
+		@Nonnull Map<String, T[]> nameIndex,
+		@Nonnull T schema,
+		@Nonnull Function<T, Map<NamingConvention, String>> nameVariantsFetcher
+	) {
+		for (Entry<NamingConvention, String> entry : nameVariantsFetcher.apply(schema).entrySet()) {
+			nameIndex.compute(
+				entry.getValue(),
+				(theName, existingArray) -> {
+					@SuppressWarnings("unchecked") final T[] result = existingArray == null ?
+						(T[]) Array.newInstance(schema.getClass(), NamingConvention.values().length) : existingArray;
+					result[entry.getKey().ordinal()] = schema;
+					return result;
+				}
+			);
+		}
+	}
+
+	/**
 	 * Method converts the "unknown" contract implementation and converts it to the "known" {@link AttributeSchema}
 	 * so that the entity schema can access the internal API of it.
 	 */
 	@Nonnull
-	static AttributeSchema toAttributeSchema(@Nonnull AttributeSchemaContract attributeSchemaContract) {
+	static EntityAttributeSchemaContract toEntityAttributeSchema(@Nonnull EntityAttributeSchemaContract attributeSchemaContract) {
+		if (attributeSchemaContract instanceof EntityAttributeSchema attributeSchema) {
+			return attributeSchema;
+		} else if (attributeSchemaContract instanceof GlobalAttributeSchema globalAttributeSchema) {
+			return globalAttributeSchema;
+		} else {
+			//noinspection unchecked,rawtypes
+			return EntityAttributeSchema._internalBuild(
+				attributeSchemaContract.getName(),
+				attributeSchemaContract.getNameVariants(),
+				attributeSchemaContract.getDescription(),
+				attributeSchemaContract.getDeprecationNotice(),
+				attributeSchemaContract.getUniquenessType(),
+				attributeSchemaContract.isFilterable(),
+				attributeSchemaContract.isSortable(),
+				attributeSchemaContract.isLocalized(),
+				attributeSchemaContract.isNullable(),
+				attributeSchemaContract.isRepresentative(),
+				(Class) attributeSchemaContract.getType(),
+				attributeSchemaContract.getDefaultValue(),
+				attributeSchemaContract.getIndexedDecimalPlaces()
+			);
+		}
+	}
+
+	/**
+	 * Method converts the "unknown" contract implementation and converts it to the "known" {@link AttributeSchema}
+	 * so that the entity schema can access the internal API of it.
+	 */
+	@Nonnull
+	static AttributeSchema toReferenceAttributeSchema(@Nonnull AttributeSchemaContract attributeSchemaContract) {
 		//noinspection unchecked,rawtypes
 		return attributeSchemaContract instanceof AttributeSchema attributeSchema ?
 			attributeSchema :
@@ -279,7 +314,7 @@ public final class EntitySchema implements EntitySchemaContract {
 				attributeSchemaContract.getNameVariants(),
 				attributeSchemaContract.getDescription(),
 				attributeSchemaContract.getDeprecationNotice(),
-				attributeSchemaContract.isUnique(),
+				attributeSchemaContract.getUniquenessType(),
 				attributeSchemaContract.isFilterable(),
 				attributeSchemaContract.isSortable(),
 				attributeSchemaContract.isLocalized(),
@@ -365,7 +400,7 @@ public final class EntitySchema implements EntitySchemaContract {
 		int indexedPricePlaces,
 		@Nonnull Set<Locale> locales,
 		@Nonnull Set<Currency> currencies,
-		@Nonnull Map<String, AttributeSchemaContract> attributes,
+		@Nonnull Map<String, EntityAttributeSchemaContract> attributes,
 		@Nonnull Map<String, AssociatedDataSchemaContract> associatedData,
 		@Nonnull Map<String, ReferenceSchemaContract> references,
 		@Nonnull Set<EvolutionMode> evolutionMode,
@@ -388,11 +423,11 @@ public final class EntitySchema implements EntitySchemaContract {
 				.collect(
 					Collectors.toMap(
 						Entry::getKey,
-						it -> toAttributeSchema(it.getValue()),
+						it -> toEntityAttributeSchema(it.getValue()),
 						(a, b) -> {
 							throw new IllegalStateException("Duplicate key " + a);
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);
@@ -405,9 +440,9 @@ public final class EntitySchema implements EntitySchemaContract {
 						Entry::getKey,
 						it -> toAssociatedDataSchema(it.getValue()),
 						(a, b) -> {
-							throw new IllegalStateException("Duplicate key " + a);
+							throw new IllegalStateException("Duplicate key " + a.getName());
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);
@@ -420,9 +455,9 @@ public final class EntitySchema implements EntitySchemaContract {
 						Entry::getKey,
 						it -> toReferenceSchema(it.getValue()),
 						(a, b) -> {
-							throw new IllegalStateException("Duplicate key " + a);
+							throw new IllegalStateException("Duplicate key " + a.getName());
 						},
-						TreeMap::new
+						LinkedHashMap::new
 					)
 				)
 		);
@@ -466,6 +501,72 @@ public final class EntitySchema implements EntitySchemaContract {
 					)
 				)
 			);
+	}
+
+	@Nonnull
+	@Override
+	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
+		return this.nameVariants.get(namingConvention);
+	}
+
+	@Override
+	@Nonnull
+	public Map<String, EntityAttributeSchemaContract> getAttributes() {
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
+		// reference to EntitySchema should have access to other internal schema representations as well
+		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
+		// collection, so we have to work around that issue using generics stripping
+		//noinspection unchecked,rawtypes
+		return (Map) attributes;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntityAttributeSchemaContract> getAttribute(@Nonnull String attributeName) {
+		return ofNullable(this.attributes.get(attributeName));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<EntityAttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
+		return ofNullable(attributeNameIndex.get(attributeName))
+			.map(it -> it[namingConvention.ordinal()]);
+	}
+
+	@Nonnull
+	@Override
+	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
+		// we need EntitySchema to provide access to internal representations - i.e. whoever has
+		// reference to EntitySchema should have access to other internal schema representations as well
+		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
+		// collection, so we have to work around that issue using generics stripping
+		//noinspection unchecked,rawtypes
+		return (Map) sortableAttributeCompounds;
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
+		return ofNullable(sortableAttributeCompounds.get(name));
+	}
+
+	@Nonnull
+	@Override
+	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
+		return ofNullable(sortableAttributeCompoundNameIndex.get(name))
+			.map(it -> it[namingConvention.ordinal()]);
+	}
+
+	@Nonnull
+	@Override
+	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
+		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
+			.orElse(Collections.emptyList());
+	}
+
+	@Override
+	public int version() {
+		return version;
 	}
 
 	@Override
@@ -539,70 +640,31 @@ public final class EntitySchema implements EntitySchemaContract {
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, this));
 	}
 
-	@Nonnull
 	@Override
-	public String getNameVariant(@Nonnull NamingConvention namingConvention) {
-		return this.nameVariants.get(namingConvention);
-	}
-
-	@Override
-	@Nonnull
-	public Map<String, AttributeSchemaContract> getAttributes() {
-		// we need EntitySchema to provide access to internal representations - i.e. whoever has
-		// reference to EntitySchema should have access to other internal schema representations as well
-		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
-		// collection, so we have to work around that issue using generics stripping
-		//noinspection unchecked,rawtypes
-		return (Map) attributes;
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AttributeSchemaContract> getAttribute(@Nonnull String attributeName) {
-		return ofNullable(this.attributes.get(attributeName));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<AttributeSchemaContract> getAttributeByName(@Nonnull String attributeName, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(attributeNameIndex.get(attributeName))
-			.map(it -> it[namingConvention.ordinal()]);
-	}
-
-	@Nonnull
-	@Override
-	public Map<String, SortableAttributeCompoundSchemaContract> getSortableAttributeCompounds() {
-		// we need EntitySchema to provide access to internal representations - i.e. whoever has
-		// reference to EntitySchema should have access to other internal schema representations as well
-		// unfortunately, the Generics in Java is just stupid, and we cannot provide subtype at the place of supertype
-		// collection, so we have to work around that issue using generics stripping
-		//noinspection unchecked,rawtypes
-		return (Map) sortableAttributeCompounds;
-	}
-
-	@Nonnull
-	@Override
-	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompound(@Nonnull String name) {
-		return ofNullable(sortableAttributeCompounds.get(name));
-	}
-
-	@Nonnull
-	@Override
-	public Optional<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundByName(@Nonnull String name, @Nonnull NamingConvention namingConvention) {
-		return ofNullable(sortableAttributeCompoundNameIndex.get(name))
-			.map(it -> it[namingConvention.ordinal()]);
-	}
-
-	@Nonnull
-	@Override
-	public Collection<SortableAttributeCompoundSchemaContract> getSortableAttributeCompoundsForAttribute(@Nonnull String attributeName) {
-		return ofNullable(attributeToSortableAttributeCompoundIndex.get(attributeName))
-			.orElse(Collections.emptyList());
-	}
-
-	@Override
-	public int version() {
-		return version;
+	public void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException {
+		final List<String> errors = getReferences()
+			.values()
+			.stream()
+			.flatMap(ref -> {
+				Stream<String> referenceErrors = Stream.empty();
+				if (ref.isReferencedEntityTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedEntityType()).isEmpty()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of("Referenced entity type `" + ref.getReferencedEntityType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				}
+				if (ref.isReferencedGroupTypeManaged() && catalogSchema.getEntitySchema(ref.getReferencedGroupType()).isEmpty()) {
+					referenceErrors = Stream.concat(
+						referenceErrors,
+						Stream.of("Referenced group entity type `" + ref.getReferencedGroupType() + "` is not present in catalog `" + catalogSchema.getName() + "` schema!"));
+				}
+				return referenceErrors;
+			})
+			.toList();
+		if (!errors.isEmpty()) {
+			throw new InvalidSchemaMutationException(
+				"Schema `" + getName() + "` contains validation errors: " + String.join(", ", errors)
+			);
+		}
 	}
 
 	/**
@@ -622,8 +684,8 @@ public final class EntitySchema implements EntitySchemaContract {
 		if (!currencies.equals(otherSchema.getCurrencies())) return true;
 
 		if (attributes.size() != otherSchema.getAttributes().size()) return true;
-		for (Entry<String, AttributeSchema> entry : attributes.entrySet()) {
-			final Optional<AttributeSchemaContract> otherAttributeSchema = otherSchema.getAttribute(entry.getKey());
+		for (Entry<String, EntityAttributeSchemaContract> entry : attributes.entrySet()) {
+			final Optional<EntityAttributeSchemaContract> otherAttributeSchema = otherSchema.getAttribute(entry.getKey());
 			if (otherAttributeSchema.map(it -> !Objects.equals(it, entry.getValue())).orElse(true)) {
 				return true;
 			}

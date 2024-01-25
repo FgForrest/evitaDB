@@ -38,6 +38,7 @@ import io.evitadb.externalApi.graphql.configuration.GraphQLConfig;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
 import io.evitadb.externalApi.graphql.io.GraphQLExceptionHandler;
 import io.evitadb.externalApi.graphql.io.GraphQLHandler;
+import io.evitadb.externalApi.graphql.io.GraphQLSchemaHandler;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.CorsPreflightHandler;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
@@ -57,7 +58,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
@@ -189,6 +189,9 @@ public class GraphQLManager {
 	public void unregisterCatalog(@Nonnull String catalogName) {
 		final RegisteredCatalog registeredCatalog = registeredCatalogs.remove(catalogName);
 		if (registeredCatalog != null) {
+			graphQLRouter.remove(Methods.GET, registeredCatalog.dataApi().path().toString());
+			graphQLRouter.remove(Methods.GET, registeredCatalog.schemaApi().path().toString());
+
 			graphQLRouter.remove(Methods.POST, registeredCatalog.dataApi().path().toString());
 			graphQLRouter.remove(Methods.POST, registeredCatalog.schemaApi().path().toString());
 
@@ -211,7 +214,7 @@ public class GraphQLManager {
 	 * Creates new GraphQL endpoint on specified path with specified {@link GraphQL} instance.
 	 */
 	private void registerGraphQLEndpoint(@Nonnull RegisteredGraphQLApi registeredGraphQLApi) {
-		// actual GraphQL handler
+		// actual GraphQL query handler
 		graphQLRouter.add(
 			Methods.POST,
 			registeredGraphQLApi.path().toString(),
@@ -225,6 +228,20 @@ public class GraphQLManager {
 				)
 			)
 		);
+		// GraphQL schema handler
+		graphQLRouter.add(
+			Methods.GET,
+			registeredGraphQLApi.path().toString(),
+			new BlockingHandler(
+				new CorsFilter(
+					new GraphQLExceptionHandler(
+						objectMapper,
+						new GraphQLSchemaHandler(registeredGraphQLApi.graphQLReference())
+					),
+					graphQLConfig.getAllowedOrigins()
+				)
+			)
+		);
 		// CORS pre-flight handler for the GraphQL handler
 		graphQLRouter.add(
 			Methods.OPTIONS,
@@ -233,7 +250,7 @@ public class GraphQLManager {
 				new CorsFilter(
 					new CorsPreflightHandler(
 						graphQLConfig.getAllowedOrigins(),
-						Set.of(Methods.POST_STRING),
+						Set.of(Methods.GET_STRING, Methods.POST_STRING),
 						Set.of(Headers.CONTENT_TYPE_STRING, Headers.ACCEPT_STRING)
 					),
 					graphQLConfig.getAllowedOrigins()
@@ -247,7 +264,7 @@ public class GraphQLManager {
 	 */
 	@Nonnull
 	private UriPath buildCatalogDataApiPath(@Nonnull CatalogSchemaContract catalogSchema) {
-		return UriPath.of(catalogSchema.getNameVariants().get(URL_NAME_NAMING_CONVENTION));
+		return UriPath.of(catalogSchema.getName());
 	}
 
 	/**

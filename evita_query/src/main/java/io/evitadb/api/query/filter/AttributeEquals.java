@@ -45,24 +45,27 @@ import java.io.Serializable;
  * Example:
  *
  * <pre>
- * equals('code', 'abc')
+ * equals("code", "abc")
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `equals` returns true if any of attribute values
- * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
+ * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
  * match:
  *
  * <pre>
- * equals('code','A')
- * equals('code','B')
- * equals('code','C')
+ * equals("code","A")
+ * equals("code","B")
+ * equals("code","C")
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-equals">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "equals",
 	shortDescription = "Compares value of the attribute with passed value and checks if they are both equal.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-equals",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

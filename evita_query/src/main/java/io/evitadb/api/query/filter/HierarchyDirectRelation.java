@@ -70,27 +70,30 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'smartwatches'),
+ *             "categories",
+ *             attributeEquals("code", "smartwatches"),
  *             directRelation()
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#direct-relation">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "directRelation",
 	shortDescription = "The constraint limits hierarchy within parent constraint to take only directly related entities into an account.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#direct-relation",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyDirectRelation extends AbstractFilterConstraintLeaf implements HierarchySpecificationFilterConstraint {

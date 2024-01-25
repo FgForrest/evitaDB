@@ -45,25 +45,28 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
- * this requirement is used result contains [entity bodies](entity_model.md) along with associated data with names specified in
- * one or more arguments of this requirement.
+ * This `associatedData` requirement changes default behaviour of the query engine returning only entity primary keys in
+ * the result. When this requirement is used result contains entity bodies along with associated data with names
+ * specified in one or more arguments of this requirement.
  *
- * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
- * [Localized interface](classes/localized_interface.md) associated data is returned according to {@link EntityLocaleEquals}
- * query. Requirement might be combined with {@link AttributeContent} requirement.
+ * This requirement implicitly triggers {@link EntityFetch} requirement because attributes cannot be returned without entity.
+ * Localized associated data is returned according to {@link EntityLocaleEquals} query. Requirement might be combined
+ * with {@link AttributeContent} requirement.
  *
  * Example:
  *
- * ```
- * associatedData('description', 'gallery-3d')
- * ```
+ * <pre>
+ * associatedData("description", "gallery-3d")
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#associated-data-content">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity associated data of specified names into the returned entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#associated-data-content",
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

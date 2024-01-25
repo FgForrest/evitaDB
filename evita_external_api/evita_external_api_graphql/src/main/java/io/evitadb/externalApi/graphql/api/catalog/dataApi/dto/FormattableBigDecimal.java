@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.dataApi.dto;
 
+import io.evitadb.dataType.EvitaDataTypes;
 import lombok.Value;
 import lombok.experimental.NonFinal;
 
@@ -58,7 +59,7 @@ public class FormattableBigDecimal {
     @Nonnull
     public String toFormattedString() {
         if (!isShouldFormat()) {
-            return getValue().toString();
+            return EvitaDataTypes.formatValue(getValue());
         }
         return NumberFormat.getNumberInstance(getFormatLocale()).format(getValue());
     }

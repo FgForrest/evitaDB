@@ -1,0 +1,28 @@
+{
+  queryProduct {
+    extraResults {
+      attributeHistogram {
+        width {
+          min
+          max
+          overallCount
+          buckets(requestedCount: 20) {
+            threshold
+            occurrences
+            requested
+          }
+        }
+        height {
+          min
+          max
+          overallCount
+          buckets(requestedCount: 20) {
+            threshold
+            occurrences
+            requested
+          }
+        }
+      }
+    }
+  }
+}

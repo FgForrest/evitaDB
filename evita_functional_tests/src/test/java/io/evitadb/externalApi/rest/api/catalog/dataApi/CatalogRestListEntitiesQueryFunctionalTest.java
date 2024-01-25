@@ -88,7 +88,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
@@ -138,7 +138,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -191,7 +191,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/list")
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -245,7 +245,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -296,7 +296,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/list")
+			.urlPathSuffix("/CATEGORY/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -344,7 +344,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/list")
+			.urlPathSuffix("/CATEGORY/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -394,7 +394,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/category/list")
+			.urlPathSuffix("/CATEGORY/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -458,7 +458,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -534,7 +534,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -612,7 +612,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -670,7 +670,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
     """
@@ -702,7 +702,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var pks = findEntityWithPricePks(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
@@ -724,7 +724,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		final var pks = findEntityWithPricePks(originalProductEntities);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
@@ -763,7 +763,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -812,7 +812,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""
@@ -862,7 +862,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 	"""
@@ -912,7 +912,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -960,7 +960,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/product/list")
+			.urlPathSuffix("/" + Locale.ENGLISH.toLanguageTag() + "/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 				{
@@ -1007,7 +1007,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 					"""
@@ -1095,7 +1095,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		assertTrue(expectedEntities.length > 0);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 					"\"filterBy\": {" +
@@ -1170,7 +1170,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("""
 			    {
@@ -1226,7 +1226,7 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 		assertTrue(expectedEntities.size() > 5);
 
 		tester.test(TEST_CATALOG)
-			.urlPathSuffix("/product/list")
+			.urlPathSuffix("/PRODUCT/list")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody("{" +
 				"\"filterBy\": {" +

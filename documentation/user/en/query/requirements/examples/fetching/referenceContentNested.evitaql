@@ -1,20 +1,20 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeEquals('code', 'samsung-galaxy-watch-4')
+        attributeEquals("code", "samsung-galaxy-watch-4")
     ),
     require(
         entityFetch(
-            attributeContent('code'),
+            attributeContent("code"),
             referenceContent(
-                'groups',
+                "groups",
                 entityFetch(
-                    attributeContent('code'),
+                    attributeContent("code"),
                     referenceContent(
-                        'tags',
+                        "tags",
                         entityFetch(
-                            attributeContent('code'),
-                            referenceContent('categories')
+                            attributeContent("code"),
+                            referenceContent("categories")
                         )
                     )
                 )

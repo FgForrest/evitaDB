@@ -1,7 +1,7 @@
 ---
 title: Designing the Evita Query Language for the GraphQL API
 perex: In evitaDB (like in many other databases), in order to get any data, you need to somehow ask which data you want. The GraphQL language is, however, specific and needs a specific syntax.
-date: '2022-01-12'
+date: '12.1.2022'
 author: 'Lukáš Hornych'
 motive: assets/images/02-designing-evita-query-language-for-graphql-api.png
 ---

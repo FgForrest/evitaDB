@@ -1,5 +1,5 @@
 return evita.queryCatalog(
-	"testCatalog",
+	"evita",
 	session -> {
 		return session.queryListOfSealedEntities(
 			query(

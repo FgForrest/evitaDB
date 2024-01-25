@@ -77,19 +77,19 @@ import static java.util.Optional.of;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             fromRoot(
- *                 'megaMenu',
- *                 entityFetch(attributeContent('code')),
+ *                 "megaMenu",
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(level(2)),
  *                 statistics(
  *                     CHILDREN_COUNT,
@@ -106,12 +106,15 @@ import static java.util.Optional.of;
  * the `fromRoot` respects them. The reason is simple: when you render a menu for the query result, you want
  * the calculated statistics to respect the rules that apply to the {@link HierarchyWithin} so that the calculated
  * number remains consistent for the end user.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-root">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "fromRoot",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at root level.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#from-root",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyFromRoot extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

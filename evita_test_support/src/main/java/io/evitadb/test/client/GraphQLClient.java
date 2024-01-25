@@ -31,8 +31,10 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
 
 /**
  * Simple client for calling GraphQL requests from documentation.
@@ -51,47 +53,43 @@ public class GraphQLClient extends ApiClient {
 
 	@Nonnull
 	public JsonNode call(@Nonnull String document) {
-		HttpURLConnection connection = null;
+		return call("/gql/evita", document);
+	}
+
+	@Nonnull
+	public JsonNode call(@Nonnull String instancePath, @Nonnull String document) {
 		try {
-			connection = createConnection();
-			writeRequestBody(connection, document);
+			final HttpRequest request = createRequest(instancePath, document);
+			final HttpResponse<String> response = createClient().send(request, BodyHandlers.ofString());
 
-			connection.connect();
-			Assert.isPremiseValid(
-				connection.getResponseCode() == 200,
-				"Call to GraphQL server ended with status " + connection.getResponseCode() + ", query was:\n" + document
-			);
+			final int responseCode = response.statusCode();
+			if (responseCode == 200) {
+				final JsonNode responseBody = readResponseBody(response.body());
+				validateResponseBody(responseBody);
 
-			final JsonNode responseBody = readResponseBody(connection.getInputStream());
-			validateResponseBody(responseBody);
-
-			return responseBody;
-		} catch (IOException e) {
-			throw new EvitaInternalError("Unexpected error.", e);
-		} finally {
-			if (connection != null) {
-				connection.disconnect();
+				return responseBody;
 			}
+			if (responseCode >= 400 && responseCode <= 499 && responseCode != 404) {
+				throw new EvitaInternalError("Call to GraphQL instance `" + this.url + instancePath + "` ended with status " + responseCode + ", query was:\n" + document + "\n and response was: \n" + response.body());
+			}
+
+			throw new EvitaInternalError("Call to GraphQL server ended with status " + responseCode + ", query was:\n" + document);
+		} catch (IOException | InterruptedException e) {
+			throw new EvitaInternalError("Unexpected error.", e);
 		}
 	}
 
 	@Nonnull
-	private HttpURLConnection createConnection() throws IOException {
-		final URL url = new URL(this.url);
-		final HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-		connection.setRequestMethod("POST");
-		connection.setRequestProperty("Content-Type", "application/json");
-		connection.setRequestProperty("Accept", "application/graphql-response+json");
-		connection.setDoOutput(true);
-		return connection;
-	}
-
-	@Override
-	protected void writeRequestBody(@Nonnull HttpURLConnection connection, @Nonnull String document) throws IOException {
+	private HttpRequest createRequest(@Nonnull String instancePath, @Nonnull String document) throws IOException {
 		final GraphQLRequest requestBody = new GraphQLRequest(document, null, null, null);
 		final String requestBodyJson = objectMapper.writeValueAsString(requestBody);
 
-		super.writeRequestBody(connection, requestBodyJson);
+		return HttpRequest.newBuilder()
+			.uri(URI.create(this.url + instancePath))
+			.method("POST", HttpRequest.BodyPublishers.ofString(requestBodyJson))
+			.header("Accept", "application/graphql-response+json")
+			.header("Content-Type", "application/json")
+			.build();
 	}
 
 	private void validateResponseBody(@Nonnull JsonNode responseBody) throws JsonProcessingException {
@@ -103,8 +101,14 @@ public class GraphQLClient extends ApiClient {
 
 		final JsonNode data = responseBody.get("data");
 		Assert.isPremiseValid(
-			data != null && !data.isNull() && !data.isEmpty(),
+			data != null && !data.isNull() && (data.isValueNode() || !data.isEmpty()),
 			"Call to GraphQL server ended with empty data."
 		);
+		data.elements().forEachRemaining(element -> {
+			Assert.isPremiseValid(
+				element != null && !element.isNull(),
+				"Call to GraphQL server ended with empty data."
+			);
+		});
 	}
 }

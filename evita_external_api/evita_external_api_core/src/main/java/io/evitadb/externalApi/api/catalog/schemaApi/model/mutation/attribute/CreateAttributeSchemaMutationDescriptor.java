@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.dataType.Any;
@@ -31,7 +32,6 @@ import java.util.List;
 
 import static io.evitadb.externalApi.api.catalog.model.CatalogRootDescriptor.SCALAR_ENUM;
 import static io.evitadb.externalApi.api.model.ObjectPropertyDataTypeDescriptor.nonNullRef;
-import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
@@ -59,13 +59,20 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			""")
 		.type(nullable(String.class))
 		.build();
-	PropertyDescriptor UNIQUE = PropertyDescriptor.builder()
-		.name("unique")
+	PropertyDescriptor UNIQUENESS_TYPE = PropertyDescriptor.builder()
+		.name("uniquenessType")
 		.description("""
 			When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
 			having certain value of this attribute among other entities in the same collection.
+						
+			As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+			better to have this ensured by the database engine.
+						
+			If the attribute is localized you can choose between `UNIQUE_WITHIN_COLLECTION` and `UNIQUE_WITHIN_COLLECTION_LOCALE`
+			modes. The first will ensure there is only single value within entire collection regardless of locale,
+			the second will ensure there is only single value within collection and specific locale.
 			""")
-		.type(nullable(Boolean.class))
+		.type(nullable(AttributeUniquenessType.class))
 		.build();
 	PropertyDescriptor FILTERABLE = PropertyDescriptor.builder()
 		.name("filterable")
@@ -98,6 +105,17 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 		.description("""
 			When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 			non-null checks upon upserting of the entity.
+			""")
+		.type(nullable(Boolean.class))
+		.build();
+	PropertyDescriptor REPRESENTATIVE = PropertyDescriptor.builder()
+		.name("representative")
+		.description("""
+			If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+	        primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+	        affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+	        helpful to developers in quickly finding their way around the data. There should be very few representative
+	        attributes in the entity type, and the unique ones are usually the best to choose.
 			""")
 		.type(nullable(Boolean.class))
 		.build();
@@ -138,11 +156,12 @@ public interface CreateAttributeSchemaMutationDescriptor extends AttributeSchema
 			NAME,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,
-			UNIQUE,
+			UNIQUENESS_TYPE,
 			FILTERABLE,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,
+			REPRESENTATIVE,
 			TYPE,
 			DEFAULT_VALUE,
 			INDEXED_DECIMAL_PLACES

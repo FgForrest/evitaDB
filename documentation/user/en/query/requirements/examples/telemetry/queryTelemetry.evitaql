@@ -1,0 +1,12 @@
+query(
+    collection("Product"),
+    filterBy(
+        attributeStartsWith("code", "garmin")
+    ),
+    orderBy(
+        attributeNatural("code")
+    ),
+    require(
+        queryTelemetry()
+    )
+)

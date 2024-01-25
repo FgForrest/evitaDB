@@ -33,6 +33,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.MandatoryAssociatedDataNotProvidedException;
 import io.evitadb.api.exception.MandatoryAttributesNotProvidedException;
 import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
+import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -46,10 +47,12 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.TriConsumer;
@@ -108,7 +111,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 
 	private static void assertDataWasPropagated(EntityIndex categoryIndex, int recordId) {
 		assertNotNull(categoryIndex);
-		assertTrue(categoryIndex.getUniqueIndex(new AttributeKey(ATTRIBUTE_EAN)).getRecordIds().contains(recordId));
+		assertTrue(categoryIndex.getUniqueIndex(AttributeSchema._internalBuild(ATTRIBUTE_EAN, String.class, false), null).getRecordIds().contains(recordId));
 		assertTrue(categoryIndex.getFilterIndex(new AttributeKey(ATTRIBUTE_EAN)).getAllRecords().contains(recordId));
 		assertTrue(ArrayUtils.contains(categoryIndex.getSortIndex(new AttributeKey(ATTRIBUTE_EAN)).getSortedRecords(), recordId));
 		assertTrue(categoryIndex.getPriceIndex(PRICE_LIST_BASIC, CURRENCY_CZK, PriceInnerRecordHandling.NONE).getIndexedPriceEntityIds().contains(recordId));
@@ -165,7 +168,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
 					assertTrue(brand.isPresent());
 
-					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
 					assertTrue(nameAttribute.isPresent());
 					assertTrue(nameAttribute.get().isLocalized());
 
@@ -210,7 +213,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
 					assertTrue(product.isPresent());
 
-					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
 					assertTrue(productNameAttribute.isPresent());
 					assertTrue(productNameAttribute.get().isLocalized());
 				}
@@ -878,7 +881,7 @@ class EvitaIndexingTest implements EvitaTestSupport {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAll())
+				final SealedEntity product = session.getEntity(Entities.PRODUCT, 1, attributeContent(), dataInLocalesAll(), referenceContentAllWithAttributes())
 					.orElseThrow();
 
 				assertEquals("01", product.getAttribute(ATTRIBUTE_EAN));
@@ -1097,6 +1100,304 @@ class EvitaIndexingTest implements EvitaTestSupport {
 					"Entity `PRODUCT` requires these localized attributes to be specified for all localized versions of the entity, but values for some locales are missing: `name` in locales: `de`, `fr`.\n" +
 					"Entity `PRODUCT` reference `BRAND` requires these attributes to be non-null, but they are missing: `brandEan`.\n" +
 					"Entity `PRODUCT` reference `BRAND` requires these localized attributes to be specified for all localized versions of the entity, but values for some locales are missing: `brandName` in locales: `de`, `fr`.",
+				ex.getMessage()
+			);
+		}
+	}
+
+	@Test
+	void shouldAllowToCreateTwoUniqueAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateEntitySchema(
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().unique())
+				);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+					.upsertVia(session);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 2)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "B")
+					.upsertVia(session);
+			}
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
+				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "B")))).isPresent());
+				assertFalse(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "V")))).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateTwoNonUniqueAttributes() {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().unique())
+					);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.upsertVia(session);
+					session
+						.createNewEntity(Entities.PRODUCT, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+						.upsertVia(session);
+				}
+			);
+
+			fail("UniqueValueViolationException was expected to be thrown!");
+
+		} catch (UniqueValueViolationException ex) {
+			assertEquals(
+				"Unique value is already present for entity `PRODUCT` `name` key: `A` (existing: 1, new: 2)!",
+				ex.getMessage()
+			);
+		}
+	}
+
+	@Test
+	void shouldAllowToCreateTwoLocaleSpecificUniqueAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.updateEntitySchema(
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
+				);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+					.upsertVia(session);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 2)
+					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+					.upsertVia(session);
+			}
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH)))).isPresent());
+				assertTrue(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.GERMAN)))).isPresent());
+				assertFalse(session.queryOneEntityReference(query(collection(Entities.PRODUCT), filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.FRENCH)))).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateTwoLocaleSpecificNonUniqueAttributes() {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.updateEntitySchema(
+						session
+							.defineEntitySchema(Entities.PRODUCT)
+							.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
+					);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.upsertVia(session);
+					session
+						.createNewEntity(Entities.PRODUCT, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.upsertVia(session);
+				}
+			);
+
+			fail("UniqueValueViolationException was expected to be thrown!");
+
+		} catch (UniqueValueViolationException ex) {
+			assertEquals(
+				"Unique value is already present for entity `PRODUCT` `name` key: `A` in locale `en` (existing: 1, new: 2)!",
+				ex.getMessage()
+			);
+		}
+	}
+
+	@Test
+	void shouldAllowToCreateTwoUniqueGloballyAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.CATEGORY)
+					.withGlobalAttribute(ATTRIBUTE_NAME)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_NAME)
+					.updateVia(session);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+					.upsertVia(session);
+
+				session
+					.createNewEntity(Entities.CATEGORY, 2)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "B")
+					.upsertVia(session);
+			}
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A")))).isPresent());
+				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "B")))).isPresent());
+				assertFalse(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "V")))).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateTwoNonUniqueGloballyAttributes() {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+						.updateVia(session);
+
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withGlobalAttribute(ATTRIBUTE_NAME)
+						.updateVia(session);
+
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withGlobalAttribute(ATTRIBUTE_NAME)
+						.updateVia(session);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.upsertVia(session);
+
+					session
+						.createNewEntity(Entities.CATEGORY, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+						.upsertVia(session);
+				}
+			);
+
+			fail("UniqueValueViolationException was expected to be thrown!");
+
+		} catch (UniqueValueViolationException ex) {
+			assertEquals(
+				"Unique value is already present for entity `PRODUCT` `name` key: `A` (existing: 1, new: 2 of entity `CATEGORY`)!",
+				ex.getMessage()
+			);
+		}
+	}
+
+	@Test
+	void shouldAllowToCreateTwoLocaleSpecificUniqueGloballyAttributes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.CATEGORY)
+					.withGlobalAttribute(ATTRIBUTE_NAME)
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_NAME)
+					.updateVia(session);
+
+				session
+					.createNewEntity(Entities.PRODUCT, 1)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+					.upsertVia(session);
+
+				session
+					.createNewEntity(Entities.CATEGORY, 2)
+					.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "A")
+					.upsertVia(session);
+			}
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.ENGLISH)))).isPresent());
+				assertTrue(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.GERMAN)))).isPresent());
+				assertFalse(session.queryOneEntityReference(query(filterBy(attributeEquals(ATTRIBUTE_NAME, "A"), entityLocaleEquals(Locale.FRENCH)))).isPresent());
+			}
+		);
+	}
+
+	@Test
+	void shouldFailToCreateTwoLocaleSpecificNonUniqueGloballyAttributes() {
+		try {
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getCatalogSchema()
+						.openForWrite()
+						.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale())
+						.updateVia(session);
+
+					session
+						.defineEntitySchema(Entities.CATEGORY)
+						.withGlobalAttribute(ATTRIBUTE_NAME)
+						.updateVia(session);
+
+					session
+						.defineEntitySchema(Entities.PRODUCT)
+						.withGlobalAttribute(ATTRIBUTE_NAME)
+						.updateVia(session);
+
+					session
+						.createNewEntity(Entities.PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.upsertVia(session);
+
+					session
+						.createNewEntity(Entities.CATEGORY, 2)
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "A")
+						.upsertVia(session);
+				}
+			);
+
+			fail("UniqueValueViolationException was expected to be thrown!");
+
+		} catch (UniqueValueViolationException ex) {
+			assertEquals(
+				"Unique value is already present for entity `PRODUCT` `name` key: `A` in locale `en` (existing: 1, new: 2 of entity `CATEGORY`)!",
 				ex.getMessage()
 			);
 		}

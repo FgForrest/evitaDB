@@ -30,8 +30,12 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
@@ -67,31 +71,45 @@ import java.util.stream.Stream;
 @Immutable
 @EqualsAndHashCode
 public class CreateGlobalAttributeSchemaMutation
-	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation {
+	implements GlobalAttributeSchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -7082514745878566818L;
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter private final boolean unique;
-	@Getter private final boolean uniqueGlobally;
+	@Getter @Nonnull private final AttributeUniquenessType unique;
+	@Getter @Nonnull private final GlobalAttributeUniquenessType uniqueGlobally;
 	@Getter private final boolean filterable;
 	@Getter private final boolean sortable;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
+	@Getter private final boolean representative;
 	@Getter @Nonnull private final Class<? extends Serializable> type;
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
+
+	@Nullable
+	private static <T> LocalCatalogSchemaMutation makeMutationIfDifferent(
+		@Nonnull GlobalAttributeSchemaContract createdVersion,
+		@Nonnull GlobalAttributeSchemaContract existingVersion,
+		@Nonnull Function<GlobalAttributeSchemaContract, T> propertyRetriever,
+		@Nonnull Function<T, LocalCatalogSchemaMutation> mutationCreator
+	) {
+		final T newValue = propertyRetriever.apply(createdVersion);
+		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
+			null : mutationCreator.apply(newValue);
+	}
 
 	public CreateGlobalAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
 		@Nullable String deprecationNotice,
-		boolean unique,
-		boolean uniqueGlobally,
+		@Nullable AttributeUniquenessType unique,
+		@Nullable GlobalAttributeUniquenessType uniqueGlobally,
 		boolean filterable,
 		boolean sortable,
 		boolean localized,
 		boolean nullable,
+		boolean representative,
 		@Nonnull Class<? extends Serializable> type,
 		@Nullable Serializable defaultValue,
 		int indexedDecimalPlaces
@@ -103,12 +121,13 @@ public class CreateGlobalAttributeSchemaMutation
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.unique = unique;
-		this.uniqueGlobally = uniqueGlobally;
+		this.unique = unique == null ? AttributeUniquenessType.NOT_UNIQUE : unique;
+		this.uniqueGlobally = uniqueGlobally == null ? GlobalAttributeUniquenessType.NOT_UNIQUE : uniqueGlobally;
 		this.filterable = filterable;
 		this.sortable = sortable;
 		this.localized = localized;
 		this.nullable = nullable;
+		this.representative = representative;
 		this.type = type;
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
@@ -120,7 +139,7 @@ public class CreateGlobalAttributeSchemaMutation
 		// when the attribute schema was removed before and added again, we may remove both operations
 		// and leave only operations that reset the original settings do defaults
 		if (existingMutation instanceof RemoveAttributeSchemaMutation removeAttributeSchema && Objects.equals(removeAttributeSchema.getName(), name)) {
-			final GlobalAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null);
+			final GlobalAttributeSchemaContract createdVersion = mutate(currentCatalogSchema, null, GlobalAttributeSchemaContract.class);
 			final GlobalAttributeSchemaContract existingVersion = currentCatalogSchema.getAttribute(name).orElseThrow();
 			return new MutationCombinationResult<>(
 				null,
@@ -133,7 +152,7 @@ public class CreateGlobalAttributeSchemaMutation
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
 							NamedSchemaWithDeprecationContract::getDeprecationNotice,
-							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation( name, newValue)
+							newValue -> new ModifyAttributeSchemaDeprecationNoticeMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
@@ -152,12 +171,12 @@ public class CreateGlobalAttributeSchemaMutation
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isUnique,
+							GlobalAttributeSchemaContract::getUniquenessType,
 							newValue -> new SetAttributeSchemaUniqueMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
 							createdVersion, existingVersion,
-							GlobalAttributeSchemaContract::isUniqueGlobally,
+							GlobalAttributeSchemaContract::getGlobalUniquenessType,
 							newValue -> new SetAttributeSchemaGloballyUniqueMutation(name, newValue)
 						),
 						makeMutationIfDifferent(
@@ -174,6 +193,11 @@ public class CreateGlobalAttributeSchemaMutation
 							createdVersion, existingVersion,
 							GlobalAttributeSchemaContract::isNullable,
 							newValue -> new SetAttributeSchemaNullableMutation(name, newValue)
+						),
+						makeMutationIfDifferent(
+							createdVersion, existingVersion,
+							GlobalAttributeSchemaContract::isRepresentative,
+							newValue -> new SetAttributeSchemaRepresentativeMutation(name, newValue)
 						)
 					)
 					.filter(Objects::nonNull)
@@ -184,64 +208,48 @@ public class CreateGlobalAttributeSchemaMutation
 		}
 	}
 
-	@Nullable
-	private static <T> LocalCatalogSchemaMutation makeMutationIfDifferent(
-		@Nonnull GlobalAttributeSchemaContract createdVersion,
-		@Nonnull GlobalAttributeSchemaContract existingVersion,
-		@Nonnull Function<GlobalAttributeSchemaContract, T> propertyRetriever,
-		@Nonnull Function<T, LocalCatalogSchemaMutation> mutationCreator
-	) {
-		final T newValue = propertyRetriever.apply(createdVersion);
-		return Objects.equals(propertyRetriever.apply(existingVersion), newValue) ?
-			null : mutationCreator.apply(newValue);
-	}
-
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema) {
+	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		//noinspection unchecked,rawtypes
 		return (S) GlobalAttributeSchema._internalBuild(
 			name, description, deprecationNotice,
-			unique, uniqueGlobally, filterable, sortable, localized, nullable,
-			(Class)type, defaultValue,
+			unique, uniqueGlobally, filterable, sortable, localized, nullable, representative,
+			(Class) type, defaultValue,
 			indexedDecimalPlaces
 		);
 	}
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
-		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null);
+		final GlobalAttributeSchemaContract newAttributeSchema = mutate(catalogSchema, null, GlobalAttributeSchemaContract.class);
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name).orElse(null);
 		if (existingAttributeSchema == null) {
-			return CatalogSchema._internalBuild(
-				catalogSchema.getVersion() + 1,
-				catalogSchema.getName(),
-				catalogSchema.getNameVariants(),
-				catalogSchema.getDescription(),
-				catalogSchema.getCatalogEvolutionMode(),
-				Stream.concat(
-						catalogSchema.getAttributes().values().stream(),
-						Stream.of(newAttributeSchema)
-					)
-					.collect(
-						Collectors.toMap(
-							GlobalAttributeSchemaContract::getName,
-							Function.identity()
+			return new CatalogSchemaWithImpactOnEntitySchemas(
+				CatalogSchema._internalBuild(
+					catalogSchema.getVersion() + 1,
+					catalogSchema.getName(),
+					catalogSchema.getNameVariants(),
+					catalogSchema.getDescription(),
+					catalogSchema.getCatalogEvolutionMode(),
+					Stream.concat(
+							catalogSchema.getAttributes().values().stream(),
+							Stream.of(newAttributeSchema)
 						)
-					),
-				catalogSchema instanceof CatalogSchema cs ?
-					cs.getEntitySchemaAccessor() :
-					entityType -> {
-						throw new UnsupportedOperationException(
-							"Mutated schema is not able to provide access to entity schemas!"
-						);
-					}
+						.collect(
+							Collectors.toMap(
+								GlobalAttributeSchemaContract::getName,
+								Function.identity()
+							)
+						),
+					entitySchemaAccessor
+				)
 			);
 		} else if (existingAttributeSchema.equals(newAttributeSchema)) {
 			// the mutation must have been applied previously - return the schema we don't need to alter
-			return catalogSchema;
+			return new CatalogSchemaWithImpactOnEntitySchemas(catalogSchema);
 		} else {
 			// ups, there is conflict in attribute settings
 			throw new InvalidSchemaMutationException(
@@ -263,6 +271,7 @@ public class CreateGlobalAttributeSchemaMutation
 			", sortable=" + sortable +
 			", localized=" + localized +
 			", nullable=" + nullable +
+			", representative=" + representative +
 			", type=" + type +
 			", defaultValue=" + defaultValue +
 			", indexedDecimalPlaces=" + indexedDecimalPlaces;

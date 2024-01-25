@@ -89,7 +89,7 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Contains reference to the output snippet bound to this executable.
 	 */
-	private final @Nullable OutputSnippet outputSnippet;
+	private final @Nullable List<OutputSnippet> outputSnippet;
 
 	/**
 	 * Static initializer that removes any existing C# query validator, if it exists. It's necessary to ensure that
@@ -141,7 +141,9 @@ public class CsharpExecutable implements Executable, EvitaTestSupport {
 	@Override
 	public void execute() throws Throwable {
 		final CShell cShell = testContextAccessor.get().getCshell();
-		executeCShellCommands(cShell, getSnippets(), outputSnippet);
+		for (OutputSnippet snippet : outputSnippet) {
+			executeCShellCommands(cShell, getSnippets(), snippet);
+		}
 	}
 
 	/**

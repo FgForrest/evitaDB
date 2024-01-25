@@ -49,6 +49,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Optional.ofNullable;
 
@@ -91,56 +92,60 @@ public class HierarchyOfReferenceTranslator
 				() -> new EntityIsNotHierarchicalException(referenceName, entityType));
 
 			final HierarchyFilterConstraint hierarchyWithin = evitaRequest.getHierarchyWithin(referenceName);
-			final GlobalEntityIndex globalIndex = extraResultPlanner.getGlobalEntityIndex(entityType);
-			final Sorter sorter = hierarchyOfReference.getOrderBy()
-				.map(
-					it -> extraResultPlanner.createSorter(
-						it,
-						globalIndex,
-						entityType,
-						() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+			final Optional<GlobalEntityIndex> targetGlobalIndexRef = extraResultPlanner.getGlobalEntityIndexIfExists(entityType);
+			if (targetGlobalIndexRef.isPresent()) {
+				final GlobalEntityIndex globalIndex = targetGlobalIndexRef.get();
+				final Sorter sorter = hierarchyOfReference.getOrderBy()
+					.map(
+						it -> extraResultPlanner.createSorter(
+							it,
+							null,
+							globalIndex,
+							entityType,
+							() -> "Hierarchy statistics of `" + entitySchema.getName() + "`: " + it
+						)
 					)
-				)
-				.orElse(null);
+					.orElse(null);
 
-			// the request is more complex
-			hierarchyStatisticsProducer.interpret(
-				entitySchema,
-				referenceSchema,
-				extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),
-				hierarchyWithin,
-				globalIndex,
-				null,
-				// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
-				// entity primary keys that are referencing the hierarchy entity
-				(nodeId, statisticsBase) ->
-					ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class))
-						.map(hierarchyIndex -> {
-							final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
-								extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
-								extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(referenceSchema);
-							if (filter == null || !filter.isApplicable()) {
-								return hierarchyIndex.getAllPrimaryKeysFormula();
-							} else {
-								return createFilterFormula(
-									extraResultPlanner.getQueryContext(),
-									filter,
-									ReducedEntityIndex.class,
-									hierarchyIndex,
-									extraResultPlanner.getAttributeSchemaAccessor()
-								);
-							}
-						})
-						.orElse(EmptyFormula.INSTANCE),
-				null,
-				hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
-				sorter,
-				() -> {
-					for (RequireConstraint child : hierarchyOfReference) {
-						child.accept(extraResultPlanner);
+				// the request is more complex
+				hierarchyStatisticsProducer.interpret(
+					entitySchema,
+					referenceSchema,
+					extraResultPlanner.getAttributeSchemaAccessor().withReferenceSchemaAccessor(referenceName),
+					hierarchyWithin,
+					globalIndex,
+					null,
+					// we need to access EntityIndexType.REFERENCED_HIERARCHY_NODE of the queried type to access
+					// entity primary keys that are referencing the hierarchy entity
+					(nodeId, statisticsBase) ->
+						ofNullable(extraResultPlanner.getIndex(queriedEntityType, createReferencedHierarchyIndexKey(referenceName, nodeId), ReducedEntityIndex.class))
+							.map(hierarchyIndex -> {
+								final FilterBy filter = statisticsBase == StatisticsBase.COMPLETE_FILTER ?
+									extraResultPlanner.getFilterByWithoutHierarchyFilter(referenceSchema) :
+									extraResultPlanner.getFilterByWithoutHierarchyAndUserFilter(referenceSchema);
+								if (filter == null || !filter.isApplicable()) {
+									return hierarchyIndex.getAllPrimaryKeysFormula();
+								} else {
+									return createFilterFormula(
+										extraResultPlanner.getQueryContext(),
+										filter,
+										ReducedEntityIndex.class,
+										hierarchyIndex,
+										extraResultPlanner.getAttributeSchemaAccessor()
+									);
+								}
+							})
+							.orElse(EmptyFormula.INSTANCE),
+					null,
+					hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
+					sorter,
+					() -> {
+						for (RequireConstraint child : hierarchyOfReference) {
+							child.accept(extraResultPlanner);
+						}
 					}
-				}
-			);
+				);
+			}
 		}
 		return hierarchyStatisticsProducer;
 	}

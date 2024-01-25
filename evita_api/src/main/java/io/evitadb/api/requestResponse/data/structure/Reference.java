@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -47,6 +48,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -113,7 +115,7 @@ public class Reference implements ReferenceContract {
 	 * "category").
 	 */
 	@Delegate(types = AttributesContract.class)
-	private final Attributes attributes;
+	private final Attributes<AttributeSchemaContract> attributes;
 	/**
 	 * Contains TRUE if facet reference was dropped - i.e. removed. Facets are not removed (unless tidying process
 	 * does it), but are lying among other facets with tombstone flag. Dropped facets can be overwritten by
@@ -153,12 +155,12 @@ public class Reference implements ReferenceContract {
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
 		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
-		this.attributes = new Attributes(
+		this.attributes = new ReferenceAttributes(
 			entitySchema,
 			reference.orElseGet(
 				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
 			),
-			Collections.emptyList(),
+			Collections.emptyMap(),
 			reference
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap())
@@ -183,12 +185,12 @@ public class Reference implements ReferenceContract {
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
 		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
-		this.attributes = new Attributes(
+		this.attributes = new ReferenceAttributes(
 			entitySchema,
 			reference.orElseGet(
 				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
 			),
-			Collections.emptyList(),
+			Collections.emptyMap(),
 			reference
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap())
@@ -204,7 +206,7 @@ public class Reference implements ReferenceContract {
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,
 		@Nullable GroupEntityReference group,
-		@Nonnull Attributes attributes,
+		@Nonnull Attributes<AttributeSchemaContract> attributes,
 		boolean dropped
 	) {
 		this.entitySchema = entitySchema;
@@ -214,6 +216,37 @@ public class Reference implements ReferenceContract {
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
 		this.attributes = attributes;
+		this.dropped = dropped;
+	}
+
+	public Reference(
+		@Nonnull EntitySchemaContract entitySchema,
+		int version,
+		@Nonnull String referenceName,
+		int referencedEntityPrimaryKey,
+		@Nullable String referencedEntityType,
+		@Nullable Cardinality cardinality,
+		@Nullable GroupEntityReference group,
+		@Nonnull Map<AttributeKey, AttributeValue> attributes,
+		boolean dropped
+	) {
+		this.entitySchema = entitySchema;
+		this.version = version;
+		this.referenceKey = new ReferenceKey(referenceName, referencedEntityPrimaryKey);
+		this.referenceCardinality = cardinality;
+		this.referencedEntityType = referencedEntityType;
+		this.group = group;
+		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
+		this.attributes = new ReferenceAttributes(
+			entitySchema,
+			reference.orElseGet(
+				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
+			),
+			attributes,
+			reference
+				.map(AttributeSchemaProvider::getAttributes)
+				.orElse(Collections.emptyMap())
+		);
 		this.dropped = dropped;
 	}
 
@@ -235,7 +268,7 @@ public class Reference implements ReferenceContract {
 		this.referencedEntityType = referencedEntityType;
 		this.group = group;
 		final Optional<ReferenceSchemaContract> reference = entitySchema.getReference(referenceName);
-		this.attributes = new Attributes(
+		this.attributes = new ReferenceAttributes(
 			entitySchema,
 			reference.orElseGet(
 				() -> createImplicitSchema(referenceName, referencedEntityType, cardinality, group)
@@ -255,7 +288,7 @@ public class Reference implements ReferenceContract {
 		@Nullable String referencedEntityType,
 		@Nullable Cardinality cardinality,
 		@Nullable GroupEntityReference group,
-		@Nonnull Attributes attributes
+		@Nonnull Attributes<AttributeSchemaContract> attributes
 	) {
 		this.entitySchema = entitySchema;
 		this.version = 1;

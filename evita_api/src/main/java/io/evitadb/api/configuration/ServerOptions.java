@@ -58,7 +58,8 @@ public record ServerOptions(
 	int shortRunningThreadsTimeoutInSeconds,
 	int killTimedOutShortRunningThreadsEverySeconds,
 	int closeSessionsAfterSecondsOfInactivity,
-	boolean readOnly
+	boolean readOnly,
+	boolean quiet
 ) {
 	public static final int DEFAULT_CORE_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 10;
 	public static final int DEFAULT_MAX_THREAD_COUNT = Runtime.getRuntime().availableProcessors() * 20;
@@ -67,6 +68,8 @@ public record ServerOptions(
 	public static final int DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS = 1;
 	public static final int DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS = 30;
 	public static final int DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY = 60 * 20;
+	public static final boolean DEFAULT_READ_ONLY = false;
+	public static final boolean DEFAULT_QUIET = false;
 
 	/**
 	 * Builder for the server options. Recommended to use to avoid binary compatibility problems in the future.
@@ -91,7 +94,8 @@ public record ServerOptions(
 			DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS,
 			DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS,
 			DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY,
-			false
+			DEFAULT_READ_ONLY,
+			DEFAULT_QUIET
 		);
 	}
 
@@ -107,7 +111,8 @@ public record ServerOptions(
 		private int shortRunningThreadsTimeoutInSeconds = DEFAULT_SHORT_RUNNING_THREADS_TIMEOUT_IN_SECONDS;
 		private int killTimedOutShortRunningThreadsEverySeconds = DEFAULT_KILL_TIMED_OUT_SHORT_RUNNING_THREADS_EVERY_SECONDS;
 		private int closeSessionsAfterSecondsOfInactivity = DEFAULT_CLOSE_SESSIONS_AFTER_SECONDS_OF_INACTIVITY;
-		private boolean readOnly = false;
+		private boolean readOnly = DEFAULT_READ_ONLY;
+		private boolean quiet = DEFAULT_QUIET;
 
 		Builder() {
 		}
@@ -121,6 +126,7 @@ public record ServerOptions(
 			this.killTimedOutShortRunningThreadsEverySeconds = serverOptions.killTimedOutShortRunningThreadsEverySeconds;
 			this.closeSessionsAfterSecondsOfInactivity = serverOptions.closeSessionsAfterSecondsOfInactivity;
 			this.readOnly = serverOptions.readOnly;
+			this.quiet = serverOptions.quiet;
 		}
 
 		public ServerOptions.Builder coreThreadCount(int coreThreadCount) {
@@ -163,6 +169,11 @@ public record ServerOptions(
 			return this;
 		}
 
+		public ServerOptions.Builder quiet(boolean quiet) {
+			this.quiet = quiet;
+			return this;
+		}
+
 		public ServerOptions build() {
 			return new ServerOptions(
 				coreThreadCount,
@@ -172,7 +183,8 @@ public record ServerOptions(
 				shortRunningThreadsTimeoutInSeconds,
 				killTimedOutShortRunningThreadsEverySeconds,
 				closeSessionsAfterSecondsOfInactivity,
-				readOnly
+				readOnly,
+				quiet
 			);
 		}
 

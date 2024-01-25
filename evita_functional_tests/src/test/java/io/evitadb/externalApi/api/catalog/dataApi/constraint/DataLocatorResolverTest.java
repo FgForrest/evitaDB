@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.test.Entities;
 import io.evitadb.test.TestConstants;
@@ -53,6 +54,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -61,6 +63,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_NAME;
+import static java.util.Optional.ofNullable;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -80,7 +83,24 @@ public class DataLocatorResolverTest {
 	@BeforeEach
 	void setUp() {
 		this.entitySchemaIndex = new HashMap<>();
-		this.catalogSchema = CatalogSchema._internalBuild(TestConstants.TEST_CATALOG, Map.of(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchemaIndex::get);
+		this.catalogSchema = CatalogSchema._internalBuild(
+			TestConstants.TEST_CATALOG,
+			Map.of(),
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			new EntitySchemaProvider() {
+				@Nonnull
+				@Override
+				public Collection<EntitySchemaContract> getEntitySchemas() {
+					return entitySchemaIndex.values();
+				}
+
+				@Nonnull
+				@Override
+				public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+					return ofNullable(entitySchemaIndex.get(entityType));
+				}
+			}
+		);
 
 		final EntitySchemaContract productSchema = new InternalEntitySchemaBuilder(
 			catalogSchema,
@@ -121,7 +141,7 @@ public class DataLocatorResolverTest {
 	                                            @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain)
+			dataLocatorResolver.resolveChildParameterDataLocator(parentDataLocator, desiredChildDomain).get()
 		);
 	}
 
@@ -224,7 +244,7 @@ public class DataLocatorResolverTest {
 	                                             @Nonnull DataLocator expectedChildDataLocator) {
 		assertEquals(
 			expectedChildDataLocator,
-			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
+			dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 
@@ -353,7 +373,7 @@ public class DataLocatorResolverTest {
 	                                           @Nullable String classifier) {
 		assertThrows(
 			ExternalApiInternalError.class,
-			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, Optional.ofNullable(classifier))
+			() -> dataLocatorResolver.resolveConstraintDataLocator(parentDataLocator, constraintDescriptor, ofNullable(classifier))
 		);
 	}
 

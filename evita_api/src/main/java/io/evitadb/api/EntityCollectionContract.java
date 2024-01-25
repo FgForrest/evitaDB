@@ -29,6 +29,7 @@ import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
@@ -116,7 +117,7 @@ public interface EntityCollectionContract {
 	 * @throws EntityAlreadyRemovedException when the entity has been already removed
 	 */
 	@Nonnull
-	SealedEntity enrichEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session)
+	SealedEntity enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session)
 		throws EntityAlreadyRemovedException;
 
 	/**
@@ -130,7 +131,7 @@ public interface EntityCollectionContract {
 	 * @param session      that connect this request with an opened session
 	 */
 	@Nonnull
-	SealedEntity limitEntity(@Nonnull SealedEntity sealedEntity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
+	SealedEntity limitEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
 	 * Returns UNIQUE name of the entity collection in the catalog.
@@ -266,7 +267,10 @@ public interface EntityCollectionContract {
 	 * @throws SchemaAlteringException signalizing that the schema alteration has failed and was not applied
 	 */
 	@Nonnull
-	SealedEntitySchema updateSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaMutation... schemaMutation) throws SchemaAlteringException;
+	SealedEntitySchema updateSchema(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull EntitySchemaMutation... schemaMutation
+	) throws SchemaAlteringException;
 
 	/**
 	 * Returns catalog entity header version that is incremented with each update. Version is not stored on the disk,

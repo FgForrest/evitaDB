@@ -1,0 +1,13 @@
+{
+  queryProduct(
+    orderBy: [{
+      attributeCodeNatural: ASC
+    }]
+  ) {
+    recordPage {
+      data {
+        primaryKey
+      }
+    }
+  }
+}

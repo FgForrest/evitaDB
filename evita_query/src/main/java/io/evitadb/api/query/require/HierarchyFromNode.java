@@ -76,24 +76,24 @@ import static java.util.Optional.of;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             fromNode(
- *                 'sideMenu1',
+ *                 "sideMenu1",
  *                 node(
  *                     filterBy(
- *                         attributeEquals('code', 'portables')
+ *                         attributeEquals("code", "portables")
  *                     )
  *                 ),
- *                 entityFetch(attributeContent('code')),
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
  *                 statistics(
  *                     CHILDREN_COUNT,
@@ -101,13 +101,13 @@ import static java.util.Optional.of;
  *                 )
  *             ),
  *             fromNode(
- *                 'sideMenu2',
+ *                 "sideMenu2",
  *                 node(
  *                     filterBy(
- *                         attributeEquals('code', 'laptops')
+ *                         attributeEquals("code", "laptops")
  *                     )
  *                 ),
- *                 entityFetch(attributeContent('code')),
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
  *                 statistics(
  *                     CHILDREN_COUNT,
@@ -124,12 +124,15 @@ import static java.util.Optional.of;
  * the `fromNode` respects them. The reason is simple: when you render a menu for the query result, you want
  * the calculated statistics to respect the rules that apply to the hierarchyWithin so that the calculated number
  * remains consistent for the end user.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#from-node">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "fromNode",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at pivot node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#from-node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyFromNode extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

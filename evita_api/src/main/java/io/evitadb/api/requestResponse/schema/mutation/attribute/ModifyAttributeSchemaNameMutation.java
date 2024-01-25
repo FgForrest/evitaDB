@@ -26,12 +26,16 @@ package io.evitadb.api.requestResponse.schema.mutation.attribute;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
@@ -63,7 +67,7 @@ import java.io.Serial;
 @EqualsAndHashCode
 public class ModifyAttributeSchemaNameMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-				CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation {
+				CombinableEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = -9180398601079510531L;
 	@Nonnull @Getter private final String name;
 	@Getter @Nonnull private final String newName;
@@ -95,7 +99,7 @@ public class ModifyAttributeSchemaNameMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema) {
+	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
 		if (attributeSchema instanceof GlobalAttributeSchema globalAttributeSchema) {
 			//noinspection unchecked,rawtypes
@@ -103,15 +107,32 @@ public class ModifyAttributeSchemaNameMutation
 				newName,
 				globalAttributeSchema.getDescription(),
 				globalAttributeSchema.getDeprecationNotice(),
-				globalAttributeSchema.isUnique(),
-				globalAttributeSchema.isUniqueGlobally(),
+				globalAttributeSchema.getUniquenessType(),
+				globalAttributeSchema.getGlobalUniquenessType(),
 				globalAttributeSchema.isFilterable(),
 				globalAttributeSchema.isSortable(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
-				(Class)globalAttributeSchema.getType(),
+				globalAttributeSchema.isRepresentative(),
+				(Class) globalAttributeSchema.getType(),
 				globalAttributeSchema.getDefaultValue(),
 				globalAttributeSchema.getIndexedDecimalPlaces()
+			);
+		} else if (attributeSchema instanceof EntityAttributeSchema entityAttributeSchema) {
+			//noinspection unchecked,rawtypes
+			return (S) EntityAttributeSchema._internalBuild(
+				newName,
+				entityAttributeSchema.getDescription(),
+				entityAttributeSchema.getDeprecationNotice(),
+				entityAttributeSchema.getUniquenessType(),
+				entityAttributeSchema.isFilterable(),
+				entityAttributeSchema.isSortable(),
+				entityAttributeSchema.isLocalized(),
+				entityAttributeSchema.isNullable(),
+				entityAttributeSchema.isRepresentative(),
+				(Class)entityAttributeSchema.getType(),
+				entityAttributeSchema.getDefaultValue(),
+				entityAttributeSchema.getIndexedDecimalPlaces()
 			);
 		} else {
 			//noinspection unchecked,rawtypes
@@ -119,7 +140,7 @@ public class ModifyAttributeSchemaNameMutation
 				newName,
 				attributeSchema.getDescription(),
 				attributeSchema.getDeprecationNotice(),
-				attributeSchema.isUnique(),
+				attributeSchema.getUniquenessType(),
 				attributeSchema.isFilterable(),
 				attributeSchema.isSortable(),
 				attributeSchema.isLocalized(),
@@ -133,29 +154,35 @@ public class ModifyAttributeSchemaNameMutation
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
 		Assert.isPremiseValid(catalogSchema != null, "Catalog schema is mandatory!");
 		final GlobalAttributeSchemaContract existingAttributeSchema = catalogSchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
 				"The attribute `" + name + "` is not defined in catalog `" + catalogSchema.getName() + "` schema!"
 			));
 
-		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema);
+		final GlobalAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, GlobalAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
-			catalogSchema, existingAttributeSchema, updatedAttributeSchema
+			catalogSchema, existingAttributeSchema, updatedAttributeSchema, entitySchemaAccessor, this
 		);
+	}
+
+	@Nonnull
+	@Override
+	public EntitySchemaContract replaceAttributeIfDifferent(@Nonnull EntitySchemaContract entitySchema, @Nonnull AttributeSchemaContract existingAttributeSchema, @Nonnull EntityAttributeSchemaContract updatedAttributeSchema) {
+		return EntityAttributeSchemaMutation.super.replaceAttributeIfDifferent(entitySchema, existingAttributeSchema, updatedAttributeSchema);
 	}
 
 	@Nullable
 	@Override
 	public EntitySchemaContract mutate(@Nonnull CatalogSchemaContract catalogSchema, @Nullable EntitySchemaContract entitySchema) {
 		Assert.isPremiseValid(entitySchema != null, "Entity schema is mandatory!");
-		final AttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
+		final EntityAttributeSchemaContract existingAttributeSchema = entitySchema.getAttribute(name)
 			.orElseThrow(() -> new InvalidSchemaMutationException(
 				"The attribute `" + name + "` is not defined in entity `" + entitySchema.getName() + "` schema!"
 			));
 
-		final AttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema);
+		final EntityAttributeSchemaContract updatedAttributeSchema = mutate(catalogSchema, existingAttributeSchema, EntityAttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			entitySchema, existingAttributeSchema, updatedAttributeSchema
 		);
@@ -171,7 +198,7 @@ public class ModifyAttributeSchemaNameMutation
 					"` schema for reference with name `" + referenceSchema.getName() + "`!"
 			));
 
-		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema);
+		final AttributeSchemaContract updatedAttributeSchema = mutate(null, existingAttributeSchema, AttributeSchemaContract.class);
 		return replaceAttributeIfDifferent(
 			referenceSchema, existingAttributeSchema, updatedAttributeSchema
 		);

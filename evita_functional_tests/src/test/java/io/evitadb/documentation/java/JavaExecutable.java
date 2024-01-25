@@ -73,7 +73,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	/**
 	 * Contains paths of Java files that needs to be executed prior to {@link #sourceContent}
 	 */
-	private final @Nullable Path[] requires;
+	private final @Nullable Path[] requiredResources;
 	/**
 	 * Contains index of all (so-far) identified code snippets in this document so that we can reuse their source codes.
 	 */
@@ -95,7 +95,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 			CompletionInfo info = sca.analyzeCompletion(str);
 			snippets.add(info.source());
 			str = info.remaining();
-		} while (str.length() > 0);
+		} while (!str.isEmpty());
 		return snippets;
 	}
 
@@ -127,7 +127,7 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 							event.snippet().source()
 						)
 					);
-				// it the event contains exception
+					// it the event contains exception
 				} else if (event.exception() != null) {
 					// it means, that code was successfully compiled, but threw exception upon evaluation
 					exceptions.add(
@@ -156,10 +156,44 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	}
 
 	/**
+	 * Method reads the {@link #requiredResources} from the file system and returns their contents as a list of
+	 * {@link JShell} commands.
+	 *
+	 * @param jShell            the {@link JShell} instance
+	 * @param rootDirectory     the root directory of the documentation
+	 * @param requiredResources the list of required resources
+	 * @param codeSnippetIndex  the index of all code snippets in the documentation
+	 * @return the list of {@link JShell} commands
+	 */
+	@Nonnull
+	static List<String> composeRequiredBlocks(
+		@Nonnull JShell jShell,
+		@Nonnull Path rootDirectory,
+		@Nonnull Path[] requiredResources,
+		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex
+	) {
+		final List<String> requiredSnippet = new LinkedList<>();
+		for (Path require : requiredResources) {
+			final CodeSnippet requiredScript = codeSnippetIndex.get(require);
+			// if the code snippet is not found in the index, it's read from the file system
+			if (requiredScript == null) {
+				requiredSnippet.addAll(toJavaSnippets(jShell, UserDocumentationTest.readFileOrThrowException(rootDirectory.resolve(require))));
+			} else {
+				final Executable executable = requiredScript.executableLambda();
+				Assert.isTrue(executable instanceof JavaExecutable, "Java example may require only Java executables!");
+				requiredSnippet.addAll(
+					((JavaExecutable) executable).getSnippets()
+				);
+			}
+		}
+		return requiredSnippet;
+	}
+
+	/**
 	 * Method clears the tear down snippet and deletes {@link Evita} directory if it was accessed in
 	 * test.
 	 */
-	private static void clearOnTearDown(@Nonnull JShell jShell, @Nonnull Snippet tearDownSnippet) {
+	static void clearOnTearDown(@Nonnull JShell jShell, @Nonnull Snippet tearDownSnippet) {
 		if (tearDownSnippet instanceof VarSnippet pathDeclaration && "evitaStoragePathToClear".equals(pathDeclaration.name())) {
 			final String stringValue = jShell.varValue(pathDeclaration);
 			final String pathToClear = stringValue.substring(1, stringValue.length() - 1);
@@ -173,6 +207,33 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 			}
 		}
 		jShell.drop(tearDownSnippet);
+	}
+
+	/**
+	 * Method creates list of source code snippets that could be passed to {@link JShell} instance for compilation and
+	 * execution. If the code snippet declares another code snippet via {@link #requiredResources} as predecessor,
+	 * the executable of such predecessor code snippet is prepended to the list of snippets. If such block is not found
+	 * within the same documentation file, it's read from the file system directly.
+	 */
+	@Nonnull
+	private static List<String> composeCodeBlockWithRequiredBlocks(
+		@Nonnull JShell jShell,
+		@Nonnull String sourceCode,
+		@Nonnull Path rootDirectory,
+		@Nullable Path[] requiredResources,
+		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex
+	) {
+		if (ArrayUtils.isEmpty(requiredResources)) {
+			// simply return contents of the code snippet as result
+			return toJavaSnippets(jShell, sourceCode);
+		} else {
+			final List<String> requiredSnippet = composeRequiredBlocks(jShell, rootDirectory, requiredResources, codeSnippetIndex);
+			// now combine both required and dependent snippets together
+			return Stream.concat(
+				requiredSnippet.stream(),
+				toJavaSnippets(jShell, sourceCode).stream()
+			).toList();
+		}
 	}
 
 	@Override
@@ -223,54 +284,16 @@ public class JavaExecutable implements Executable, EvitaTestSupport {
 	public List<String> getSnippets() {
 		if (parsedSnippets == null) {
 			parsedSnippets = composeCodeBlockWithRequiredBlocks(
-				testContextAccessor.get().getJShell(), sourceContent, codeSnippetIndex
+				testContextAccessor.get().getJShell(), sourceContent, getRootDirectory(), requiredResources, codeSnippetIndex
 			);
 		}
 		return parsedSnippets;
 	}
 
 	/**
-	 * Method creates list of source code snippets that could be passed to {@link JShell} instance for compilation and
-	 * execution. If the code snippet declares another code snippet via {@link #requires} as predecessor,
-	 * the executable of such predecessor code snippet is prepended to the list of snippets. If such block is not found
-	 * within the same documentation file, it's read from the file system directly.
-	 */
-	@Nonnull
-	private List<String> composeCodeBlockWithRequiredBlocks(
-		@Nonnull JShell jShell,
-		@Nonnull String sourceCode,
-		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex
-	) {
-		if (ArrayUtils.isEmpty(requires)) {
-			// simply return contents of the code snippet as result
-			return toJavaSnippets(jShell, sourceCode);
-		} else {
-			final List<String> requiredSnippet = new LinkedList<>();
-			for (Path require : requires) {
-				final CodeSnippet requiredScript = codeSnippetIndex.get(require);
-				// if the code snippet is not found in the index, it's read from the file system
-				if (requiredScript == null) {
-					requiredSnippet.addAll(toJavaSnippets(jShell, UserDocumentationTest.readFileOrThrowException(getRootDirectory().resolve(require))));
-				} else {
-					final Executable executable = requiredScript.executableLambda();
-					Assert.isTrue(executable instanceof JavaExecutable, "Java example may require only Java executables!");
-					requiredSnippet.addAll(
-						((JavaExecutable) executable).getSnippets()
-					);
-				}
-			}
-			// now combine both required and dependent snippets together
-			return Stream.concat(
-				requiredSnippet.stream(),
-				toJavaSnippets(jShell, sourceCode).stream()
-			).toList();
-		}
-	}
-
-	/**
 	 * Record contains result of the Java code execution.
 	 */
-	private record InvocationResult(
+	record InvocationResult(
 		@Nonnull List<Snippet> snippets,
 		@Nullable Exception exception
 	) {

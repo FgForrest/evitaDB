@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.endpoint;
 
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -49,10 +48,10 @@ public class GetEntitySchemaHandler extends EntitySchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntitySchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
-		return exchange.session().getEntitySchema(restApiHandlingContext.getEntityType())
-			.map(it -> (EndpointResponse<EntitySchemaContract>) new SuccessEndpointResponse<>((EntitySchemaContract) it))
-			.orElse(new NotFoundEndpointResponse<>());
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+		return exchange.session().getEntitySchema(restHandlingContext.getEntityType())
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull

@@ -43,11 +43,14 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaDecorator;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation.CatalogSchemaWithImpactOnEntitySchemas;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -87,6 +90,7 @@ import io.evitadb.store.spi.operation.PutStoragePartOperation;
 import io.evitadb.store.spi.operation.RemoveCollectionOperation;
 import io.evitadb.store.spi.operation.RemoveStoragePartOperation;
 import io.evitadb.store.spi.operation.RenameCollectionOperation;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ClassUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -135,6 +139,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * Contains index of {@link EntityCollection} indexed by their primary keys.
 	 */
 	private final TransactionalMap<Integer, EntityCollection> entityCollectionsByPrimaryKey;
+	/**
+	 * Contains index of {@link EntitySchemaContract} indexed by their {@link EntitySchemaContract#getName()}.
+	 */
+	private final TransactionalMap<String, EntitySchemaContract> entitySchemaIndex;
 	/**
 	 * Contains count of concurrently opened read-write sessions connected with this catalog.
 	 * This information is used to control lifecycle of {@link #ioService} object.
@@ -194,6 +202,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
+	 * Provides access to the entity schema in the catalog.
+	 */
+	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
+	/**
 	 * Contains id of the transaction ({@link Transaction#getId()}) that was successfully committed to the disk.
 	 */
 	@Getter long lastCommittedTransactionId;
@@ -206,7 +218,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	) {
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
 			catalogSchema.getName(), catalogSchema.getNameVariants(), catalogSchema.getCatalogEvolutionMode(),
-			entityType -> getEntitySchema(entityType).orElse(null)
+			getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
 		this.ioService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
@@ -232,6 +244,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.cacheSupervisor = cacheSupervisor;
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
+		this.entitySchemaIndex = new TransactionalMap<>(createHashMap(0));
 		this.entityTypeSequence = sequenceService.getOrCreateSequence(
 			catalogSchema.getName(), SequenceType.ENTITY_COLLECTION, 1
 		);
@@ -301,6 +314,16 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				),
 			EntityCollection.class, Function.identity()
 		);
+		this.entitySchemaIndex = new TransactionalMap<>(
+			entityCollections.values()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						EntityCollection::getEntityType,
+						EntityCollection::getSchema
+					)
+				)
+		);
 		this.proxyFactory = ClassUtils.whenPresentOnClasspath(
 			"one.edee.oss.proxycian.bytebuddy.ByteBuddyProxyGenerator",
 			() -> (ProxyFactory) Class.forName("io.evitadb.api.proxy.impl.ProxycianFactory")
@@ -355,12 +378,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				),
 			EntityCollection.class, Function.identity()
 		);
+		this.entitySchemaIndex = new TransactionalMap<>(
+			entityCollections.values()
+				.stream()
+				.collect(
+					Collectors.toMap(
+						EntityCollection::getEntityType,
+						EntityCollection::getSchema
+					)
+				)
+		);
 		this.proxyFactory = proxyFactory;
-	}
-
-	@Override
-	public long getVersion() {
-		return this.ioService.getCatalogBootstrap().getCatalogHeader().getVersion();
 	}
 
 	@Override
@@ -374,6 +402,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	public CatalogSchemaContract updateSchema(@Nonnull EvitaSessionContract session, @Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
 		final CatalogSchema currentSchema = getInternalSchema();
+		ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 		CatalogSchemaContract updatedSchema = currentSchema;
 		for (CatalogSchemaMutation theMutation : schemaMutation) {
 			// if the mutation implements entity schema mutation apply it on the appropriate schema
@@ -393,8 +422,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					}
 					updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
 						updatedSchema,
-						entityType -> getEntitySchema(entityType).orElse(null)
+						getEntitySchemaAccessor()
 					);
+					entitySchemaRemoved(collectionToRemove.getEntityType());
 				}
 			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
 				this.ioService.verifyEntityType(
@@ -409,8 +439,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				this.entityCollections.put(newCollection.getEntityType(), newCollection);
 				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
 					updatedSchema,
-					entityType -> getEntitySchema(entityType).orElse(null)
+					getEntitySchemaAccessor()
 				);
+				entitySchemaUpdated(newCollection.getSchema());
 			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
 				if (renameEntitySchemaMutation.isOverwriteTarget() && entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
 					replaceEntityCollectionInternal(session, renameEntitySchemaMutation);
@@ -419,10 +450,23 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				}
 				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
 					updatedSchema,
-					entityType -> getEntitySchema(entityType).orElse(null)
+					getEntitySchemaAccessor()
 				);
 			} else {
-				updatedSchema = Objects.requireNonNull(theMutation.mutate(updatedSchema));
+				final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas;
+				if (theMutation instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
+					schemaWithImpactOnEntitySchemas = localCatalogSchemaMutation.mutate(updatedSchema, getEntitySchemaAccessor());
+				} else {
+					schemaWithImpactOnEntitySchemas = theMutation.mutate(updatedSchema);
+				}
+				Assert.isPremiseValid(
+					schemaWithImpactOnEntitySchemas != null && schemaWithImpactOnEntitySchemas.updatedCatalogSchema() != null,
+					"Catalog schema mutation is expected to produce CatalogSchema instance!"
+				);
+				updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
+				modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
+					schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
+					ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
 			}
 		}
 		final CatalogSchemaContract nextSchema = updatedSchema;
@@ -440,6 +484,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			);
 			this.dataStoreBuffer.update(new CatalogSchemaStoragePart(updatedInternalSchema));
 		}
+		// alter affected entity schemas
+		if (modifyEntitySchemaMutations != null) {
+			updateSchema(session, modifyEntitySchemaMutations);
+		}
 		return getSchema();
 	}
 
@@ -453,6 +501,11 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Nonnull
 	public String getName() {
 		return schema.get().getName();
+	}
+
+	@Override
+	public long getVersion() {
+		return this.ioService.getCatalogBootstrap().getCatalogHeader().getVersion();
 	}
 
 	@Override
@@ -606,30 +659,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		}
 	}
 
+	@Nonnull
+	@Override
+	public Map<String, EntitySchemaContract> getEntitySchemaIndex() {
+		return entitySchemaIndex;
+	}
+
 	@Override
 	@Nonnull
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
 		return ofNullable(entityCollections.get(entityType))
 			.map(EntityCollection::getSchema);
-	}
-
-	/**
-	 * Returns reference to the main catalog index that allows fast lookups for entities across all types.
-	 */
-	@Nonnull
-	public CatalogIndex getCatalogIndex() {
-		return catalogIndex;
-	}
-
-	/**
-	 * Returns {@link EntitySchema} for passed `entityType` or throws {@link IllegalArgumentException} if schema for
-	 * this type is not yet known.
-	 */
-	@Nullable
-	public EntityIndex getEntityIndexIfExists(@Nonnull String entityType, @Nonnull EntityIndexKey indexKey) {
-		final EntityCollection targetCollection = ofNullable(entityCollections.get(entityType))
-			.orElseThrow(() -> new IllegalArgumentException("Entity collection of type " + entityType + " doesn't exist!"));
-		return targetCollection.getIndexByKeyIfExists(indexKey);
 	}
 
 	@Override
@@ -689,10 +729,52 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
+	 * Returns reference to the main catalog index that allows fast lookups for entities across all types.
+	 */
+	@Nonnull
+	public CatalogIndex getCatalogIndex() {
+		return catalogIndex;
+	}
+
+	/**
+	 * Returns {@link EntitySchema} for passed `entityType` or throws {@link IllegalArgumentException} if schema for
+	 * this type is not yet known.
+	 */
+	@Nullable
+	public EntityIndex getEntityIndexIfExists(@Nonnull String entityType, @Nonnull EntityIndexKey indexKey) {
+		final EntityCollection targetCollection = ofNullable(entityCollections.get(entityType))
+			.orElseThrow(() -> new IllegalArgumentException("Entity collection of type " + entityType + " doesn't exist!"));
+		return targetCollection.getIndexByKeyIfExists(indexKey);
+	}
+
+	/**
 	 * Returns internally held {@link CatalogSchema}.
 	 */
 	public CatalogSchema getInternalSchema() {
 		return schema.get().getDelegate();
+	}
+
+	/**
+	 * Updates schema in the map index on schema change.
+	 *
+	 * @param entitySchema updated entity schema
+	 */
+	public void entitySchemaUpdated(@Nonnull EntitySchemaContract entitySchema) {
+		this.entitySchemaIndex.put(entitySchema.getName(), entitySchema);
+	}
+
+	/**
+	 * Removes the entity schema from the map index.
+	 *
+	 * @param entityType the type of the entity schema to be removed
+	 */
+	public void entitySchemaRemoved(@Nonnull String entityType) {
+		this.entitySchemaIndex.remove(entityType);
+	}
+
+	@Override
+	public DataSourceChanges<CatalogIndexKey, CatalogIndex> createLayer() {
+		return new DataSourceChanges<>();
 	}
 
 	/*
@@ -700,8 +782,13 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 
 	@Override
-	public DataSourceChanges<CatalogIndexKey, CatalogIndex> createLayer() {
-		return new DataSourceChanges<>();
+	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
+		this.schema.removeLayer(transactionalLayer);
+		this.entityCollections.removeLayer(transactionalLayer);
+		this.catalogIndex.removeLayer(transactionalLayer);
+		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
+		this.entitySchemaIndex.removeLayer(transactionalLayer);
 	}
 
 	@Nonnull
@@ -743,6 +830,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections, transaction);
 		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex, transaction);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
+		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
 
 		if (transactionalChanges != null) {
 
@@ -803,19 +891,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		}
 	}
 
-	@Override
-	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
-		this.schema.removeLayer(transactionalLayer);
-		this.entityCollections.removeLayer(transactionalLayer);
-		this.catalogIndex.removeLayer(transactionalLayer);
-		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
-	}
-
-	/*
-		PROTECTED METHODS
-	 */
-
 	/**
 	 * Returns next unique transaction id for the catalog.
 	 */
@@ -829,6 +904,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			}
 		});
 	}
+
+	/*
+		PROTECTED METHODS
+	 */
 
 	/**
 	 * Increases number of read and write sessions that are currently talking with this catalog.
@@ -854,7 +933,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * This method writes all changed storage parts into the MemTable of {@link EntityCollection} and then stores
+	 * This method writes all changed storage parts into the file offset index of {@link EntityCollection} and then stores
 	 * {@link CatalogBootstrap} marking transactionId as committed.
 	 */
 	void flushTransaction(long transactionId, @Nonnull CommitUpdateInstructionSet commitInstructionSet) {
@@ -883,7 +962,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
 	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
-	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the MemTable executed
+	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
 	 * in BULK / non-transactional mode.
 	 */
 	void flush() {
@@ -1029,4 +1108,17 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 	}
 
+	private class CatalogEntitySchemaAccessor implements EntitySchemaProvider {
+		@Nonnull
+		@Override
+		public Collection<EntitySchemaContract> getEntitySchemas() {
+			return Catalog.this.getEntitySchemaIndex().values();
+		}
+
+		@Nonnull
+		@Override
+		public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+			return Catalog.this.getEntitySchema(entityType).map(EntitySchemaContract.class::cast);
+		}
+	}
 }

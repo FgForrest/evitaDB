@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 
 package io.evitadb.test.client.query.graphql;
 
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.PriceHistogram;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.model.extraResult.ExtraResultsDescriptor;
@@ -38,8 +39,8 @@ import javax.annotation.Nullable;
 public class PriceHistogramConverter extends HistogramConverter {
 
 	public PriceHistogramConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                               @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
+	                               @Nonnull Query query) {
+		super(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder extraResultsBuilder,
@@ -50,7 +51,7 @@ public class PriceHistogramConverter extends HistogramConverter {
 
 		extraResultsBuilder.addObjectField(
 			ExtraResultsDescriptor.PRICE_HISTOGRAM,
-			getHistogramFieldsBuilder(priceHistogram.getRequestedBucketCount())
+			getHistogramFieldsBuilder(new HistogramRequest(priceHistogram.getRequestedBucketCount(), priceHistogram.getBehavior()))
 		);
 	}
 }

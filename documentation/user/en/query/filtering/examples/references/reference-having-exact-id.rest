@@ -1,0 +1,21 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "referenceBrandHaving" : [
+      {
+        "entityPrimaryKeyInSet" : [
+          66465
+        ]
+      }
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceBrandContent" : { }
+    }
+  }
+}

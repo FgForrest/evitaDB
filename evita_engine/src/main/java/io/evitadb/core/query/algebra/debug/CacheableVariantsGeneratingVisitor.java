@@ -82,7 +82,7 @@ public class CacheableVariantsGeneratingVisitor implements FormulaVisitor {
 	}
 
 	@Override
-	public void visit(Formula formula) {
+	public void visit(@Nonnull Formula formula) {
 		if (topFormula == null) {
 			this.topFormula = formula;
 		}

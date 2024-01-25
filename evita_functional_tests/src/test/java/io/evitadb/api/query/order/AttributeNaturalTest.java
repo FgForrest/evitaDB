@@ -53,7 +53,7 @@ class AttributeNaturalTest {
 	void shouldRecognizeApplicability() {
 		assertTrue(attributeNatural("married").isApplicable());
 		assertTrue(attributeNatural("age", DESC).isApplicable());
-		assertFalse(attributeNatural(null).isApplicable());
+		assertFalse(new AttributeNatural(null).isApplicable());
 	}
 
 	@Test
@@ -75,7 +75,7 @@ class AttributeNaturalTest {
 		assertEquals(attributeNatural("married").hashCode(), attributeNatural("married").hashCode());
 		assertEquals(attributeNatural("married", ASC).hashCode(), attributeNatural("married").hashCode());
 		assertNotEquals(attributeNatural("married").hashCode(), attributeNatural("single").hashCode());
-		assertNotEquals(attributeNatural("married").hashCode(), attributeNatural(null).hashCode());
+		assertNotEquals(attributeNatural("married").hashCode(), new AttributeNatural(null).hashCode());
 	}
 
 }

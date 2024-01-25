@@ -23,9 +23,12 @@
 
 package io.evitadb.documentation.graphql;
 
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.test.client.GraphQLClient;
 import lombok.Getter;
+
+import javax.annotation.Nonnull;
 
 /**
  * Context creates new {@link GraphQLClient} instance that is connected to the demo server.
@@ -40,9 +43,9 @@ public class GraphQLTestContext implements TestContext {
 	@Getter
 	private final GraphQLClient graphQLClient;
 
-	public GraphQLTestContext() {
-		this.graphQLClient = new GraphQLClient("https://demo.evitadb.io:5555/gql/evita");
-		// for local documentation testing
-//		this.graphQLClient = new GraphQLClient("https://localhost:5555/gql/evita", false);
+	public GraphQLTestContext(@Nonnull Environment profile) {
+		this.graphQLClient = profile == Environment.LOCALHOST ?
+			new GraphQLClient("https://localhost:5555", false) :
+			new GraphQLClient("https://demo.evitadb.io:5555");
 	}
 }

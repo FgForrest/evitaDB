@@ -33,6 +33,7 @@ import io.evitadb.externalApi.configuration.MtlsConfiguration;
 import io.evitadb.externalApi.grpc.configuration.GrpcConfig;
 import io.evitadb.externalApi.grpc.services.EvitaService;
 import io.evitadb.externalApi.grpc.services.EvitaSessionService;
+import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.utils.CertificateUtils;
@@ -119,12 +120,16 @@ public class GrpcServer {
 				e
 			);
 		}
-		server = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
-			.intercept(new ServerSessionInterceptor(evita))
-			.intercept(new GlobalExceptionHandlerInterceptor())
+
+		final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
 			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
 			.addService(new EvitaSessionService(evita))
-			.build();
+			.intercept(new ServerSessionInterceptor(evita))
+			.intercept(new GlobalExceptionHandlerInterceptor());
+		if (apiOptions.accessLog()) {
+			serverBuilder.intercept(new AccessLogInterceptor());
+		}
+		server = serverBuilder.build();
 	}
 }

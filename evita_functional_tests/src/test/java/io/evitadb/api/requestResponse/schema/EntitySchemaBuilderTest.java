@@ -36,19 +36,25 @@ import io.evitadb.api.requestResponse.schema.builder.InternalCatalogSchemaBuilde
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,27 +66,80 @@ import static org.junit.jupiter.api.Assertions.*;
 class EntitySchemaBuilderTest {
 	private final EntitySchema productSchema = EntitySchema._internalBuild(Entities.PRODUCT);
 	private final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
+	private final EntitySchema brandSchema = EntitySchema._internalBuild(Entities.BRAND);
+	private final EntitySchema storeSchema = EntitySchema._internalBuild(Entities.STORE);
 	private final CatalogSchema catalogSchema = CatalogSchema._internalBuild(
 		APITestConstants.TEST_CATALOG,
 		NamingConvention.generate(APITestConstants.TEST_CATALOG),
 		EnumSet.allOf(CatalogEvolutionMode.class),
-		entityType -> {
-			if (entityType.equals(productSchema.getName())) {
-				return productSchema;
-			} else if (entityType.equals(categorySchema.getName())) {
-				return categorySchema;
-			} else {
-				return null;
+		new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(
+					productSchema,
+					categorySchema,
+					brandSchema,
+					storeSchema
+				);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				if (entityType.equals(productSchema.getName())) {
+					return of(productSchema);
+				} else if (entityType.equals(categorySchema.getName())) {
+					return of(categorySchema);
+				} else if (entityType.equals(brandSchema.getName())) {
+					return of(brandSchema);
+				} else if (entityType.equals(storeSchema.getName())) {
+					return of(storeSchema);
+				} else {
+					return empty();
+				}
 			}
 		}
 	);
 
-	private static void assertAttribute(AttributeSchemaContract attributeSchema, boolean unique, boolean filterable, boolean sortable, boolean localized, int indexedDecimalPlaces, Class<? extends Serializable> ofType) {
+	private static void assertAttribute(
+		EntityAttributeSchemaContract attributeSchema,
+		boolean unique,
+		boolean filterable,
+		boolean sortable,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		int indexedDecimalPlaces,
+		Class<? extends Serializable> ofType
+	) {
 		assertNotNull(attributeSchema);
 		assertEquals(unique, attributeSchema.isUnique(), "Attribute `" + attributeSchema.getName() + "` should be unique, but it is not!");
 		assertEquals(filterable, attributeSchema.isFilterable(), "Attribute `" + attributeSchema.getName() + "` should be filterable, but it is not!");
 		assertEquals(sortable, attributeSchema.isSortable(), "Attribute `" + attributeSchema.getName() + "` should be sortable, but it is not!");
 		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeSchema.getName() + "` should be localized, but it is not!");
+		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeSchema.getName() + "` should be nullable, but it is not!");
+		assertEquals(representative, attributeSchema.isRepresentative(), "Attribute `" + attributeSchema.getName() + "` should be representative, but it is not!");
+		assertEquals(ofType, attributeSchema.getType(), "Attribute `" + attributeSchema.getName() + "` should be `" + ofType + "`, but it is `" + attributeSchema.getType() + "`!");
+		assertEquals(indexedDecimalPlaces, attributeSchema.getIndexedDecimalPlaces(), "Attribute `" + attributeSchema.getName() + "` should have `" + indexedDecimalPlaces + "` indexed decimal places, but has `" + attributeSchema.getIndexedDecimalPlaces() + "`!");
+	}
+
+	private static void assertAttribute(
+		AttributeSchemaContract attributeSchema,
+		boolean unique,
+		boolean filterable,
+		boolean sortable,
+		boolean localized,
+		boolean nullable,
+		int indexedDecimalPlaces,
+		Class<? extends Serializable> ofType
+	) {
+		assertNotNull(attributeSchema);
+		assertEquals(unique, attributeSchema.isUnique(), "Attribute `" + attributeSchema.getName() + "` should be unique, but it is not!");
+		assertEquals(filterable, attributeSchema.isFilterable(), "Attribute `" + attributeSchema.getName() + "` should be filterable, but it is not!");
+		assertEquals(sortable, attributeSchema.isSortable(), "Attribute `" + attributeSchema.getName() + "` should be sortable, but it is not!");
+		assertEquals(localized, attributeSchema.isLocalized(), "Attribute `" + attributeSchema.getName() + "` should be localized, but it is not!");
+		assertEquals(nullable, attributeSchema.isNullable(), "Attribute `" + attributeSchema.getName() + "` should be nullable, but it is not!");
 		assertEquals(ofType, attributeSchema.getType(), "Attribute `" + attributeSchema.getName() + "` should be `" + ofType + "`, but it is `" + attributeSchema.getType() + "`!");
 		assertEquals(indexedDecimalPlaces, attributeSchema.getIndexedDecimalPlaces(), "Attribute `" + attributeSchema.getName() + "` should have `" + indexedDecimalPlaces + "` indexed decimal places, but has `" + attributeSchema.getIndexedDecimalPlaces() + "`!");
 	}
@@ -97,7 +156,7 @@ class EntitySchemaBuilderTest {
 			/* en + cs localized attributes and associated data are allowed only */
 			.withLocale(Locale.ENGLISH, new Locale("cs", "CZ"))
 			/* here we define list of attributes with indexes for search / sort */
-			.withAttribute("code", String.class, whichIs -> whichIs.unique())
+			.withAttribute("code", String.class, whichIs -> whichIs.unique().representative())
 			.withAttribute("url", String.class, whichIs -> whichIs.unique().localized())
 			.withAttribute("oldEntityUrls", String[].class, whichIs -> whichIs.filterable().localized())
 			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable())
@@ -143,8 +202,8 @@ class EntitySchemaBuilderTest {
 			)
 			/* references may be also represented be entities unknown to Evita */
 			.withReferenceTo(
-				"stock",
-				"stock",
+				Entities.STORE,
+				Entities.STORE,
 				Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.faceted()
 			)
@@ -929,7 +988,7 @@ class EntitySchemaBuilderTest {
 	@Test
 	void shouldDefineProductSchemaWithSharedAttributes() {
 		final CatalogSchemaContract updatedCatalogSchema = new InternalCatalogSchemaBuilder(catalogSchema)
-			.withAttribute("code", String.class, whichIs -> whichIs.unique())
+			.withAttribute("code", String.class, whichIs -> whichIs.unique().representative())
 			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable())
 			.toInstance();
 
@@ -994,8 +1053,8 @@ class EntitySchemaBuilderTest {
 			)
 			/* references may be also represented be entities unknown to Evita */
 			.withReferenceTo(
-				"stock",
-				"stock",
+				Entities.STORE,
+				Entities.STORE,
 				Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs.faceted()
 			)
@@ -1022,10 +1081,10 @@ class EntitySchemaBuilderTest {
 			/* en + cs localized attributes and associated data are allowed only */
 			.withLocale(Locale.ENGLISH, new Locale("cs", "CZ"))
 			/* here we define list of attributes with indexes for search / sort */
-			.withAttribute("code", String.class, whichIs -> whichIs.unique())
+			.withAttribute("code", String.class, whichIs -> whichIs.unique().representative())
 			.withAttribute("url", String.class, whichIs -> whichIs.unique().localized())
 			.withAttribute("oldEntityUrls", String[].class, whichIs -> whichIs.filterable().localized())
-			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable())
+			.withAttribute("name", String.class, whichIs -> whichIs.filterable().sortable().nullable())
 			.withAttribute("priority", Long.class, whichIs -> whichIs.sortable())
 			/* here we define set of associated data, that can be stored along with entity */
 			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
@@ -1041,9 +1100,10 @@ class EntitySchemaBuilderTest {
 		assertTrue(updatedSchema.getLocales().contains(new Locale("cs", "CZ")));
 
 		assertEquals(5, updatedSchema.getAttributes().size());
-		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, 0, String.class);
-		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, 0, String[].class);
-		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, 0, Long.class);
+		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, false, true, 0, String.class);
+		assertAttribute(updatedSchema.getAttribute("name").orElseThrow(), false, true, true, false, true, false, 0, String.class);
+		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, false, false, 0, String[].class);
+		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, false, false,0, Long.class);
 
 		assertEquals(1, updatedSchema.getAssociatedData().size());
 		assertAssociatedData(updatedSchema.getAssociatedData("labels"), true, ComplexDataObject.class);
@@ -1109,6 +1169,34 @@ class EntitySchemaBuilderTest {
 		);
 	}
 
+	@Test
+	void shouldNotThrowWhenAssigningTheSameTypeToExistingAssociatedData() {
+		final EntitySchemaBuilder schemaBuilder = new InternalEntitySchemaBuilder(
+			catalogSchema, categorySchema
+		);
+
+		final EntitySchemaContract updatedSchema = schemaBuilder
+			.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+			.toInstance();
+
+		final EntitySchemaBuilder schemaBuilder2 = new InternalEntitySchemaBuilder(
+			catalogSchema, updatedSchema
+		);
+
+		assertDoesNotThrow(() ->
+			schemaBuilder2
+				.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+				.toInstance()
+		);
+
+		assertTrue(
+			schemaBuilder2
+				.withAssociatedData("labels", Labels.class, whichIs -> whichIs.localized())
+				.toMutation()
+				.isEmpty()
+		);
+	}
+
 	private void assertSchemaContents(EntitySchemaContract updatedSchema) {
 		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_ASSOCIATED_DATA));
 		assertTrue(updatedSchema.allows(EvolutionMode.ADDING_REFERENCES));
@@ -1121,10 +1209,10 @@ class EntitySchemaBuilderTest {
 		assertTrue(updatedSchema.getLocales().contains(new Locale("cs", "CZ")));
 
 		assertEquals(9, updatedSchema.getAttributes().size());
-		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, 0, String.class);
-		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, 0, String[].class);
-		assertAttribute(updatedSchema.getAttribute("quantity").orElseThrow(), false, true, false, false, 2, BigDecimal.class);
-		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, 0, Long.class);
+		assertAttribute(updatedSchema.getAttribute("code").orElseThrow(), true, false, false, false, false, true,0, String.class);
+		assertAttribute(updatedSchema.getAttribute("oldEntityUrls").orElseThrow(), false, true, false, true, false, false, 0, String[].class);
+		assertAttribute(updatedSchema.getAttribute("quantity").orElseThrow(), false, true, false, false, false, false, 2, BigDecimal.class);
+		assertAttribute(updatedSchema.getAttribute("priority").orElseThrow(), false, false, true, false, false, false, 0, Long.class);
 
 		assertEquals(2, updatedSchema.getSortableAttributeCompounds().size());
 		assertSortableAttributeCompound(
@@ -1148,10 +1236,10 @@ class EntitySchemaBuilderTest {
 		final ReferenceSchemaContract categoryReference = updatedSchema.getReferenceOrThrowException(Entities.CATEGORY);
 		assertReference(of(categoryReference), false);
 		assertEquals(1, categoryReference.getAttributes().size());
-		assertAttribute(categoryReference.getAttribute("categoryPriority").orElseThrow(), false, false, true, false, 0, Long.class);
+		assertAttribute(categoryReference.getAttribute("categoryPriority").orElseThrow(), false, false, true, false, false, 0, Long.class);
 
 		assertReference(updatedSchema.getReference(Entities.BRAND), true);
-		assertReference(updatedSchema.getReference("stock"), true);
+		assertReference(updatedSchema.getReference(Entities.STORE), true);
 	}
 
 	private void assertSortableAttributeCompound(SortableAttributeCompoundSchemaContract compound, AttributeElement... elements) {
@@ -1188,12 +1276,6 @@ class EntitySchemaBuilderTest {
 			assertEquals(localized, it.isLocalized());
 			assertEquals(ofType, it.getType());
 		});
-	}
-
-	public interface Entities {
-		String PRODUCT = "PRODUCT";
-		String CATEGORY = "CATEGORY";
-		String BRAND = "BRAND";
 	}
 
 	public static class ReferencedFileSet implements Serializable {

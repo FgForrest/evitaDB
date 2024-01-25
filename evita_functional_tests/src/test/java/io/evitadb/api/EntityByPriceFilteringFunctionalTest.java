@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -103,6 +103,7 @@ public class EntityByPriceFilteringFunctionalTest {
 
 			dataGenerator.getSampleCategorySchema(session);
 			dataGenerator.getSampleBrandSchema(session);
+			dataGenerator.getSampleStoreSchema(session);
 
 			final List<EntityReference> storedProducts = dataGenerator.generateEntities(
 					dataGenerator.getSampleProductSchema(session),
@@ -1151,7 +1152,7 @@ public class EntityByPriceFilteringFunctionalTest {
 						hasAnySellablePrice(sealedEntity, CURRENCY_EUR, PRICE_LIST_BASIC))
 					.collect(Collectors.toList());
 
-				assertHistogramIntegrity(result, filteredProducts);
+				assertHistogramIntegrity(result, filteredProducts, null, null);
 
 				return null;
 			}
@@ -1208,7 +1209,7 @@ public class EntityByPriceFilteringFunctionalTest {
 				);
 
 				// the price between query must be ignored while computing price histogram
-				assertHistogramIntegrity(result, filteredProducts);
+				assertHistogramIntegrity(result, filteredProducts, from, to);
 
 				return null;
 			}
@@ -1322,7 +1323,11 @@ public class EntityByPriceFilteringFunctionalTest {
 	/**
 	 * Verifies histogram integrity against source entities.
 	 */
-	protected static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts) {
+	protected static void assertHistogramIntegrity(
+		EvitaResponse<SealedEntity> result,
+		List<SealedEntity> filteredProducts,
+		BigDecimal from, BigDecimal to
+	) {
 		final PriceHistogram priceHistogram = result.getExtraResult(PriceHistogram.class);
 		assertNotNull(priceHistogram);
 		assertTrue(priceHistogram.getBuckets().length <= 20);
@@ -1352,9 +1357,18 @@ public class EntityByPriceFilteringFunctionalTest {
 		final Bucket[] buckets = priceHistogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = priceHistogram.getBuckets()[i];
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+				assertTrue(bucket.requested());
+			} else {
+				assertFalse(bucket.requested());
+			}
 			assertEquals(
 				ofNullable(expectedOccurrences.get(i)).orElse(0),
-				bucket.getOccurrences()
+				bucket.occurrences()
 			);
 		}
 	}
@@ -1369,7 +1383,7 @@ public class EntityByPriceFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = buckets.length - 1; i >= 0; i--) {
 			final Bucket bucket = buckets[i];
-			final int priceCompared = entityPrice.compareTo(bucket.getThreshold());
+			final int priceCompared = entityPrice.compareTo(bucket.threshold());
 			if (priceCompared >= 0) {
 				return i;
 			}

@@ -48,17 +48,19 @@ import java.util.Arrays;
  * Example:
  *
  * <pre>
- * inSet('level', 1, 2, 3)
+ * inSet("level", 1, 2, 3)
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `inSet` returns true if any of attribute values
- * equals the value in the query. If we have the attribute `code` with value `['A','B','C']` all these constraints will
+ * equals the value in the query. If we have the attribute `code` with value `["A","B","C"]` all these constraints will
  * match:
  *
  * <pre>
- * inSet('code','A','D')
- * inSet('code','A', 'B')
+ * inSet("code","A","D")
+ * inSet("code","A", "B")
  * </pre>
+ *
+ * <p><a href="https://evitadb.io/documentation/query/filtering/comparable#attribute-in-set">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -67,6 +69,7 @@ import java.util.Arrays;
 	shortDescription = "Compares value of the attribute with passed value and checks if the value of that attribute " +
 		"equals to at least one of the passed values. " +
 		"The constraint is equivalent to the multiple `equals` constraints combined with logical OR.",
+	userDocsLink = "/documentation/query/filtering/comparable#attribute-in-set",
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )
@@ -78,8 +81,10 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 	}
 
 	@Creator
-	public <T extends Serializable> AttributeInSet(@Nonnull @Classifier String attributeName,
-	                                               @Nonnull T... attributeValues) {
+	public <T extends Serializable> AttributeInSet(
+		@Nonnull @Classifier String attributeName,
+		@Nonnull T... attributeValues
+	) {
 		super(concat(attributeName, attributeValues));
 	}
 
@@ -94,7 +99,7 @@ public class AttributeInSet extends AbstractAttributeFilterConstraintLeaf implem
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length >= 2;
+		return isArgumentsNonNull() && getArguments().length >= 1;
 	}
 
 	@Nonnull

@@ -1,4 +1,4 @@
-evita.defineCatalog("testCatalog")
+evita.defineCatalog("evita")
 	.withEntitySchema(
 		"Brand",
 		entitySchema -> entitySchema

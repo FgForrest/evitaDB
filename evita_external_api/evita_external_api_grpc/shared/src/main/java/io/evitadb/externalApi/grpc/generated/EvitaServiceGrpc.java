@@ -40,6 +40,37 @@ public final class EvitaServiceGrpc {
   public static final String SERVICE_NAME = "io.evitadb.externalApi.grpc.generated.EvitaService";
 
   // Static method descriptors that strictly reflect the proto.
+  private static volatile io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> getServerStatusMethod;
+
+  @io.grpc.stub.annotations.RpcMethod(
+      fullMethodName = SERVICE_NAME + '/' + "ServerStatus",
+      requestType = com.google.protobuf.Empty.class,
+      responseType = io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.class,
+      methodType = io.grpc.MethodDescriptor.MethodType.UNARY)
+  public static io.grpc.MethodDescriptor<com.google.protobuf.Empty,
+      io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> getServerStatusMethod() {
+    io.grpc.MethodDescriptor<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> getServerStatusMethod;
+    if ((getServerStatusMethod = EvitaServiceGrpc.getServerStatusMethod) == null) {
+      synchronized (EvitaServiceGrpc.class) {
+        if ((getServerStatusMethod = EvitaServiceGrpc.getServerStatusMethod) == null) {
+          EvitaServiceGrpc.getServerStatusMethod = getServerStatusMethod =
+              io.grpc.MethodDescriptor.<com.google.protobuf.Empty, io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "ServerStatus"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  com.google.protobuf.Empty.getDefaultInstance()))
+              .setResponseMarshaller(io.grpc.protobuf.ProtoUtils.marshaller(
+                  io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse.getDefaultInstance()))
+              .setSchemaDescriptor(new EvitaServiceMethodDescriptorSupplier("ServerStatus"))
+              .build();
+        }
+      }
+    }
+    return getServerStatusMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest,
       io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse> getCreateReadOnlySessionMethod;
 
@@ -435,6 +466,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain server status.
+     * </pre>
+     */
+    public void serverStatus(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getServerStatusMethod(), responseObserver);
+    }
+
+    /**
+     * <pre>
      * Procedure used to create read only sessions.
      * </pre>
      */
@@ -546,6 +587,13 @@ public final class EvitaServiceGrpc {
     @java.lang.Override public final io.grpc.ServerServiceDefinition bindService() {
       return io.grpc.ServerServiceDefinition.builder(getServiceDescriptor())
           .addMethod(
+            getServerStatusMethod(),
+            io.grpc.stub.ServerCalls.asyncUnaryCall(
+              new MethodHandlers<
+                com.google.protobuf.Empty,
+                io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>(
+                  this, METHODID_SERVER_STATUS)))
+          .addMethod(
             getCreateReadOnlySessionMethod(),
             io.grpc.stub.ServerCalls.asyncUnaryCall(
               new MethodHandlers<
@@ -642,6 +690,17 @@ public final class EvitaServiceGrpc {
     protected EvitaServiceStub build(
         io.grpc.Channel channel, io.grpc.CallOptions callOptions) {
       return new EvitaServiceStub(channel, callOptions);
+    }
+
+    /**
+     * <pre>
+     * Procedure used to obtain server status.
+     * </pre>
+     */
+    public void serverStatus(com.google.protobuf.Empty request,
+        io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> responseObserver) {
+      io.grpc.stub.ClientCalls.asyncUnaryCall(
+          getChannel().newCall(getServerStatusMethod(), getCallOptions()), request, responseObserver);
     }
 
     /**
@@ -786,6 +845,16 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain server status.
+     * </pre>
+     */
+    public io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse serverStatus(com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getServerStatusMethod(), getCallOptions(), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to create read only sessions.
      * </pre>
      */
@@ -915,6 +984,17 @@ public final class EvitaServiceGrpc {
 
     /**
      * <pre>
+     * Procedure used to obtain server status.
+     * </pre>
+     */
+    public com.google.common.util.concurrent.ListenableFuture<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse> serverStatus(
+        com.google.protobuf.Empty request) {
+      return io.grpc.stub.ClientCalls.futureUnaryCall(
+          getChannel().newCall(getServerStatusMethod(), getCallOptions()), request);
+    }
+
+    /**
+     * <pre>
      * Procedure used to create read only sessions.
      * </pre>
      */
@@ -1035,17 +1115,18 @@ public final class EvitaServiceGrpc {
     }
   }
 
-  private static final int METHODID_CREATE_READ_ONLY_SESSION = 0;
-  private static final int METHODID_CREATE_READ_WRITE_SESSION = 1;
-  private static final int METHODID_CREATE_BINARY_READ_ONLY_SESSION = 2;
-  private static final int METHODID_CREATE_BINARY_READ_WRITE_SESSION = 3;
-  private static final int METHODID_TERMINATE_SESSION = 4;
-  private static final int METHODID_GET_CATALOG_NAMES = 5;
-  private static final int METHODID_DEFINE_CATALOG = 6;
-  private static final int METHODID_RENAME_CATALOG = 7;
-  private static final int METHODID_REPLACE_CATALOG = 8;
-  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 9;
-  private static final int METHODID_UPDATE = 10;
+  private static final int METHODID_SERVER_STATUS = 0;
+  private static final int METHODID_CREATE_READ_ONLY_SESSION = 1;
+  private static final int METHODID_CREATE_READ_WRITE_SESSION = 2;
+  private static final int METHODID_CREATE_BINARY_READ_ONLY_SESSION = 3;
+  private static final int METHODID_CREATE_BINARY_READ_WRITE_SESSION = 4;
+  private static final int METHODID_TERMINATE_SESSION = 5;
+  private static final int METHODID_GET_CATALOG_NAMES = 6;
+  private static final int METHODID_DEFINE_CATALOG = 7;
+  private static final int METHODID_RENAME_CATALOG = 8;
+  private static final int METHODID_REPLACE_CATALOG = 9;
+  private static final int METHODID_DELETE_CATALOG_IF_EXISTS = 10;
+  private static final int METHODID_UPDATE = 11;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -1064,6 +1145,10 @@ public final class EvitaServiceGrpc {
     @java.lang.SuppressWarnings("unchecked")
     public void invoke(Req request, io.grpc.stub.StreamObserver<Resp> responseObserver) {
       switch (methodId) {
+        case METHODID_SERVER_STATUS:
+          serviceImpl.serverStatus((com.google.protobuf.Empty) request,
+              (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaServerStatusResponse>) responseObserver);
+          break;
         case METHODID_CREATE_READ_ONLY_SESSION:
           serviceImpl.createReadOnlySession((io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest) request,
               (io.grpc.stub.StreamObserver<io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse>) responseObserver);
@@ -1169,6 +1254,7 @@ public final class EvitaServiceGrpc {
         if (result == null) {
           serviceDescriptor = result = io.grpc.ServiceDescriptor.newBuilder(SERVICE_NAME)
               .setSchemaDescriptor(new EvitaServiceFileDescriptorSupplier())
+              .addMethod(getServerStatusMethod())
               .addMethod(getCreateReadOnlySessionMethod())
               .addMethod(getCreateReadWriteSessionMethod())
               .addMethod(getCreateBinaryReadOnlySessionMethod())

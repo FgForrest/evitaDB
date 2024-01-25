@@ -23,17 +23,22 @@
 
 package io.evitadb.documentation.java;
 
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.documentation.UserDocumentationTest;
+import io.evitadb.documentation.java.JavaExecutable.InvocationResult;
 import jdk.jshell.JShell;
 import jdk.jshell.execution.LocalExecutionControlProvider;
 import lombok.Getter;
 import org.apache.commons.io.IOUtils;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.stream.Stream;
 
 import static io.evitadb.documentation.java.JavaExecutable.executeJShellCommands;
 import static io.evitadb.documentation.java.JavaExecutable.toJavaSnippets;
@@ -69,7 +74,7 @@ public class JavaTestContext implements TestContext {
 	@Getter
 	private final JShell jShell;
 
-	public JavaTestContext() {
+	public JavaTestContext(@Nonnull Environment profile) {
 		this.jShell = JShell.builder()
 			// this is faster because JVM is not forked for each test
 			.executionEngine(new LocalExecutionControlProvider(), Collections.emptyMap())
@@ -80,6 +85,16 @@ public class JavaTestContext implements TestContext {
 		Arrays.stream(System.getProperty("java.class.path").split(":"))
 			.forEach(jShell::addToClasspath);
 		// and now pre initialize all necessary imports
-		executeJShellCommands(jShell, toJavaSnippets(jShell, STATIC_IMPORT));
+		final List<String> snippets = Stream.concat(
+			Stream.of("var documentationProfile = \"" + profile.name() + "\";"),
+			toJavaSnippets(jShell, STATIC_IMPORT).stream()
+		).toList();
+		final InvocationResult invocationResult = executeJShellCommands(
+			jShell,
+			snippets
+		);
+		if (invocationResult.exception() != null) {
+			throw new IllegalStateException(invocationResult.exception());
+		}
 	}
 }

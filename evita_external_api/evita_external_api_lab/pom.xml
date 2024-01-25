@@ -6,7 +6,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023
+  ~   Copyright (c) 2023-2024
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -21,8 +21,7 @@
   ~   limitations under the License.
   -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>evita_external_api_lab</artifactId>
 	<packaging>jar</packaging>
@@ -31,7 +30,7 @@
 	<parent>
 		<groupId>io.evitadb</groupId>
 		<artifactId>evita_external_api</artifactId>
-		<version>0.9-SNAPSHOT</version>
+		<version>10.1-SNAPSHOT</version>
 	</parent>
 
 	<dependencies>
@@ -56,13 +55,14 @@
 		<plugins>
 			<!-- downloads the latest release of evitaLab GUI -->
 			<plugin>
-				<groupId>com.googlecode.maven-download-plugin</groupId>
-				<artifactId>download-maven-plugin</artifactId>
-				<version>1.7.1</version>
+				<groupId>one.edee.oss</groupId>
+				<artifactId>github-release-asset-downloader-maven-plugin</artifactId>
+				<version>1.0.1</version>
 				<configuration>
-					<url>https://github.com/lukashornych/evitalab/releases/download/latest/dist.zip</url>
-					<unpack>true</unpack>
-					<outputDirectory>${project.basedir}/src/main/resources/META-INF/lab/gui</outputDirectory>
+					<owner>lukashornych</owner>
+					<repo>evitalab</repo>
+					<assetName>Dist.zip</assetName>
+					<targetDir>${project.basedir}/src/main/resources/META-INF/lab/gui</targetDir>
 				</configuration>
 			</plugin>
 		</plugins>

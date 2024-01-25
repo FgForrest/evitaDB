@@ -27,6 +27,7 @@ import com.google.protobuf.StringValue;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.GrpcCreateAttributeSchemaMutation;
+import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
 
 import javax.annotation.Nonnull;
@@ -44,11 +45,12 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			mutation.getName(),
 			mutation.hasDescription() ? mutation.getDescription().getValue() : null,
 			mutation.hasDeprecationNotice() ? mutation.getDeprecationNotice().getValue() : null,
-			mutation.getUnique(),
+			EvitaEnumConverter.toAttributeUniquenessType(mutation.getUnique()),
 			mutation.getFilterable(),
 			mutation.getSortable(),
 			mutation.getLocalized(),
 			mutation.getNullable(),
+			mutation.getRepresentative(),
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(mutation.getDefaultValue()) : null,
 			mutation.getIndexedDecimalPlaces()
@@ -59,7 +61,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 	public GrpcCreateAttributeSchemaMutation convert(@Nonnull CreateAttributeSchemaMutation mutation) {
 		final GrpcCreateAttributeSchemaMutation.Builder builder = GrpcCreateAttributeSchemaMutation.newBuilder()
 			.setName(mutation.getName())
-			.setUnique(mutation.isUnique())
+			.setUnique(EvitaEnumConverter.toGrpcAttributeUniquenessType(mutation.getUnique()))
 			.setFilterable(mutation.isFilterable())
 			.setSortable(mutation.isSortable())
 			.setLocalized(mutation.isLocalized())

@@ -40,6 +40,7 @@ import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.Entit
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.ExtraResultsJsonSerializer;
 import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -57,44 +58,47 @@ import static io.evitadb.externalApi.api.ExternalApiNamingConventions.PROPERTY_N
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResponse<EntityClassifier>> {
+public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 	@Nonnull private final ExtraResultsJsonSerializer extraResultsJsonSerializer;
 
-	public QueryEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
-		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+	public QueryEntitiesHandler(@Nonnull CollectionRestHandlingContext restHandlingContext) {
+		super(restHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 
-		final Map<String, String> referenceNameToFieldName = restApiHandlingContext.getEntitySchema().getReferences().values().stream()
-			.map(referenceSchema -> new SimpleEntry<>(referenceSchema.getName(), referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION)))
-			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 		this.extraResultsJsonSerializer = new ExtraResultsJsonSerializer(
-			restApiHandlingContext,
 			this.entityJsonSerializer,
-			referenceNameToFieldName::get
+			this.restHandlingContext.getObjectMapper()
 		);
 	}
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EvitaResponse<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
-		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
+		log.debug("Generated evitaDB query for entity query of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
 		final EvitaResponse<EntityClassifier> response = exchange.session().query(query, EntityClassifier.class);
 
-		return new SuccessEndpointResponse<>(response);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, response));
 	}
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull EvitaResponse<EntityClassifier> response) {
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object response) {
+		Assert.isPremiseValid(
+			response instanceof EvitaResponse,
+			() -> new RestInternalError("Expected evitaDB response, but got `" + response.getClass().getName() + "`.")
+		);
+
+		//noinspection unchecked
+		final EvitaResponse<EntityClassifier> evitaResponse = (EvitaResponse<EntityClassifier>) response;
 		final QueryResponseBuilder queryResponseBuilder = QueryResponse.builder()
-			.recordPage(serializeRecordPage(response));
-		if (!response.getExtraResults().isEmpty()) {
+			.recordPage(serializeRecordPage(evitaResponse));
+		if (!evitaResponse.getExtraResults().isEmpty()) {
 			queryResponseBuilder
-				.extraResults(extraResultsJsonSerializer.serialize(response.getExtraResults()));
+				.extraResults(extraResultsJsonSerializer.serialize(evitaResponse.getExtraResults(), restHandlingContext.getEntitySchema(), restHandlingContext.getCatalogSchema()));
 		}
 
 		return queryResponseBuilder.build();
@@ -107,12 +111,12 @@ public class QueryEntitiesHandler extends QueryOrientedEntitiesHandler<EvitaResp
 		if (recordPage instanceof PaginatedList<EntityClassifier> paginatedList) {
 			return new PaginatedListDto(
 				paginatedList,
-				entityJsonSerializer.serialize(paginatedList.getData())
+				entityJsonSerializer.serialize(paginatedList.getData(), restHandlingContext.getCatalogSchema())
 			);
 		} else if (recordPage instanceof StripList<EntityClassifier> stripList) {
 			return new StripListDto(
 				stripList,
-				entityJsonSerializer.serialize(stripList.getData())
+				entityJsonSerializer.serialize(stripList.getData(), restHandlingContext.getCatalogSchema())
 			);
 		} else {
 			throw new RestInternalError("Unsupported data chunk type `" + recordPage.getClass().getName() + "`.");

@@ -48,27 +48,27 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         referenceHaving(
- *             'brand',
+ *             "brand",
  *             entityHaving(
- *                 attributeEquals('code','sony')
+ *                 attributeEquals("code","sony")
  *             )
  *         )
  *     ),
  *     orderBy(
  *         referenceProperty(
- *             'brand',
- *             attributeNatural('orderInBrand', ASC)
+ *             "brand",
+ *             attributeNatural("orderInBrand", ASC)
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code'),
+ *             attributeContent("code"),
  *             referenceContentWithAttributes(
- *                 'brand',
- *                 attributeContent('orderInBrand')
+ *                 "brand",
+ *                 attributeContent("orderInBrand")
  *             )
  *         )
  *     )
@@ -110,12 +110,15 @@ import java.io.Serializable;
  * order them by a property "priority" set on the reference to the category, the first products will be those directly
  * related to the category, ordered by "priority", followed by the products of the first child category, and so on,
  * maintaining the depth-first order of the category tree.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/reference#reference-property">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "property",
 	shortDescription = "The constraint sorts returned entities or references by attribute specified on its reference in natural order.",
+	userDocsLink = "/documentation/query/ordering/reference#reference-property",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class ReferenceProperty extends AbstractOrderConstraintContainer implements ReferenceConstraint<OrderConstraint> {

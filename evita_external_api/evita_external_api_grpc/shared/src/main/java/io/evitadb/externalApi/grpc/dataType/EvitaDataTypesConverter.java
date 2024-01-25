@@ -23,7 +23,6 @@
 
 package io.evitadb.externalApi.grpc.dataType;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.Int32Value;
 import com.google.protobuf.Int64Value;
 import com.google.protobuf.Timestamp;
@@ -41,8 +40,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -70,6 +67,26 @@ public class EvitaDataTypesConverter {
 	 */
 	private static final ZoneOffset DEFAULT_ZONE_OFFSET = ZoneOffset.UTC;
 
+	/**
+	 * Minimal supported year by gRPC API. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
+	 * Values exceeding this limit will be converted to new {@link #GRPC_MIN_INSTANT}. For precise values, all gRPC clients
+	 * should convert timestamps to match the supported range of the language used.
+	 */
+	private static final int GRPC_YEAR_MIN = 1;
+	/**
+	 * Maximal supported year by gRPC API. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
+	 * Values exceeding this limit will be converted to new {@link #GRPC_MAX_INSTANT}. For precise values, all gRPC clients
+	 * should convert timestamps to match the supported range of the language used.
+	 */
+	private static final int GRPC_YEAR_MAX = 9999;
+	/**
+	 * Representation of minimal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
+	 */
+	private static final Instant GRPC_MIN_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MIN, 1, 1).toEpochSecond(LocalTime.of(0, 0, 0), ZoneOffset.UTC));
+	/**
+	 * Representation of maximal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
+	 */
+	private static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
 
 	/**
 	 * Converts the given {@link GrpcEvitaValue} to a {@link Serializable} value.
@@ -652,10 +669,17 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static OffsetDateTime toOffsetDateTime(@Nonnull GrpcOffsetDateTime dateTime) {
-		return OffsetDateTime.ofInstant(
+		final OffsetDateTime grpcOffsetDateTime = OffsetDateTime.ofInstant(
 			Instant.ofEpochSecond(dateTime.getTimestamp().getSeconds(), dateTime.getTimestamp().getNanos()),
 			ZoneOffset.of(dateTime.getOffset())
 		);
+		if (grpcOffsetDateTime.getYear() == GRPC_YEAR_MIN) {
+			return OffsetDateTime.MIN;
+		}
+		if (grpcOffsetDateTime.getYear() == GRPC_YEAR_MAX) {
+			return OffsetDateTime.MAX;
+		}
+		return grpcOffsetDateTime;
 	}
 
 	@Nonnull
@@ -671,10 +695,17 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static LocalDateTime toLocalDateTime(@Nonnull GrpcOffsetDateTime dateTime) {
-		return LocalDateTime.ofInstant(
+		final LocalDateTime grpcLocalDateTime = LocalDateTime.ofInstant(
 			Instant.ofEpochSecond(dateTime.getTimestamp().getSeconds(), dateTime.getTimestamp().getNanos()),
 			ZoneOffset.of(dateTime.getOffset())
 		);
+		if (grpcLocalDateTime.getYear() == GRPC_YEAR_MIN) {
+			return LocalDateTime.MIN;
+		}
+		if (grpcLocalDateTime.getYear() == GRPC_YEAR_MAX) {
+			return LocalDateTime.MAX;
+		}
+		return grpcLocalDateTime;
 	}
 
 	@Nonnull
@@ -690,10 +721,17 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static LocalDate toLocalDate(@Nonnull GrpcOffsetDateTime dateTime) {
-		return LocalDate.ofInstant(
+		final LocalDate grpcLocalDate = LocalDate.ofInstant(
 			Instant.ofEpochSecond(dateTime.getTimestamp().getSeconds(), dateTime.getTimestamp().getNanos()),
 			ZoneOffset.of(dateTime.getOffset())
 		);
+		if (grpcLocalDate.getYear() == GRPC_YEAR_MIN) {
+			return LocalDate.MIN;
+		}
+		if (grpcLocalDate.getYear() == GRPC_YEAR_MAX) {
+			return LocalDate.MAX;
+		}
+		return grpcLocalDate;
 	}
 
 	@Nonnull
@@ -728,10 +766,7 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static BigDecimal toBigDecimal(@Nonnull GrpcBigDecimal grpcBigDecimal) {
-		return new BigDecimal(
-			grpcBigDecimal.getValueString(),
-			new MathContext(grpcBigDecimal.getPrecision())).setScale(grpcBigDecimal.getScale(), RoundingMode.UNNECESSARY
-		);
+		return EvitaDataTypes.toTargetType(grpcBigDecimal.getValueString(), BigDecimal.class);
 	}
 
 	@Nonnull
@@ -1006,10 +1041,7 @@ public class EvitaDataTypesConverter {
 	@Nonnull
 	public static GrpcBigDecimal toGrpcBigDecimal(@Nonnull BigDecimal bigDecimal) {
 		return GrpcBigDecimal.newBuilder()
-			.setValue(ByteString.copyFrom(bigDecimal.unscaledValue().toByteArray()))
-			.setPrecision(bigDecimal.precision())
-			.setScale(bigDecimal.scale())
-			.setValueString(bigDecimal.toString())
+			.setValueString(EvitaDataTypes.formatValue(bigDecimal))
 			.build();
 	}
 
@@ -1028,12 +1060,20 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcOffsetDateTime toGrpcOffsetDateTime(@Nonnull OffsetDateTime offsetDateTime) {
-		final Instant time = offsetDateTime.toInstant();
 		final String offset = offsetDateTime.getOffset().getId();
+		final Instant dateTime;
+		if (LocalDate.MIN.equals(offsetDateTime.toLocalDate())) {
+			dateTime = GRPC_MIN_INSTANT;
+		}
+		else if (LocalDate.MAX.equals(offsetDateTime.toLocalDate())) {
+			dateTime = GRPC_MAX_INSTANT;
+		} else {
+			dateTime = offsetDateTime.toInstant();
+		}
 		return GrpcOffsetDateTime.newBuilder()
 			.setTimestamp(Timestamp.newBuilder()
-				.setSeconds(time.getEpochSecond())
-				.setNanos(time.getNano())
+				.setSeconds(dateTime.getEpochSecond())
+				.setNanos(dateTime.getNano())
 			)
 			.setOffset(offset).build();
 	}
@@ -1053,12 +1093,20 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcOffsetDateTime toGrpcLocalDateTime(@Nonnull LocalDateTime localDateTime) {
-		final Instant time = localDateTime.toInstant(DEFAULT_ZONE_OFFSET);
 		final String offset = DEFAULT_ZONE_OFFSET.getId();
+		final Instant dateTime;
+		if (LocalDate.MIN.equals(localDateTime.toLocalDate())) {
+			dateTime = GRPC_MIN_INSTANT;
+		}
+		else if (LocalDate.MAX.equals(localDateTime.toLocalDate())) {
+			dateTime = GRPC_MAX_INSTANT;
+		} else {
+			dateTime = localDateTime.toInstant(DEFAULT_ZONE_OFFSET);
+		}
 		return GrpcOffsetDateTime.newBuilder()
 			.setTimestamp(Timestamp.newBuilder()
-				.setSeconds(time.getEpochSecond())
-				.setNanos(time.getNano())
+				.setSeconds(dateTime.getEpochSecond())
+				.setNanos(dateTime.getNano())
 			)
 			.setOffset(offset).build();
 	}
@@ -1078,13 +1126,20 @@ public class EvitaDataTypesConverter {
 	 */
 	@Nonnull
 	public static GrpcOffsetDateTime toGrpcLocalDate(@Nonnull LocalDate localDate) {
-		final Instant time = LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(DEFAULT_ZONE_OFFSET);
-
+		final Instant dateTime;
+		if (LocalDate.MIN.equals(localDate)) {
+			dateTime = GRPC_MIN_INSTANT;
+		}
+		else if (LocalDate.MAX.equals(localDate)) {
+			dateTime = GRPC_MAX_INSTANT;
+		} else {
+			dateTime = LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(DEFAULT_ZONE_OFFSET);
+		}
 		final String offset = DEFAULT_ZONE_OFFSET.getId();
 		return GrpcOffsetDateTime.newBuilder()
 			.setTimestamp(Timestamp.newBuilder()
-				.setSeconds(time.getEpochSecond())
-				.setNanos(time.getNano())
+				.setSeconds(dateTime.getEpochSecond())
+				.setNanos(dateTime.getNano())
 			)
 			.setOffset(offset).build();
 	}
@@ -1131,16 +1186,10 @@ public class EvitaDataTypesConverter {
 	public static GrpcDateTimeRange toGrpcDateTimeRange(@Nonnull DateTimeRange dateTimeRange) {
 		final GrpcDateTimeRange.Builder grpcDateTimeRangeBuilder = GrpcDateTimeRange.newBuilder();
 		if (dateTimeRange.getPreciseFrom() != null) {
-			grpcDateTimeRangeBuilder.setFrom(GrpcOffsetDateTime.newBuilder()
-				.setTimestamp(Timestamp.newBuilder().setSeconds(dateTimeRange.getPreciseFrom().toEpochSecond()).setNanos(dateTimeRange.getPreciseFrom().getNano()))
-				.setOffset(dateTimeRange.getPreciseFrom().getOffset().getId())
-				.build());
+			grpcDateTimeRangeBuilder.setFrom(toGrpcOffsetDateTime(dateTimeRange.getPreciseFrom()));
 		}
 		if (dateTimeRange.getPreciseTo() != null) {
-			grpcDateTimeRangeBuilder.setTo(GrpcOffsetDateTime.newBuilder()
-				.setTimestamp(Timestamp.newBuilder().setSeconds(dateTimeRange.getPreciseTo().toEpochSecond()).setNanos(dateTimeRange.getPreciseTo().getNano()))
-				.setOffset(dateTimeRange.getPreciseTo().getOffset().getId())
-				.build());
+			grpcDateTimeRangeBuilder.setTo(toGrpcOffsetDateTime(dateTimeRange.getPreciseTo()));
 		}
 		return grpcDateTimeRangeBuilder.build();
 	}

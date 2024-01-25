@@ -23,6 +23,8 @@
 
 package io.evitadb.externalApi.api.catalog.schemaApi.resolver.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.externalApi.api.catalog.dataApi.resolver.mutation.ValueTypeMapper;
 import io.evitadb.externalApi.api.catalog.resolver.mutation.Input;
@@ -65,12 +67,13 @@ public class CreateGlobalAttributeSchemaMutationConverter extends AttributeSchem
 			input.getRequiredField(AttributeSchemaMutationDescriptor.NAME),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DESCRIPTION),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEPRECATION_NOTICE),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE, false),
-			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUE_GLOBALLY, false),
+			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.UNIQUENESS_TYPE, AttributeUniquenessType.NOT_UNIQUE),
+			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.GLOBAL_UNIQUENESS_TYPE, GlobalAttributeUniquenessType.NOT_UNIQUE),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.FILTERABLE, false),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.SORTABLE, false),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.NULLABLE, false),
+			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.REPRESENTATIVE, false),
 			valueType,
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.DEFAULT_VALUE.name(), valueType),
 			input.getOptionalField(CreateGlobalAttributeSchemaMutationDescriptor.INDEXED_DECIMAL_PLACES, 0)

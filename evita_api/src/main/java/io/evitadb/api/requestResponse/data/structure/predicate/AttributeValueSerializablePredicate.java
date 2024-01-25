@@ -28,7 +28,7 @@ import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.SerializablePredicate;
@@ -79,7 +79,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	/**
 	 * Contains information about underlying predicate that is bound to the {@link EntityDecorator}. This underlying
 	 * predicate represents the scope of the fetched (enriched) entity in its true form (i.e. {@link Entity}) and needs
-	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)}
+	 * to be carried around even if {@link io.evitadb.api.EntityCollectionContract#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}
 	 * is invoked on the entity.
 	 */
 	@Nullable @Getter private final AttributeValueSerializablePredicate underlyingPredicate;
@@ -169,7 +169,7 @@ public class AttributeValueSerializablePredicate implements SerializablePredicat
 	 */
 	public boolean wasFetched(@Nonnull String attributeName, @Nonnull Locale locale) {
 		return (requiresEntityAttributes && (attributeSet.isEmpty() || attributeSet.contains(attributeName))) &&
-			(this.locales != null && this.locales.isEmpty() || this.locales.contains(locale));
+			(this.locales != null && (this.locales.isEmpty() || this.locales.contains(locale)));
 	}
 
 	/**

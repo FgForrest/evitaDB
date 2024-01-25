@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -44,10 +45,11 @@ class CreateAttributeSchemaMutationConverterTest {
 			"code",
 			"desc",
 			"depr",
+			AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
 			true,
 			true,
 			true,
-			true,
+			false,
 			false,
 			String.class,
 			"defaultCode",
@@ -59,11 +61,12 @@ class CreateAttributeSchemaMutationConverterTest {
 			"code",
 			null,
 			null,
-			false,
+			null,
 			false,
 			false,
 			false,
 			true,
+			false,
 			String.class,
 			null,
 			0

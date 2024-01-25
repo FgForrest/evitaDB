@@ -26,9 +26,12 @@ package io.evitadb.api.requestResponse.schema.mutation.catalog;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
+import io.evitadb.exception.EvitaInternalError;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
@@ -37,6 +40,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -52,7 +56,7 @@ import java.util.stream.Collectors;
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode
-public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper {
+public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutation, EntitySchemaMutation, InternalSchemaBuilderHelper, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 7843689721519035513L;
 	@Getter @Nonnull private final String entityType;
 	@Nonnull @Getter private final EntitySchemaMutation[] schemaMutations;
@@ -66,7 +70,8 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 	@Override
 	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
 		if (existingMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation && entityType.equals(modifyEntitySchemaMutation.getEntityType())) {
-			final List<EntitySchemaMutation> mutations = Arrays.asList(schemaMutations);
+			final List<EntitySchemaMutation> mutations = new ArrayList<>(schemaMutations.length);
+			mutations.addAll(Arrays.asList(schemaMutations));
 			final MutationImpact updated = addMutations(
 				currentCatalogSchema,
 				currentCatalogSchema.getEntitySchemaOrThrowException(entityType),
@@ -88,9 +93,21 @@ public class ModifyEntitySchemaMutation implements CombinableCatalogSchemaMutati
 
 	@Nullable
 	@Override
-	public CatalogSchemaContract mutate(@Nullable CatalogSchemaContract catalogSchema) {
+	public CatalogSchemaWithImpactOnEntitySchemas mutate(@Nullable CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaProvider entitySchemaAccessor) {
+		if (entitySchemaAccessor instanceof MutationEntitySchemaAccessor mutationEntitySchemaAccessor) {
+			mutationEntitySchemaAccessor
+				.getEntitySchema(entityType).map(it -> mutate(catalogSchema, it))
+				.ifPresentOrElse(
+					mutationEntitySchemaAccessor::addUpsertedEntitySchema,
+					() -> {
+						throw new EvitaInternalError("Entity schema not found: " + entityType);
+					}
+				);
+		}
 		// do nothing - we alter only the entity schema
-		return catalogSchema;
+		return new CatalogSchemaWithImpactOnEntitySchemas(
+			catalogSchema
+		);
 	}
 
 	@Nullable

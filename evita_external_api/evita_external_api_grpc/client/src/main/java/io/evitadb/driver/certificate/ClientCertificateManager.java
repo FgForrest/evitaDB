@@ -196,18 +196,19 @@ public class ClientCertificateManager {
 		int port,
 		boolean usingTrustedRootCaCertificate
 	) {
-		final Path certificateDirectory;
 		if (useGeneratedCertificate) {
-			certificateDirectory = getCertificatesFromServer(host, port, certificateClientFolderPath);
+			this.certificateClientFolderPath = getCertificatesFromServer(host, port, certificateClientFolderPath);
+			this.rootCaCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedRootCaCertificateFileName());
+			this.clientCertificateFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificateFileName());
+			this.clientPrivateKeyFilePath = this.certificateClientFolderPath.resolve(CertificateUtils.getGeneratedClientCertificatePrivateKeyFileName());
 		} else {
-			certificateDirectory = identifyServerDirectory(host, port, certificateClientFolderPath);
+			this.certificateClientFolderPath = identifyServerDirectory(host, port, certificateClientFolderPath);
+			this.rootCaCertificateFilePath = rootCaCertificateFilePath;
+			this.clientCertificateFilePath = clientCertificateFilePath;
+			this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
 		}
 
 		this.trustStorePassword = trustStorePassword;
-		this.certificateClientFolderPath = certificateDirectory;
-		this.rootCaCertificateFilePath = rootCaCertificateFilePath;
-		this.clientCertificateFilePath = clientCertificateFilePath;
-		this.clientPrivateKeyFilePath = clientPrivateKeyFilePath;
 		this.clientPrivateKeyPassword = clientPrivateKeyPassword;
 		this.isMtlsEnabled = isMtlsEnabled;
 		this.useGeneratedCertificate = useGeneratedCertificate;
@@ -223,7 +224,8 @@ public class ClientCertificateManager {
 	public SslContext buildClientSslContext() {
 		try {
 			final Path usedCertificatePath = getUsedRootCaCertificatePath();
-			final TrustManager trustManagerTrustingProvidedRootCertificate = getTrustManager(usedCertificatePath);
+			final TrustManager trustManagerTrustingProvidedRootCertificate = usedCertificatePath == null ?
+				null : getTrustManager(usedCertificatePath);
 			final SslContextBuilder sslContextBuilder = SslContextBuilder.forClient()
 				.applicationProtocolConfig(
 					new ApplicationProtocolConfig(
@@ -239,7 +241,7 @@ public class ClientCertificateManager {
 			}
 			if (!usingTrustedRootCaCertificate && trustManagerTrustingProvidedRootCertificate != null) {
 				sslContextBuilder.trustManager(trustManagerTrustingProvidedRootCertificate);
-			} else if (getUsedRootCaCertificatePath().toFile().exists()) {
+			} else if (usedCertificatePath != null && usedCertificatePath.toFile().exists()) {
 				sslContextBuilder.trustManager(new File(usedCertificatePath.toUri()));
 			}
 			return sslContextBuilder.build();

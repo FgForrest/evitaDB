@@ -1,7 +1,7 @@
 // open session
 try (
 	final EvitaSessionContract session =
-		evita.createReadWriteSession("testCatalog")
+		evita.createReadWriteSession("evita")
 ) {
 	try {
 		// do your work

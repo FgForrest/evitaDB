@@ -48,11 +48,11 @@ public class Histogram implements HistogramContract {
 
 	public Histogram(@Nonnull Bucket[] buckets, @Nonnull BigDecimal max) {
 		Assert.isTrue(!ArrayUtils.isEmpty(buckets), "Buckets may never be empty!");
-		Assert.isTrue(buckets[buckets.length - 1].getThreshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
+		Assert.isTrue(buckets[buckets.length - 1].threshold().compareTo(max) <= 0, "Last bucket must have threshold lower than max!");
 		Bucket lastBucket = null;
 		for (Bucket bucket : buckets) {
 			Assert.isTrue(
-				lastBucket == null || lastBucket.getThreshold().compareTo(bucket.getThreshold()) < 0,
+				lastBucket == null || lastBucket.threshold().compareTo(bucket.threshold()) < 0,
 				"Buckets must have monotonic row of thresholds!"
 			);
 			lastBucket = bucket;
@@ -71,7 +71,7 @@ public class Histogram implements HistogramContract {
 	@Nonnull
 	@Override
 	public BigDecimal getMin() {
-		return buckets[0].getThreshold();
+		return buckets[0].threshold();
 	}
 
 	@Nonnull
@@ -82,7 +82,7 @@ public class Histogram implements HistogramContract {
 
 	@Override
 	public int getOverallCount() {
-		return Arrays.stream(buckets).mapToInt(Bucket::getOccurrences).sum();
+		return Arrays.stream(buckets).mapToInt(Bucket::occurrences).sum();
 	}
 
 	@Override
@@ -92,11 +92,11 @@ public class Histogram implements HistogramContract {
 			final Bucket bucket = buckets[i];
 			final boolean hasNext = i + 1 < buckets.length;
 			sb.append("[")
-				.append(bucket.getThreshold())
+				.append(bucket.threshold())
 				.append(" - ")
-				.append(hasNext ? buckets[i + 1].getThreshold() : max)
+				.append(hasNext ? buckets[i + 1].threshold() : max)
 				.append("]: ")
-				.append(bucket.getOccurrences());
+				.append(bucket.occurrences());
 			if (hasNext) {
 				sb.append(", ");
 			}

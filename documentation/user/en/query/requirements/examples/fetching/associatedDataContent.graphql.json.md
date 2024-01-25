@@ -14,12 +14,11 @@
             "url": "/en/samsung"
           }
         ],
-        "localization": [
-          {
-            "code": "name",
-            "label": "Samsung"
+        "localization": {
+          "labels": {
+            "name": "Samsung"
           }
-        ]
+        }
       }
     }
   ]

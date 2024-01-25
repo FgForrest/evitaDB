@@ -48,13 +48,13 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     orderBy(
- *         attributeNatural('orderedQuantity', DESC)
+ *         attributeNatural("orderedQuantity", DESC)
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code', 'orderedQuantity')
+ *             attributeContent("code", "orderedQuantity")
  *         )
  *     )
  * )
@@ -75,12 +75,15 @@ import java.io.Serializable;
  * compound will cover multiple attributes and prepares a special sort index for this particular combination of
  * attributes, respecting the predefined order and NULL values behaviour. In the query, you can then use the compound
  * name instead of the default attribute name and achieve the expected results.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/comparable#attribute-natural">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
     name = "natural",
     shortDescription = "The constraint sorts returned entities by natural ordering of the values in the specified attribute.",
+    userDocsLink = "/documentation/query/ordering/comparable#attribute-natural",
     supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
     supportedValues = @ConstraintSupportedValues(allTypesSupported = true)
 )

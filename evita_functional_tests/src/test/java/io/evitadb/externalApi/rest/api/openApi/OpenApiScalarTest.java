@@ -120,13 +120,13 @@ class OpenApiScalarTest {
 
 	@Test
 	void shouldCreateOffsetLocalDateTimeSchema() {
-		final var expectedSchema = "type: string format: date-time example: 2022-09-27T13:28:27.357442951+02:00";
+		final var expectedSchema = "type: string format: date-time example: 2022-09-27T13:28:27.357+02:00";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(OffsetDateTime.class).toSchema()));
 	}
 
 	@Test
 	void shouldCreateLocalDateTimeSchema() {
-		final var expectedSchema = "type: string format: local-date-time example: 2022-09-27T13:28:27.357442951";
+		final var expectedSchema = "type: string format: local-date-time example: 2022-09-27T13:28:27.357";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(LocalDateTime.class).toSchema()));
 	}
 
@@ -138,7 +138,7 @@ class OpenApiScalarTest {
 
 	@Test
 	void shouldCreateLocalTimeSchema() {
-		final var expectedSchema = "type: string format: local-time example: 13:28:27.357442951";
+		final var expectedSchema = "type: string format: local-time example: 13:28:27.357";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(LocalTime.class).toSchema()));
 	}
 
@@ -174,7 +174,7 @@ class OpenApiScalarTest {
 
 	@Test
 	void shouldCreateDateTimeRangeSchema() {
-		final var expectedSchema = "type: array format: range items: type: string format: date-time example: 2022-09-27T13:28:27.357442951+02:00 maxItems: 2 minItems: 2";
+		final var expectedSchema = "type: array format: range items: type: string format: date-time example: 2022-09-27T13:28:27.357+02:00 maxItems: 2 minItems: 2";
 		assertEquals(expectedSchema, writeApiObjectToOneLine(scalarFrom(DateTimeRange.class).toSchema()));
 	}
 

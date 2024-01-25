@@ -128,7 +128,7 @@ public class GenericFullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.property(DataChunkDescriptor.DATA
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))))
+				.type(nonNull(arrayOf(typeRefTo(GenericEntityDescriptor.THIS.name())))))
 			.property(DataChunkUnionDescriptor.DISCRIMINATOR
 				.to(propertyBuilderTransformer)
 				.type(nonNull(typeRefTo(GenericDataChunkUnionDescriptor.THIS.name()))))
@@ -143,7 +143,7 @@ public class GenericFullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.property(DataChunkDescriptor.DATA
 				.to(propertyBuilderTransformer)
-				.type(nonNull(arrayOf(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))))
+				.type(nonNull(arrayOf(typeRefTo(GenericEntityDescriptor.THIS.name())))))
 			.property(DataChunkUnionDescriptor.DISCRIMINATOR
 				.to(propertyBuilderTransformer)
 				.type(nonNull(typeRefTo(GenericDataChunkUnionDescriptor.THIS.name()))))
@@ -188,7 +188,7 @@ public class GenericFullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.property(FacetGroupStatisticsDescriptor.GROUP_ENTITY
 				.to(propertyBuilderTransformer)
-				.type(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))
+				.type(typeRefTo(GenericEntityDescriptor.THIS.name())))
 			.property(FacetGroupStatisticsDescriptor.FACET_STATISTICS
 				.to(propertyBuilderTransformer)
 				.type(nonNull(arrayOf(typeRefTo(GenericFacetStatisticsDescriptor.THIS.name())))))
@@ -203,7 +203,7 @@ public class GenericFullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.property(FacetStatisticsDescriptor.FACET_ENTITY
 				.to(propertyBuilderTransformer)
-				.type(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name())))
+				.type(typeRefTo(GenericEntityDescriptor.THIS.name())))
 			.build();
 
 		return buildingContext.registerType(facetStatisticsObject);
@@ -225,7 +225,7 @@ public class GenericFullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.property(LevelInfoDescriptor.ENTITY
 				.to(propertyBuilderTransformer)
-				.type(nonNull(typeRefTo(GenericEntityDescriptor.THIS_GLOBAL.name()))))
+				.type(nonNull(typeRefTo(GenericEntityDescriptor.THIS.name()))))
 			.property(LevelInfoDescriptor.CHILDREN
 				.to(propertyBuilderTransformer)
 				.type(nonNull(arrayOf(typeRefTo(GenericLevelInfoDescriptor.THIS.name())))))

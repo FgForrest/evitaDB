@@ -1,16 +1,22 @@
 ---
 title: REST
 perex: |
-  The Representational State Transfer (REST) API protocol is a standardized approach to building web services that 
-  employ HTTP methods to create, read, update, and delete data. The protocol is designed around resources, which are any 
+  The Representational State Transfer (REST) API protocol is a standardized approach to building web services that
+  employ HTTP methods to create, read, update, and delete data. The protocol is designed around resources, which are any
   kind of object, data, or service that can be accessed by the client. Its simplicity, scalability, and performance
   make REST the most popular protocol for APIs, used extensively in cloud services, mobile services, and social networks.
 date: '24.3.2023'
 author: 'Lukáš Hornych'
+preferredLang: 'rest'
 ---
 
+<LS to="e,j,c,g">
+This chapter describes the REST protocol for evitaDB and doesn't make sense for other languages. If you're interested
+in the details of the REST implementation, please change your preferred language in the upper right corner.
+</LS>
+<LS to="r">
 The [REST](https://restfulapi.net/) API with an [OpenAPI schema](https://swagger.io/specification/v3/) in evitaDB has
-been developed to allow users and developers to easily query domain-specific data from evitaDB via universal well-known 
+been developed to allow users and developers to easily query domain-specific data from evitaDB via universal well-known
 API standard that REST APIs provide.
 
 The main idea behind our REST API implementation is that the [OpenAPI schema](https://swagger.io/specification/v3/) is dynamically generated based on
@@ -23,17 +29,21 @@ equivalent to the ones specified in evitaDB instead of some generic ones.
 
 <UsedTerms>
     <h4>Used terms</h4>
-   <dl>
-      <dt>catalog API</dt>
-      <dd>
-         A REST API instance that provides ways to query and update actual data (typically entities and related data)
-        of a single catalog, as well as ways to fetch and modify the internal structure of a single catalog.
-      </dd>
-      <dt>system API</dt>
-      <dd>
-         A REST API instance that provides ways to manage evitaDB itself.
-      </dd>
-   </dl>
+	<dl>
+		<dt>catalog API</dt>
+		<dd>
+			A REST API instance that provides ways to query and update actual data (typically entities and related data)
+			of a single catalog, as well as ways to fetch and modify the internal structure of a single catalog.
+
+			URL pattern: `/rest/{catalog-name}`
+		</dd>
+		<dt>system API</dt>
+		<dd>
+			A REST API instance that provides ways to manage evitaDB itself.
+
+			URL pattern: `/rest/system`
+		</dd>
+	</dl>
 </UsedTerms>
 
 There isn't a single REST API instance for the whole evitaDB instance. Instead, each evitaDB [catalog](/documentation/user/en/use/data-model.md#catalog)
@@ -42,12 +52,12 @@ In addition, there is one another REST API instance that is reserved for evitaDB
 (e.g., creating new catalogs, removing existing catalogs) called <Term>system API</Term>.
 
 Each REST API instance URL starts with `/rest`, followed by the URL-formatted catalog name for specific
-catalog APIs, or with the reserved `system` keyword for the above-mentioned <Term>system API</Term>. 
+catalog APIs, or with the reserved `system` keyword for the above-mentioned <Term>system API</Term>.
 You can download [OpenAPI schema](https://swagger.io/specification/v3/) of each REST API instance by calling `GET`
-HTTP request to that base URL which then lists all available endpoints. 
+HTTP request to that base URL which then lists all available endpoints.
 
 URLs of these REST API instances with above-mentioned base URLs are then further suffixed with specific resources.
-In case of <Term>system API</Term> those are typically catalogs. In case of <Term>catalog API</Term> 
+In case of <Term>system API</Term> those are typically catalogs. In case of <Term>catalog API</Term>
 there are resources for individual [collections](/documentation/user/en/use/data-model.md#collection)
 and their actions.
 
@@ -113,8 +123,8 @@ standard tools. However, below are our recommendations for tools etc. that we us
 ### Recommended IDEs
 
 For a desktop IDE to test and explore the REST APIs you can use [Insomnia](https://insomnia.rest/) or [Postman](https://www.postman.com/).
-For generating documentation from the [OpenAPI schema](https://swagger.io/specification/v3/) we recommend either 
-[Redocly](https://redocly.com/docs/cli/commands/preview-docs/) tool or official [Swagger Editor](https://github.com/swagger-api/swagger-editor) 
+For generating documentation from the [OpenAPI schema](https://swagger.io/specification/v3/) we recommend either
+[Redocly](https://redocly.com/docs/cli/commands/preview-docs/) tool or official [Swagger Editor](https://github.com/swagger-api/swagger-editor)
 which can even generate clients for your programming language.
 
 ### Recommended client libraries
@@ -122,3 +132,4 @@ which can even generate clients for your programming language.
 You can use any basic HTTP client your programming language supports. If you are looking for more, there are
 code generators that can generate whole typed client in your preferable language from the evitaDB's OpenAPI schemas.
 Official way of doing this is by using the [Swagger Codegen](https://swagger.io/tools/swagger-codegen/).
+</LS>

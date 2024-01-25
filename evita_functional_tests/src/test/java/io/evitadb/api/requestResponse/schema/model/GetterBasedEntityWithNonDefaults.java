@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
 import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,8 +60,9 @@ public interface GetterBasedEntityWithNonDefaults {
 		name = "customCode",
 		description = "customCode description",
 		deprecated = "And already deprecated!",
-		uniqueGlobally = true,
-		sortable = true
+		uniqueGlobally = GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
+		sortable = true,
+		representative = true
 	)
 	@Nonnull
 	String getCode();

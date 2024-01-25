@@ -28,8 +28,9 @@ import one.edee.oss.proxycian.utils.GenericsUtils.GenericBundle;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -38,9 +39,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
-import java.util.function.Function;
-import java.util.function.UnaryOperator;
+import java.util.function.Supplier;
 
+import static one.edee.oss.proxycian.utils.GenericsUtils.getGenericType;
 import static one.edee.oss.proxycian.utils.GenericsUtils.getMethodReturnType;
 import static one.edee.oss.proxycian.utils.GenericsUtils.getNestedMethodReturnTypes;
 
@@ -93,62 +94,295 @@ public class ProxyUtils {
 	}
 
 	/**
-	 * Creates a function that wraps the result into an Optional or primitive optional.
+	 * Returns multiple wrapped generic type of the parameter.
 	 */
-	@Nonnull
-	public static UnaryOperator<Object> createOptionalWrapper(@Nullable Class<?> optionalType) {
-		if (optionalType == null) {
-			return UnaryOperator.identity();
-		} else if (int.class == optionalType) {
-			return OptionalIntUnaryOperator.INSTANCE;
-		} else if (long.class == optionalType) {
-			return OptionalLongUnaryOperator.INSTANCE;
-		} else {
-			return OptionalUnaryOperator.INSTANCE;
-		}
-	}
-
-	public record ReturnTypeInfo(
-		@Nonnull Function<Serializable, Object> resultWrapper,
-		@Nullable Class<?> collectionType,
-		@Nonnull Class<?> elementType
+	public static Class<?>[] getResolvedTypes(
+		@Nonnull Parameter parameter,
+		@Nonnull Class<?> ownerClass
 	) {
+		final List<Class<?>> collectedTypes = new LinkedList<>();
+		collectedTypes.add(parameter.getType());
+
+		List<GenericBundle> nestedMethodReturnTypes = getNestedParameterTypes(ownerClass, parameter);
+		while (!nestedMethodReturnTypes.isEmpty()) {
+			collectedTypes.add(nestedMethodReturnTypes.get(0).getResolvedType());
+			final GenericBundle[] genericTypes = nestedMethodReturnTypes.get(0).getGenericTypes();
+			nestedMethodReturnTypes = ArrayUtils.isEmpty(genericTypes) ? Collections.emptyList() : Arrays.asList(genericTypes);
+		}
+
+		return collectedTypes.toArray(Class[]::new);
 	}
 
 	/**
-	 * Marks {@link UnaryOperator<?>} operators that wrap the value to an optional wrapper.
+	 * Creates a function that wraps the result into an Optional or primitive optional.
+	 */
+	@Nonnull
+	public static ResultWrapper createOptionalWrapper(@Nonnull Method method, @Nullable Class<?> optionalType) {
+		if (optionalType == null) {
+			final Class<?>[] exceptionTypes = method.getExceptionTypes();
+			return ArrayUtils.isEmpty(exceptionTypes) ?
+				UnaryResultWrapperSwallowing.INSTANCE :
+				new UnaryResultWrapperRethrowing(exceptionTypes);
+		} else if (int.class == optionalType) {
+			final Class<?>[] exceptionTypes = method.getExceptionTypes();
+			return ArrayUtils.isEmpty(exceptionTypes) ?
+				OptionalIntUnaryResultWrapperSwallowing.INSTANCE :
+				new OptionalIntUnaryResultWrapperRethrowing(exceptionTypes);
+		} else if (long.class == optionalType) {
+			final Class<?>[] exceptionTypes = method.getExceptionTypes();
+			return ArrayUtils.isEmpty(exceptionTypes) ?
+				OptionalLongUnaryResultWrapperSwallowing.INSTANCE :
+				new OptionalLongUnaryResultWrapperRethrowing(exceptionTypes);
+		} else {
+			final Class<?>[] exceptionTypes = method.getExceptionTypes();
+			return ArrayUtils.isEmpty(exceptionTypes) ?
+				OptionalUnaryResultWrapperSwallowing.INSTANCE :
+				new OptionalUnaryResultWrapperRethrowing(exceptionTypes);
+		}
+	}
+
+	/**
+	 * Returns generic types used in the parameter of the method or constructor.
+	 *
+	 * @param mainClass class that contains the method or constructor
+	 * @param parameter parameter of the method or constructor
+	 * @return list of generic types
+	 */
+	@Nonnull
+	public static List<GenericBundle> getNestedParameterTypes(@Nonnull Class<?> mainClass, @Nonnull Parameter parameter) {
+		Type genericReturnType = parameter.getParameterizedType();
+		Class<?> returnType = parameter.getType();
+		if (genericReturnType == returnType) {
+			return Collections.emptyList();
+		} else {
+			if (!(genericReturnType instanceof Class)) {
+				List<GenericBundle> resolvedTypes = getGenericType(mainClass, genericReturnType);
+				if (!resolvedTypes.isEmpty()) {
+					return resolvedTypes;
+				}
+			}
+
+			return Collections.emptyList();
+		}
+	}
+
+	/**
+	 * Marks {@link ResultWrapper} operators that wrap the value to an optional wrapper.
 	 */
 	public interface OptionalProducingOperator {
 
 	}
 
-	private static class OptionalIntUnaryOperator implements UnaryOperator<Object>, OptionalProducingOperator {
-		public static final OptionalIntUnaryOperator INSTANCE = new OptionalIntUnaryOperator();
+	/**
+	 * The interface is used to wrap the result of the method call into an optional wrapper. Implementation might also
+	 * decide to swallow or rethrow possible exception that might occur during the {@link Supplier#get()} method call.
+	 */
+	public interface ResultWrapper {
 
+		/**
+		 * Implementation might (or may not) wrap the result of the method call into an optional wrapper.
+		 * @param resultProducer supplier that produces the result of the method call
+		 * @return wrapped result
+		 */
+		@Nullable
+		Object wrap(@Nonnull Supplier<Object> resultProducer);
+
+	}
+
+	/**
+	 * The class is returns directly the result produced by {@link Supplier} and swallows all
+	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
+	 */
+	private record UnaryResultWrapperSwallowing() implements ResultWrapper {
+		private final static UnaryResultWrapperSwallowing INSTANCE = new UnaryResultWrapperSwallowing();
+
+		@Nullable
 		@Override
-		public Object apply(Object value) {
-			return value == null ? OptionalInt.empty() : OptionalInt.of((Integer)value);
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				return resultProducer.get();
+			} catch (Exception ex) {
+				return null;
+			}
 		}
 	}
 
-	private static class OptionalLongUnaryOperator implements UnaryOperator<Object>, OptionalProducingOperator {
-		public static final OptionalLongUnaryOperator INSTANCE = new OptionalLongUnaryOperator();
+	/**
+	 * The class is returns directly the result produced by {@link Supplier} and rethrows all exceptions declared as
+	 * thrown by the originally called method. The undeclared exceptions that might occur in {@link Supplier#get()}
+	 * method call are swallowed.
+	 *
+	 * @param declaredExceptions exceptions declared as thrown by the originally called method
+	 */
+	private record UnaryResultWrapperRethrowing(
+		@Nonnull Class<?>[] declaredExceptions
+	) implements ResultWrapper {
+
+		@Nullable
 		@Override
-		public Object apply(Object value) {
-			return value == null ? OptionalLong.empty() : OptionalLong.of((Long)value);
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				return resultProducer.get();
+			} catch (Exception ex) {
+				for (Class<?> declaredException : declaredExceptions) {
+					if (declaredException.isInstance(ex)) {
+						throw ex;
+					}
+				}
+				return null;
+			}
 		}
 	}
 
-	private static class OptionalUnaryOperator implements UnaryOperator<Object>, OptionalProducingOperator {
-		public static final OptionalUnaryOperator INSTANCE = new OptionalUnaryOperator();
+	/**
+	 * The class is used to wrap the result of the method call into an {@link OptionalInt} wrapper and swallows all
+	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
+	 */
+	private record OptionalIntUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
+		private final static OptionalIntUnaryResultWrapperSwallowing INSTANCE = new OptionalIntUnaryResultWrapperSwallowing();
+
+		@Nullable
 		@Override
-		public Object apply(Object value) {
-			// collections are not allowed in the evitaDB values, but may be present on proxied interfaces
-			// when empty collection is returned, the value is null and we need to return Optional.empty()
-			if (value instanceof Collection<?> collection) {
-				return collection.isEmpty() ? Optional.empty() : Optional.of(collection);
-			} else {
-				return Optional.ofNullable(value);
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				final Object value = resultProducer.get();
+				return value == null ? OptionalInt.empty() : OptionalInt.of((Integer) value);
+			} catch (Exception ex) {
+				return OptionalInt.empty();
+			}
+		}
+	}
+
+	/**
+	 * The class is used to wrap the result of the method call into an {@link OptionalInt} wrapper and rethrows all
+	 * exceptions declared as thrown by the originally called method. The undeclared exceptions that might occur
+	 * in {@link Supplier#get()} method call are swallowed.
+	 *
+	 * @param declaredExceptions exceptions declared as thrown by the originally called method
+	 */
+	private record OptionalIntUnaryResultWrapperRethrowing(
+		@Nonnull Class<?>[] declaredExceptions
+	) implements ResultWrapper, OptionalProducingOperator {
+
+		@Nullable
+		@Override
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				final Object value = resultProducer.get();
+				return value == null ? OptionalInt.empty() : OptionalInt.of((Integer) value);
+			} catch (Exception ex) {
+				for (Class<?> declaredException : declaredExceptions) {
+					if (declaredException.isInstance(ex)) {
+						throw ex;
+					}
+				}
+				return OptionalInt.empty();
+			}
+		}
+	}
+
+	/**
+	 * The class is used to wrap the result of the method call into an {@link OptionalLong} wrapper and swallows all
+	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
+	 */
+	private record OptionalLongUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
+		private final static OptionalLongUnaryResultWrapperSwallowing INSTANCE = new OptionalLongUnaryResultWrapperSwallowing();
+
+		@Nullable
+		@Override
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				final Object value = resultProducer.get();
+				return value == null ? OptionalLong.empty() : OptionalLong.of((Long) value);
+			} catch (Exception ex) {
+				return OptionalLong.empty();
+			}
+		}
+	}
+
+	/**
+	 * The class is used to wrap the result of the method call into an {@link OptionalLong} wrapper and rethrows all
+	 * exceptions declared as thrown by the originally called method. The undeclared exceptions that might occur
+	 * in {@link Supplier#get()} method call are swallowed.
+	 *
+	 * @param declaredExceptions exceptions declared as thrown by the originally called method
+	 */
+	private record OptionalLongUnaryResultWrapperRethrowing(
+		@Nonnull Class<?>[] declaredExceptions
+	) implements ResultWrapper, OptionalProducingOperator {
+
+		@Nullable
+		@Override
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				final Object value = resultProducer.get();
+				return value == null ? OptionalLong.empty() : OptionalLong.of((Long) value);
+			} catch (Exception ex) {
+				for (Class<?> declaredException : declaredExceptions) {
+					if (declaredException.isInstance(ex)) {
+						throw ex;
+					}
+				}
+				return OptionalLong.empty();
+			}
+		}
+	}
+
+	/**
+	 * The class is used to wrap the result of the method call into an {@link Optional} wrapper and swallows all
+	 * possible exceptions that might occur during the {@link Supplier#get()} method call.
+	 */
+	private record OptionalUnaryResultWrapperSwallowing() implements ResultWrapper, OptionalProducingOperator {
+		private final static OptionalUnaryResultWrapperSwallowing INSTANCE = new OptionalUnaryResultWrapperSwallowing();
+
+		@Nullable
+		@Override
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				final Object value = resultProducer.get();
+				// collections are not allowed in the evitaDB values, but may be present on proxied interfaces
+				// when empty collection is returned, the value is null and we need to return Optional.empty()
+				if (value instanceof Collection<?> collection) {
+					return collection.isEmpty() ? Optional.empty() : Optional.of(collection);
+				} else {
+					return Optional.ofNullable(value);
+				}
+			} catch (Exception ex) {
+				return Optional.empty();
+			}
+		}
+	}
+
+	/**
+	 * The class is used to wrap the result of the method call into an {@link Optional} wrapper and rethrows all
+	 * exceptions declared as thrown by the originally called method. The undeclared exceptions that might occur
+	 * in {@link Supplier#get()} method call are swallowed.
+	 *
+	 * @param declaredExceptions exceptions declared as thrown by the originally called method
+	 */
+	private record OptionalUnaryResultWrapperRethrowing(
+		@Nonnull Class<?>[] declaredExceptions
+	) implements ResultWrapper, OptionalProducingOperator {
+
+		@Nullable
+		@Override
+		public Object wrap(@Nonnull Supplier<Object> resultProducer) {
+			try {
+				final Object value = resultProducer.get();
+				// collections are not allowed in the evitaDB values, but may be present on proxied interfaces
+				// when empty collection is returned, the value is null and we need to return Optional.empty()
+				if (value instanceof Collection<?> collection) {
+					return collection.isEmpty() ? Optional.empty() : Optional.of(collection);
+				} else {
+					return Optional.ofNullable(value);
+				}
+			} catch (Exception ex) {
+				for (Class<?> declaredException : declaredExceptions) {
+					if (declaredException.isInstance(ex)) {
+						throw ex;
+					}
+				}
+				return Optional.empty();
 			}
 		}
 	}

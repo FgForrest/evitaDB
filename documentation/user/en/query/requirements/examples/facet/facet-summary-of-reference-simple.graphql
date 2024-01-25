@@ -1,0 +1,28 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "e-readers"
+        }
+      },
+      attributeStatusEquals: "ACTIVE",
+      entityLocaleEquals: en
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        brand {
+          count
+          facetStatistics {
+            requested
+            count
+            facetEntity {
+              primaryKey
+            }
+          }
+        }
+      }
+    }
+  }
+}

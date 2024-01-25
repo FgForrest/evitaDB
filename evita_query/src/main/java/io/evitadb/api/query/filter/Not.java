@@ -61,7 +61,7 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         not(
  *             entityPrimaryKeyInSet(110066, 106742, 110513)
@@ -71,11 +71,11 @@ import java.io.Serializable;
  * </pre>
  *
  * ... returns thousands of results excluding the entities with primary keys mentioned in `entityPrimaryKeyInSet`
- * constraint. Because this situation is hard to visualize - let's narrow our super set to only a few entities:
+ * constraint. Because this situation is hard to visualize - let"s narrow our super set to only a few entities:
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         entityPrimaryKeyInSet(110513, 66567, 106742, 66574, 66556, 110066),
  *         not(
@@ -86,12 +86,15 @@ import java.io.Serializable;
  * </pre>
  *
  * ... which returns only three products that were not excluded by the following `not` constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/logical#not">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "not",
 	shortDescription = "The container that behaves as [logical NOT](https://en.wikipedia.org/wiki/Negation) for the inner constraint.",
+	userDocsLink = "/documentation/query/filtering/logical#not",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class Not extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

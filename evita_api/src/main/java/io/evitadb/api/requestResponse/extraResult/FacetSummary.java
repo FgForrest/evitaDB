@@ -27,10 +27,18 @@ import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.data.structure.predicate.AttributeValueSerializablePredicate;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.PrettyPrintable;
 import lombok.AccessLevel;
 import lombok.Data;
 import lombok.Getter;
@@ -43,11 +51,14 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -65,7 +76,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public class FacetSummary implements EvitaResponseExtraResult {
+public class FacetSummary implements EvitaResponseExtraResult, PrettyPrintable {
 	@Serial private static final long serialVersionUID = -5622027322997919409L;
 	/**
 	 * Contains statistics of facets aggregated into facet groups ({@link Reference#getGroup()}).
@@ -201,15 +212,59 @@ public class FacetSummary implements EvitaResponseExtraResult {
 		return true;
 	}
 
+	@Nonnull
 	@Override
-	public String toString() {
-		return toString(
-			statistics -> "",
-			facetStatistics -> ""
+	public String prettyPrint() {
+		final PrettyPrintingContext context = new PrettyPrintingContext();
+		return prettyPrint(
+			statistics -> ofNullable(statistics.getGroupEntity())
+				.filter(SealedEntity.class::isInstance)
+				.map(SealedEntity.class::cast)
+				.map(it -> printRepresentative(it, context))
+				.orElse(""),
+			facetStatistics -> ofNullable(facetStatistics.getFacetEntity())
+				.filter(SealedEntity.class::isInstance)
+				.map(SealedEntity.class::cast)
+				.map(it -> printRepresentative(it, context))
+				.orElse("")
 		);
 	}
 
-	public String toString(
+	@Override
+	public String toString() {
+		return "Facet summary with: " + this.referenceStatistics.size() + " references";
+	}
+
+	/**
+	 * Prints a {@link SealedEntity} in a convenient way.
+	 * @param entity Entity to print.
+	 * @return String representation of the entity.
+	 */
+	@Nonnull
+	private static String printRepresentative(@Nonnull SealedEntity entity, @Nonnull PrettyPrintingContext context) {
+		final AttributeValueSerializablePredicate attributePredicate = ((EntityDecorator) entity).getAttributePredicate();
+		if (!attributePredicate.wasFetched()) {
+			return "";
+		}
+
+		final Set<String> set = attributePredicate.getAttributeSet();
+		if (set.isEmpty()) {
+			final Set<String> representativeAttributes = context.getRepresentativeAttribute(entity.getSchema());
+			return representativeAttributes.stream()
+				.map(attribute -> EvitaDataTypes.formatValue(entity.getAttribute(attribute).toString()))
+				.collect(Collectors.joining(", "));
+		} else if (set.size() == 1) {
+			return EvitaDataTypes.formatValue(entity.getAttribute(set.iterator().next()));
+		} else {
+			final Set<String> representativeAttributes = context.getRepresentativeAttribute(entity.getSchema());
+			return set.stream()
+				.filter(representativeAttributes::contains)
+				.map(attribute -> EvitaDataTypes.formatValue(entity.getAttribute(attribute).toString()))
+				.collect(Collectors.joining(", "));
+		}
+	}
+
+	public String prettyPrint(
 		@Nonnull Function<FacetGroupStatistics, String> groupRenderer,
 		@Nonnull Function<FacetStatistics, String> facetRenderer
 	) {
@@ -232,7 +287,7 @@ public class FacetSummary implements EvitaResponseExtraResult {
 							)
 							.map(statistics -> "\t" + refStats.getKey() + ": " +
 								ofNullable(groupRenderer.apply(statistics)).filter(it -> !it.isBlank())
-									.orElseGet(() -> ofNullable(statistics.getGroupEntity()).map(EntityClassifier::getPrimaryKey).map(Object::toString).orElse("")) +
+									.orElseGet(() -> ofNullable(statistics.getGroupEntity()).map(EntityClassifier::getPrimaryKey).map(Object::toString).orElse("non-grouped")) +
 								" [" + statistics.getCount() + "]:\n" +
 								statistics
 									.getFacetStatistics()
@@ -566,6 +621,35 @@ public class FacetSummary implements EvitaResponseExtraResult {
 			}
 
 			return true;
+		}
+	}
+
+	/**
+	 * Context used by {@link #prettyPrint()} methods.
+	 */
+	private final static class PrettyPrintingContext {
+		/**
+		 * Contains set of representative attribute names for each entity type.
+		 */
+		private final Map<String, Set<String>> representativeAttributes = new HashMap<>();
+
+		/**
+		 * Returns set of {@link EntityAttributeSchemaContract#isRepresentative()} names for passed entity schema.
+		 * @param entitySchema Entity schema to get representative attributes for.
+		 * @return Set of representative attribute names.
+		 */
+		@Nonnull
+		public Set<String> getRepresentativeAttribute(@Nonnull EntitySchemaContract entitySchema) {
+			return this.representativeAttributes.computeIfAbsent(
+				entitySchema.getName(),
+				entityType -> entitySchema
+					.getAttributes()
+					.values()
+					.stream()
+					.filter(EntityAttributeSchemaContract::isRepresentative)
+					.map(NamedSchemaContract::getName)
+					.collect(Collectors.toCollection(LinkedHashSet::new))
+			);
 		}
 	}
 

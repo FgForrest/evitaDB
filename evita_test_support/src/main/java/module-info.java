@@ -16,6 +16,7 @@ module evita.test.support {
 	requires org.slf4j;
 	requires ch.qos.logback.core;
 	requires rest.assured;
+	requires java.net.http;
 
 	requires evita.api;
 	requires evita.engine;

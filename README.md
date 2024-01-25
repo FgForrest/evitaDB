@@ -68,6 +68,14 @@ examples and guides.</p>
     </picture>
   </a>
   &nbsp;
+  <a href="https://evitadb.io/rss.xml" title="RSS news feed">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/sf-ultralight/100/FFFFFF/rss.png" width="50px">
+      <source media="(prefers-color-scheme: light)" srcset="https://img.icons8.com/sf-ultralight/100/000000/rss.png" width="50px">
+      <img alt="RSS news feed" src="https://img.icons8.com/sf-ultralight/100/888888/rss.png" width="50px">
+    </picture>
+  </a>
+  &nbsp;
   <a href="https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x9d1149b0c74e939dd766c7a93de3cdccf660797f" title="PGP public key">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://img.icons8.com/carbon-copy/100/FFFFFF/fingerprint-scan.png" width="50px">
@@ -150,6 +158,41 @@ team, we regularly test evitaDB only on the Linux AMD64 platform (which you can 
 [Windows Linux Subsystem](https://learn.microsoft.com/en-us/windows/wsl/install)). The performance can be worse,
 and you may experience minor problems when running evitaDB on other (non-Linux) environments. Please report any bugs
 you might encounter, and we'll try to fix them as soon as possible.
+
+## How to build evitaDB
+
+evitaDB is built using [Maven](https://maven.apache.org/). You can build the entire project by running the following
+command in the root directory of the project:
+
+```shell
+mvn clean install
+```
+
+**Maven setup**
+
+The build uses Maven toolchains to select the correct JDK version. You must have JDK 17 installed and configured in your
+in your Maven toolchains. You can find more information about Maven toolchains in the [Maven Documentation](https://maven.apache.org/guides/mini/guide-using-toolchains.html).
+
+In short, you need `~/.m2/toolchains.xml` in your home directory next to `~/.m2/settings.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF8"?>
+<toolchains xmlns="http://maven.apache.org/POM/4.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/TOOLCHAINS/1.1.0 https://maven.apache.org/xsd/toolchains-1.1.0.xsd">
+  <toolchain>
+    <type>jdk</type>
+    <provides>
+      <version>17</version>
+      <vendor>openjdk</vendor>
+      <id>jdk17</id>
+    </provides>
+    <configuration>
+      <jdkHome>/path/to/your/jdk17/installation/directory</jdkHome>
+    </configuration>
+  </toolchain>
+</toolchains>
+```
 
 ## How this repository is organized
 

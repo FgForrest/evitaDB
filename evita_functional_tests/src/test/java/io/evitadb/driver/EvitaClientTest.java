@@ -50,10 +50,10 @@ import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.Predecessor;
@@ -427,13 +427,13 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			assertEquals(
 				Arrays.stream(expectedAllPricesForSale)
 					.filter(it -> Objects.equals(currency, it.currency()))
-					.filter(it -> Arrays.stream(priceLists).anyMatch(priceList -> Objects.equals(priceList, it.priceList())))
-					.sorted((o1, o2) -> {
+					.filter(it -> Arrays.stream(priceLists)
+						.anyMatch(priceList -> Objects.equals(priceList, it.priceList())))
+					.min((o1, o2) -> {
 						final int ix1 = ArrayUtils.indexOf(o1.priceList(), priceLists);
 						final int ix2 = ArrayUtils.indexOf(o2.priceList(), priceLists);
 						return Integer.compare(ix1, ix2);
 					})
-					.findFirst()
 					.orElse(null),
 				product.getPriceForSale()
 			);
@@ -597,7 +597,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					final Optional<SealedEntitySchema> brand = session.getEntitySchema("Brand");
 					assertTrue(brand.isPresent());
 
-					final Optional<AttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> nameAttribute = brand.get().getAttribute("name");
 					assertTrue(nameAttribute.isPresent());
 					assertTrue(nameAttribute.get().isLocalized());
 
@@ -642,7 +642,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 					final Optional<SealedEntitySchema> product = session.getEntitySchema("Product");
 					assertTrue(product.isPresent());
 
-					final Optional<AttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
+					final Optional<EntityAttributeSchemaContract> productNameAttribute = product.get().getAttribute("name");
 					assertTrue(productNameAttribute.isPresent());
 					assertTrue(productNameAttribute.get().isLocalized());
 				}
@@ -991,7 +991,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 									attributeContentAll(),
 									associatedDataContentAll(),
 									priceContentAll(),
-									referenceContentAll(),
+									referenceContentAllWithAttributes(),
 									dataInLocalesAll()
 								) :
 								entityFetch(
@@ -999,7 +999,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 									attributeContentAll(),
 									associatedDataContentAll(),
 									priceContentAll(),
-									referenceContentAll(entityFetchAll()),
+									referenceContentAllWithAttributes(entityFetchAll()),
 									dataInLocalesAll()
 								)
 						)
@@ -1253,7 +1253,11 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 							entityLocaleEquals(locale)
 						),
 						require(
-							entityFetchAll(),
+							entityFetch(
+								attributeContentAll(), hierarchyContent(),
+								associatedDataContentAll(), priceContentAll(),
+								referenceContentAllWithAttributes()
+							),
 							queryTelemetry(),
 							priceHistogram(20),
 							attributeHistogram(20, ATTRIBUTE_QUANTITY),

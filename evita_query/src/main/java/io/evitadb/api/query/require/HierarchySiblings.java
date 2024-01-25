@@ -74,19 +74,19 @@ import static java.util.Optional.of;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             siblings(
- *                 'audioSiblings',
- *                 entityFetch(attributeContent('code')),
+ *                 "audioSiblings",
+ *                 entityFetch(attributeContent("code")),
  *                 statistics(
  *                     CHILDREN_COUNT,
  *                     QUERIED_ENTITY_COUNT
@@ -110,12 +110,15 @@ import static java.util.Optional.of;
  * the first string argument that defines the name for the output data structure. The reason is that this name is
  * already defined on the enclosing parents constraint, and the siblings constraint simply extends the data available
  * in its data structure.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#siblings">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "siblings",
 	shortDescription = "The constraint triggers computing the sibling axis for currently requested hierarchy node in filter by constraint or processed node by hierarchy parents axis.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#siblings",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchySiblings extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

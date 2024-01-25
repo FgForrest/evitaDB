@@ -28,7 +28,9 @@ import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.rest.api.catalog.dataApi.resolver.serializer.EntityJsonSerializer;
+import io.evitadb.externalApi.rest.exception.RestInternalError;
 import io.evitadb.externalApi.rest.io.RestEndpointExchange;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -40,30 +42,35 @@ import java.util.List;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class ListEntitiesHandler extends QueryOrientedEntitiesHandler<List<EntityClassifier>> {
+public class ListEntitiesHandler extends QueryOrientedEntitiesHandler {
 
 	@Nonnull private final EntityJsonSerializer entityJsonSerializer;
 
 	public ListEntitiesHandler(@Nonnull CollectionRestHandlingContext restApiHandlingContext) {
 		super(restApiHandlingContext);
-		this.entityJsonSerializer = new EntityJsonSerializer(restApiHandlingContext);
+		this.entityJsonSerializer = new EntityJsonSerializer(this.restHandlingContext.isLocalized(), this.restHandlingContext.getObjectMapper());
 	}
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<List<EntityClassifier>> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Query query = resolveQuery(exchange);
 
-		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restApiHandlingContext.getEntitySchema(), query);
+		log.debug("Generated evitaDB query for entity list of type `{}` is `{}`.", restHandlingContext.getEntitySchema(), query);
 
 		final List<EntityClassifier> entities = exchange.session().queryList(query, EntityClassifier.class);
 
-		return new SuccessEndpointResponse<>(entities);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, entities));
 	}
 
 	@Nonnull
 	@Override
-	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull List<EntityClassifier> entities) {
-		return entityJsonSerializer.serialize(entities);
+	protected Object convertResultIntoSerializableObject(@Nonnull RestEndpointExchange exchange, @Nonnull Object entities) {
+		Assert.isPremiseValid(
+			entities instanceof List,
+			() -> new RestInternalError("Expected list of entities, but got `" + entities.getClass().getName() + "`.")
+		);
+		//noinspection unchecked
+		return entityJsonSerializer.serialize((List<EntityClassifier>) entities, restHandlingContext.getCatalogSchema());
 	}
 }

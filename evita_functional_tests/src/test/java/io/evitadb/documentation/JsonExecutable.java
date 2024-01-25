@@ -35,7 +35,12 @@ import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
+import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Histogram;
+import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
+import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.dataType.PaginatedList;
 import io.evitadb.dataType.StripList;
 import io.evitadb.documentation.evitaql.CustomJsonVisibilityChecker;
@@ -67,7 +72,12 @@ public abstract class JsonExecutable {
                         allow(Hierarchy.class),
                         allow(Hierarchy.LevelInfo.class),
                         allow(PaginatedList.class),
-                        allow(StripList.class)
+                        allow(Histogram.class),
+                        allow(AttributeHistogram.class),
+                        allow(PriceHistogram.class),
+                        allow(Bucket.class),
+                        allow(StripList.class),
+                        allow(QueryTelemetry.class)
                 )
         );
         OBJECT_MAPPER.registerModule(new Jdk8Module());

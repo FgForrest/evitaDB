@@ -168,7 +168,7 @@ public enum GrpcPriceInnerRecordHandling
   }
   public static final com.google.protobuf.Descriptors.EnumDescriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(10);
+    return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(13);
   }
 
   private static final GrpcPriceInnerRecordHandling[] VALUES = values();

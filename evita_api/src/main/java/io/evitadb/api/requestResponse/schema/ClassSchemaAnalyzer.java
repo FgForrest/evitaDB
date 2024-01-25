@@ -27,23 +27,15 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
-import io.evitadb.api.requestResponse.data.annotation.AssociatedData;
-import io.evitadb.api.requestResponse.data.annotation.Attribute;
-import io.evitadb.api.requestResponse.data.annotation.Entity;
-import io.evitadb.api.requestResponse.data.annotation.ParentEntity;
-import io.evitadb.api.requestResponse.data.annotation.PriceForSale;
-import io.evitadb.api.requestResponse.data.annotation.PrimaryKey;
-import io.evitadb.api.requestResponse.data.annotation.Reference;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
-import io.evitadb.api.requestResponse.data.annotation.ReferencedEntityGroup;
-import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.data.annotation.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
-import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.EntityAttributeSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.builder.GlobalAttributeSchemaBuilder;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -70,13 +62,13 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -103,6 +95,11 @@ public class ClassSchemaAnalyzer {
 	 */
 	private final Class<?> modelClass;
 	/**
+	 * This function allows to resolve the subclass of the passed class for particular reference name. This is used to
+	 * resolve the proper type of the subclass when the main class returns only a supertype.
+	 */
+	private final BiFunction<String, Class<?>, Class<?>> subClassResolver;
+	/**
 	 * Reflection lookup is used to speed up reflection operation by memoizing the results for examined classes.
 	 */
 	private final ReflectionLookup reflectionLookup;
@@ -127,14 +124,47 @@ public class ClassSchemaAnalyzer {
 	 */
 	private boolean primaryKeyDefined = false;
 	/**
-	 * Temporary flag - true when annotation Parent is used in the entity class.
-	 */
-	private boolean hierarchyDefined = false;
-	/**
 	 * Temporary flag - true when annotation PriceForSale is used in the entity class.
 	 */
 	private boolean sellingPriceDefined = false;
 
+	/**
+	 * Extracts the entity type from a given class using reflection.
+	 *
+	 * @param classToAnalyse   The class to be analyzed.
+	 * @param reflectionLookup The reflection lookup utility.
+	 * @return An Optional containing the entity type if found, or an empty Optional otherwise.
+	 */
+	@Nonnull
+	public static Optional<String> extractEntityTypeFromClass(@Nonnull Class<?> classToAnalyse, @Nonnull ReflectionLookup reflectionLookup) {
+		return reflectionLookup.extractFromClass(
+			classToAnalyse, EntityRef.class,
+			clazz -> {
+				final EntityRef entityRef = reflectionLookup.getClassAnnotation(clazz, EntityRef.class);
+				if (entityRef != null) {
+					return ofNullable(entityRef.value())
+						.filter(it -> !it.isBlank())
+						.or(() -> of(reflectionLookup.findOriginClass(clazz, entityRef).getSimpleName()));
+				}
+				final Entity entity = reflectionLookup.getClassAnnotation(clazz, Entity.class);
+				if (entity != null) {
+					return ofNullable(entity.name())
+						.filter(it -> !it.isBlank())
+						.or(() -> of(reflectionLookup.findOriginClass(clazz, entity).getSimpleName()));
+				}
+				return empty();
+			}
+		);
+	}
+
+	/**
+	 * Verifies the data type of a given class.
+	 *
+	 * @param theType the class representing the data type
+	 * @return the verified class representing the data type
+	 * @param <T> the generic type of the data type
+	 */
+	@Nonnull
 	private static <T> Class<T> verifyDataType(@Nonnull Class<T> theType) {
 		Assert.isTrue(
 			EvitaDataTypes.isSupportedTypeOrItsArray(theType),
@@ -169,8 +199,11 @@ public class ClassSchemaAnalyzer {
 				.map(it -> EvitaDataTypes.toTargetType(it, whichIs.getType()))
 				.ifPresent(whichIs::withDefaultValue);
 
-			if (attributeAnnotation.unique()) {
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION) {
 				whichIs.unique();
+			}
+			if (attributeAnnotation.unique() == AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE) {
+				whichIs.uniqueWithinLocale();
 			}
 			if (!attributeAnnotation.description().isBlank()) {
 				whichIs.withDescription(attributeAnnotation.description());
@@ -187,6 +220,15 @@ public class ClassSchemaAnalyzer {
 			if (attributeAnnotation.sortable()) {
 				whichIs.sortable();
 			}
+			if (attributeAnnotation.representative()) {
+				if (whichIs instanceof EntityAttributeSchemaBuilder entityBuilder) {
+					entityBuilder.representative();
+				} else if (whichIs instanceof GlobalAttributeSchemaBuilder entityBuilder) {
+					entityBuilder.representative();
+				} else {
+					throw new IllegalArgumentException("Reference attribute cannot be made representative!");
+				}
+			}
 			if (attributeAnnotation.localized()) {
 				whichIs.localized();
 			}
@@ -194,13 +236,16 @@ public class ClassSchemaAnalyzer {
 				whichIs.indexDecimalPlaces(attributeAnnotation.indexedDecimalPlaces());
 			}
 		};
-		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally()) {
+		if (attributeAnnotation.global() || attributeAnnotation.uniqueGlobally() != GlobalAttributeUniquenessType.NOT_UNIQUE) {
 			catalogBuilder.withAttribute(
 				attributeName, attributeType,
 				whichIs -> {
 					attributeBuilder.accept(whichIs);
-					if (attributeAnnotation.uniqueGlobally()) {
+					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
 						whichIs.uniqueGlobally();
+					}
+					if (attributeAnnotation.uniqueGlobally() == GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG) {
+						whichIs.uniqueGloballyWithinLocale();
 					}
 				}
 			);
@@ -375,7 +420,7 @@ public class ClassSchemaAnalyzer {
 	 * Attempts to retrieve default value from a getter with default implementation.
 	 */
 	@Nullable
-	private static Serializable extractDefaultValue(@Nonnull Class<?> definingClass, @Nonnull Method getter) {
+	public static Serializable extractDefaultValue(@Nonnull Class<?> definingClass, @Nonnull Method getter) {
 		try {
 
 			final Constructor<Lookup> constructor = Lookup.class.getDeclaredConstructor(Class.class);
@@ -422,9 +467,7 @@ public class ClassSchemaAnalyzer {
 	}
 
 	public ClassSchemaAnalyzer(@Nonnull Class<?> modelClass, @Nonnull ReflectionLookup reflectionLookup) {
-		this.modelClass = modelClass;
-		this.reflectionLookup = reflectionLookup;
-		this.postProcessor = null;
+		this(modelClass, (referenceName, aClass) -> aClass, reflectionLookup, null);
 	}
 
 	public ClassSchemaAnalyzer(
@@ -432,7 +475,17 @@ public class ClassSchemaAnalyzer {
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull SchemaPostProcessor postProcessor
 	) {
+		this(modelClass, (referenceName, aClass) -> aClass, reflectionLookup, postProcessor);
+	}
+
+	public ClassSchemaAnalyzer(
+		@Nonnull Class<?> modelClass,
+		@Nonnull BiFunction<String, Class<?>, Class<?>> subClassResolver,
+		@Nonnull ReflectionLookup reflectionLookup,
+		@Nonnull SchemaPostProcessor postProcessor
+	) {
 		this.modelClass = modelClass;
+		this.subClassResolver = subClassResolver;
 		this.reflectionLookup = reflectionLookup;
 		this.postProcessor = postProcessor;
 	}
@@ -446,9 +499,22 @@ public class ClassSchemaAnalyzer {
 	 */
 	@Nonnull
 	public AnalysisResult analyze(@Nonnull EvitaSessionContract session) throws SchemaClassInvalidException {
+		final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
+		return analyze(session, catalogBuilder);
+	}
+
+	/**
+	 * Method analyzes the entity model class and alters the catalog and entity schema within passed write session
+	 * accordingly.
+	 *
+	 * @param session write Evita session
+	 * @param catalogBuilder catalog schema builder
+	 * @throws InvalidSchemaMutationException when entity model contains errors
+	 */
+	@Nonnull
+	public AnalysisResult analyze(@Nonnull EvitaSessionContract session, @Nonnull CatalogSchemaBuilder catalogBuilder) {
 		AtomicReference<String> entityName = new AtomicReference<>();
 		try {
-			final CatalogSchemaBuilder catalogBuilder = session.getCatalogSchema().openForWrite();
 			final List<Entity> entityAnnotations = reflectionLookup.getClassAnnotations(modelClass, Entity.class);
 			// use only the most specific annotation only
 			if (!entityAnnotations.isEmpty()) {
@@ -505,10 +571,8 @@ public class ClassSchemaAnalyzer {
 				// now return the mutations that needs to be done
 				return new AnalysisResult(
 					entityName.get(),
-					Stream.concat(
-						catalogBuilder.toMutation().stream().flatMap(it -> Arrays.stream(it.getSchemaMutations())),
-						entityBuilder.toMutation().stream()
-					).toArray(LocalCatalogSchemaMutation[]::new)
+					catalogBuilder.toMutation().stream().flatMap(it -> Arrays.stream(it.getSchemaMutations())).toArray(LocalCatalogSchemaMutation[]::new),
+					entityBuilder.toMutation().stream().toArray(LocalCatalogSchemaMutation[]::new)
 				);
 			}
 		} catch (RuntimeException ex) {
@@ -568,7 +632,7 @@ public class ClassSchemaAnalyzer {
 				final Class<?> referenceType = extractReturnType(modelClass, getter);
 				defineReference(
 					catalogBuilder, entityBuilder, referenceAnnotation, referenceName, getter.toGenericString(),
-					referenceType
+					subClassResolver.apply(referenceName, referenceType)
 				);
 			}
 			ofNullable(reflectionLookup.getAnnotationInstance(getter, ParentEntity.class))
@@ -676,7 +740,7 @@ public class ClassSchemaAnalyzer {
 						catalogBuilder, entityBuilder,
 						referenceAnnotation, referenceName,
 						fieldEntry.getKey().toGenericString(),
-						referenceType
+						subClassResolver.apply(referenceName, referenceType)
 					);
 				}
 				if (annotation instanceof ParentEntity) {
@@ -714,7 +778,6 @@ public class ClassSchemaAnalyzer {
 	 */
 	private void defineHierarchy(@Nonnull EntitySchemaBuilder entityBuilder) {
 		entityBuilder.withHierarchy();
-		hierarchyDefined = true;
 	}
 
 	/**
@@ -1094,14 +1157,20 @@ public class ClassSchemaAnalyzer {
 	 */
 	public record AnalysisResult(
 		@Nonnull String entityType,
-		@Nonnull LocalCatalogSchemaMutation[] mutations
+		@Nonnull LocalCatalogSchemaMutation[] catalogMutations,
+		@Nonnull LocalCatalogSchemaMutation[] entityMutations
 	) {
 		private final static LocalCatalogSchemaMutation[] EMPTY_MUTATIONS = new LocalCatalogSchemaMutation[0];
 
 		public AnalysisResult(@Nonnull String entityType) {
-			this(entityType, EMPTY_MUTATIONS);
+			this(entityType, EMPTY_MUTATIONS, EMPTY_MUTATIONS);
 		}
 
+
+		@Nonnull
+		public LocalCatalogSchemaMutation[] mutations() {
+			return ArrayUtils.mergeArrays(catalogMutations, entityMutations);
+		}
 	}
 
 }

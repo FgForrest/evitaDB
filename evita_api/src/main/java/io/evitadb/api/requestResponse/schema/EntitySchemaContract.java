@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.schema;
 
+import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.PriceBetween;
@@ -71,8 +72,7 @@ public interface EntitySchemaContract extends
 	Versioned,
 	NamedSchemaWithDeprecationContract,
 	ContentComparator<EntitySchemaContract>,
-	SortableAttributeCompoundSchemaProvider
-{
+	SortableAttributeCompoundSchemaProvider<EntityAttributeSchemaContract> {
 
 	/**
 	 * Returns version of this definition object and gets increased with any entity schema update. Allows to execute
@@ -224,5 +224,13 @@ public interface EntitySchemaContract extends
 	default boolean allows(@Nonnull EvolutionMode evolutionMode) {
 		return getEvolutionMode().contains(evolutionMode);
 	}
+
+	/**
+	 * Validates current entity schema for invalid settings using the information from current catalog schema.
+	 *
+	 * @param catalogSchema current catalog schema providing access to other entity schemas in it
+	 * @throws SchemaAlteringException if there is an error in current schema
+	 */
+	void validate(@Nonnull CatalogSchemaContract catalogSchema) throws SchemaAlteringException;
 
 }

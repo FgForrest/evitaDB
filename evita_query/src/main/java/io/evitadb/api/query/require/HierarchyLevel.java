@@ -43,19 +43,19 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             fromRoot(
- *                 'megaMenu',
- *                 entityFetch(attributeContent('code')),
+ *                 "megaMenu",
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(level(2))
  *             )
  *         )
@@ -65,12 +65,15 @@ import java.io.Serializable;
  *
  * The query lists products in Audio category and its subcategories. Along with the products returned, it
  * also returns a computed megaMenu data structure that lists top two levels of the entire hierarchy.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#level">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "level",
 	shortDescription = "The constraint limits the traversing in stop at container at specified level from root.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#level",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyLevel extends AbstractRequireConstraintLeaf implements HierarchyStopAtRequireConstraint {

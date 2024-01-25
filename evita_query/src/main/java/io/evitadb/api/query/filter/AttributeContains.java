@@ -44,23 +44,26 @@ import java.io.Serializable;
  * Example:
  *
  * <pre>
- * contains('code', 'evitaDB')
+ * contains("code", "evitaDB")
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `contains` returns true if any of attribute
- * values contains the value in the query. If we have the attribute `code` with value `['cat','mouse','dog']` all these
+ * values contains the value in the query. If we have the attribute `code` with value `["cat","mouse","dog"]` all these
  * constraints will match:
  *
  * <pre>
- * contains('code','mou')
- * contains('code','o')
+ * contains("code","mou")
+ * contains("code","o")
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/string#attribute-contains">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "contains",
 	shortDescription = "Compares value of the attribute with passed value and checks if the text value of that attribute contains part of passed text (case-sensitive).",
+	userDocsLink = "/documentation/query/filtering/string#attribute-contains",
 	supportedIn = {ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE},
 	supportedValues = @ConstraintSupportedValues(supportedTypes = String.class, arraysSupported = true)
 )

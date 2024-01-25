@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
@@ -38,6 +39,7 @@ import io.evitadb.index.mutation.AttributeIndexMutator.EntityAttributeValueSuppl
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
+import io.evitadb.store.spi.model.storageParts.index.CardinalityIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.ChainIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.store.spi.model.storageParts.index.GlobalUniqueIndexStoragePart;
@@ -124,9 +126,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			true, true
 		);
 
-		assertEquals(1, productIndex.getUniqueIndex(ATTRIBUTE_CODE, null).getRecordIdByUniqueValue("A"));
+		final AttributeSchema codeSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
+		assertEquals(1, productIndex.getUniqueIndex(codeSchema, null).getRecordIdByUniqueValue("A"));
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_EAN, null).getRecordsEqualTo("EAN-001").getArray());
-		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertNotNull(globalUniqueIndex);
 		assertEquals(
 			new EntityReference(productSchema.getName(), 1),
@@ -212,7 +216,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			true, true
 		);
 
-		final UniqueIndex uniqueIndex = productIndex.getUniqueIndex(ATTRIBUTE_CODE, null);
+		final UniqueIndex uniqueIndex = productIndex.getUniqueIndex(codeSchema, null);
 		assertNull(uniqueIndex.getRecordIdByUniqueValue("A"));
 		assertEquals(1, uniqueIndex.getRecordIdByUniqueValue("B"));
 
@@ -220,7 +224,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 		assertArrayEquals(new int[0], filterIndex.getRecordsEqualTo("EAN-001").getArray());
 		assertArrayEquals(new int[]{1}, filterIndex.getRecordsEqualTo("EAN-002").getArray());
 
-		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertNull(globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null));
 		assertEquals(
 			new EntityReference(productSchema.getName(), 1),
@@ -401,11 +406,13 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			true, true
 		);
 
-		final UniqueIndex uniqueIndex = productIndex.getUniqueIndex(ATTRIBUTE_CODE, null);
+		final AttributeSchema codeSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
+		final UniqueIndex uniqueIndex = productIndex.getUniqueIndex(codeSchema, null);
 		assertEquals(2, uniqueIndex.getRecordIdByUniqueValue("A"));
 		assertEquals(1, uniqueIndex.getRecordIdByUniqueValue("B"));
 
-		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		final GlobalUniqueIndex globalUniqueIndex = catalogIndex.getGlobalUniqueIndex(attributeSchema, null);
 		assertEquals(new EntityReference(productSchema.getName(), 2), globalUniqueIndex.getEntityReferenceByUniqueValue("GA", null));
 		assertEquals(new EntityReference(productSchema.getName(), 1), globalUniqueIndex.getEntityReferenceByUniqueValue("GB", null));
 
@@ -457,9 +464,11 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			true, true
 		);
 
-		assertNull(productIndex.getUniqueIndex(ATTRIBUTE_CODE, null));
+		final AttributeSchema codeSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_CODE);
+		assertNull(productIndex.getUniqueIndex(codeSchema, null));
 		assertNull(productIndex.getFilterIndex(ATTRIBUTE_CODE, null));
-		assertNull(catalogIndex.getGlobalUniqueIndex(ATTRIBUTE_GLOBAL_CODE));
+		final GlobalAttributeSchema attributeSchema = (GlobalAttributeSchema) productAttributeSchemaProvider.apply(ATTRIBUTE_GLOBAL_CODE);
+		assertNull(catalogIndex.getGlobalUniqueIndex(attributeSchema, null));
 
 		final Collection<StoragePart> modifiedStorageParts = productIndex.getModifiedStorageParts();
 		assertEquals(1, modifiedStorageParts.size());
@@ -496,7 +505,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			false, true
 		);
 
-		assertNull(productIndex.getUniqueIndex(ATTRIBUTE_VARIANT_COUNT, null));
+		final AttributeSchema variantCountSchema = productAttributeSchemaProvider.apply(ATTRIBUTE_VARIANT_COUNT);
+		assertNull(productIndex.getUniqueIndex(variantCountSchema, null));
 		assertArrayEquals(new int[]{1}, productIndex.getFilterIndex(ATTRIBUTE_VARIANT_COUNT, null).getRecordsEqualTo(10).getArray());
 		final int position = findInArray(productIndex.getSortIndex(ATTRIBUTE_VARIANT_COUNT, null).getAscendingOrderRecordsSupplier().getSortedRecordIds(), 1);
 		assertTrue(position >= 0);
@@ -532,6 +542,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case UNIQUE -> UniqueIndexStoragePart.class;
 			case SORT -> SortIndexStoragePart.class;
 			case CHAIN -> ChainIndexStoragePart.class;
+			case CARDINALITY -> CardinalityIndexStoragePart.class;
 		};
 		final AttributeKey checkedAttributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		for (StoragePart changedStoragePart : changedStorageParts) {
@@ -557,6 +568,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			case UNIQUE -> UniqueIndexStoragePart.class;
 			case SORT -> SortIndexStoragePart.class;
 			case CHAIN -> ChainIndexStoragePart.class;
+			case CARDINALITY -> CardinalityIndexStoragePart.class;
 		};
 		final AttributeKey checkedAttributeKey = locale == null ? new AttributeKey(attributeName) : new AttributeKey(attributeName, locale);
 		for (StoragePart changedStoragePart : changedStorageParts) {

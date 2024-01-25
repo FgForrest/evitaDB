@@ -117,6 +117,47 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T unique(@Nonnull BooleanSupplier decider);
 
 	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute.
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #unique()} in that it is possible to have multiple entities with same value
+	 * of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different locales.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueWithinLocale();
+
+	/**
+	 * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+	 * having certain value of this attribute among other entities in the same collection.
+	 *
+	 *
+	 * The attribute will be filtered / looked up for by its {@link AttributeSchemaContract#getType() type}
+	 * {@link Comparable} contract. If the type is not {@link Comparable} the {@link String#compareTo(String)}
+	 * comparison on its {@link Object#toString()} will be used
+	 *
+	 * As an example of unique attribute can be EAN - there is no sense in having two entities with same EAN, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #unique(BooleanSupplier)} in that it is possible to have multiple entities with
+	 * same value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate
+	 * to different locales.
+	 *
+	 * @param decider returns true when attribute should be unique
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueWithinLocale(@Nonnull BooleanSupplier decider);
+
+	/**
 	 * When attribute is sortable, it is possible to sort entities by this attribute. Do not mark attribute
 	 * as sortable unless you know that you'll sort entities along this attribute. Each sortable attribute occupies
 	 * (memory/disk) space in the form of index. {@link AttributeSchemaContract#getType() Type} of the filterable attribute must
@@ -171,7 +212,7 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * When attribute is nullable, its values may be missing in the entities. Otherwise, the system will enforce
 	 * non-null checks upon upserting of the entity.
 	 *
-	 * @param decider returns true when attribute should be localized
+	 * @param decider returns true when attribute should be nullable
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull

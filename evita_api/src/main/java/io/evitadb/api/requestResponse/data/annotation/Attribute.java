@@ -26,6 +26,8 @@ package io.evitadb.api.requestResponse.data.annotation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
@@ -85,13 +87,13 @@ public @interface Attribute {
 	 * this attribute.
 	 * Propagates to {@link AttributeSchemaContract#isUnique()}.
 	 */
-	boolean unique() default false;
+	AttributeUniquenessType unique() default AttributeUniquenessType.NOT_UNIQUE;
 
 	/**
 	 * Enforces attribute of this name to be unique among all entities in the same catalog.
 	 * Propagates to {@link GlobalAttributeSchemaContract#isUniqueGlobally()}.
 	 */
-	boolean uniqueGlobally() default false;
+	GlobalAttributeUniquenessType uniqueGlobally() default GlobalAttributeUniquenessType.NOT_UNIQUE;
 
 	/**
 	 * Enables filtering by attribute of this name.
@@ -101,7 +103,7 @@ public @interface Attribute {
 
 	/**
 	 * Enables ordering/sorting by attribute of this name.
-	 * Propagates to {@link AttributeSchemaContract#isSortable()} ()}.
+	 * Propagates to {@link AttributeSchemaContract#isSortable()}.
 	 */
 	boolean sortable() default false;
 
@@ -110,6 +112,15 @@ public @interface Attribute {
 	 * Propagates to {@link AttributeSchemaContract#isLocalized()}.
 	 */
 	boolean localized() default false;
+
+	/**
+	 * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+	 * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+	 * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+	 * helpful to developers in quickly finding their way around the data. There should be very few representative
+	 * attributes in the entity type, and the unique ones are usually the best to choose.
+	 */
+	boolean representative() default false;
 
 	/**
 	 * Sets the number of indexed decimal places. Makes sense only for attributes of type {@link java.math.BigDecimal}.

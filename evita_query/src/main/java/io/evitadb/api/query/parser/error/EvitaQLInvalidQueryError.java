@@ -51,23 +51,23 @@ public class EvitaQLInvalidQueryError extends EvitaInvalidUsageException {
 	private final String reason;
 
 	public EvitaQLInvalidQueryError(@Nonnull ParserRuleContext ctx, @Nonnull String publicMessage) {
-		super(String.format(DEFAULT_ERROR_MSG, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine(), publicMessage));
+		super(String.format(DEFAULT_ERROR_MSG, ctx.getStart().getLine(), ctx.getStart().getCharPositionInLine() + 1, publicMessage));
 		this.line = ctx.getStart().getLine();
-		this.charPositionInLine = ctx.getStart().getCharPositionInLine();
+		this.charPositionInLine = ctx.getStart().getCharPositionInLine() + 1;
 		this.reason = publicMessage;
 	}
 
 	public EvitaQLInvalidQueryError(@Nonnull Token offendingToken, @Nonnull String publicMessage) {
-		super(String.format(DEFAULT_ERROR_MSG, offendingToken.getLine(), offendingToken.getCharPositionInLine(), publicMessage));
+		super(String.format(DEFAULT_ERROR_MSG, offendingToken.getLine(), offendingToken.getCharPositionInLine() + 1, publicMessage));
 		this.line = offendingToken.getLine();
-		this.charPositionInLine = offendingToken.getCharPositionInLine();
+		this.charPositionInLine = offendingToken.getCharPositionInLine() + 1;
 		this.reason = publicMessage;
 	}
 
 	public EvitaQLInvalidQueryError(int line, int charPositionInLine, @Nonnull String publicMessage) {
-		super(String.format(DEFAULT_ERROR_MSG, line, charPositionInLine, publicMessage));
+		super(String.format(DEFAULT_ERROR_MSG, line, charPositionInLine + 1, publicMessage));
 		this.line = line;
-		this.charPositionInLine = charPositionInLine;
+		this.charPositionInLine = charPositionInLine + 1;
 		this.reason = publicMessage;
 	}
 }

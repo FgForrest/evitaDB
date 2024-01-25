@@ -82,13 +82,14 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	@Override
 	protected boolean handleFormula(@Nonnull Formula formula) {
 		// if the examined formula is facet group formula matching the same facet `entityType` and `facetGroupId`
-		if (isInsideUserFilter() && formula instanceof FacetGroupFormula &&
-			Objects.equals(referenceSchema.getName(), ((FacetGroupFormula) formula).getReferenceName()) &&
-			Objects.equals(facetGroupId, ((FacetGroupFormula) formula).getFacetGroupId())
+		if (isInsideUserFilter() && formula instanceof FacetGroupFormula oldFacetGroupFormula &&
+			Objects.equals(referenceSchema.getName(), oldFacetGroupFormula.getReferenceName()) &&
+			Objects.equals(facetGroupId, oldFacetGroupFormula.getFacetGroupId())
 		) {
+			final FacetGroupFormula newFacetGroupFormula = createNewFacetGroupFormula();
 			// we found the facet group formula - we need to enrich it with new facet
 			storeFormula(
-				((FacetGroupFormula) formula).getCloneWithFacet(facetId, facetEntityIds)
+				newFacetGroupFormula.mergeWith(oldFacetGroupFormula)
 			);
 			// switch the signalization flag
 			foundTargetInUserFilter = true;

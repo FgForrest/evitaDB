@@ -2,10 +2,11 @@
 title: Random ordering
 date: '25.6.2023'
 perex: |
-  Random ordering is useful in situations where you want to present the end user with the unique entity listing every 
+  Random ordering is useful in situations where you want to present the end user with the unique entity listing every
   time he/she accesses it.
 author: 'Ing. Jan Novotný'
 proofreading: 'needed'
+preferredLang: 'evitaql'
 ---
 
 ## Random
@@ -30,22 +31,22 @@ The sample query always returns a different page of products.
 ##### List of randomized products
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of randomized products](/documentation/user/en/query/ordering/examples/random/randomized.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of randomized products](/documentation/user/en/query/ordering/examples/random/randomized.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of randomized products](/documentation/user/en/query/ordering/examples/random/randomized.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

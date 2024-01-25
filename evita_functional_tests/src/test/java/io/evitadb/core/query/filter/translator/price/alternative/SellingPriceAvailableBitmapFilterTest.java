@@ -25,11 +25,13 @@ package io.evitadb.core.query.filter.translator.price.alternative;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.QueryPriceMode;
-import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.query.filter.translator.TestFilterByVisitor;
 import io.evitadb.core.query.filter.translator.price.PriceBetweenTranslator;
 import io.evitadb.dataType.DateTimeRange;
@@ -40,17 +42,22 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Currency;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static java.util.Optional.of;
 
 /**
  * This test verifies behaviour of {@link SellingPriceAvailableBitmapFilter}.
@@ -60,7 +67,20 @@ import static io.evitadb.api.query.QueryConstraints.*;
 class SellingPriceAvailableBitmapFilterTest {
 	private static final EntitySchema PRODUCT_SCHEMA = EntitySchema._internalBuild(Entities.PRODUCT);
 	private static final CatalogSchema CATALOG_SCHEMA = CatalogSchema._internalBuild(
-		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class), entitySchema -> PRODUCT_SCHEMA
+		TestConstants.TEST_CATALOG, Collections.emptyMap(), EnumSet.allOf(CatalogEvolutionMode.class),
+		new EntitySchemaProvider() {
+			@Nonnull
+			@Override
+			public Collection<EntitySchemaContract> getEntitySchemas() {
+				return List.of(PRODUCT_SCHEMA);
+			}
+
+			@Nonnull
+			@Override
+			public Optional<EntitySchemaContract> getEntitySchema(@Nonnull String entityType) {
+				return of(PRODUCT_SCHEMA);
+			}
+		}
 	);
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
@@ -70,7 +90,7 @@ class SellingPriceAvailableBitmapFilterTest {
 	private static final DateTimeRange FAR_FUTURE = DateTimeRange.since(
 		OffsetDateTime.now().plusYears(100)
 	);
-	private Map<Integer, Entity> entities;
+	private Map<Integer, SealedEntity> entities;
 
 	@BeforeEach
 	void setUp() {
@@ -99,13 +119,13 @@ class SellingPriceAvailableBitmapFilterTest {
 					.toInstance()
 			)
 			.collect(
-				Collectors.toMap(Entity::getPrimaryKey, Function.identity())
+				Collectors.toMap(SealedEntity::getPrimaryKey, Function.identity())
 			);
 	}
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceList() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(null);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -134,7 +154,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListWithDifferentPriceLists() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -144,7 +164,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_REFERENCE)
+							priceInPriceLists(PRICE_LIST_VIP)
 						)
 					),
 					require(
@@ -164,7 +184,8 @@ class SellingPriceAvailableBitmapFilterTest {
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilter() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
-			PriceBetweenTranslator.createPredicate(90, 130, QueryPriceMode.WITH_TAX, 0)
+			new String[] {PRICE_LIST_REFERENCE},
+			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
 		);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
@@ -175,7 +196,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
 							priceBetween(new BigDecimal("90"), new BigDecimal("130"))
 						)
 					),
@@ -196,7 +217,8 @@ class SellingPriceAvailableBitmapFilterTest {
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndPriceFilterBasicFirst() {
 		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(
-			PriceBetweenTranslator.createPredicate(90, 130, QueryPriceMode.WITH_TAX, 0)
+			new String[] {PRICE_LIST_REFERENCE},
+			PriceBetweenTranslator.createPredicate(new BigDecimal("90"), new BigDecimal("130"), QueryPriceMode.WITH_TAX, 0)
 		);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
@@ -207,7 +229,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP),
 							priceBetween(new BigDecimal("90"), new BigDecimal("130"))
 						)
 					),
@@ -227,7 +249,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidity() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -237,7 +259,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP),
 							priceValidIn(OffsetDateTime.now())
 						)
 					),
@@ -257,7 +279,7 @@ class SellingPriceAvailableBitmapFilterTest {
 
 	@Test
 	void shouldFilterEntitiesByCurrencyAndPriceListAndValidityInFarFuture() {
-		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter();
+		final SellingPriceAvailableBitmapFilter filter = new SellingPriceAvailableBitmapFilter(PRICE_LIST_REFERENCE);
 		final Bitmap result = filter.filter(
 			new TestFilterByVisitor(
 				CATALOG_SCHEMA,
@@ -267,7 +289,7 @@ class SellingPriceAvailableBitmapFilterTest {
 					filterBy(
 						and(
 							priceInCurrency(CZK),
-							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP, PRICE_LIST_REFERENCE),
+							priceInPriceLists(PRICE_LIST_BASIC, PRICE_LIST_VIP),
 							priceValidIn(OffsetDateTime.now().plusYears(101))
 						)
 					),

@@ -36,9 +36,23 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * Container allowing to filter entities by having references to entities managed by evitaDB that
- * match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`
- * contains the filtering condition on particular join.
+ * The `entityHaving` constraint is used to examine the attributes or other filterable properties of the referenced
+ * entity. It can only be used within the referenceHaving constraint, which defines the name of the entity reference
+ * that identifies the target entity to be subjected to the filtering restrictions in the entityHaving constraint.
+ * The filtering constraints for the entity can use entire range of filtering operators.
+ *
+ * Example:
+ *
+ * <pre>
+ * referenceHaving(
+ *     "brand",
+ *     entityHaving(
+ *         attributeEquals("code", "apple")
+ *     )
+ * )
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/references#entity-having">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
@@ -47,6 +61,7 @@ import java.io.Serializable;
 	shortDescription = "The container allowing to filter entities by having references to entities managed by evitaDB that " +
 		"match inner filtering constraints. This container resembles the SQL inner join clauses where the `entityHaving`" +
 		"contains the filtering condition on particular join.",
+	userDocsLink = "/documentation/query/filtering/references#entity-having",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class EntityHaving extends AbstractFilterConstraintContainer implements EntityConstraint<FilterConstraint>, SeparateEntityScopeContainer {

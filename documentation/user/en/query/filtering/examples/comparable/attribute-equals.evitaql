@@ -1,11 +1,11 @@
 query(
-    collection('Product'),
+    collection("Product"),
     filterBy(
-        attributeEquals('code', 'apple-iphone-13-pro-3')
+        attributeEquals("code", "apple-iphone-13-pro-3")
     ),
     require(
        entityFetch(
-           attributeContent('code')
+           attributeContent("code")
        )
     )
 )

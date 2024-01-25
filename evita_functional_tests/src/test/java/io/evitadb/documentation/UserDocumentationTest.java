@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,11 +31,14 @@ import io.evitadb.documentation.graphql.GraphQLExecutable;
 import io.evitadb.documentation.graphql.GraphQLTestContextFactory;
 import io.evitadb.documentation.java.JavaExecutable;
 import io.evitadb.documentation.java.JavaTestContextFactory;
+import io.evitadb.documentation.java.JavaWrappingExecutable;
 import io.evitadb.documentation.rest.RestExecutable;
 import io.evitadb.documentation.rest.RestTestContextFactory;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ArrayUtils;
 import jdk.jshell.JShell;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +61,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
@@ -88,6 +92,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
 		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?(\\s+local)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		Pattern.DOTALL | Pattern.MULTILINE
+	);
+	/**
+	 * <SourceAlternativeTabs variants="interface|record|class">
+	 * Pattern for searching for <SourceAlternativeTabs> blocks.
+	 */
+	private static final Pattern SOURCE_ALTERNATIVE_TABS_PATTERN = Pattern.compile(
+		"<SourceAlternativeTabs\\s*(requires=\"(.*?)\")?\\s*variants=\"(.*?)\">\\s*\\[.*?]\\((.*?)\\)\\s*</SourceAlternativeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -168,7 +180,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		final String sourceFileName = path.getFileName().toString();
 		return path.resolveSibling(
 			sourceFileName.substring(0, sourceFileName.lastIndexOf('.')) + "." + extension
-		);
+		).normalize();
 	}
 
 	/**
@@ -210,6 +222,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static Executable convertToRunnable(
+		@Nonnull Environment profile,
 		@Nonnull String sourceFormat,
 		@Nonnull String sourceContent,
 		@Nonnull Path rootPath,
@@ -217,13 +230,13 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Nullable Path[] requiredResources,
 		@Nonnull TestContextProvider contextAccessor,
 		@Nonnull Map<Path, CodeSnippet> codeSnippetIndex,
-		@Nullable OutputSnippet outputSnippet,
+		@Nullable List<OutputSnippet> outputSnippet,
 		@Nonnull CreateSnippets... createSnippets
 	) {
 		switch (sourceFormat) {
 			case "java" -> {
 				return new JavaExecutable(
-					contextAccessor.get(JavaTestContextFactory.class),
+					contextAccessor.get(profile, JavaTestContextFactory.class),
 					sourceContent,
 					requiredResources,
 					codeSnippetIndex
@@ -231,7 +244,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			}
 			case "evitaql" -> {
 				return new EvitaQLExecutable(
-					contextAccessor.get(EvitaTestContextFactory.class),
+					contextAccessor.get(profile, EvitaTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
@@ -240,35 +253,61 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				);
 			}
 			case "graphql" -> {
-				return new GraphQLExecutable(
-					contextAccessor.get(GraphQLTestContextFactory.class),
+				final GraphQLExecutable graphQLExecutable = new GraphQLExecutable(
+					contextAccessor.get(profile, GraphQLTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
 					outputSnippet,
 					createSnippets
 				);
+				return ArrayUtils.isEmpty(requiredResources) ?
+					graphQLExecutable :
+					new JavaWrappingExecutable(
+						contextAccessor.get(profile, JavaTestContextFactory.class),
+						graphQLExecutable,
+						requiredResources,
+						codeSnippetIndex
+					);
 			}
 			case "rest" -> {
-				return new RestExecutable(
-					contextAccessor.get(RestTestContextFactory.class),
+				final RestExecutable restExecutable = new RestExecutable(
+					contextAccessor.get(profile, RestTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
 					outputSnippet,
 					createSnippets
 				);
+				return ArrayUtils.isEmpty(requiredResources) ?
+					restExecutable :
+					new JavaWrappingExecutable(
+						contextAccessor.get(profile, JavaTestContextFactory.class),
+						restExecutable,
+						requiredResources,
+						codeSnippetIndex
+					);
 			}
 			case "cs" -> {
-				return new CsharpExecutable(
-					contextAccessor.get(CsharpTestContextFactory.class),
+				final CsharpExecutable csharpExecutable = new CsharpExecutable(
+					contextAccessor.get(profile, CsharpTestContextFactory.class),
 					sourceContent,
 					rootPath,
 					resource,
-					Arrays.stream(requiredResources).filter(it -> it.endsWith(".cs")).toArray(Path[]::new),
+					ofNullable(requiredResources)
+						.map(it -> Arrays.stream(it).filter(x -> x.endsWith(".cs")).toArray(Path[]::new))
+						.orElse(null),
 					codeSnippetIndex,
 					outputSnippet
 				);
+				return ArrayUtils.isEmpty(requiredResources) ?
+					csharpExecutable :
+					new JavaWrappingExecutable(
+						contextAccessor.get(profile, JavaTestContextFactory.class),
+						csharpExecutable,
+						requiredResources,
+						codeSnippetIndex
+					);
 			}
 			default -> {
 				throw new UnsupportedOperationException("Unsupported file format: " + sourceFormat);
@@ -280,20 +319,22 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Returns array of files with same name and different extension from the same directory.
 	 */
 	@Nonnull
-	private static List<Path> findRelatedFiles(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedRelatedResources) {
+	private static List<Path> findRelatedFiles(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedPaths, Map<Path, CodeSnippet> codeSnippetIndex) {
 		try (final Stream<Path> siblings = Files.list(theFile.getParent())) {
 			final String theFileName = theFile.getFileName().toString();
 			final String theFileExtension = getFileNameExtension(theFile);
 			return siblings.filter(it -> {
-				final String fileName = it.getFileName().toString();
-				final String fileNameExtension = getFileNameExtension(it);
-				return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
-					!theFileExtension.equals(fileNameExtension) &&
-					!alreadyUsedRelatedResources.contains(it) &&
-					fileName.substring(0, fileName.length() - fileNameExtension.length())
-						.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
-			})
-				.peek(alreadyUsedRelatedResources::add)
+					final String fileName = it.getFileName().toString();
+					final String fileNameExtension = getFileNameExtension(it);
+					return !NOT_TESTED_LANGUAGES.contains(fileNameExtension) &&
+						!theFileExtension.equals(fileNameExtension) &&
+						!alreadyUsedPaths.contains(it) &&
+						fileName.substring(0, fileName.length() - fileNameExtension.length())
+							.equals(theFileName.substring(0, theFileName.length() - theFileExtension.length()));
+				})
+				.map(Path::normalize)
+				.filter(it -> !alreadyUsedPaths.contains(it))
+				.peek(alreadyUsedPaths::add)
 				.toList();
 		} catch (IOException e) {
 			Assertions.fail(
@@ -301,6 +342,50 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			);
 			return null;
 		}
+	}
+
+	/**
+	 * Returns array of files with same name and different extension from the same directory.
+	 */
+	@Nonnull
+	private static List<Path> findVariants(@Nonnull Path theFile, @Nonnull Set<Path> alreadyUsedPaths, @Nonnull String[] variants) {
+		Integer indexOfMainVariant = null;
+		final String theFileName = theFile.getFileName().toString();
+		final String theFileExtension = getFileNameExtension(theFile);
+		if (NOT_TESTED_LANGUAGES.contains(theFileExtension)) {
+			return Collections.emptyList();
+		}
+		for (int i = 0; i < variants.length; i++) {
+			if (theFileName.contains(variants[i])) {
+				indexOfMainVariant = i;
+				break;
+			}
+		}
+		if (indexOfMainVariant == null) {
+			throw new IllegalArgumentException("The file name `" + theFileName + "` must contain one of the variants: " + Arrays.toString(variants) + "!");
+		}
+
+		final List<Path> variantsFiles = new LinkedList<>();
+		for (int i = 0; i < variants.length; i++) {
+			if (i != indexOfMainVariant) {
+				final String variant = variants[i];
+				final Path variantFile = theFile.getParent().resolve(theFileName.replace(variants[indexOfMainVariant], variant)).normalize();
+				if (!alreadyUsedPaths.contains(variantFile)) {
+					alreadyUsedPaths.add(variantFile);
+					variantsFiles.add(variantFile);
+				}
+			}
+		}
+
+		return variantsFiles;
+	}
+
+	/**
+	 * Creates path relative to the root directory.
+	 */
+	@Nonnull
+	private static Path createPathRelativeToRootDirectory(@Nonnull Path rootDirectory, @Nonnull String path) {
+		return rootDirectory.resolve(!path.isEmpty() && path.charAt(0) == '/' ? path.substring(1) : path).normalize();
 	}
 
 	/**
@@ -317,7 +402,17 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final List<DynamicNode> nodes = walker
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
-					final List<DynamicTest> tests = this.createTests(it);
+					final List<DynamicTest> tests = this.createTests(
+						Environment.DEMO_SERVER,
+						it,
+						new ExampleFilter[]{
+//							ExampleFilter.CSHARP,
+							ExampleFilter.JAVA,
+							ExampleFilter.REST,
+							ExampleFilter.GRAPHQL,
+							ExampleFilter.EVITAQL
+						}
+					);
 					if (tests.isEmpty()) {
 						return null;
 					} else {
@@ -343,7 +438,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/operate/monitor.md")
+			Environment.DEMO_SERVER,
+			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
+			ExampleFilter.values()
 		).stream();
 	}
 
@@ -358,8 +455,10 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentationAndCreateOtherLanguageSnippets() {
 		return this.createTests(
-			getRootDirectory().resolve("documentation/user/en/query/ordering/reference.md"),
-			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
+			Environment.DEMO_SERVER,
+			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
+			ExampleFilter.values(),
+			CreateSnippets.MARKDOWN, /*CreateSnippets.JAVA,*/ CreateSnippets.GRAPHQL, CreateSnippets.REST/*, CreateSnippets.CSHARP*/
 		).stream();
 	}
 
@@ -368,16 +467,24 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Method returns empty collection if no code block is found.
 	 */
 	@Nonnull
-	private List<DynamicTest> createTests(@Nonnull Path path, @Nonnull CreateSnippets... createSnippets) {
+	private List<DynamicTest> createTests(
+		@Nonnull Environment profile,
+		@Nonnull Path path,
+		@Nonnull ExampleFilter[] exampleFilters,
+		@Nonnull CreateSnippets... createSnippets
+	) {
 		final Path rootDirectory = getRootDirectory();
 		// and create an index for them for resolving the dependencies
 		final Map<Path, CodeSnippet> codeSnippetIndex = new HashMap<>();
+		final Set<String> filteredExtensions = Arrays.stream(exampleFilters)
+			.map(ExampleFilter::getExtension)
+			.collect(Collectors.toSet());
 
 		final String fileContent = readFileOrThrowException(path);
 		final AtomicInteger index = new AtomicInteger();
 		final List<CodeSnippet> codeSnippets = new LinkedList<>();
 		final TestContextProvider contextAccessor = new TestContextProvider();
-		final Set<Path> alreadyUsedRelatedResources = new HashSet<>();
+		final Set<Path> alreadyUsedPaths = new HashSet<>();
 
 		final Matcher sourceCodeMatcher = SOURCE_CODE_PATTERN.matcher(fileContent);
 		while (sourceCodeMatcher.find()) {
@@ -391,6 +498,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 						null,
 						null,
 						convertToRunnable(
+							profile,
 							format,
 							content,
 							rootDirectory,
@@ -398,14 +506,14 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							null,
 							contextAccessor,
 							codeSnippetIndex,
-							null
+							Collections.emptyList()
 						)
 					)
 				);
 			}
 		}
 
-		final Map<Path, OutputSnippet> outputSnippetIndex = new HashMap<>();
+		final Map<Path, List<OutputSnippet>> outputSnippetIndex = new HashMap<>();
 		final Matcher mdIncludeMatcher = MD_INCLUDE_PATTERN.matcher(fileContent);
 		while (mdIncludeMatcher.find()) {
 			final String sourceVariable = mdIncludeMatcher.group(2);
@@ -414,24 +522,36 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			final Optional<Path> sourceExampleFile = outputSnippetFormatBase.flatMap(UserDocumentationTest::stripFileNameOfExtension);
 			final boolean isSourceExampleFileUsable = sourceExampleFile.map(UserDocumentationTest::hasFileNameExtension).orElse(false);
 			outputSnippetFormatBase.ifPresent(
-				base -> outputSnippetIndex.put(
-					isSourceExampleFileUsable ? sourceExampleFile.get() : base,
-					new OutputSnippet(
-						isSourceExampleFileUsable ? getFileNameExtension(base) : "md",
-						outputSnippetFile, sourceVariable
+				base -> outputSnippetIndex
+					.computeIfAbsent(
+						isSourceExampleFileUsable ? sourceExampleFile.get() : base, thePath -> new LinkedList<>()
 					)
-				));
+					.add(
+						new OutputSnippet(
+							isSourceExampleFileUsable ? getFileNameExtension(base) : "md",
+							outputSnippetFile, sourceVariable
+						)
+					));
 		}
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
 			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(5));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
-			// todo lho: temporary skip testing of source code tab if we dont support its current execution yet
 			if (ofNullable(sourceCodeTabsMatcher.group(2)).map(it -> it.contains("ignoreTest")).orElse(false)) {
 				continue;
 			}
+			final boolean isLocal = sourceCodeTabsMatcher.group(4) != null && "local".equals(sourceCodeTabsMatcher.group(4).trim());
+			final Environment environment = isLocal ? Environment.LOCALHOST : profile;
+
+			if (profile == Environment.LOCALHOST && isLocal) {
+				// we need to skip the local tests when profile is localhost and the example is local
+				// it starts local instance of evitaDB which will fail on already opened ports
+				continue;
+			}
+
 			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				alreadyUsedPaths.add(referencedFile);
 				final Path[] requiredScripts = ofNullable(sourceCodeTabsMatcher.group(2))
 					.map(
 						requires -> Arrays.stream(requires.split(","))
@@ -440,21 +560,23 @@ public class UserDocumentationTest implements EvitaTestSupport {
 							.toArray(Path[]::new)
 					)
 					.orElse(null);
-				final OutputSnippet outputSnippet = outputSnippetIndex.get(referencedFile);
+				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
+					.orElse(Collections.emptyList());
 				final CodeSnippet codeSnippet = new CodeSnippet(
 					"Example `" + referencedFile.getFileName() + "`",
 					referencedFileExtension,
-					referencedFile.normalize(),
-					findRelatedFiles(referencedFile, alreadyUsedRelatedResources)
+					referencedFile,
+					findRelatedFiles(referencedFile, alreadyUsedPaths, codeSnippetIndex)
 						.stream()
 						.map(relatedFile -> {
 							final String relatedFileExtension = getFileNameExtension(relatedFile);
 							return new CodeSnippet(
 								"Example `" + relatedFile.getFileName() + "`",
 								relatedFileExtension,
-								relatedFile.normalize(),
+								relatedFile,
 								null,
 								convertToRunnable(
+									environment,
 									relatedFileExtension,
 									readFileOrThrowException(relatedFile),
 									rootDirectory,
@@ -462,13 +584,85 @@ public class UserDocumentationTest implements EvitaTestSupport {
 									requiredScripts,
 									contextAccessor,
 									codeSnippetIndex,
-									relatedFileExtension.equals("cs") ? outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) : outputSnippetIndex.get(relatedFile),
+									ofNullable(
+										relatedFileExtension.equals("cs") ?
+											outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) :
+											outputSnippetIndex.get(relatedFile)
+									).orElse(Collections.emptyList()),
 									createSnippets
 								)
 							);
 						})
 						.toArray(CodeSnippet[]::new),
 					convertToRunnable(
+						environment,
+						referencedFileExtension,
+						readFileOrThrowException(referencedFile),
+						rootDirectory,
+						referencedFile,
+						requiredScripts,
+						contextAccessor,
+						codeSnippetIndex,
+						outputSnippet,
+						createSnippets
+					)
+				);
+				codeSnippets.add(codeSnippet);
+				codeSnippetIndex.put(codeSnippet.path(), codeSnippet);
+			}
+		}
+
+		final Matcher sourceAlternativeTabsMatcher = SOURCE_ALTERNATIVE_TABS_PATTERN.matcher(fileContent);
+		while (sourceAlternativeTabsMatcher.find()) {
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceAlternativeTabsMatcher.group(4));
+			final String referencedFileExtension = getFileNameExtension(referencedFile);
+			final Path[] requiredScripts = ofNullable(sourceAlternativeTabsMatcher.group(2))
+				.map(
+					requires -> Arrays.stream(requires.split(","))
+						.filter(it -> !it.isBlank())
+						.map(it -> createPathRelativeToRootDirectory(rootDirectory, it).normalize())
+						.toArray(Path[]::new)
+				)
+				.orElse(null);
+			final String[] variants = sourceAlternativeTabsMatcher.group(3).split("\\|");
+			if (!NOT_TESTED_LANGUAGES.contains(referencedFileExtension)) {
+				alreadyUsedPaths.add(referencedFile);
+				final List<OutputSnippet> outputSnippet = ofNullable(outputSnippetIndex.get(referencedFile))
+					.orElse(Collections.emptyList());
+				final CodeSnippet codeSnippet = new CodeSnippet(
+					"Example `" + referencedFile.getFileName() + "`",
+					referencedFileExtension,
+					referencedFile,
+					findVariants(referencedFile, alreadyUsedPaths, variants)
+						.stream()
+						.map(relatedFile -> {
+							final String relatedFileExtension = getFileNameExtension(relatedFile);
+							return new CodeSnippet(
+								"Example `" + relatedFile.getFileName() + "`",
+								relatedFileExtension,
+								relatedFile,
+								null,
+								convertToRunnable(
+									profile,
+									relatedFileExtension,
+									readFileOrThrowException(relatedFile),
+									rootDirectory,
+									relatedFile,
+									requiredScripts,
+									contextAccessor,
+									codeSnippetIndex,
+									ofNullable(
+										relatedFileExtension.equals("cs") ?
+											outputSnippetIndex.get(Path.of(relatedFile.toString().replace(".cs", ".evitaql"))) :
+											outputSnippetIndex.get(relatedFile)
+									).orElse(Collections.emptyList()),
+									createSnippets
+								)
+							);
+						})
+						.toArray(CodeSnippet[]::new),
+					convertToRunnable(
+						profile,
 						referencedFileExtension,
 						readFileOrThrowException(referencedFile),
 						rootDirectory,
@@ -499,6 +693,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 								ofNullable(it.relatedSnippets()).stream().flatMap(Arrays::stream)
 							)
 						)
+						.filter(it -> filteredExtensions.contains(it.format()))
 						.map(
 							codeSnippet ->
 								dynamicTest(
@@ -518,11 +713,15 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Creates path relative to the root directory.
+	 * Enum that covers all supported example types that can be run.
 	 */
-	@Nonnull
-	private Path createPathRelativeToRootDirectory(@Nonnull Path rootDirectory, @Nonnull String path) {
-		return rootDirectory.resolve(!path.isEmpty() && path.charAt(0) == '/' ? path.substring(1) : path);
+	@RequiredArgsConstructor
+	public enum ExampleFilter {
+
+		EVITAQL("evitaql"), JAVA("java"), GRAPHQL("graphql"), REST("rest"), CSHARP("cs");
+
+		@Getter private final String extension;
+
 	}
 
 	/**
@@ -577,7 +776,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		@Getter
 		private final List<DynamicTest> tearDownTests = new LinkedList<>();
 		@SuppressWarnings("rawtypes")
-		private final Map<Class<?>, Supplier> contexts = new HashMap<>();
+		private final Map<ContextKey, Supplier> contexts = new HashMap<>();
 
 		/**
 		 * Provides or creates and stores new instance of {@link Supplier} that provides access to the {@link TestContext}
@@ -585,15 +784,16 @@ public class UserDocumentationTest implements EvitaTestSupport {
 		 * executed.
 		 */
 		@Nonnull
-		public <S extends TestContext, T extends TestContextFactory<S>> Supplier<S> get(@Nonnull Class<T> factoryClass) {
+		public <S extends TestContext, T extends TestContextFactory<S>> Supplier<S> get(@Nonnull Environment profile, @Nonnull Class<T> factoryClass) {
 			//noinspection unchecked
 			return (Supplier<S>) contexts.computeIfAbsent(
-				factoryClass,
-				theFactoryClass -> {
+				new ContextKey(profile, factoryClass),
+				contextKey -> {
 					try {
+						final Class<?> theFactoryClass = contextKey.factoryClass();
 						@SuppressWarnings("unchecked") final TestContextFactory<S> factory = (TestContextFactory<S>) theFactoryClass.getConstructor().newInstance();
-						ofNullable(factory.getInitTest()).ifPresent(initTests::add);
-						ofNullable(factory.getTearDownTest()).ifPresent(tearDownTests::add);
+						ofNullable(factory.getInitTest(profile)).ifPresent(initTests::add);
+						ofNullable(factory.getTearDownTest(profile)).ifPresent(tearDownTests::add);
 						return factory::getContext;
 					} catch (Exception e) {
 						Assertions.fail(e);
@@ -602,6 +802,19 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				}
 			);
 		}
+
+		/**
+		 * Cache key for {@link TestContextProvider#contexts}.
+		 *
+		 * @param profile      environment
+		 * @param factoryClass factory class
+		 */
+		record ContextKey(
+			@Nonnull Environment profile,
+			@Nonnull Class<?> factoryClass
+		) {
+		}
+
 	}
 
 }

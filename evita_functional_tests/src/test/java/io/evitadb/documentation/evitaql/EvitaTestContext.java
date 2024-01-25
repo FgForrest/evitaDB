@@ -24,6 +24,7 @@
 package io.evitadb.documentation.evitaql;
 
 import io.evitadb.api.EvitaContract;
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.EvitaClientConfiguration;
@@ -55,16 +56,24 @@ public class EvitaTestContext implements TestContext {
 	 */
 	@Nonnull @Getter private final RestQueryConverter restQueryConverter;
 
-	public EvitaTestContext() {
+	public EvitaTestContext(@Nonnull Environment profile) {
 		this.evitaContract = new EvitaClient(
-			EvitaClientConfiguration.builder()
-				.host("demo.evitadb.io")
-				.port(5556)
-				// demo server provides Let's encrypt trusted certificate
-				.useGeneratedCertificate(false)
-				// the client will not be mutually verified by the server side
-				.mtlsEnabled(false)
-				.build()
+			profile == Environment.LOCALHOST ?
+				EvitaClientConfiguration.builder()
+					.host("localhost")
+					.port(5556)
+					.useGeneratedCertificate(true)
+					.mtlsEnabled(true)
+					.build()
+				:
+				EvitaClientConfiguration.builder()
+					.host("demo.evitadb.io")
+					.port(5556)
+					// demo server provides Let's encrypt trusted certificate
+					.useGeneratedCertificate(false)
+					// the client will not be mutually verified by the server side
+					.mtlsEnabled(false)
+					.build()
 		);
 
 		this.graphQLQueryConverter = new GraphQLQueryConverter(evitaContract);

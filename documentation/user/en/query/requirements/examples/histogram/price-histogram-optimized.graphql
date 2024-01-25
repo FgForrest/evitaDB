@@ -1,0 +1,28 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeStartsWith: "alcatel",
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceInCurrency: EUR,
+      priceValidInNow: true
+    }
+  ) {
+    extraResults {
+      priceHistogram {
+        min
+        max
+        overallCount
+        buckets(
+          requestedCount: 20
+          behavior: OPTIMIZED
+        ) {
+          threshold
+          occurrences
+          requested
+        }
+      }
+    }
+  }
+}

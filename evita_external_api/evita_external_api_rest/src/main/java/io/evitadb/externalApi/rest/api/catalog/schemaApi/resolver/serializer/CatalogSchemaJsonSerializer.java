@@ -25,7 +25,6 @@ package io.evitadb.externalApi.rest.api.catalog.schemaApi.resolver.serializer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -33,8 +32,10 @@ import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.externalApi.api.catalog.model.VersionedDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.AttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.CatalogSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.EntityAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.GlobalAttributeSchemaDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaDescriptor;
+import io.evitadb.externalApi.api.catalog.schemaApi.model.NamedSchemaWithDeprecationDescriptor;
 import io.evitadb.externalApi.rest.api.resolver.serializer.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.resolver.serializer.ObjectJsonSerializer;
 import io.evitadb.externalApi.rest.io.RestHandlingContext;
@@ -86,14 +87,14 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	protected ObjectNode serializeAttributeSchemas(@Nonnull AttributeSchemaProvider<? extends AttributeSchemaContract> attributeSchemaProvider) {
-		final Collection<? extends AttributeSchemaContract> attributeSchemas = attributeSchemaProvider.getAttributes().values();
+	protected ObjectNode serializeAttributeSchemas(@Nonnull AttributeSchemaProvider<GlobalAttributeSchemaContract> globalAttributeSchemaProvider) {
+		final Collection<GlobalAttributeSchemaContract> globalAttributeSchemas = globalAttributeSchemaProvider.getAttributes().values();
 
 		final ObjectNode attributeSchemasMap = objectJsonSerializer.objectNode();
-		if (!attributeSchemas.isEmpty()) {
-			attributeSchemas.forEach(attributeSchema -> attributeSchemasMap.set(
-				attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
-				serializeAttributeSchema(attributeSchema)
+		if (!globalAttributeSchemas.isEmpty()) {
+			globalAttributeSchemas.forEach(globalAttributeSchema -> attributeSchemasMap.set(
+				globalAttributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION),
+				serializeAttributeSchema(globalAttributeSchema)
 			));
 		}
 
@@ -101,28 +102,27 @@ public class CatalogSchemaJsonSerializer extends SchemaJsonSerializer {
 	}
 
 	@Nonnull
-	private ObjectNode serializeAttributeSchema(@Nonnull AttributeSchemaContract attributeSchema) {
+	private ObjectNode serializeAttributeSchema(@Nonnull GlobalAttributeSchemaContract globalAttributeSchema) {
 		final ObjectNode attributeSchemaNode = objectJsonSerializer.objectNode();
-		attributeSchemaNode.put(AttributeSchemaDescriptor.NAME.name(), attributeSchema.getName());
-		attributeSchemaNode.set(AttributeSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(attributeSchema.getNameVariants()));
-		attributeSchemaNode.put(AttributeSchemaDescriptor.DESCRIPTION.name(), attributeSchema.getDescription());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.DEPRECATION_NOTICE.name(), attributeSchema.getDeprecationNotice());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUE.name(), attributeSchema.isUnique());
-		if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.UNIQUE_GLOBALLY.name(), globalAttributeSchema.isUniqueGlobally());
-		}
-		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), attributeSchema.isFilterable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), attributeSchema.isSortable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());
-		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(attributeSchema.getType()));
+		attributeSchemaNode.put(NamedSchemaDescriptor.NAME.name(), globalAttributeSchema.getName());
+		attributeSchemaNode.set(NamedSchemaDescriptor.NAME_VARIANTS.name(), serializeNameVariants(globalAttributeSchema.getNameVariants()));
+		attributeSchemaNode.put(NamedSchemaDescriptor.DESCRIPTION.name(), globalAttributeSchema.getDescription());
+		attributeSchemaNode.put(NamedSchemaWithDeprecationDescriptor.DEPRECATION_NOTICE.name(), globalAttributeSchema.getDeprecationNotice());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), globalAttributeSchema.getUniquenessType().toString());
+		attributeSchemaNode.put(GlobalAttributeSchemaDescriptor.GLOBAL_UNIQUENESS_TYPE.name(), globalAttributeSchema.getGlobalUniquenessType().toString());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.FILTERABLE.name(), globalAttributeSchema.isFilterable());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.SORTABLE.name(), globalAttributeSchema.isSortable());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.LOCALIZED.name(), globalAttributeSchema.isLocalized());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.NULLABLE.name(), globalAttributeSchema.isNullable());
+		attributeSchemaNode.put(EntityAttributeSchemaDescriptor.REPRESENTATIVE.name(), globalAttributeSchema.isRepresentative());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.TYPE.name(), DataTypeSerializer.serialize(globalAttributeSchema.getType()));
 		attributeSchemaNode.set(
 			AttributeSchemaDescriptor.DEFAULT_VALUE.name(),
-			Optional.ofNullable(attributeSchema.getDefaultValue())
+			Optional.ofNullable(globalAttributeSchema.getDefaultValue())
 				.map(objectJsonSerializer::serializeObject)
 				.orElse(null)
 		);
-		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), attributeSchema.getIndexedDecimalPlaces());
+		attributeSchemaNode.put(AttributeSchemaDescriptor.INDEXED_DECIMAL_PLACES.name(), globalAttributeSchema.getIndexedDecimalPlaces());
 
 		return attributeSchemaNode;
 	}

@@ -41,30 +41,27 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This `priceValidIn` is query accepts single {@link OffsetDateTime}
- * argument that represents the moment in time for which entity price must be valid.
- * If argument is not passed - current date and time (now) is used.
- *
- * Function returns true if entity has at least one price which validity start (valid from) is lesser or equal to passed
- * date and time and validity end (valid to) is greater or equal to passed date and time. This function is also affected by
- * {@link PriceInCurrency} and {@link PriceInPriceLists} functions that limits the examined prices as well.
- * When this query is used in the query returned entities will contain only prices which validity settings match
- * specified date and time.
- *
- * Only single `priceValidIn` query can be used in the query. Validity of the prices will not be taken into an account
- * when `priceValidIn` is not used in the query.
+ * The `priceValidIn` excludes all entities that don't have a valid price for sale at the specified date and time. If
+ * the price doesn't have a validity property specified, it passes all validity checks.
  *
  * Example:
  *
- * ```
+ * <pre>
  * priceValidIn(2020-07-30T20:37:50+00:00)
- * ```
+ * </pre>
+ *
+ * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
+ * Currently, there is no way to switch context between different parts of the filter and build queries such as find
+ * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/filtering/price#price-valid-in">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "validIn",
 	shortDescription = "The constraint checks if entity has selling price valid at the passed moment.",
+	userDocsLink = "/documentation/filtering/price#price-valid-in",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceValidIn extends AbstractFilterConstraintLeaf

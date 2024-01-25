@@ -28,6 +28,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.dataType.PaginatedList;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -37,24 +38,30 @@ import java.io.Serializable;
 import java.util.Optional;
 
 /**
- * This `page` constraint controls count of the entities in the query output. It allows specifying 2 arguments in following order:
+ * The `page` requirement controls the number and slice of entities returned in the query response. If no page
+ * requirement is used in the query, the default page 1 with the default page size 20 is used. If the requested page
+ * exceeds the number of available pages, a result with the first page is returned. An empty result is only returned if
+ * the query returns no result at all or the page size is set to zero. By automatically returning the first page result
+ * when the requested page is exceeded, we try to avoid the need to issue a secondary request to fetch the data.
  *
- * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) pageNumber**: number of the page of
- * results that are expected to be returned, starts with 1, must be greater than zero (mandatory)
- * - **[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html) pageSize**: number of entities on
- * a single page, must be greater than zero (mandatory)
+ * The information about the actual returned page and data statistics can be found in the query response, which is
+ * wrapped in a so-called data chunk object. In case of the page constraint, the {@link PaginatedList} is used as data
+ * chunk object.
  *
- * Example - return first page with 24 items:
+ * Example:
  *
- * ```
+ * <pre>
  * page(1, 24)
- * ```
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/paging#page">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "page",
-	shortDescription = "The constraint specifies which page of found entities will be returned."
+	shortDescription = "The constraint specifies which page of found entities will be returned.",
+	userDocsLink = "/documentation/query/requirements/paging#page"
 )
 public class Page extends AbstractRequireConstraintLeaf implements GenericConstraint<RequireConstraint>, ChunkingRequireConstraint {
 	@Serial private static final long serialVersionUID = 1300354074537839696L;

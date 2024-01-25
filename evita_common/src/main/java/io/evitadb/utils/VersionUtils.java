@@ -24,6 +24,7 @@
 package io.evitadb.utils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Enumeration;
@@ -40,7 +41,8 @@ import static java.util.Optional.ofNullable;
 public class VersionUtils {
 	private static final String DEFAULT_MANIFEST_LOCATION = "META-INF/MANIFEST.MF";
 	private static final String IMPLEMENTATION_VENDOR_TITLE = "Implementation-Title";
-	private static final String IO_EVITADB_TITLE = "evitaDB - Standalone server";
+	private static final String IO_EVITADB_SERVER_TITLE = "evitaDB - Standalone server";
+	private static final String IO_EVITADB_CLIENT_TITLE = "evitaDB - Java driver (gRPC client side)";
 	private static final String IMPLEMENTATION_VERSION = "Implementation-Version";
 
 	/**
@@ -54,7 +56,8 @@ public class VersionUtils {
 				try (final InputStream manifestStream = resources.nextElement().openStream()) {
 					final Manifest manifest = new Manifest(manifestStream);
 					final Attributes mainAttributes = manifest.getMainAttributes();
-					if (IO_EVITADB_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE))) {
+					if (IO_EVITADB_SERVER_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE)) ||
+						IO_EVITADB_CLIENT_TITLE.equals(mainAttributes.getValue(IMPLEMENTATION_VENDOR_TITLE))) {
 						return ofNullable(mainAttributes.getValue(IMPLEMENTATION_VERSION)).orElse("?");
 					}
 				}
@@ -64,4 +67,67 @@ public class VersionUtils {
 		}
 		return "?";
 	}
+
+	/**
+	 * A class representing a semantic version.
+	 *
+	 * @param major the major version
+	 * @param minor the minor version
+	 * @param patch the patch version
+	 * @see <a href="https://semver.org/">Semantic Versioning</a>
+	 */
+	public record SemVer(
+		int major,
+		int minor,
+		@Nullable String patch
+	) {
+
+		/**
+		 * Constructs a SemVer object from a string version.
+		 *
+		 * @param version the string version in the format "major.minor.patch"
+		 */
+		private SemVer(@Nonnull String... version) {
+			this(
+				Integer.parseInt(version[0]),
+				Integer.parseInt(version[1]),
+				version.length > 2 ? version[2] : null
+			);
+		}
+
+		/**
+		 * Constructs a SemVer object from a string version.
+		 *
+		 * @param version the string version in the format "major.minor.patch"
+		 */
+		public SemVer(@Nonnull String version) {
+			this(version.replace("-SNAPSHOT", "").split("\\."));
+		}
+
+		@Override
+		public String toString() {
+			// construct the SemVer string back again
+			return major + "." + minor + (patch == null ? "" : "." + patch);
+		}
+
+		/**
+		 * Compares two SemVer objects based on their major and minor versions.
+		 *
+		 * @param v1 the first SemVer object to compare
+		 * @param v2 the second SemVer object to compare
+		 * @return 0 if the major and minor versions of the two objects are equal,
+		 *         1 if v1 has a greater major or minor version than v2,
+		 *        -1 if v1 has a lesser major or minor version than v2
+		 */
+		public static int compare(@Nonnull SemVer v1, @Nonnull SemVer v2) {
+			if (v1.major() > v2.major() || v1.minor() > v2.minor()) {
+				return 1;
+			} else if (v1.major() < v2.major() || v1.minor() < v2.minor()) {
+				return -1;
+			} else {
+				return 0;
+			}
+		}
+	}
+
 }

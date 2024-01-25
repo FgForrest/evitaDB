@@ -1,0 +1,27 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "referenceBrandHaving" : [
+      {
+        "entityHaving" : {
+          "attributeCodeEquals" : "apple"
+        }
+      }
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "referenceBrandContent" : {
+        "entityFetch" : {
+          "attributeContent" : [
+            "code"
+          ]
+        }
+      }
+    }
+  }
+}

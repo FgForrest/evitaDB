@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedData
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
+import io.evitadb.api.requestResponse.data.DevelopmentConstants;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -66,7 +67,10 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -139,19 +143,25 @@ public class EntityConverter {
 		if (EntityReference.class.isAssignableFrom(expectedType)) {
 			throw new EvitaInternalError("EntityReference is not expected in this method!");
 		} else {
+			final List<ReferenceContract> references = grpcEntity.getReferencesList()
+				.stream()
+				.map(it -> toReference(entitySchema, it))
+				.collect(Collectors.toList());
+
+			if (DevelopmentConstants.isTestRun()) {
+				// for test purposes we need to have the references data sorted by their keys to make tests reproducible
+				references.sort(Comparator.comparing(ReferenceContract::getReferenceKey));
+			}
+
 			final EntityDecorator sealedEntity = new EntityDecorator(
 				Entity._internalBuild(
 					grpcEntity.getPrimaryKey(),
 					grpcEntity.getVersion(),
 					entitySchema,
 					grpcEntity.hasParent() ? grpcEntity.getParent().getValue() : null,
-					grpcEntity.getReferencesList()
-						.stream()
-						.map(it -> toReference(entitySchema, it))
-						.collect(Collectors.toList()),
-					new Attributes(
+					references,
+					new EntityAttributes(
 						entitySchema,
-						null,
 						toAttributeValues(
 							grpcEntity.getGlobalAttributesMap(),
 							grpcEntity.getLocalizedAttributesMap()
@@ -444,21 +454,9 @@ public class EntityConverter {
 			.setPriceId(price.priceId())
 			.setPriceList(price.priceList())
 			.setCurrency(GrpcCurrency.newBuilder().setCode(price.currency().getCurrencyCode()).build())
-			.setPriceWithoutTax(GrpcBigDecimal.newBuilder().
-				setValueString(price.priceWithoutTax().toString())
-				.setValue(ByteString.copyFrom(price.priceWithoutTax().unscaledValue().toByteArray()))
-				.setScale(price.priceWithoutTax().scale())
-				.setPrecision(price.priceWithoutTax().precision()).build())
-			.setPriceWithTax(GrpcBigDecimal.newBuilder()
-				.setValueString(price.priceWithTax().toString())
-				.setValue(ByteString.copyFrom(price.priceWithTax().unscaledValue().toByteArray()))
-				.setScale(price.priceWithTax().scale())
-				.setPrecision(price.priceWithTax().precision()).build())
-			.setTaxRate(GrpcBigDecimal.newBuilder()
-				.setValueString(price.taxRate().toString())
-				.setValue(ByteString.copyFrom(price.taxRate().unscaledValue().toByteArray()))
-				.setScale(price.taxRate().scale())
-				.setPrecision(price.taxRate().precision()).build())
+			.setPriceWithoutTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithoutTax()))
+			.setPriceWithTax(EvitaDataTypesConverter.toGrpcBigDecimal(price.priceWithTax()))
+			.setTaxRate(EvitaDataTypesConverter.toGrpcBigDecimal(price.taxRate()))
 			.setSellable(price.sellable())
 			.setVersion(price.version());
 		if (price.innerRecordId() != null) {
@@ -563,29 +561,42 @@ public class EntityConverter {
 	 * to the collection of {@link AttributeValue} that can be used on the client side.
 	 */
 	@Nonnull
-	private static Collection<AttributeValue> toAttributeValues(
+	private static Map<AttributeKey, AttributeValue> toAttributeValues(
 		@Nonnull Map<String, GrpcEvitaValue> globalAttributesMap,
 		@Nonnull Map<String, GrpcLocalizedAttribute> localizedAttributesMap
 	) {
-		final List<AttributeValue> result = new ArrayList<>(globalAttributesMap.size() + localizedAttributesMap.size());
+		final AttributeValue[] attributeValueTuples = new AttributeValue[
+			globalAttributesMap.size() +
+				localizedAttributesMap.values().stream().mapToInt(it -> it.getAttributesMap().size()).sum()
+		];
+		int index = 0;
 		for (Entry<String, GrpcLocalizedAttribute> entry : localizedAttributesMap.entrySet()) {
 			final Locale locale = Locale.forLanguageTag(entry.getKey());
 			final GrpcLocalizedAttribute localizedAttributeSet = entry.getValue();
 			for (Entry<String, GrpcEvitaValue> attributeEntry : localizedAttributeSet.getAttributesMap().entrySet()) {
-				result.add(
-					toAttributeValue(
-						new AttributeKey(attributeEntry.getKey(), locale),
-						attributeEntry.getValue()
-					)
+				attributeValueTuples[index++] = toAttributeValue(
+					new AttributeKey(attributeEntry.getKey(), locale),
+					attributeEntry.getValue()
 				);
 			}
 		}
 		for (Entry<String, GrpcEvitaValue> entry : globalAttributesMap.entrySet()) {
 			final String attributeName = entry.getKey();
-			result.add(
-					toAttributeValue(new AttributeKey(attributeName), entry.getValue())
-			);
+			attributeValueTuples[index++] = toAttributeValue(new AttributeKey(attributeName), entry.getValue());
 		}
+
+		if (DevelopmentConstants.isTestRun()) {
+			// for test purposes we need to have the associated data sorted by their keys to make tests reproducible
+			Arrays.sort(attributeValueTuples, Comparator.comparing(AttributeValue::key));
+		}
+
+		final LinkedHashMap<AttributeKey, AttributeValue> result = CollectionUtils.createLinkedHashMap(
+			globalAttributesMap.size() + localizedAttributesMap.size()
+		);
+		for (AttributeValue attributeValue : attributeValueTuples) {
+			result.put(attributeValue.key(), attributeValue);
+		}
+
 		return result;
 	}
 
@@ -608,32 +619,46 @@ public class EntityConverter {
 	 * {@link AssociatedDataValue} that can be used on the client side.
 	 */
 	@Nonnull
-	private static Collection<AssociatedDataValue> toAssociatedDataValues(
+	private static LinkedHashMap<AssociatedDataKey, AssociatedDataValue> toAssociatedDataValues(
 		@Nonnull Map<String, GrpcEvitaAssociatedDataValue> globalAssociatedDataMap,
 		@Nonnull Map<String, GrpcLocalizedAssociatedData> localizedAssociatedDataMap
 	) {
-		final List<AssociatedDataValue> result = new ArrayList<>(globalAssociatedDataMap.size() + localizedAssociatedDataMap.size());
+		final AssociatedDataValue[] associatedDataTuples = new AssociatedDataValue[
+			globalAssociatedDataMap.size() +
+				localizedAssociatedDataMap.values().stream().mapToInt(it -> it.getAssociatedDataMap().size()).sum()
+		];
+		int index = 0;
 		for (Entry<String, GrpcLocalizedAssociatedData> entry : localizedAssociatedDataMap.entrySet()) {
 			final Locale locale = Locale.forLanguageTag(entry.getKey());
 			final GrpcLocalizedAssociatedData localizedAssociatedDataSet = entry.getValue();
 			for (Entry<String, GrpcEvitaAssociatedDataValue> associatedDataEntry : localizedAssociatedDataSet.getAssociatedDataMap().entrySet()) {
-				result.add(
-					toAssociatedDataValue(
-						new AssociatedDataKey(associatedDataEntry.getKey(), locale),
-						associatedDataEntry.getValue()
-					)
+				associatedDataTuples[index++] = toAssociatedDataValue(
+					new AssociatedDataKey(associatedDataEntry.getKey(), locale),
+					associatedDataEntry.getValue()
 				);
 			}
 		}
 		for (Entry<String, GrpcEvitaAssociatedDataValue> entry : globalAssociatedDataMap.entrySet()) {
 			final String associatedDataName = entry.getKey();
-			result.add(
-					toAssociatedDataValue(
-							new AssociatedDataKey(associatedDataName),
-							entry.getValue()
-					)
-			);
+			associatedDataTuples[index++] =
+				toAssociatedDataValue(
+					new AssociatedDataKey(associatedDataName),
+					entry.getValue()
+				);
 		}
+
+		if (DevelopmentConstants.isTestRun()) {
+			// for test purposes we need to have the associated data sorted by their keys to make tests reproducible
+			Arrays.sort(associatedDataTuples, Comparator.comparing(AssociatedDataValue::key));
+		}
+
+		final LinkedHashMap<AssociatedDataKey, AssociatedDataValue> result = CollectionUtils.createLinkedHashMap(
+			globalAssociatedDataMap.size() + localizedAssociatedDataMap.size()
+		);
+		for (AssociatedDataValue associatedDataTuple : associatedDataTuples) {
+			result.put(associatedDataTuple.key(), associatedDataTuple);
+		}
+
 		return result;
 	}
 

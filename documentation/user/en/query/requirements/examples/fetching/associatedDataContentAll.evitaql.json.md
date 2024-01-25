@@ -4,7 +4,7 @@
     {
       "primaryKey": 64703,
       "associatedData": {
-        "AssociatedDataKey[associatedDataName=allActiveUrls, locale=null]": [
+        "allActiveUrls": [
           {
             "locale": "cs",
             "url": "/cs/samsung"

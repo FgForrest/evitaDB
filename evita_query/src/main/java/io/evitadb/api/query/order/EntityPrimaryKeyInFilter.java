@@ -57,12 +57,15 @@ import java.io.Serializable;
  * The example will return the selected entities (if present) in the exact order that was used for array filtering them.
  * The ordering constraint is particularly useful when you have sorted set of entity primary keys from an external
  * system which needs to be maintained (for example, it represents a relevancy of those entities).
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/constant#exact-entity-primary-key-order-used-in-filter">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "inFilter",
 	shortDescription = "The constraint sorts returned entities by ordering of the values specified `entityPrimaryKeysInSet` in filter.",
+	userDocsLink = "/documentation/query/ordering/constant#exact-entity-primary-key-order-used-in-filter",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class EntityPrimaryKeyInFilter extends AbstractOrderConstraintLeaf implements EntityConstraint<OrderConstraint> {

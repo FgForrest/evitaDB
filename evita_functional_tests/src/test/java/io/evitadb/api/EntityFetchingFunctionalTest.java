@@ -28,6 +28,7 @@ import io.evitadb.api.exception.*;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesAvailabilityChecker;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -1373,6 +1374,90 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Entities should be found by their primary keys with all references without attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRetrieveEntitiesWithoutReferenceAttributes(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences().stream().noneMatch(ref -> ref.getAttributeValues().isEmpty())
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentAll()
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertTrue(
+						product.getReferences()
+							.stream()
+							.noneMatch(AttributesAvailabilityChecker::attributesAvailable)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Entities should be found by their primary keys with all references with all attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRetrieveEntitiesWithAllReferenceAttributes(Evita evita, List<SealedEntity> originalProducts) {
+		final Integer[] entitiesMatchingTheRequirements = getRequestedIdsByPredicate(
+			originalProducts,
+			it -> it.getReferences().stream().noneMatch(ref -> ref.getAttributeValues().isEmpty())
+		);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> productByPk = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(entitiesMatchingTheRequirements)
+						),
+						require(
+							entityFetch(
+								referenceContentAllWithAttributes()
+							),
+							page(1, 4)
+						)
+					)
+				);
+
+				assertEquals(4, productByPk.getRecordData().size());
+				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
+
+				for (SealedEntity product : productByPk.getRecordData()) {
+					assertTrue(
+						product.getReferences()
+							.stream()
+							.allMatch(AttributesAvailabilityChecker::attributesAvailable)
+					);
+				}
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Multiple entities with specific references with exactly stated attributes can be retrieved")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -1529,7 +1614,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					)
 				);
 
-				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getRecordData().size());
+				assertEquals(Math.min(entitiesMatchingTheRequirements.length, 20), productByPk.getRecordData().size());
 				assertEquals(entitiesMatchingTheRequirements.length, productByPk.getTotalRecordCount());
 
 				for (SealedEntity product : productByPk.getRecordData()) {
@@ -2740,7 +2825,10 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					productsWithLotsOfStores.keySet().iterator().next(),
 					referenceContent(
 						Entities.STORE,
-						filterBy(entityPrimaryKeyInSet(randomStores)),
+						filterBy(
+							entityPrimaryKeyInSet(randomStores),
+							entityLocaleEquals(LOCALE_CZECH)
+						),
 						orderBy(
 							entityProperty(
 								attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
@@ -2769,8 +2857,12 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 					.map(it -> it.getReferencedEntity().orElseThrow())
 					.map(it -> it.getAttribute(ATTRIBUTE_NAME, String.class))
 					.toArray(String[]::new);
+
+				final Collator collator = Collator.getInstance(CZECH_LOCALE);
 				assertArrayEquals(
-					Arrays.stream(receivedOrderedNames).sorted(Comparator.reverseOrder()).toArray(String[]::new),
+					Arrays.stream(receivedOrderedNames)
+						.sorted(new LocalizedStringComparator(collator).reversed())
+						.toArray(String[]::new),
 					receivedOrderedNames
 				);
 
@@ -3893,6 +3985,40 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 		);
 	}
 
+	@DisplayName("Should return products sorted by primary key in descending order")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductsSortedByPrimaryKeyInDescendingOrder(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = {12, 1, 18, 23, 5};
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(exactOrder)
+						),
+						orderBy(
+							entityPrimaryKeyNatural(OrderDirection.DESC)
+						)
+					)
+				);
+				assertEquals(5, products.getRecordData().size());
+				assertEquals(5, products.getTotalRecordCount());
+
+				Arrays.sort(exactOrder, (o1, o2) -> Integer.compare(o2, o1));
+				assertArrayEquals(
+					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products sorted by exact order in the filter constraint")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3947,6 +4073,40 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				);
 				assertEquals(5, products.getRecordData().size());
 				assertEquals(5, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					exactOrder,
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order with duplicate keys")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderWithDuplicateKeys(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Integer[] exactOrder = {12, 1};
+				final Integer[] duplicatedExactOrder = {12, 12, 1};
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(Arrays.stream(exactOrder).sorted().toArray(Integer[]::new))
+						),
+						orderBy(
+							entityPrimaryKeyExact(duplicatedExactOrder)
+						)
+					)
+				);
+				assertEquals(2, products.getRecordData().size());
+				assertEquals(2, products.getTotalRecordCount());
 
 				assertArrayEquals(
 					exactOrder,
@@ -4035,6 +4195,62 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 				assertThrows(
 					AttributeNotFoundException.class,
 					() -> productByPk.getAttributeValues("unknown")
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing explicitly specified localized attributes without specifying locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenAccessingExplicitlySpecifiedLocalizedAttributesWithoutSpecifyingLocale(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(2)
+							),
+							require(
+								entityFetch(
+									attributeContent(ATTRIBUTE_NAME, ATTRIBUTE_URL)
+								)
+							)
+						)
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when accessing explicitly specified localized associated data without specifying locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenAccessingExplicitlySpecifiedLocalizedAssociatedDataWithoutSpecifyingLocale(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EntityLocaleMissingException.class,
+					() -> session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(2)
+							),
+							require(
+								entityFetch(
+									associatedDataContent(ASSOCIATED_DATA_LABELS)
+								)
+							)
+						)
+					)
 				);
 				return null;
 			}
@@ -4247,7 +4463,7 @@ public class EntityFetchingFunctionalTest extends AbstractHundredProductsFunctio
 			.filter(
 				it -> it.getPrices(CURRENCY_USD, PRICE_LIST_BASIC).size() > 0 &&
 					it.getPrices(CURRENCY_USD, PRICE_LIST_REFERENCE).size() > 0 &&
-					it.getPrices(CURRENCY_USD, PRICE_LIST_B2B).size() > 0
+					it.getPrices(CURRENCY_USD, PRICE_LIST_VIP).size() > 0
 			)
 			.findFirst()
 			.orElseThrow();

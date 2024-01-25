@@ -1,4 +1,4 @@
-DELETE /rest/test-catalog/brand
+DELETE /rest/evita/brand
 
 {
   "filterBy": {

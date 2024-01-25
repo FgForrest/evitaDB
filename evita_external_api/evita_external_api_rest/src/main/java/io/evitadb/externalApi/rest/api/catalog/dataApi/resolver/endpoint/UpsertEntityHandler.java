@@ -57,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public class UpsertEntityHandler extends EntityHandler<EntityClassifier, CollectionRestHandlingContext> {
+public class UpsertEntityHandler extends EntityHandler<CollectionRestHandlingContext> {
 
 	@Nonnull private final RestEntityUpsertMutationConverter mutationResolver;
 	@Nonnull private final RequireConstraintResolver requireConstraintResolver;
@@ -85,7 +85,7 @@ public class UpsertEntityHandler extends EntityHandler<EntityClassifier, Collect
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<EntityClassifier> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final UpsertEntityUpsertRequestDto requestData = parseRequestBody(exchange, UpsertEntityUpsertRequestDto.class);
 
 		if (withPrimaryKeyInPath) {
@@ -112,7 +112,7 @@ public class UpsertEntityHandler extends EntityHandler<EntityClassifier, Collect
 			? exchange.session().upsertAndFetchEntity(entityMutation, requires)
 			: exchange.session().upsertEntity(entityMutation);
 
-		return new SuccessEndpointResponse<>(upsertedEntity);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, upsertedEntity));
 	}
 
 	@Nonnull

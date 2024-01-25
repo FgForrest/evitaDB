@@ -35,23 +35,29 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `require` is container for listing all additional requirements for th equery. It is mandatory container when
- * any requirement query is to be used.
+ * Requirements have no direct parallel in other database languages. They define sideway calculations, paging,
+ * the amount of data fetched for each returned entity, and so on, but never affect the number or order of returned
+ * entities. They also allow to compute additional calculations that relate to the returned entities, but contain
+ * other contextual data - for example hierarchy data for creating menus, facet summary for parametrized filter,
+ * histograms for charts, and so on.
  *
  * Example:
  *
- * ```
+ * <pre>
  * require(
  *     page(1, 2),
- *     entityBody()
+ *     entityFetch()
  * )
- * ```
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/basics#require">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "require",
-	shortDescription = "The container encapsulates inner require constraints into one main constraint that is required by the query"
+	shortDescription = "The container encapsulates inner require constraints into one main constraint that is required by the query",
+	userDocsLink = "/documentation/query/basics#require"
 )
 public class Require extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 6115101893250263038L;

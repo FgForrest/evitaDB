@@ -66,13 +66,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashSet;
 
 /**
- * Generic HTTP request handler for processing {@link GraphQLRequest}s and returning {@link GraphQLResponse}s using passed
+ * HTTP request handler for processing {@link GraphQLRequest}s and returning {@link GraphQLResponse}s using passed
  * configured instance of {@link GraphQL}.
  *
  * @author Lukáš Hornych, FG Forrest a.s. 2022
  */
 @Slf4j
-public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, GraphQLResponse<?>> {
+public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
 
     /**
      * Set of GraphQL exceptions that are caused by invalid user input and thus shouldn't return server error.
@@ -114,7 +114,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
 
     @Override
     @Nonnull
-    protected EndpointResponse<GraphQLResponse<?>> doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
+    protected EndpointResponse doHandleRequest(@Nonnull GraphQLEndpointExchange exchange) {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
         final ClientContextExtension clientContextExtension = graphQLRequest.clientContextExtension();
         final GraphQLResponse<?> graphQLResponse = clientContext.executeWithClientAndRequestId(
@@ -123,7 +123,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
             clientContextExtension.requestId(),
             () -> executeRequest(graphQLRequest)
         );
-        return new SuccessEndpointResponse<>(graphQLResponse);
+        return new SuccessEndpointResponse(graphQLResponse);
     }
 
     @Nonnull
@@ -222,7 +222,7 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange, Gra
     }
 
     @Override
-    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull GraphQLResponse<?> response) {
+    protected void writeResult(@Nonnull GraphQLEndpointExchange exchange, @Nonnull OutputStream outputStream, @Nonnull Object response) {
         try {
             objectMapper.writeValue(outputStream, response);
         } catch (IOException e) {

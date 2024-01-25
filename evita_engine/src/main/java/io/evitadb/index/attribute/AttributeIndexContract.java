@@ -55,8 +55,11 @@ public interface AttributeIndexContract {
 	 * @throws UniqueValueViolationException when value is not unique
 	 */
 	void insertUniqueAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale,
-		@Nonnull Object value, int recordId
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
 	);
 
 	/**
@@ -65,16 +68,22 @@ public interface AttributeIndexContract {
 	 * @throws IllegalArgumentException when passed value doesn't match the unique value associated with the record key
 	 */
 	void removeUniqueAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale,
-		@Nonnull Object value, int recordId
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
 	);
 
 	/**
 	 * Method inserts new filterable attribute to the index.
 	 */
 	void insertFilterAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale,
-		@Nonnull Object value, int recordId
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
 	);
 
 	/**
@@ -83,8 +92,37 @@ public interface AttributeIndexContract {
 	 * @throws IllegalArgumentException when passed value doesn't match the filterable value associated with the record key
 	 */
 	void removeFilterAttribute(
-		@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Set<Locale> allowedLocales, @Nullable Locale locale,
-		@Nonnull Object value, int recordId
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object value,
+		int recordId
+	);
+
+	/**
+	 * Method inserts or updates existing filterable attribute in the index. The method is used only for array type
+	 * attributes and allows to extend existing array with new values without the need to remove the whole array and
+	 * insert it again.
+	 */
+	void addDeltaFilterAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
+	);
+
+	/**
+	 * Method updates existing filterable attribute and removes the values from the index. The method is used only for
+	 * array type attributes and allows to extend existing array with new values without the need to remove the whole
+	 * array and insert it again.
+	 */
+	void removeDeltaFilterAttribute(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Locale> allowedLocales,
+		@Nullable Locale locale,
+		@Nonnull Object[] value,
+		int recordId
 	);
 
 	/**
@@ -144,19 +182,13 @@ public interface AttributeIndexContract {
 	Set<AttributeKey> getUniqueIndexes();
 
 	/**
-	 * Returns {@link UniqueIndex} for passed lookup key.
-	 */
-	@Nullable
-	UniqueIndex getUniqueIndex(@Nonnull AttributeKey lookupKey);
-
-	/**
 	 * Returns index that maintains unique attributes to record ids information.
 	 *
 	 * @param locale might not be passed for language agnostic attributes
-	 * @return NULL value when there is no unique index associated with this `attributeName`
+	 * @return NULL value when there is no unique index associated with this `attributeSchema`
 	 */
 	@Nullable
-	UniqueIndex getUniqueIndex(@Nonnull String attributeName, @Nullable Locale locale);
+	UniqueIndex getUniqueIndex(@Nonnull AttributeSchemaContract attributeSchema, @Nullable Locale locale);
 
 	/**
 	 * Returns collection of all filter indexes in this {@link AttributeIndex} instance.

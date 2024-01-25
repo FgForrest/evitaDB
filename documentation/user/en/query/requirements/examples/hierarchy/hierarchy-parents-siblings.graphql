@@ -11,17 +11,15 @@
     extraResults {
       hierarchy {
         categories {
-          parentAxis: parents(
-            siblings: { }
-          ) {
+          parentAxis: parents(siblings: { }) {
             level
             entity {
               primaryKey
-              parentPrimaryKey
               attributes {
                 code
               }
             }
+            requested
             queriedEntityCount
             childrenCount
           }

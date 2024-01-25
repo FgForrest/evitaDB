@@ -83,9 +83,9 @@ class ImpactFormulaGeneratorTest {
 		assertArrayEquals(new int[]{8, 9, 10}, updatedFormula.compute().getArray());
 		assertEquals(
 			"""
-			[#0] AND
+			[#0] AND → [8, 9, 10]
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			   [#2] USER FILTER
+			   [#2] USER FILTER → [8, 9, 10]
 			      [#3] FACET BRAND OR (5 - [10, 15]):  ↦ [9],  ↦ [8, 9, 10]
 			""",
 			PrettyPrintingFormulaVisitor.toString(updatedFormula)
@@ -109,9 +109,9 @@ class ImpactFormulaGeneratorTest {
 		assertArrayEquals(new int[]{9}, updatedFormula.compute().getArray());
 		assertEquals(
 			"""
-			[#0] AND
+			[#0] AND → [9]
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			   [#2] USER FILTER
+			   [#2] USER FILTER → [9]
 			      [#3] FACET BRAND OR (8 - [10]):  ↦ [9]
 			      [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			""",
@@ -138,9 +138,9 @@ class ImpactFormulaGeneratorTest {
 		assertArrayEquals(new int[]{9}, updatedFormula.compute().getArray());
 		assertEquals(
 			"""
-			[#0] AND
+			[#0] AND → [9]
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			   [#2] USER FILTER
+			   [#2] USER FILTER → [9]
 			      [#3] FACET BRAND OR (8 - [10]):  ↦ [9]
 			      [#4] FACET BRAND AND (5 - [15]):  ↦ [8, 9, 10]
 			""",
@@ -168,11 +168,11 @@ class ImpactFormulaGeneratorTest {
 		assertArrayEquals(new int[]{8, 9, 10}, updatedFormula.compute().getArray());
 		assertEquals(
 			"""
-			[#0] AND
+			[#0] AND → [8, 9, 10]
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			   [#2] USER FILTER
-			      [#3] OR
-			         [#4] AND
+			   [#2] USER FILTER → [8, 9, 10]
+			      [#3] OR → [8, 9, 10]
+			         [#4] AND → [9]
 			            [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 			            [#5] FACET BRAND OR (8 - [10]):  ↦ [9]
 			         [#6] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
@@ -201,12 +201,12 @@ class ImpactFormulaGeneratorTest {
 		assertArrayEquals(new int[0], updatedFormula.compute().getArray());
 		assertEquals(
 			"""
-			[#0] AND
+			[#0] AND → EMPTY
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			   [#2] USER FILTER
-			      [#3] NOT
+			   [#2] USER FILTER → []
+			      [#3] NOT → []
 			         [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
-			         [#5] AND
+			         [#5] AND → [9]
 			            [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 			            [#6] FACET BRAND OR (8 - [10]):  ↦ [9]
 			""",

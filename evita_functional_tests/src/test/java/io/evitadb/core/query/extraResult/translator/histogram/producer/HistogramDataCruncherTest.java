@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
-import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -57,8 +57,8 @@ class HistogramDataCruncherTest {
 	void computeHistogramFromSingleValue() {
 		final HistogramDataCruncher<Integer> cruncher = createIntCruncher(5, 100);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 1)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -72,11 +72,11 @@ class HistogramDataCruncherTest {
 	void computeHistogramFromDistinctValues() {
 		final HistogramDataCruncher<Integer> cruncher = createIntCruncher(4, 100, 200, 300, 400, 500);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 1),
-				new Bucket(1, new BigDecimal(200), 1),
-				new Bucket(2, new BigDecimal(300), 1),
-				new Bucket(3, new BigDecimal(400), 2)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 1),
+				new CacheableBucket(new BigDecimal(200), 1),
+				new CacheableBucket(new BigDecimal(300), 1),
+				new CacheableBucket(new BigDecimal(400), 2)
 			},
 			cruncher.getHistogram()
 		);
@@ -90,11 +90,11 @@ class HistogramDataCruncherTest {
 	void computeHistogramFromLessThanRequiredValues() {
 		final HistogramDataCruncher<Integer> cruncher = createIntCruncher(4, 100, 200);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 1),
-				new Bucket(1, new BigDecimal(125), 0),
-				new Bucket(2, new BigDecimal(150), 0),
-				new Bucket(3, new BigDecimal(175), 1)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 1),
+				new CacheableBucket(new BigDecimal(125), 0),
+				new CacheableBucket(new BigDecimal(150), 0),
+				new CacheableBucket(new BigDecimal(175), 1)
 			},
 			cruncher.getHistogram()
 		);
@@ -108,11 +108,11 @@ class HistogramDataCruncherTest {
 	void computeHistogramFromMultipliedLessThanRequiredValues() {
 		final HistogramDataCruncher<Integer> cruncher = createIntCruncher(4, 100, 100, 100, 200, 200);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 3),
-				new Bucket(1, new BigDecimal(125), 0),
-				new Bucket(2, new BigDecimal(150), 0),
-				new Bucket(3, new BigDecimal(175), 2)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 3),
+				new CacheableBucket(new BigDecimal(125), 0),
+				new CacheableBucket(new BigDecimal(150), 0),
+				new CacheableBucket(new BigDecimal(175), 2)
 			},
 			cruncher.getHistogram()
 		);
@@ -126,9 +126,9 @@ class HistogramDataCruncherTest {
 	void computeHistogramFromMultipliedTwoValuesOnBoundaries() {
 		final HistogramDataCruncher<Integer> cruncher = createOptimalCruncher(4, 100, 100, 100, 500, 500);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 3),
-				new Bucket(1, new BigDecimal(300), 2)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 3),
+				new CacheableBucket(new BigDecimal(300), 2)
 			},
 			cruncher.getHistogram()
 		);
@@ -149,12 +149,12 @@ class HistogramDataCruncherTest {
 			1000
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 3),
-				new Bucket(1, new BigDecimal(280), 0),
-				new Bucket(2, new BigDecimal(460), 2),
-				new Bucket(3, new BigDecimal(640), 0),
-				new Bucket(4, new BigDecimal(820), 3)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 3),
+				new CacheableBucket(new BigDecimal(280), 0),
+				new CacheableBucket(new BigDecimal(460), 2),
+				new CacheableBucket(new BigDecimal(640), 0),
+				new CacheableBucket(new BigDecimal(820), 3)
 			},
 			cruncher.getHistogram()
 		);
@@ -168,10 +168,10 @@ class HistogramDataCruncherTest {
 	void computeHistogramFromDistinctValuesWithLessSteps() {
 		final HistogramDataCruncher<Integer> cruncher = createIntCruncher(3, 100, 200, 300, 400, 500);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 2),
-				new Bucket(1, new BigDecimal(234), 1),
-				new Bucket(2, new BigDecimal(368), 2)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 2),
+				new CacheableBucket(new BigDecimal(234), 1),
+				new CacheableBucket(new BigDecimal(368), 2)
 			},
 			cruncher.getHistogram()
 		);
@@ -192,10 +192,10 @@ class HistogramDataCruncherTest {
 			new ValueToRecordBitmap<>(500, 5, 51, 52, 53, 54, 55)
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 12),
-				new Bucket(1, new BigDecimal(234), 5),
-				new Bucket(2, new BigDecimal(368), 9)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 12),
+				new CacheableBucket(new BigDecimal(234), 5),
+				new CacheableBucket(new BigDecimal(368), 9)
 			},
 			cruncher.getHistogram()
 		);
@@ -216,11 +216,11 @@ class HistogramDataCruncherTest {
 			500, 500, 500, 500
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 3),
-				new Bucket(1, new BigDecimal(200), 2),
-				new Bucket(2, new BigDecimal(300), 1),
-				new Bucket(3, new BigDecimal(400), 7)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 3),
+				new CacheableBucket(new BigDecimal(200), 2),
+				new CacheableBucket(new BigDecimal(300), 1),
+				new CacheableBucket(new BigDecimal(400), 7)
 			},
 			cruncher.getHistogram()
 		);
@@ -241,10 +241,10 @@ class HistogramDataCruncherTest {
 			500, 500, 500, 500
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 5),
-				new Bucket(1, new BigDecimal(234), 1),
-				new Bucket(2, new BigDecimal(368), 7)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 5),
+				new CacheableBucket(new BigDecimal(234), 1),
+				new CacheableBucket(new BigDecimal(368), 7)
 			},
 			cruncher.getHistogram()
 		);
@@ -267,10 +267,10 @@ class HistogramDataCruncherTest {
 			new BigDecimal(500)
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(100), 3),
-				new Bucket(1, new BigDecimal(234), 0),
-				new Bucket(2, new BigDecimal(368), 4)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(100), 3),
+				new CacheableBucket(new BigDecimal(234), 0),
+				new CacheableBucket(new BigDecimal(368), 4)
 			},
 			cruncher.getHistogram()
 		);
@@ -293,10 +293,10 @@ class HistogramDataCruncherTest {
 			new BigDecimal("29.16")
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal("10.00"), 3),
-				new Bucket(1, new BigDecimal("16.39"), 1),
-				new Bucket(2, new BigDecimal("22.78"), 3)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal("10.00"), 3),
+				new CacheableBucket(new BigDecimal("16.39"), 1),
+				new CacheableBucket(new BigDecimal("22.78"), 3)
 			},
 			cruncher.getHistogram()
 		);
@@ -319,10 +319,10 @@ class HistogramDataCruncherTest {
 			new BigDecimal("29.16")
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal("10.0"), 3),
-				new Bucket(1, new BigDecimal("16.4"), 1),
-				new Bucket(2, new BigDecimal("22.8"), 3)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal("10.0"), 3),
+				new CacheableBucket(new BigDecimal("16.4"), 1),
+				new CacheableBucket(new BigDecimal("22.8"), 3)
 			},
 			cruncher.getHistogram()
 		);
@@ -345,10 +345,10 @@ class HistogramDataCruncherTest {
 			new BigDecimal("29.16")
 		);
 		assertArrayEquals(
-			new Bucket[]{
-				new Bucket(0, new BigDecimal(10), 3),
-				new Bucket(1, new BigDecimal(17), 2),
-				new Bucket(2, new BigDecimal(24), 2)
+			new CacheableBucket[]{
+				new CacheableBucket(new BigDecimal(10), 3),
+				new CacheableBucket(new BigDecimal(17), 2),
+				new CacheableBucket(new BigDecimal(24), 2)
 			},
 			cruncher.getHistogram()
 		);
@@ -378,7 +378,7 @@ class HistogramDataCruncherTest {
 			stepCount, 0,
 			data,
 			ValueToRecordBitmap::getValue,
-			bucket -> bucket.getRecordIds().size(),
+			CacheableBucket -> CacheableBucket.getRecordIds().size(),
 			BigDecimal::new,
 			BigDecimal::intValueExact
 		);

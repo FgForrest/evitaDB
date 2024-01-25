@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 package io.evitadb.test.client.query.graphql;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.*;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.EntityDataLocator;
@@ -60,9 +61,9 @@ public class HierarchyOfConverter extends RequireConverter {
 	private final EntityFetchConverter entityFetchConverter;
 
 	public HierarchyOfConverter(@Nonnull CatalogSchemaContract catalogSchema,
-	                            @Nonnull GraphQLInputJsonPrinter inputJsonPrinter) {
-		super(catalogSchema, inputJsonPrinter);
-		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, inputJsonPrinter);
+	                            @Nonnull Query query) {
+		super(catalogSchema, query);
+		this.entityFetchConverter = new EntityFetchConverter(catalogSchema, query);
 	}
 
 	public void convert(@Nonnull GraphQLOutputFieldsBuilder fieldsBuilder,
@@ -79,9 +80,11 @@ public class HierarchyOfConverter extends RequireConverter {
 			if (hierarchyOfSelf != null) {
 				final ArgumentSupplier[] arguments = hierarchyOfSelf.getOrderBy()
 					.map(orderBy -> new ArgumentSupplier[] {
-						offset -> new Argument(
+						(offset, multipleArguments) -> new Argument(
 							HierarchyOfSelfHeaderDescriptor.ORDER_BY,
-							convertOrderConstraint(new EntityDataLocator(entityType), orderBy, offset).orElse(null)
+							offset,
+							multipleArguments,
+							convertOrderConstraint(new EntityDataLocator(entityType), orderBy).orElse(null)
 						)
 					})
 					.orElse(new ArgumentSupplier[0]);
@@ -112,12 +115,13 @@ public class HierarchyOfConverter extends RequireConverter {
 						hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
 						if (hierarchyOfReference.getOrderBy().isPresent()) {
 							arguments.add(
-								offset -> new Argument(
+								(offset, multipleArguments) -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.ORDER_BY,
+									offset,
+									multipleArguments,
 									convertOrderConstraint(
 										new EntityDataLocator(referencedEntityType),
-										hierarchyOfReference.getOrderBy().get(),
-										offset
+										hierarchyOfReference.getOrderBy().get()
 									)
 										.orElse(null)
 								)
@@ -126,8 +130,10 @@ public class HierarchyOfConverter extends RequireConverter {
 
 						if (hierarchyOfReference.getEmptyHierarchicalEntityBehaviour() != EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY) {
 							arguments.add(
-								__ -> new Argument(
+								(offset, multipleArguments) -> new Argument(
 									HierarchyOfReferenceHeaderDescriptor.EMPTY_HIERARCHICAL_ENTITY_BEHAVIOUR,
+									offset,
+									multipleArguments,
 									hierarchyOfReference.getEmptyHierarchicalEntityBehaviour().name()
 								)
 							);
@@ -206,9 +212,11 @@ public class HierarchyOfConverter extends RequireConverter {
 	                                 @Nonnull HierarchyFromNode fromNode) {
 		final List<ArgumentSupplier> arguments = new ArrayList<>(3);
 		arguments.add(
-			offset -> new Argument(
+			(offset, multipleArguments) -> new Argument(
 				HierarchyFromNodeHeaderDescriptor.NODE,
-				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode(), offset)
+				offset,
+				multipleArguments,
+				convertRequireConstraint(hierarchyDataLocator, fromNode.getFromNode())
 					.orElseThrow(() -> new IllegalStateException("Missing required node constraint"))
 			)
 		);
@@ -280,9 +288,11 @@ public class HierarchyOfConverter extends RequireConverter {
 				.ifPresent(constraint -> siblingsArgument.putIfAbsent(HierarchyRequireHeaderDescriptor.STOP_AT.name(), constraint.value()));
 
 			arguments.add(
-				offset -> new Argument(
+				(offset, multipleArguments) -> new Argument(
 					HierarchyParentsHeaderDescriptor.SIBLINGS,
-					inputJsonPrinter.print(offset, siblingsArgument).stripLeading()
+					offset,
+					multipleArguments,
+					siblingsArgument
 				)
 			);
 		}
@@ -337,16 +347,20 @@ public class HierarchyOfConverter extends RequireConverter {
 	@Nonnull
 	private ArgumentSupplier getStopAtArgument(@Nonnull HierarchyStopAt stopAt,
 	                                           @Nonnull HierarchyDataLocator hierarchyDataLocator) {
-		return offset -> new Argument(
+		return (offset, multipleArguments) -> new Argument(
 			HierarchyRequireHeaderDescriptor.STOP_AT,
-			convertRequireConstraint(hierarchyDataLocator, stopAt, offset).orElse(null)
+			offset,
+			multipleArguments,
+			convertRequireConstraint(hierarchyDataLocator, stopAt).orElse(null)
 		);
 	}
 
 	@Nonnull
 	private ArgumentSupplier getStatisticsArgument(@Nonnull HierarchyStatistics statistics) {
-		return __ -> new Argument(
+		return (offset, multipleArguments) -> new Argument(
 			HierarchyRequireHeaderDescriptor.STATISTICS_BASE,
+			offset,
+			multipleArguments,
 			statistics.getStatisticsBase().name()
 		);
 	}
@@ -359,7 +373,8 @@ public class HierarchyOfConverter extends RequireConverter {
 		levelInfoBuilder
 			.addPrimitiveField(LevelInfoDescriptor.LEVEL)
 			.addObjectField(LevelInfoDescriptor.ENTITY, entityBuilder ->
-				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch));
+				entityFetchConverter.convert(entityBuilder, entityType, locale, entityFetch))
+			.addPrimitiveField(LevelInfoDescriptor.REQUESTED);
 
 		if (statistics != null) {
 			if (statistics.getStatisticsType().contains(StatisticsType.QUERIED_ENTITY_COUNT)) {

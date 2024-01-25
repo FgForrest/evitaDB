@@ -47,25 +47,30 @@ import static java.util.Optional.empty;
 import static java.util.Optional.of;
 
 /**
- * This `attributes` requirement changes default behaviour of the query engine returning only entity primary keys in the result. When
- * this requirement is used result contains [entity bodies](entity_model.md) except `associated data` that could
- * become big. These type of data can be fetched either lazily or by specifying additional requirements in the query.
+ * The `attributeContent` requirement is used to retrieve one or more entity or reference attributes. Localized attributes
+ * are only fetched if there is a locale context in the query, either by using the {@link EntityLocaleEquals} filter
+ * constraint or the dataInLocales require constraint.
  *
- * This requirement implicitly triggers {@link EntityBodyFetch} requirement because attributes cannot be returned without entity.
- * [Localized interface](classes/localized_interface.md) attributes are returned according to {@link EntityLocaleEquals}
- * query.
+ * All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributeContent`
+ * requirement only reduces the amount of data transferred over the network. It's not bad to fetch all the attributes
+ * of an entity using `attributeContentAll`.
  *
  * Example:
  *
- * ```
- * attributes()
- * ```
+ * <pre>
+ * entityFetch(
+ *    attributeContent("code", "name")
+ * )
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/fetching#attribute-content">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "content",
 	shortDescription = "The constraint triggers fetching the entity attributes into the returned entities.",
+	userDocsLink = "/documentation/query/requirements/fetching#attribute-content",
 	supportedIn = ConstraintDomain.ENTITY,
 	supportedValues = @ConstraintSupportedValues(allTypesSupported = true, arraysSupported = true)
 )

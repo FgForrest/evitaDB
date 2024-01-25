@@ -28,6 +28,8 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
+import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -42,6 +44,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -72,8 +75,25 @@ public class AttributeNaturalTranslator
 		final AttributeExtractor attributeSchemaEntityAccessor = processingScope.attributeEntityAccessor();
 
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
-		final EntityIndex<?>[] indexesForSort = orderByVisitor.getIndexesForSort();
+		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
 		final NamedSchemaContract attributeOrCompoundSchema = processingScope.getAttributeSchemaOrSortableAttributeCompound(attributeName);
+
+		if (attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema && attributeSchema.isLocalized()) {
+			Assert.notNull(
+				orderByVisitor.getLocale(),
+				"Cannot sort by localized attribute `" + attributeName + "` without locale specified in `entityLocaleEquals` filtering constraint!"
+			);
+		} else if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchemaContract) {
+			for (AttributeElement attributeElement : compoundSchemaContract.getAttributeElements()) {
+				if (processingScope.getAttributeSchema(attributeElement.attributeName()).isLocalized()) {
+					Assert.notNull(
+						orderByVisitor.getLocale(),
+						"Cannot sort by localized attribute `" + attributeName + "` without locale specified in `entityLocaleEquals` filtering constraint!"
+					);
+					break;
+				}
+			}
+		}
 
 		final Comparator<Comparable<?>> comparator;
 		if (orderDirection == ASC) {
@@ -148,7 +168,7 @@ public class AttributeNaturalTranslator
 		@Nonnull Function<SortIndex, SortedRecordsProvider> sortIndexExtractor,
 		@Nonnull Function<ChainIndex, SortedRecordsProvider> chainIndexExtractor,
 		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
-		@Nonnull EntityIndex<?>[] targetIndex,
+		@Nonnull EntityIndex[] targetIndex,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull Locale locale
 	) implements Supplier<SortedRecordsProvider[]> {

@@ -34,7 +34,7 @@ import java.util.function.BooleanSupplier;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEditor<T>> extends AttributeSchemaEditor<T> {
+public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEditor<T>> extends EntityAttributeSchemaEditor<T> {
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -64,6 +64,43 @@ public interface GlobalAttributeSchemaEditor<T extends GlobalAttributeSchemaEdit
 	 */
 	@Nonnull
 	T uniqueGlobally(@Nonnull BooleanSupplier decider);
+
+	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link io.evitadb.api.CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable}
+	 * interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #uniqueGlobally()} in that it is possible to have multiple entities with same
+	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
+	 * locales.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueGloballyWithinLocale();
+
+	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link io.evitadb.api.CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable}
+	 * interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #uniqueGlobally(BooleanSupplier)} in that it is possible to have multiple
+	 * entities with same value of this attribute as long as the attribute is {@link #isLocalized()} and the values
+	 * relate to different locales.
+	 *
+	 * @param decider returns true when attribute should be unique globally
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider);
 
 	/**
 	 * Interface that simply combines {@link GlobalAttributeSchemaEditor} and {@link GlobalAttributeSchemaContract}

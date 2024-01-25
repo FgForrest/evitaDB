@@ -64,12 +64,17 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nullable HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType,
 		@Nullable SiblingsStatisticsTravelingComputer siblingsStatisticsComputer
 	) {
-		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(
+			context, entityFetcher,
+			hierarchyFilterPredicateProducer,
+			exclusionPredicate, scopePredicate,
+			statisticsBase, statisticsType
+		);
 		this.siblingsStatisticsComputer = siblingsStatisticsComputer;
 	}
 
@@ -81,10 +86,12 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 	) {
 		if (context.hierarchyFilter() instanceof HierarchyWithin) {
 			final EntityIndex entityIndex = context.entityIndex();
+			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
 
 			final ChildrenStatisticsHierarchyVisitor childVisitor = new ChildrenStatisticsHierarchyVisitor(
 				context.removeEmptyResults(),
 				0,
+				hierarchyNodes::contains,
 				(hierarchyNodeId, level, distance) -> distance == 0,
 				filterPredicate,
 				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),
@@ -92,7 +99,6 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				statisticsType
 			);
 
-			final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodesFormula().compute();
 			Assert.isTrue(
 				hierarchyNodes.size() == 1,
 				"In order to generate parent hierarchy statistics the HierarchyWithin filter must select exactly " +
@@ -130,6 +136,7 @@ public class ParentStatisticsComputer extends AbstractHierarchyStatisticsCompute
 				startNode.getEntity().getPrimaryKey()
 			).negate();
 			final ParentStatisticsHierarchyVisitor parentVisitor = new ParentStatisticsHierarchyVisitor(
+				hierarchyNodes::contains,
 				scopePredicate,
 				filterPredicate.and(exceptStartNode),
 				value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),

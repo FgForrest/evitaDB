@@ -73,19 +73,19 @@ import static java.util.Optional.of;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'audio')
+ *             "categories",
+ *             attributeEquals("code", "audio")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             children(
- *                 'subcategories',
- *                 entityFetch(attributeContent('code')),
+ *                 "subcategories",
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(distance(1)),
  *                 statistics(
  *                     CHILDREN_COUNT,
@@ -103,12 +103,15 @@ import static java.util.Optional.of;
  * well. The reason is simple: when you render a menu for the query result, you want the calculated statistics to
  * respect the rules that apply to the hierarchyWithin so that the calculated number remains consistent for the end
  * user.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#children">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "children",
 	shortDescription = "The constraint triggers computing the hierarchy subtree starting at currently requested hierarchy node in filter by constraint.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#children",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyChildren extends AbstractRequireConstraintContainer implements HierarchyRequireConstraint {

@@ -60,19 +60,19 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories'),
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
  *             excluding(
- *                 attributeEquals('code', 'wireless-headphones')
+ *                 attributeEquals("code", "wireless-headphones")
  *             )
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -91,19 +91,19 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories'),
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
  *             excluding(
- *                 attributeEquals('code', 'wireless-headphones')
+ *                 attributeEquals("code", "wireless-headphones")
  *             )
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -120,12 +120,15 @@ import java.io.Serializable;
  * The hierarchical query traverses from the root nodes to the leaf nodes. For each of the nodes, the engine checks
  * whether the excluding constraint is satisfied valid, and if so, it excludes that hierarchy node and all of its child
  * nodes (entire subtree).
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#excluding">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "excluding",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to exclude specified hierarchy subtrees from search.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#excluding",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyExcluding extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {

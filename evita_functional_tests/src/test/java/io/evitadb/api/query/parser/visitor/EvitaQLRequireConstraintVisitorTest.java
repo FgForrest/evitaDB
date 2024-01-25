@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.error.EvitaQLInvalidQueryError;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
@@ -960,7 +961,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			COUNTS, "a", "b", "c", "d"
 		);
 		assertEquals(
-			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint11
 		);
 
@@ -989,6 +990,96 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(
 			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
 			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()))",
+			COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random())),
+			constraint15
+		);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)))",
+			COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d"))),
+			constraint16
+		);
+
+		final RequireConstraint constraint17 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)))",
+			COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b"))),
+			constraint17
+		);
+
+		final RequireConstraint constraint18 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderBy(random()))",
+			COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random())),
+			constraint18
+		);
+
+		final RequireConstraint constraint19 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), null, null, orderGroupBy(attributeNatural("e"))),
+			constraint19
+		);
+
+		final RequireConstraint constraint20 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint20
+		);
+
+		final RequireConstraint constraint21 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint21
+		);
+
+		final RequireConstraint constraint22 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint22
+		);
+
+		final RequireConstraint constraint23 = parseRequireConstraint(
+			"facetSummary(?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterBy(attributeEquals("a", "b")), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint23
+		);
+
+		final RequireConstraint constraint24 = parseRequireConstraint(
+			"facetSummary(?, filterGroupBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummary(COUNTS, filterGroupBy(attributeEquals("a", "b")), orderBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint24
 		);
 	}
 
@@ -1048,7 +1139,7 @@ class EvitaQLRequireConstraintVisitorTest {
 			"parameter", COUNTS, "a", "b", "c", "d"
 		);
 		assertEquals(
-			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), null, null, entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
+			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), entityFetch(attributeContentAll()), entityGroupFetch(attributeContentAll())),
 			constraint11
 		);
 
@@ -1077,6 +1168,96 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertEquals(
 			facetSummaryOfReference("parameter", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
 			constraint14
+		);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()))",
+			"x", COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random())),
+			constraint15
+		);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)))",
+			"x", COUNTS, "a", "b", "c", "d"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d"))),
+			constraint16
+		);
+
+		final RequireConstraint constraint17 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)))",
+			"x", COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b"))),
+			constraint17
+		);
+
+		final RequireConstraint constraint18 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderBy(random()))",
+			"x", COUNTS, "a", "b"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random())),
+			constraint18
+		);
+
+		final RequireConstraint constraint19 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), null, null, orderGroupBy(attributeNatural("e"))),
+			constraint19
+		);
+
+		final RequireConstraint constraint20 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint20
+		);
+
+		final RequireConstraint constraint21 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)))",
+			"x", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e"))),
+			constraint21
+		);
+
+		final RequireConstraint constraint22 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), filterGroupBy(attributeEquals(?, ?)), orderBy(random()), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			"x", COUNTS, "a", "b", "c", "d", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), filterGroupBy(attributeEquals("c", "d")), orderBy(random()), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint22
+		);
+
+		final RequireConstraint constraint23 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterBy(attributeEquals(?, ?)), orderGroupBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterBy(attributeEquals("a", "b")), orderGroupBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint23
+		);
+
+		final RequireConstraint constraint24 = parseRequireConstraint(
+			"facetSummaryOfReference(?, ?, filterGroupBy(attributeEquals(?, ?)), orderBy(attributeNatural(?)), entityFetch(attributeContentAll()))",
+			"x", COUNTS, "a", "b", "e"
+		);
+		assertEquals(
+			facetSummaryOfReference("x", COUNTS, filterGroupBy(attributeEquals("a", "b")), orderBy(attributeNatural("e")), entityFetch(attributeContentAll())),
+			constraint24
 		);
 	}
 
@@ -1130,6 +1311,9 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("name", "a", "pk1", 1, "pk2", 2)
 		);
 		assertEquals(facetGroupsConjunction("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsConjunction('a')");
+		assertEquals(facetGroupsConjunction("a"), constraint10);
 	}
 
 	@Test
@@ -1139,7 +1323,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsConjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("facetGroupsConjunction('a','b','c')"));
 	}
 
@@ -1180,6 +1363,9 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("name", "a", "pk1", 1, "pk2", 2)
 		);
 		assertEquals(facetGroupsDisjunction("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsDisjunction('a')");
+		assertEquals(facetGroupsDisjunction("a"), constraint10);
 	}
 
 	@Test
@@ -1189,7 +1375,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsDisjunction('a','b','c')"));
 	}
 
@@ -1230,6 +1415,9 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("name", "a", "pk1", 1, "pk2", 2)
 		);
 		assertEquals(facetGroupsNegation("a", filterBy(entityPrimaryKeyInSet(1, 2))), constraint9);
+
+		final RequireConstraint constraint10 = parseRequireConstraintUnsafe("facetGroupsNegation('a')");
+		assertEquals(facetGroupsNegation("a"), constraint10);
 	}
 
 	@Test
@@ -1239,7 +1427,6 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a',filterBy(entityPrimaryKeyInSet(@pk)))"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation()"));
-		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("facetGroupsNegation('a','b','c')"));
 	}
 
@@ -1253,15 +1440,6 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint3 = parseRequireConstraintUnsafe("attributeHistogram ( 20  , 'a' ,  'b' ,'c' )");
 		assertEquals(attributeHistogram(20, "a", "b", "c"), constraint3);
-
-		final RequireConstraint constraint4 = parseRequireConstraint("attributeHistogram(?, 'a')", 20);
-		assertEquals(attributeHistogram(20, "a"), constraint4);
-
-		final RequireConstraint constraint5 = parseRequireConstraint(
-			"attributeHistogram(@buckets, 'a')",
-			Map.of("buckets", 20)
-		);
-		assertEquals(attributeHistogram(20, "a"), constraint5);
 
 		final RequireConstraint constraint6 = parseRequireConstraint("attributeHistogram(?, ?)", 20, "a");
 		assertEquals(attributeHistogram(20, "a"), constraint6);
@@ -1298,6 +1476,27 @@ class EvitaQLRequireConstraintVisitorTest {
 			Map.of("buckets", 20, "attr1", "a", "attr2", "b")
 		);
 		assertEquals(attributeHistogram(20, "a", "b"), constraint11);
+
+		final RequireConstraint constraint12 = parseRequireConstraintUnsafe("attributeHistogram (20, OPTIMIZED, 'a' ,  'b' ,'c' )");
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint12);
+
+		final RequireConstraint constraint13 = parseRequireConstraint("attributeHistogram (?, ?, ?, ?, ?)", 20, HistogramBehavior.OPTIMIZED, "a", "b", "c");
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint13);
+
+		final RequireConstraint constraint15 = parseRequireConstraint(
+			"attributeHistogram (@count, @beh, @attr1, @attr2, @attr3)",
+			Map.of("count", 20, "beh", HistogramBehavior.OPTIMIZED, "attr1", "a", "attr2", "b", "attr3", "c")
+		);
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint15);
+
+		final RequireConstraint constraint14 = parseRequireConstraint("attributeHistogram (?, ?, ?)", 20, HistogramBehavior.OPTIMIZED, List.of("a", "b", "c"));
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint14);
+
+		final RequireConstraint constraint16 = parseRequireConstraint(
+			"attributeHistogram (@count, @beh, @attrs)",
+			Map.of("count", 20, "beh", HistogramBehavior.OPTIMIZED, "attrs", List.of("a", "b", "c"))
+		);
+		assertEquals(attributeHistogram(20, HistogramBehavior.OPTIMIZED, "a", "b", "c"), constraint16);
 	}
 
 	@Test
@@ -1305,11 +1504,15 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(?,'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(@buckets,'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,WHATEVER,'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram()"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a',1)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram('a','b')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,OPTIMIZED,WHATEVER,'a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("attributeHistogram(20,'a',OPTIMIZED)"));
 	}
 
 	@Test
@@ -1325,6 +1528,18 @@ class EvitaQLRequireConstraintVisitorTest {
 
 		final RequireConstraint constraint4 = parseRequireConstraint("priceHistogram(@buckets)", Map.of("buckets", 20));
 		assertEquals(priceHistogram(20), constraint4);
+
+		final RequireConstraint constraint5 = parseRequireConstraintUnsafe("priceHistogram(20, OPTIMIZED)");
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint5);
+
+		final RequireConstraint constraint6 = parseRequireConstraint("priceHistogram(?, ?)", 20, HistogramBehavior.OPTIMIZED);
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint6);
+
+		final RequireConstraint constraint7 = parseRequireConstraint(
+			"priceHistogram(@count, @beh)",
+			Map.of("count", 20, "beh", HistogramBehavior.OPTIMIZED)
+		);
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), constraint7);
 	}
 
 	@Test
@@ -1332,8 +1547,11 @@ class EvitaQLRequireConstraintVisitorTest {
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(20)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(?)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(@buckets)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,WHATEVER)"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraint("priceHistogram(10,STANDARD,WHATEVER)"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram"));
 		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram('a')"));
+		assertThrows(EvitaQLInvalidQueryError.class, () -> parseRequireConstraintUnsafe("priceHistogram(10,STANDARD,WHATEVER)"));
 	}
 
 	@Test

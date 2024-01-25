@@ -42,8 +42,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
-
 /**
  * Updates and returns single evitaDB catalog by its name.
  *
@@ -62,26 +60,23 @@ public class UpdateCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final UpdateCatalogRequestDto requestBody = parseRequestBody(exchange, UpdateCatalogRequestDto.class);
 
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		final Optional<CatalogContract> catalog = restApiHandlingContext.getCatalog(catalogName, URL_NAME_NAMING_CONVENTION);
+		final Optional<CatalogContract> catalog = restHandlingContext.getEvita().getCatalogInstance(catalogName);
 		if (catalog.isEmpty()) {
-			return new NotFoundEndpointResponse<>();
+			return new NotFoundEndpointResponse();
 		}
 
 		final Optional<String> newCatalogName = renameCatalog(catalog.get(), requestBody);
 		switchCatalogToAliveState(catalog.get(), requestBody);
 
 		final String nameOfUpdateCatalog = newCatalogName.orElse(catalogName);
-		final CatalogContract updatedCatalog = restApiHandlingContext.getCatalog(
-				nameOfUpdateCatalog,
-				newCatalogName.isPresent() ? null : URL_NAME_NAMING_CONVENTION
-			)
-				.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
-		return new SuccessEndpointResponse<>(updatedCatalog);
+		final CatalogContract updatedCatalog = restHandlingContext.getEvita().getCatalogInstance(nameOfUpdateCatalog)
+			.orElseThrow(() -> new RestInternalError("Couldn't find updated catalog `" + nameOfUpdateCatalog + "`"));
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalog));
 	}
 
 	@Nonnull
@@ -99,7 +94,7 @@ public class UpdateCatalogHandler extends CatalogHandler {
 	@Nonnull
 	private Optional<String> renameCatalog(@Nonnull CatalogContract catalog,
 	                                       @Nonnull UpdateCatalogRequestDto requestBody) {
-		final Evita evita = restApiHandlingContext.getEvita();
+		final Evita evita = restHandlingContext.getEvita();
 
 		final Optional<String> newCatalogName = Optional.ofNullable(requestBody.name());
 		if (newCatalogName.isEmpty()) {

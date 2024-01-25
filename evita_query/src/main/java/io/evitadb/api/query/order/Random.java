@@ -43,12 +43,15 @@ import java.io.Serializable;
  * <pre>
  * random()
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/random#random">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "random",
 	shortDescription = "The constraint sorts returned entities randomly.",
+	userDocsLink = "/documentation/query/ordering/random#random",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class Random extends AbstractOrderConstraintLeaf implements GenericConstraint<OrderConstraint> {

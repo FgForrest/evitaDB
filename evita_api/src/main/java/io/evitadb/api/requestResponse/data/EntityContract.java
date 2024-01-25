@@ -32,12 +32,14 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.utils.MemoryMeasuringConstants;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -51,7 +53,13 @@ import static java.util.Optional.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntityContract extends EntityClassifierWithParent, ContentComparator<EntityContract>, AttributesContract, AssociatedDataContract, PricesContract, Versioned, Droppable {
+public interface EntityContract extends EntityClassifierWithParent,
+	ContentComparator<EntityContract>,
+	AttributesContract<EntityAttributeSchemaContract>,
+	AssociatedDataContract,
+	PricesContract,
+	Versioned,
+	Droppable {
 
 	/**
 	 * Returns schema of the entity, that fully describes its structure and capabilities. Schema is up-to-date to the
@@ -209,8 +217,8 @@ public interface EntityContract extends EntityClassifierWithParent, ContentCompa
 		if (PricesContract.anyPriceDifferBetween(this, otherEntity)) return true;
 		if (!getLocales().equals(otherEntity.getLocales())) return true;
 
-		final Collection<ReferenceContract> thisReferences = getReferences();
-		final Collection<ReferenceContract> otherReferences = otherEntity.getReferences();
+		final Collection<ReferenceContract> thisReferences = referencesAvailable() ? getReferences() : Collections.emptyList();
+		final Collection<ReferenceContract> otherReferences = otherEntity.referencesAvailable() ? otherEntity.getReferences() : Collections.emptyList();
 		if (thisReferences.size() != otherReferences.size()) return true;
 		for (ReferenceContract thisReference : thisReferences) {
 			final ReferenceKey thisKey = thisReference.getReferenceKey();

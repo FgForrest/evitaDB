@@ -1,0 +1,20 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "e-readers")
+        ),
+        priceInPriceLists("basic"),
+        priceInCurrency("EUR"),
+        userFilter(
+            priceBetween(150.0, 170.5)
+        )
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)

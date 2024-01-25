@@ -5,7 +5,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         	Collection("Product"),
         	FilterBy(
         		ReferenceHaving(
-        			"brand",
+        			"groups",
         			EntityHaving(
         				AttributeInSet("code", "sale", "new")
         			)

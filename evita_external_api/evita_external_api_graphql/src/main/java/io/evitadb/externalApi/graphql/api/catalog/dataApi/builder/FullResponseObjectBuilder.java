@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.DataLocator;
@@ -72,15 +73,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.*;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.HierarchyParentsHeaderDescriptor.HierarchyParentsSiblingsSpecification;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordPageDataFetcher;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.RecordStripDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.AttributeHistogramsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.ExtraResultsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetGroupStatisticsDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.FacetSummaryDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.HierarchyDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.PriceHistogramDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.QueryTelemetryDataFetcher;
-import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.SpecificHierarchyDataFetcher;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.dataFetcher.extraResult.*;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLInputObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.ObjectDescriptorToGraphQLObjectTransformer;
 import io.evitadb.externalApi.graphql.api.model.PropertyDescriptorToGraphQLArgumentTransformer;
@@ -309,7 +302,7 @@ public class FullResponseObjectBuilder {
 
 	@Nonnull
 	private Optional<GraphQLObjectType> buildAttributeHistogramObject(@Nonnull EntitySchemaContract entitySchema) {
-		final List<AttributeSchemaContract> attributeSchemas = entitySchema
+		final List<EntityAttributeSchemaContract> attributeSchemas = entitySchema
 			.getAttributes()
 			.values()
 			.stream()
@@ -321,16 +314,32 @@ public class FullResponseObjectBuilder {
 			return Optional.empty();
 		}
 
+		final String objectName = AttributeHistogramDescriptor.THIS.name(entitySchema);
 		final GraphQLObjectType.Builder attributeHistogramsObjectBuilder = AttributeHistogramDescriptor.THIS
 			.to(objectBuilderTransformer)
-			.name(AttributeHistogramDescriptor.THIS.name(entitySchema));
-		attributeSchemas.forEach(attributeSchema ->
-			attributeHistogramsObjectBuilder.field(f -> f
-				.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-				.type(typeRef(HistogramDescriptor.THIS.name())))
-		);
+			.name(objectName);
+		attributeSchemas.forEach(attributeSchema -> {
+			final BuiltFieldDescriptor fieldForSingleAttribute = buildAttributeHistogramForSingleAttributeField(attributeSchema);
+			buildingContext.registerFieldToObject(
+				objectName,
+				attributeHistogramsObjectBuilder,
+				fieldForSingleAttribute
+			);
+		});
 
 		return Optional.of(attributeHistogramsObjectBuilder.build());
+	}
+
+	@Nonnull
+	private BuiltFieldDescriptor buildAttributeHistogramForSingleAttributeField(@Nonnull AttributeSchemaContract attributeSchema) {
+		final GraphQLFieldDefinition attributeFieldForSingleAttribute = newFieldDefinition()
+			.name(attributeSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
+			.type(typeRef(HistogramDescriptor.THIS.name()))
+			.build();
+		return new BuiltFieldDescriptor(
+			attributeFieldForSingleAttribute,
+			new AttributeHistogramForSingleAttributeDataFetcher(attributeSchema)
+		);
 	}
 
 	// todo lho: remove after https://gitlab.fg.cz/hv/evita/-/issues/120 is implemented
@@ -424,9 +433,16 @@ public class FullResponseObjectBuilder {
 			referenceSchema
 		);
 
+		final boolean isGrouped = referenceSchema.getReferencedGroupType() != null;
+
 		final GraphQLFieldDefinition.Builder facetGroupStatisticsFieldBuilder = newFieldDefinition()
-			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION))
-			.type(list(nonNull(facetGroupStatisticsObject)));
+			.name(referenceSchema.getNameVariant(PROPERTY_NAME_NAMING_CONVENTION));
+		if (isGrouped) {
+			facetGroupStatisticsFieldBuilder.type(list(nonNull(facetGroupStatisticsObject)));
+		} else {
+			// if there is no group type, then the result will always be a single virtual group covering all facet statistics
+			facetGroupStatisticsFieldBuilder.type(facetGroupStatisticsObject);
+		}
 
 		if (referenceSchema.getReferencedGroupType() != null) {
 			final DataLocator groupEntityDataLocator;
@@ -449,7 +465,7 @@ public class FullResponseObjectBuilder {
 
 		return new BuiltFieldDescriptor(
 			facetGroupStatisticsFieldBuilder.build(),
-			new FacetGroupStatisticsDataFetcher(referenceSchema)
+			isGrouped ? new FacetGroupStatisticsDataFetcher(referenceSchema) : new NonGroupedFacetGroupStatisticsDataFetcher(referenceSchema)
 		);
 	}
 
@@ -462,11 +478,13 @@ public class FullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.name(objectName);
 
-		buildingContext.registerFieldToObject(
-			objectName,
-			facetGroupStatisticsBuilder,
-			buildFacetGroupEntityField(referenceSchema)
-		);
+		if (referenceSchema.getReferencedGroupType() != null) {
+			buildingContext.registerFieldToObject(
+				objectName,
+				facetGroupStatisticsBuilder,
+				buildFacetGroupEntityField(referenceSchema)
+			);
+		}
 
 		buildingContext.registerFieldToObject(
 			objectName,
@@ -933,7 +951,8 @@ public class FullResponseObjectBuilder {
 			.to(objectBuilderTransformer)
 			.field(HistogramDescriptor.BUCKETS
 				.to(fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer)))
+				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer))
+				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(argumentBuilderTransformer)))
 			.build();
 	}
 
@@ -946,7 +965,8 @@ public class FullResponseObjectBuilder {
 			.field(f -> f.name("attributeName").type(nonNull(STRING)))
 			.field(HistogramDescriptor.BUCKETS
 				.to(fieldBuilderTransformer)
-				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer)))
+				.argument(BucketsFieldHeaderDescriptor.REQUESTED_COUNT.to(argumentBuilderTransformer))
+				.argument(BucketsFieldHeaderDescriptor.BEHAVIOR.to(argumentBuilderTransformer)))
 			.build();
 	}
 

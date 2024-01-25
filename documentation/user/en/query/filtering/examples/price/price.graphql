@@ -1,0 +1,25 @@
+{
+  queryProduct(
+    filterBy: {
+      priceInPriceLists: [
+        "basic"
+      ],
+      priceInCurrency: EUR,
+      priceValidInNow: true
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        priceForSale {
+          priceWithoutTax
+          priceWithTax
+          taxRate
+        }
+      }
+    }
+  }
+}

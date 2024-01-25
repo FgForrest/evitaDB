@@ -55,7 +55,7 @@ class AttributeIsTest {
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(attributeIsNull("married").isApplicable());
-		assertFalse(attributeIsNull(null).isApplicable());
+		assertFalse(new AttributeIs(null, AttributeSpecialValue.NULL).isApplicable());
 	}
 
 	@Test
@@ -75,7 +75,7 @@ class AttributeIsTest {
 		assertEquals(attributeIsNull("married").hashCode(), attributeIsNull("married").hashCode());
 		assertEquals(attributeIs("married", AttributeSpecialValue.NULL).hashCode(), attributeIsNull("married").hashCode());
 		assertNotEquals(attributeIsNull("married").hashCode(), attributeIsNull("single").hashCode());
-		assertNotEquals(attributeIsNull("married").hashCode(), attributeIsNull(null).hashCode());
+		assertNotEquals(attributeIsNull("married").hashCode(), new AttributeIs(null, AttributeSpecialValue.NULL).hashCode());
 		assertNotEquals(attributeIsNull("married").hashCode(), attributeIsNotNull("married").hashCode());
 	}
 

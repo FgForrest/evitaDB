@@ -79,6 +79,10 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 			final String[] priceLists = ofNullable(filterByVisitor.findInConjunctionTree(PriceInPriceLists.class))
 				.map(PriceInPriceLists::getPriceLists)
 				.orElse(null);
+			if (priceLists != null && priceLists.length == 0) {
+				return EmptyFormula.INSTANCE;
+			}
+
 			final Currency currency = ofNullable(filterByVisitor.findInConjunctionTree(PriceInCurrency.class))
 				.map(PriceInCurrency::getCurrency)
 				.orElse(null);
@@ -93,7 +97,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 					return new SelectionFormula(
 						filterByVisitor,
 						filteringFormula,
-						new SellingPriceAvailableBitmapFilter()
+						new SellingPriceAvailableBitmapFilter(
+							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+						)
 					);
 				} else {
 					return filteringFormula;
@@ -102,7 +108,9 @@ public class PriceValidInTranslator extends AbstractPriceRelatedConstraintTransl
 				return new EntityFilteringFormula(
 					"price valid in filter",
 					filterByVisitor,
-					new SellingPriceAvailableBitmapFilter()
+					new SellingPriceAvailableBitmapFilter(
+						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+					)
 				);
 			}
 		}

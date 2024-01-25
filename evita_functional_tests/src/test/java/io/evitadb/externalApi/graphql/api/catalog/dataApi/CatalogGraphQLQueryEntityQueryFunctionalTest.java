@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -26,9 +26,11 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -68,6 +70,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.builder.MapBuilder;
 import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.GraphQLTester;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,6 +79,7 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
 import java.text.Collator;
 import java.text.NumberFormat;
 import java.util.*;
@@ -97,6 +101,7 @@ import static io.evitadb.test.generator.DataGenerator.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -1768,22 +1773,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	void shouldReturnFilteredPricesForProducts(GraphQLTester tester, List<SealedEntity> originalProductEntities) {
 		final List<SealedEntity> entities = findEntitiesWithPrice(originalProductEntities, 2);
 
-		final var expectedBody = createBasicPageResponse(
-			entities,
-			entity ->
-				map()
-					.e(EntityDescriptor.PRIMARY_KEY.name(), entity.getPrimaryKey())
-					.e(EntityDescriptor.TYPE.name(), Entities.PRODUCT)
-					.e("prices", List.of(
-						map()
-							.e(TYPENAME_FIELD, PriceDescriptor.THIS.name())
-							.e(PriceDescriptor.CURRENCY.name(), CURRENCY_CZK.toString())
-							.e(PriceDescriptor.PRICE_LIST.name(), PRICE_LIST_BASIC)
-							.e(PriceDescriptor.PRICE_WITH_TAX.name(), entity.getPrices(CURRENCY_CZK, PRICE_LIST_BASIC).iterator().next().priceWithTax().toString())
-							.build()
-					))
-					.build()
-		);
+		final var expectedBody = createBasicPageResponse(entities, this::createEntityDtoWithPrices);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -2725,9 +2715,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
+		                                    requested
 		                                }
 		                            }
 		                        }
@@ -2741,15 +2731,179 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, TYPENAME_FIELD),
 				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name() + "." + TYPENAME_FIELD,
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
 				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
 			)
 			.body(
-				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM.name() + "." + ATTRIBUTE_QUANTITY,
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(expectedHistogram)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized attribute histogram")
+	void shouldReturnOptimizedAttributeHistogram(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							attributeHistogram(20, HistogramBehavior.OPTIMIZED, ATTRIBUTE_QUANTITY)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        attributeHistogram {
+		                            __typename
+		                            quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
+		                                    __typename
+		                                    threshold
+		                                    occurrences
+		                                    requested
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, TYPENAME_FIELD),
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(expectedHistogram)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return attribute histogram without being affected by attribute filter")
+	void shouldReturnAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeIsNotNull(ATTRIBUTE_ALIAS),
+							userFilter(
+								attributeBetween(ATTRIBUTE_QUANTITY, 100, 900)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedHistogram = createAttributeHistogramDto(response, ATTRIBUTE_QUANTITY);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL,
+		                        userFilter: {
+		                            attributeQuantityBetween: ["100", "900"]
+	                            }
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        attributeHistogram {
+		                            __typename
+		                            quantity {
+		                                __typename
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 20) {
+		                                    __typename
+		                                    threshold
+		                                    occurrences
+		                                    requested
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, TYPENAME_FIELD),
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, TYPENAME_FIELD),
+				equalTo(AttributeHistogramDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, ResponseDescriptor.EXTRA_RESULTS, ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
 				equalTo(expectedHistogram)
 			);
 	}
@@ -2803,9 +2957,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
+		                                    requested
 		                                }
 		                            }
 		                        }
@@ -2819,9 +2973,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
+		                                    requested
 		                                }
 		                            }
 		                        }
@@ -2834,8 +2988,14 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(PRODUCT_QUERY_PATH + ".extraResults.attributeHistogram.quantity", equalTo(expectedQuantityHistogram))
-			.body(PRODUCT_QUERY_PATH + ".otherExtraResults.attributeHistogram.priority", equalTo(expectedPriorityHistogram));
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, "extraResults", ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_QUANTITY),
+				equalTo(expectedQuantityHistogram)
+			)
+			.body(
+				resultPath(PRODUCT_QUERY_PATH, "otherExtraResults", ExtraResultsDescriptor.ATTRIBUTE_HISTOGRAM, ATTRIBUTE_PRIORITY),
+				equalTo(expectedPriorityHistogram)
+			);
 	}
 
 	@Test
@@ -2886,9 +3046,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
+		                                    requested
 		                                }
 		                            }
 		                            otherQuantity: quantity {
@@ -2896,11 +3056,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                min
 		                                max
 		                                overallCount
-		                                buckets(requestedCount: 20) {
+		                                buckets(requestedCount: 20, behavior: STANDARD) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
+		                                    requested
 		                                }
 		                            }
 		                        }
@@ -2947,7 +3107,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets {
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                }
@@ -3003,6 +3162,49 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for multiple attribute histogram buckets behavior")
+	void shouldReturnErrorForMultipleAttributeHistogramBucketsBehavior(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        attributeAliasIs: NOT_NULL
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        attributeHistogram {
+		                            quantity {
+		                                min
+		                                max
+		                                overallCount
+		                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
+		                                    index
+		                                }
+		                                otherBuckets: buckets(requestedCount: 10) {
+		                                    index
+		                                }
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return error for multiple attribute histogram buckets count")
 	void shouldReturnErrorForMultipleAttributeHistogramBucketsCount(GraphQLTester tester) {
 		tester.test(TEST_CATALOG)
@@ -3026,10 +3228,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets(requestedCount: 10) {
-		                                    index
+		                                    threshold
 		                                }
 		                                otherBuckets: buckets(requestedCount: 20) {
-		                                    index
+		                                    threshold
 		                                }
 		                            }
 		                        }
@@ -3043,6 +3245,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.statusCode(200)
 			.body(ERRORS_PATH, hasSize(greaterThan(0)));
 	}
+
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
@@ -3096,9 +3299,169 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
+	                                    requested
+	                                }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return optimized price histogram")
+	void shouldReturnOptimizedPriceHistogram(Evita evita, GraphQLTester tester) {
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							priceHistogram(20, HistogramBehavior.OPTIMIZED)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedBody = createPriceHistogramDto(response);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        priceHistogram {
+		                            __typename
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
+	                                    __typename
+	                                    threshold
+	                                    occurrences
+	                                    requested
+	                                }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + TYPENAME_FIELD,
+				equalTo(ExtraResultsDescriptor.THIS.name(createEmptyEntitySchema("Product")))
+			)
+			.body(
+				PRODUCT_QUERY_PATH + "." + ResponseDescriptor.EXTRA_RESULTS.name() + "." + ExtraResultsDescriptor.PRICE_HISTOGRAM.name(),
+				equalTo(expectedBody)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return price histogram without being affected by price filter")
+	void shouldReturnPriceHistogramWithoutBeingAffectedByPriceFilter(Evita evita, GraphQLTester tester) {
+		final BigDecimal from = new BigDecimal("80");
+		final BigDecimal to = new BigDecimal("150");
+		final EvitaResponse<EntityReference> response = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								priceInCurrency(CURRENCY_EUR),
+								priceInPriceLists(PRICE_LIST_VIP, PRICE_LIST_BASIC),
+								userFilter(
+									priceBetween(from, to)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							priceHistogram(20)
+						)
+					),
+					EntityReference.class
+				);
+			}
+		);
+
+		final var expectedBody = createPriceHistogramDto(response);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                        userFilter: {
+		                            priceBetween: ["80", "150"]
+		                        }
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        __typename
+		                        priceHistogram {
+		                            __typename
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 20) {
+	                                    __typename
+	                                    threshold
+	                                    occurrences
+	                                    requested
 	                                }
 		                        }
 		                    }
@@ -3171,9 +3534,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
+	                                    requested
 	                                }
 		                        }
 		                        otherPriceHistogram: priceHistogram {
@@ -3181,11 +3544,11 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                min
 	                                max
 	                                overallCount
-	                                buckets(requestedCount: 20) {
+	                                buckets(requestedCount: 20, behavior: STANDARD) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
+	                                    requested
 	                                }
 		                        }
 		                    }
@@ -3232,9 +3595,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets {
-	                                    index
 	                                    threshold
 	                                    occurrences
+	                                    requested
 	                                }
 		                        }
 		                    }
@@ -3309,11 +3672,55 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets(requestedCount: 10) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
 	                                otherBuckets: buckets(requestedCount: 20) {
+	                                    threshold
+	                                    occurrences
+	                                }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				Integer.MAX_VALUE
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, hasSize(greaterThan(0)));
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return error for multiple price histogram buckets behaviors")
+	void shouldReturnErrorForMultiplePriceHistogramBucketsBehaviors(GraphQLTester tester) {
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        priceInCurrency: EUR
+		                        priceInPriceLists: ["vip", "basic"]
+		                    }
+		                ) {
+		                    recordPage(size: %d) {
+		                        data {
+		                            primaryKey
+		                        }
+		                    }
+		                    extraResults {
+		                        priceHistogram {
+	                                min
+	                                max
+	                                overallCount
+	                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
+	                                    index
+	                                    threshold
+	                                    occurrences
+	                                }
+	                                otherBuckets: buckets(requestedCount: 10) {
 	                                    index
 	                                    threshold
 	                                    occurrences
@@ -4544,7 +4951,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithCountsDto(response, Entities.BRAND);
+		final var expectedBody = createNonGroupedFacetSummaryWithCountsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4557,11 +4964,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                            __typename
 		                            brand {
 		                                __typename
-		                                groupEntity {
-			                                __typename
-			                                primaryKey
-			                                type
-			                            }
 			                            count
 			                            facetStatistics {
 			                                __typename
@@ -4622,7 +5024,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		);
 		assertFalse(response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty());
 
-		final var expectedBody = createFacetSummaryWithImpactsDto(response);
+		final var expectedBody = createNonGroupedFacetSummaryWithImpactsDto(response, Entities.BRAND);
 
 		tester.test(TEST_CATALOG)
 			.document(
@@ -4632,10 +5034,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                    extraResults {
 		                        facetSummary {
 		                            brand {
-		                                groupEntity {
-		                                    primaryKey
-		                                    type
-		                                }
 		                                count
 			                            facetStatistics {
 			                                facetEntity {
@@ -4686,7 +5084,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							facetSummaryOfReference(
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
-								filterGroupBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								filterGroupBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
 								orderGroupBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
@@ -4708,7 +5109,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                        facetSummary {
 		                            parameter(
 		                                filterGroupBy: {
-		                                    attributeCodeLessThanEquals: "K"
+		                                    attributeCodeLessThanEquals: "K",
+		                                    entityLocaleEquals: en                                   
 			                            },
 			                            orderGroupBy: {
 			                                attributeNameNatural: DESC
@@ -4750,6 +5152,60 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 	@Test
 	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
+	@DisplayName("Should return empty facet summary of non-grouped reference if missing reference")
+	void shouldReturnEmptyFacetSummaryOfNonGroupedReferenceIfMissingReference(Evita evita, GraphQLTester tester) {
+		final EntityClassifier entityWithoutBrand = getEntity(
+			evita,
+			query(
+				collection(Entities.PRODUCT),
+				filterBy(
+					not(referenceHaving(Entities.BRAND))
+				),
+				require(
+					strip(0, 1)
+				)
+			)
+		);
+		assertNotNull(entityWithoutBrand);
+
+		tester.test(TEST_CATALOG)
+			.document(
+				"""
+		            query {
+		                queryProduct(
+		                    filterBy: {
+		                        entityPrimaryKeyInSet: %d
+		                    }
+		                ) {
+		                    extraResults {
+		                        facetSummary {
+		                            brand {
+			                            count
+		                            }
+		                        }
+		                    }
+		                }
+		            }
+					""",
+				entityWithoutBrand.getPrimaryKey()
+			)
+			.executeAndThen()
+			.statusCode(200)
+			.body(ERRORS_PATH, nullValue())
+			.body(
+				resultPath(PRODUCT_QUERY_PATH),
+				equalTo(
+					map()
+						.e(ResponseDescriptor.EXTRA_RESULTS.name(), map()
+							.e(ExtraResultsDescriptor.FACET_SUMMARY.name(), map()
+								.e("brand", null)))
+						.build()
+				)
+			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS)
 	@DisplayName("Should return facet summary with filtered and ordered facets")
 	void shouldReturnFacetSummaryWithFilteredAndOrderedFacets(Evita evita, GraphQLTester tester) {
 		final EvitaResponse<EntityReference> response = evita.queryCatalog(
@@ -4762,7 +5218,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							facetSummaryOfReference(
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
-								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								filterBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
 								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
@@ -4792,7 +5251,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                            count
 			                            facetStatistics(
 			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K"
+		                                        attributeCodeLessThanEquals: "K",
+		                                        entityLocaleEquals: en
 				                            },
 				                            orderBy: {
 				                                attributeNameNatural: DESC
@@ -4848,7 +5308,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 							facetSummaryOfReference(
 								Entities.PARAMETER,
 								FacetStatisticsDepth.COUNTS,
-								filterBy(attributeLessThanEquals(ATTRIBUTE_CODE, "K")),
+								filterBy(
+									attributeLessThanEquals(ATTRIBUTE_CODE, "K"),
+									entityLocaleEquals(Locale.ENGLISH)
+								),
 								orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
 							)
 						)
@@ -4888,7 +5351,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			                            count
 			                            facetStatistics(
 			                                filterBy: {
-		                                        attributeCodeLessThanEquals: "K"
+		                                        attributeCodeLessThanEquals: "K",
+		                                        entityLocaleEquals: en		                                       
 				                            },
 				                            orderBy: {
 				                                attributeNameNatural: DESC
@@ -4996,6 +5460,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                                        @Nonnull String attributeName) {
 		final AttributeHistogram attributeHistogram = response.getExtraResult(AttributeHistogram.class);
 		final HistogramContract histogram = attributeHistogram.getHistogram(attributeName);
+		Assert.isPremiseValid(
+			histogram.getBuckets().length > 0,
+			"Attribute histogram must have at least one bucket"
+		);
 
 		return map()
 			.e(TYPENAME_FIELD, HistogramDescriptor.THIS.name())
@@ -5005,9 +5473,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
 					.e(TYPENAME_FIELD, BucketDescriptor.THIS.name())
-					.e(BucketDescriptor.INDEX.name(), bucket.getIndex())
-					.e(BucketDescriptor.THRESHOLD.name(), bucket.getThreshold().toString())
-					.e(BucketDescriptor.OCCURRENCES.name(), bucket.getOccurrences())
+					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
+					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
+					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
 					.build())
 				.toList())
 			.build();
@@ -5016,6 +5484,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	@Nonnull
 	private Map<String, Object> createPriceHistogramDto(@Nonnull EvitaResponse<EntityReference> response) {
 		final PriceHistogram priceHistogram = response.getExtraResult(PriceHistogram.class);
+		Assert.isPremiseValid(
+			priceHistogram.getBuckets().length > 0,
+			"Attribute histogram must have at least one bucket"
+		);
 
 		return map()
 			.e(TYPENAME_FIELD, HistogramDescriptor.THIS.name())
@@ -5025,9 +5497,9 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
 					.e(TYPENAME_FIELD, BucketDescriptor.THIS.name())
-					.e(BucketDescriptor.INDEX.name(), bucket.getIndex())
-					.e(BucketDescriptor.THRESHOLD.name(), bucket.getThreshold().toString())
-					.e(BucketDescriptor.OCCURRENCES.name(), bucket.getOccurrences())
+					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
+					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
+					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
 					.build())
 				.toList())
 			.build();
@@ -5051,7 +5523,8 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 				.e(EntityDescriptor.PRIMARY_KEY.name(), levelInfo.entity().getPrimaryKey())
 				.e(GraphQLEntityDescriptor.PARENT_PRIMARY_KEY.name(), entity.parentAvailable() && entity.getParentEntity().isPresent() ? entity.getParentEntity().get().getPrimaryKey() : null)
 				.e(EntityDescriptor.ATTRIBUTES.name(), map()
-					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))));
+					.e(ATTRIBUTE_CODE, entity.getAttribute(ATTRIBUTE_CODE))))
+			.e(LevelInfoDescriptor.REQUESTED.name(), levelInfo.requested());
 
 		if (levelInfo.queriedEntityCount() != null) {
 			currentLevelInfoDto.e(LevelInfoDescriptor.QUERIED_ENTITY_COUNT.name(), levelInfo.queriedEntityCount());
@@ -5063,6 +5536,35 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 
 		levelInfo.children()
 			.forEach(childLevelInfo -> createFlattenedHierarchy(flattenedHierarchy, childLevelInfo, currentLevel + 1));
+	}
+
+	@Nonnull
+	private Map<String, Object> createNonGroupedFacetSummaryWithCountsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                      @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(TYPENAME_FIELD, FacetGroupStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(TYPENAME_FIELD, FacetStatisticsDescriptor.THIS.name(createEmptyEntitySchema(Entities.PRODUCT), createEmptyEntitySchema(referenceName)))
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(TYPENAME_FIELD, StringUtils.toPascalCase(referenceName))
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.build())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
 	}
 
 	@Nonnull
@@ -5103,11 +5605,48 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	}
 
 	@Nonnull
-	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response) {
+	private Map<String, Object> createNonGroupedFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                   @Nonnull String referenceName) {
+		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
+
+		return Optional.ofNullable(facetSummary.getFacetGroupStatistics(referenceName))
+			.map(groupStatistics ->
+				map()
+					.e(FacetGroupStatisticsDescriptor.COUNT.name(), groupStatistics.getCount())
+					.e(FacetGroupStatisticsDescriptor.FACET_STATISTICS.name(), groupStatistics.getFacetStatistics()
+						.stream()
+						.map(facetStatistics ->
+							map()
+								.e(FacetStatisticsDescriptor.FACET_ENTITY.name(), map()
+									.e(EntityDescriptor.PRIMARY_KEY.name(), facetStatistics.getFacetEntity().getPrimaryKey())
+									.e(EntityDescriptor.TYPE.name(), facetStatistics.getFacetEntity().getType())
+									.e(EntityDescriptor.ATTRIBUTES.name(), map()
+										.e(ATTRIBUTE_CODE, ((SealedEntity) facetStatistics.getFacetEntity()).getAttribute(ATTRIBUTE_CODE))
+										.build())
+									.build())
+								.e(FacetStatisticsDescriptor.REQUESTED.name(), facetStatistics.isRequested())
+								.e(FacetStatisticsDescriptor.COUNT.name(), facetStatistics.getCount())
+								.e(FacetStatisticsDescriptor.IMPACT.name(), map()
+									.e(TYPENAME_FIELD, FacetRequestImpactDescriptor.THIS.name())
+									.e(FacetRequestImpactDescriptor.DIFFERENCE.name(), facetStatistics.getImpact().difference())
+									.e(FacetRequestImpactDescriptor.MATCH_COUNT.name(), facetStatistics.getImpact().matchCount())
+									.e(FacetRequestImpactDescriptor.HAS_SENSE.name(), facetStatistics.getImpact().hasSense())
+									.build())
+								.build())
+						.toList())
+					.build()
+			)
+			.orElseThrow(() -> new IllegalStateException("Facet summary must contain facet group statistics for reference " + referenceName));
+	}
+
+	@Nonnull
+	private List<Map<String, Object>> createFacetSummaryWithImpactsDto(@Nonnull EvitaResponse<EntityReference> response,
+	                                                                   @Nonnull String referenceName) {
 		final FacetSummary facetSummary = response.getExtraResult(FacetSummary.class);
 
 		return facetSummary.getReferenceStatistics()
 			.stream()
+			.filter(groupStatistics -> groupStatistics.getReferenceName().equals(referenceName))
 			.map(groupStatistics ->
 				map()
 					.e(FacetGroupStatisticsDescriptor.GROUP_ENTITY.name(), null)
@@ -5173,6 +5712,7 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 						code
 					}
 				}
+				requested
 				%s
 				%s
 				""",

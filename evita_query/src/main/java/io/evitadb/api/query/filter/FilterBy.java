@@ -37,28 +37,30 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `filterBy` is container for filtering constraints. It is mandatory container when any filtering is to be used.
- * This container allows only one children container with the filtering condition.
+ * Filtering constraints allow you to select only a few entities from many that exist in the target collection. It's
+ * similar to the "where" clause in SQL. FilterBy container might contain one or more sub-constraints, that are combined
+ * by logical disjunction (AND).
  *
  * Example:
  *
- * ```
+ * <pre>
  * filterBy(
- *     and(
- *        isNotNull('code'),
- *        or(
- *           equals('code', 'ABCD'),
- *           startsWith('title', 'Knife')
- *        )
- *     )
+ *    isNotNull("code"),
+ *    or(
+ *       equals("code", "ABCD"),
+ *       startsWith("title", "Knife")
+ *    )
  * )
- * ```
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/basics#filter-by">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "filterBy",
-	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query."
+	shortDescription = "The container encapsulating inner filter constraint into one main constraint that is required by the query.",
+	userDocsLink = "/documentation/query/basics#filter-by"
 )
 public class FilterBy extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -2294600717092701351L;

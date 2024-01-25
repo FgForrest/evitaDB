@@ -22,4 +22,5 @@
 #   limitations under the License.
 #
 
-mvn clean antlr4:antlr4
+rm  src/main/java/io/evitadb/api/query/parser/grammar/*
+mvn clean antlr4:antlr4 replacer:replace

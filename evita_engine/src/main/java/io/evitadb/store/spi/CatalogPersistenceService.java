@@ -187,6 +187,14 @@ public interface CatalogPersistenceService extends PersistenceService {
 	 */
 	void deleteEntityCollection(@Nonnull String entityType);
 
+	@Override
+	default void applyUpdates(@Nonnull String owner, long transactionId, @Nonnull List<DeferredStorageOperation<?>> deferredOperations) {
+		executeWriteSafely(() -> {
+			PersistenceService.super.applyUpdates(owner, transactionId, deferredOperations);
+			return null;
+		});
+	}
+
 	/**
 	 * Flushes all trapped memory data to the persistent storage.
 	 * This method doesn't take transactional memory into an account but only flushes changes for trapped updates.

@@ -46,6 +46,7 @@ import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyEntityFetcher;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyProducerContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.producer.HierarchyStatisticsProducer;
+import io.evitadb.core.query.extraResult.translator.reference.EntityFetchTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.index.EntityIndex;
@@ -127,7 +128,8 @@ public abstract class AbstractHierarchyTranslator {
 	@Nonnull
 	protected static HierarchyEntityFetcher createEntityFetcher(
 		@Nullable EntityFetch entityFetch,
-		@Nonnull HierarchyProducerContext context
+		@Nonnull HierarchyProducerContext context,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		// first create the `entityFetcher` that either returns simple integer primary keys or full entities
 		final String hierarchicalEntityType = context.entitySchema().getName();
@@ -136,6 +138,7 @@ public abstract class AbstractHierarchyTranslator {
 		} else {
 			ofNullable(context.prefetchRequirementCollector())
 				.ifPresent(it -> it.addRequirementToPrefetch(entityFetch.getRequirements()));
+			EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(context.entitySchema(), entityFetch, extraResultPlanner);
 			return entityPk -> context.queryContext().fetchEntity(hierarchicalEntityType, entityPk, entityFetch).orElse(null);
 		}
 	}

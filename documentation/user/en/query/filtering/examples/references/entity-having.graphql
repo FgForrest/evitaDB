@@ -1,0 +1,31 @@
+{
+  queryProduct(
+    filterBy: {
+      referenceBrandHaving: [
+        {
+          entityHaving: {
+            attributeCodeEquals: "apple"
+          }
+        }
+      ]
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+        brand {
+          referencedPrimaryKey
+          referencedEntity {
+            primaryKey
+            attributes {
+              code
+            }
+          }
+        }
+      }
+    }
+  }
+}

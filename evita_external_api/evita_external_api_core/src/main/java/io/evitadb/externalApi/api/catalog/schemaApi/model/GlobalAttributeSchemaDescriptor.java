@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.api.catalog.schemaApi.model;
 
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
@@ -39,18 +40,22 @@ import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescript
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaDescriptor extends AttributeSchemaDescriptor {
+public interface GlobalAttributeSchemaDescriptor extends EntityAttributeSchemaDescriptor {
 
-	PropertyDescriptor UNIQUE_GLOBALLY = PropertyDescriptor.builder()
-		.name("uniqueGlobally")
+	PropertyDescriptor GLOBAL_UNIQUENESS_TYPE = PropertyDescriptor.builder()
+		.name("globalUniquenessType")
 		.description("""
 			When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
             entity having certain value of this attribute in entire catalog.
             
             As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
             better to have this ensured by the database engine.
+            
+            If the attribute is localized you can choose between `UNIQUE_WITHIN_CATALOG` and `UNIQUE_WITHIN_CATALOG_LOCALE`
+			modes. The first will ensure there is only single value within entire catalog regardless of locale,
+			the second will ensure there is only single value within catalog and specific locale.
 			""")
-		.type(nonNull(Boolean.class))
+		.type(nonNull(GlobalAttributeUniquenessType.class))
 		.build();
 
 	ObjectDescriptor THIS = ObjectDescriptor.builder()
@@ -66,8 +71,8 @@ public interface GlobalAttributeSchemaDescriptor extends AttributeSchemaDescript
 			in order not to waste precious memory space for data that will never be used in search queries.
 			
 			Filtering in attributes is executed by using constraints like `and`, `or`, `not`,
-			`attribute_{name}_equals`, `attribute_{name}_contains` and many others. Sorting can be achieved with
-			`attribute_{name}_natural` or others.
+			`attribute{name}Equals`, `attribute{name}Contains` and many others. Sorting can be achieved with
+			`attribute{name}Natural` or others.
 			
 			Attributes are not recommended for bigger data as they are all loaded at once when requested.
 			""")
@@ -76,12 +81,13 @@ public interface GlobalAttributeSchemaDescriptor extends AttributeSchemaDescript
 			NAME_VARIANTS,
 			DESCRIPTION,
 			DEPRECATION_NOTICE,
-			UNIQUE,
-			UNIQUE_GLOBALLY,
+			UNIQUENESS_TYPE,
+			GLOBAL_UNIQUENESS_TYPE,
 			FILTERABLE,
 			SORTABLE,
 			LOCALIZED,
 			NULLABLE,
+			REPRESENTATIVE,
 			TYPE,
 			DEFAULT_VALUE,
 			INDEXED_DECIMAL_PLACES

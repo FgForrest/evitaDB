@@ -23,9 +23,11 @@
 
 package io.evitadb.documentation.csharp;
 
+import io.evitadb.documentation.Environment;
 import io.evitadb.documentation.TestContext;
-import jdk.jshell.JShell;
 import lombok.Getter;
+
+import javax.annotation.Nonnull;
 
 /**
  * Context creates new {@link CShell} instance and initializes it. In this process, C# query validator is downloaded
@@ -41,7 +43,7 @@ public class CsharpTestContext implements TestContext {
 	 * CShell instance used for C# code validation and fetching results.
 	 */
 	private final CShell cshell;
-	public CsharpTestContext() {
-		this.cshell = new CShell();
+	public CsharpTestContext(@Nonnull Environment profile) {
+		this.cshell = new CShell(profile);
 	}
 }

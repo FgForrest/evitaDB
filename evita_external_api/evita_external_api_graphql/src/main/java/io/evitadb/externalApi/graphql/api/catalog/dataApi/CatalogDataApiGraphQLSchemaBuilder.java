@@ -53,6 +53,7 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.Ord
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.builder.constraint.RequireConstraintSchemaBuilder;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.DeleteEntitiesMutationHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GetEntityHeaderDescriptor;
+import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.GlobalEntityDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.ListUnknownEntitiesHeaderDescriptor;
 import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.QueryEntitiesHeaderDescriptor;
@@ -263,7 +264,8 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	@Nullable
 	private BuiltFieldDescriptor buildGetUnknownEntityField() {
 		final GraphQLFieldDefinition.Builder getUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.GET_UNKNOWN_ENTITY
-			.to(staticEndpointBuilderTransformer);
+			.to(staticEndpointBuilderTransformer)
+			.type(typeRef(GlobalEntityDescriptor.THIS.name()));
 
 		// build globally unique attribute filters
 		final List<GlobalAttributeSchemaContract> globalAttributes = buildingContext.getCatalog()
@@ -287,6 +289,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.build())
 			.forEach(getUnknownEntityFieldBuilder::argument);
 
+		final boolean localeArgumentNeeded = globalAttributes.stream()
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		if (localeArgumentNeeded) {
+			getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
+
 		getUnknownEntityFieldBuilder.argument(UnknownEntityHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 
 		return new BuiltFieldDescriptor(
@@ -306,6 +316,7 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 	private BuiltFieldDescriptor buildListUnknownEntityField() {
 		final Builder listUnknownEntityFieldBuilder = CatalogDataApiRootDescriptor.LIST_UNKNOWN_ENTITY
 			.to(staticEndpointBuilderTransformer)
+			.type(nonNull(list(nonNull(typeRef(GlobalEntityDescriptor.THIS.name())))))
 			.argument(ListUnknownEntitiesHeaderDescriptor.LIMIT.to(argumentBuilderTransformer));
 
 		// build globally unique attribute filters
@@ -329,6 +340,14 @@ public class CatalogDataApiGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilde
 				.deprecate(as.getDeprecationNotice())
 				.build())
 			.forEach(listUnknownEntityFieldBuilder::argument);
+
+		final boolean localeArgumentNeeded = globalAttributes.stream()
+			.anyMatch(GlobalAttributeSchemaContract::isUniqueGloballyWithinLocale);
+		if (localeArgumentNeeded) {
+			listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.LOCALE
+				.to(argumentBuilderTransformer)
+				.type(typeRef(LOCALE_ENUM.name())));
+		}
 
 		listUnknownEntityFieldBuilder.argument(ListUnknownEntitiesHeaderDescriptor.JOIN.to(argumentBuilderTransformer));
 

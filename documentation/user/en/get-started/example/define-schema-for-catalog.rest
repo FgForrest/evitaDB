@@ -1,4 +1,4 @@
-PUT /rest/test-catalog/schema
+PUT /rest/evita/schema
 
 {
   "mutations": [
@@ -145,7 +145,7 @@ PUT /rest/test-catalog/schema
               "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_ONE",
               "description": "Reference to the brand or manufacturer of the product.",
-              "filterable": true,
+              "indexed": true,
               "faceted": true
             }
           },
@@ -156,7 +156,7 @@ PUT /rest/test-catalog/schema
               "referencedEntityTypeManaged": true,
               "cardinality": "ZERO_OR_MORE",
               "description": "Reference to one or more categories the product is listed in.",
-              "filterable": true
+              "indexed": true
             }
           }
         ]

@@ -27,10 +27,12 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaGloballyUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
 import lombok.experimental.Delegate;
 
 import javax.annotation.Nonnull;
@@ -75,12 +77,13 @@ public final class GlobalAttributeSchemaBuilder
 				baseSchema.getName(),
 				baseSchema.getDescription(),
 				baseSchema.getDeprecationNotice(),
-				baseSchema.isUnique(),
-				baseSchema.isUniqueGlobally(),
+				baseSchema.getUniquenessType(),
+				baseSchema.getGlobalUniquenessType(),
 				baseSchema.isFilterable(),
 				baseSchema.isSortable(),
 				baseSchema.isLocalized(),
 				baseSchema.isNullable(),
+				baseSchema.isRepresentative(),
 				baseSchema.getType(),
 				baseSchema.getDefaultValue(),
 				baseSchema.getIndexedDecimalPlaces()
@@ -89,12 +92,29 @@ public final class GlobalAttributeSchemaBuilder
 	}
 
 	@Override
+	protected Class<GlobalAttributeSchemaContract> getAttributeSchemaType() {
+		return GlobalAttributeSchemaContract.class;
+	}
+
+	@Override
 	@Nonnull
 	public GlobalAttributeSchemaBuilder uniqueGlobally() {
-		this.mutations.add(
+		this.updatedSchemaDirty = addMutations(
 			new SetAttributeSchemaGloballyUniqueMutation(
 				toInstance().getName(),
-				true
+				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale() {
+		this.updatedSchemaDirty = addMutations(
+			new SetAttributeSchemaGloballyUniqueMutation(
+				toInstance().getName(),
+				GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 			)
 		);
 		return this;
@@ -108,6 +128,53 @@ public final class GlobalAttributeSchemaBuilder
 			addMutations(
 				new SetAttributeSchemaGloballyUniqueMutation(
 					toInstance().getName(),
+					decider.getAsBoolean() ?
+						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG : GlobalAttributeUniquenessType.NOT_UNIQUE
+				)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder uniqueGloballyWithinLocale(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaGloballyUniqueMutation(
+					toInstance().getName(),
+					decider.getAsBoolean() ?
+						GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE : GlobalAttributeUniquenessType.NOT_UNIQUE
+				)
+			)
+		);
+		return this;
+	}
+
+	@Override
+	@Nonnull
+	public GlobalAttributeSchemaBuilder representative() {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaRepresentativeMutation(
+					baseSchema.getName(),
+					true
+				)
+			)
+		);
+		return this;
+	}
+
+	@Nonnull
+	@Override
+	public GlobalAttributeSchemaBuilder representative(@Nonnull BooleanSupplier decider) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaRepresentativeMutation(
+					baseSchema.getName(),
 					decider.getAsBoolean()
 				)
 			)

@@ -33,14 +33,15 @@ import io.evitadb.api.query.descriptor.annotation.Classifier;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.Optional;
 
 /**
  * This `facetGroupsConjunction` require allows specifying inter-facet relation inside facet groups of certain primary ids.
@@ -54,15 +55,18 @@ import java.util.Arrays;
  *
  * <pre>
  * query(
- *    entities('product'),
+ *    entities("product"),
  *    filterBy(
  *       userFilter(
- *          facet('group', 1, 2),
- *          facet('parameterType', 11, 12, 22)
+ *          facet("group", 1, 2),
+ *          facet(
+ *             "parameterType",
+ *             entityPrimaryKeyInSet(11, 12, 22)
+ *          )
  *       )
  *    ),
  *    require(
- *       facetGroupsConjunction('parameterType', 1, 8, 15)
+ *       facetGroupsConjunction("parameterType", 1, 8, 15)
  *    )
  * )
  * </pre>
@@ -90,12 +94,15 @@ import java.util.Arrays;
  * When user selects facets: blue (11), red (12) by default relation would be: get all entities that have facet blue(11) OR
  * facet red(12). If require `facetGroupsConjunction('parameterType', 1)` is passed in the query filtering condition will
  * be composed as: blue(11) AND red(12)
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/facet#facet-groups-conjunction">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "groupsConjunction",
-	shortDescription = "Sets inter-facets relation within the specified groups to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction)."
+	shortDescription = "Sets inter-facets relation within the specified groups to [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
+	userDocsLink = "/documentation/query/requirements/facet#facet-groups-conjunction"
 )
 public class FacetGroupsConjunction extends AbstractRequireConstraintContainer implements FacetConstraint<RequireConstraint> {
 	@Serial private static final long serialVersionUID = -584073466325272463L;
@@ -109,7 +116,7 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 
 	@Creator
 	public FacetGroupsConjunction(@Nonnull @Classifier String referenceName,
-	                              @Nonnull @AdditionalChild(domain = ConstraintDomain.REFERENCE) FilterBy filterBy) {
+	                              @Nullable @AdditionalChild(domain = ConstraintDomain.ENTITY) FilterBy filterBy) {
 		super(new Serializable[]{referenceName}, NO_CHILDREN, filterBy);
 	}
 
@@ -126,17 +133,16 @@ public class FacetGroupsConjunction extends AbstractRequireConstraintContainer i
 	 */
 	@AliasForParameter("filterBy")
 	@Nonnull
-	public FilterBy getFacetGroups() {
+	public Optional<FilterBy> getFacetGroups() {
 		return Arrays.stream(getAdditionalChildren())
 			.filter(child -> child instanceof FilterBy)
 			.map(FilterBy.class::cast)
-			.findAny()
-			.orElseThrow(() -> new EvitaInvalidUsageException("FacetGroupsConjunction requires FilterBy constraint."));
+			.findAny();
 	}
 
 	@Override
 	public boolean isApplicable() {
-		return isArgumentsNonNull() && getArguments().length > 0 && getAdditionalChildrenCount() > 0;
+		return isArgumentsNonNull() && getArguments().length > 0;
 	}
 
 	@Nonnull

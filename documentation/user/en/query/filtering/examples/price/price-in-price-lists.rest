@@ -1,0 +1,19 @@
+POST /rest/evita/Product/query
+
+{
+  "filterBy" : {
+    "priceInPriceLists" : [
+      "vip-group-1-level",
+      "vip-group-2-level",
+      "vip-group-3-level"
+    ]
+  },
+  "require" : {
+    "entityFetch" : {
+      "attributeContent" : [
+        "code"
+      ],
+      "priceContentRespectingFilter" : [ ]
+    }
+  }
+}

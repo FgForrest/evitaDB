@@ -1,0 +1,11 @@
+query(
+    collection("Product"),
+    filterBy(
+        priceInPriceLists("basic"),
+        priceInCurrency("EUR"),
+        priceValidInNow()
+    ),
+    require(
+      priceHistogram(20)
+    )
+)

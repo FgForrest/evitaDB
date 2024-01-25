@@ -1,0 +1,45 @@
+{
+  queryProduct(
+    filterBy: {
+      userFilter: [
+        {
+          facetGroupsHaving: [
+            {
+              entityHaving: {
+                attributeCodeInSet: [
+                  "sale"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    require: {
+      facetGroupsGroupsConjunction: { }
+    }
+  ) {
+    extraResults {
+      facetSummary {
+        groups {
+          count
+          facetStatistics {
+            requested
+            count
+            impact {
+              difference
+              matchCount
+              hasSense
+            }
+            facetEntity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

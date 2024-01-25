@@ -33,7 +33,7 @@ import java.nio.file.Path;
 
 /**
  * Exception is thrown when the catalog directory doesn't contain the file `header.dat` which contains the key
- * information for work with MemTable files representing the catalog data.
+ * information for work with file offset index files representing the catalog data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */

@@ -25,6 +25,7 @@ package io.evitadb.documentation.rest;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.evitadb.documentation.JsonExecutable;
 import io.evitadb.documentation.UserDocumentationTest.CreateSnippets;
@@ -45,11 +46,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static io.evitadb.documentation.UserDocumentationTest.readFile;
 import static io.evitadb.documentation.UserDocumentationTest.resolveSiblingWithDifferentExtension;
@@ -72,7 +75,9 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 	/**
 	 * Regex pattern to parse input request into URL and query (request body)
 	 */
-	private static final Pattern REQUEST_PATTERN = Pattern.compile("([A-Z]+)\\s((/[\\w\\-]+)+)(\\s+([.\\s\\S]+))?");
+	private static final Pattern REQUEST_PATTERN = Pattern.compile("([A-Z]+)\\s((/[\\w?=&\\-]+)+)(\\s+([.\\s\\S]+))?");
+	private static final Set<String> METHODS_WITH_RESULT = Set.of("POST", "PUT", "GET");
+	private static final Pattern REQUEST_DELIMITER_PATTERN = Pattern.compile("---");
 
 	/**
 	 * Provides access to the {@link RestTestContext} instance.
@@ -94,7 +99,7 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 	/**
 	 * Contains reference to the output snippet bound to this executable.
 	 */
-	private final @Nullable OutputSnippet outputSnippet;
+	private final @Nullable List<OutputSnippet> outputSnippet;
 	/**
 	 * Contains requests for generating alternative language code snippets.
 	 */
@@ -215,53 +220,83 @@ public class RestExecutable extends JsonExecutable implements Executable, EvitaT
 
 	@Override
 	public void execute() throws Throwable {
-		final Matcher request = REQUEST_PATTERN.matcher(sourceContent);
-		Assert.isPremiseValid(request.matches(), "Invalid request format.");
-		final String method = request.group(1);
-		final String path = request.group(2);
-		final String theQuery = request.group(5);
-		final boolean shouldHaveResult = Set.of("POST", "PUT", "GET").contains(method);
-
 		final RestClient restClient = testContextAccessor.get().getRestClient();
-		final JsonNode theResult;
-		try {
-			theResult = restClient.call(method, path, theQuery).orElseThrow();
-		} catch (Exception ex) {
-			fail("The query " + theQuery + " failed: " + ex.getMessage(), ex);
-			return;
-		}
 
-		if (resource != null) {
-			final String markdownSnippet = generateMarkdownSnippet(shouldHaveResult, theResult, outputSnippet);
-
-			// generate Markdown snippet from the result if required
-			final String outputFormat = ofNullable(outputSnippet).map(OutputSnippet::forFormat).orElse("json");
-			if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
-				if (outputSnippet == null) {
-					writeFile(resource, outputFormat, markdownSnippet);
-				} else {
-					writeFile(outputSnippet.path(), markdownSnippet);
-				}
+		final String[] requests = REQUEST_DELIMITER_PATTERN.split(sourceContent);
+		boolean shouldHaveResult = false;
+		final ArrayNode combinedResult = OBJECT_MAPPER.createArrayNode();
+		for (String request : requests) {
+			if (request.isBlank()) {
+				continue;
 			}
 
-			// assert MarkDown file contents
-			final Optional<String> markDownFile = outputSnippet == null ?
-				readFile(resource, outputFormat) : readFile(outputSnippet.path());
-			markDownFile.ifPresent(
-				content -> {
-					assertEquals(
-						content,
-						markdownSnippet
-					);
+			final Matcher requestMatcher = REQUEST_PATTERN.matcher(request.strip());
+			Assert.isPremiseValid(requestMatcher.matches(), "Invalid request format.");
+			final String method = requestMatcher.group(1);
+			final String path = requestMatcher.group(2);
+			final String theQuery = requestMatcher.group(5);
 
-					final Path assertSource = outputSnippet == null ?
-						resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
-						outputSnippet.path().normalize();
+			if (METHODS_WITH_RESULT.contains(method)) {
+				shouldHaveResult = true;
+			}
 
-					final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
-					System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
+			final String normalizedQuery = theQuery == null || theQuery.isBlank()
+				? ""
+				: Arrays.stream(theQuery.split("\n"))
+					.filter(it -> !it.contains("//"))
+					.collect(Collectors.joining("\n"));
+
+			final JsonNode theResult;
+			try {
+				theResult = restClient.call(method, path, normalizedQuery).orElseThrow();
+			} catch (Exception ex) {
+				fail("The query " + normalizedQuery + " failed: " + ex.getMessage(), ex);
+				return;
+			}
+			combinedResult.add(theResult);
+		}
+
+		final boolean shouldHaveResultFinal = shouldHaveResult;
+		final JsonNode theResult = combinedResult.size() == 1 ? combinedResult.get(0) : combinedResult;
+
+		if (resource != null) {
+			final List<String> markdownSnippets = outputSnippet.stream()
+				.map(snippet -> generateMarkdownSnippet(shouldHaveResultFinal, theResult, snippet))
+				.toList();
+
+			for (int i = 0; i < outputSnippet.size(); i++) {
+				final OutputSnippet snippet = outputSnippet.get(i);
+				final String markdownSnippet = markdownSnippets.get(i);
+
+				// generate Markdown snippet from the result if required
+				final String outputFormat = ofNullable(snippet).map(OutputSnippet::forFormat).orElse("json");
+				if (Arrays.stream(createSnippets).anyMatch(it -> it == CreateSnippets.MARKDOWN)) {
+					if (snippet == null) {
+						writeFile(resource, outputFormat, markdownSnippet);
+					} else {
+						writeFile(snippet.path(), markdownSnippet);
+					}
 				}
-			);
+
+				// assert MarkDown file contents
+				final Optional<String> markDownFile = snippet == null ?
+					readFile(resource, outputFormat) : readFile(snippet.path());
+				markDownFile.ifPresent(
+					content -> {
+						assertEquals(
+							content,
+							markdownSnippet
+						);
+
+						final Path assertSource = snippet == null ?
+							resolveSiblingWithDifferentExtension(resource, outputFormat).normalize() :
+							snippet.path().normalize();
+
+						final String relativePath = assertSource.toString().substring(rootDirectory.normalize().toString().length());
+						System.out.println("Markdown snippet `" + relativePath + "` contents verified OK. \uD83D\uDE0A");
+					}
+				);
+			}
 		}
 	}
 }

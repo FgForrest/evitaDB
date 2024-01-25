@@ -59,7 +59,7 @@ public interface GraphQLEntityDescriptor extends EntityDescriptor {
 		// type is expected to be a list of non-hierarchical version of this entity
 		.build();
 
-	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_REFERENCE)
+	ObjectDescriptor THIS_NON_HIERARCHICAL = ObjectDescriptor.extend(THIS_CLASSIFIER)
 		.name("NonHierarchical*")
 		.build();
 }

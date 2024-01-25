@@ -69,7 +69,7 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 
 	@Override
 	@Nonnull
-	protected EndpointResponse<CatalogSchemaContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final CreateOrUpdateEntitySchemaRequestData requestData = parseRequestBody(exchange, CreateOrUpdateEntitySchemaRequestData.class);
 
 		final List<LocalCatalogSchemaMutation> schemaMutations = new LinkedList<>();
@@ -82,7 +82,7 @@ public class UpdateCatalogSchemaHandler extends CatalogSchemaHandler {
 		final CatalogSchemaContract updatedCatalogSchema = exchange.session().updateAndFetchCatalogSchema(
 			schemaMutations.toArray(LocalCatalogSchemaMutation[]::new)
 		);
-		return new SuccessEndpointResponse<>(updatedCatalogSchema);
+		return new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, updatedCatalogSchema));
 	}
 
 	@Nonnull

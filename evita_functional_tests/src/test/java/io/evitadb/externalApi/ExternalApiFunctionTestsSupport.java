@@ -25,6 +25,7 @@ package io.evitadb.externalApi;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -58,6 +59,26 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface ExternalApiFunctionTestsSupport {
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	default AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+		return getRandomAttributeValueObject(originalProductEntities, attributeName, 10);
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	default AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+		return originalProductEntities
+			.stream()
+			.flatMap(it -> it.getAttributeValues(attributeName).stream())
+			.filter(Objects::nonNull)
+			.skip(order)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
+	}
 
 	/**
 	 * Returns value of "random" value in the dataset.

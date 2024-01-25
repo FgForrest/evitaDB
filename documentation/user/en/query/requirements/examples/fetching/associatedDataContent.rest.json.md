@@ -9,8 +9,8 @@
         "en"
       ],
       "allLocales": [
-        "en",
-        "cs"
+        "cs",
+        "en"
       ],
       "associatedData": {
         "global": {
@@ -27,12 +27,11 @@
         },
         "localized": {
           "en": {
-            "localization": [
-              {
-                "code": "name",
-                "label": "Samsung"
+            "localization": {
+              "labels": {
+                "name": "Samsung"
               }
-            ]
+            }
           }
         }
       }

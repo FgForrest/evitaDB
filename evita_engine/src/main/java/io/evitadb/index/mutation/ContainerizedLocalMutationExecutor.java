@@ -127,7 +127,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	@Nonnull
 	private final Function<String, EntitySchema> otherEntitiesSchemaAccessor;
 	@Nonnull
-	private final IndexMaintainer<EntityIndexKey, EntityIndex<?>> entityIndexCreatingAccessor;
+	private final IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor;
 	private final boolean removeOnly;
 	private EntityBodyStoragePart entityContainer;
 	private PricesStoragePart pricesContainer;
@@ -138,12 +138,12 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private Map<PriceKey, Integer> assignedInternalPriceIdIndex;
 
 	public ContainerizedLocalMutationExecutor(
-		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex<?>, DataSourceChanges<EntityIndexKey, EntityIndex<?>>> storageContainerBuffer,
+		@Nonnull DataStoreTxMemoryBuffer<EntityIndexKey, EntityIndex, DataSourceChanges<EntityIndexKey, EntityIndex>> storageContainerBuffer,
 		int entityPrimaryKey,
 		@Nonnull EntityExistence requiresExisting,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Function<String, EntitySchema> otherEntitiesSchemaAccessor,
-		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex<?>> entityIndexCreatingAccessor,
+		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
 		boolean removeOnly
 	) {
 		super(storageContainerBuffer, schemaAccessor);
@@ -401,7 +401,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 	private List<LocalMutation<?, ?>> verifyConsistency() {
 		final EntityBodyStoragePart entityStorageContainer = this.getEntityStorageContainer();
 		final List<LocalMutation<?, ?>> requestedChanges;
-		if (entityStorageContainer.isNew() && !entityContainer.isMarkedForRemoval()) {
+		if (entityStorageContainer.isNew() && !entityStorageContainer.isValidated() && !entityContainer.isMarkedForRemoval()) {
 			// we need to check entire entity
 			final List<Object> missingMandatedAttributes = new LinkedList<>();
 			requestedChanges = verifyMandatoryAttributes(entityStorageContainer, missingMandatedAttributes, true, true);
@@ -413,6 +413,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 
 			verifyMandatoryAssociatedData(entityStorageContainer);
 			verifyReferenceCardinalities(referencesStorageContainer);
+			entityStorageContainer.setValidated(true);
 		} else if (entityStorageContainer.isMarkedForRemoval()) {
 			requestedChanges = Collections.emptyList();
 		} else {
@@ -486,7 +487,7 @@ public final class ContainerizedLocalMutationExecutor extends AbstractEntityStor
 						.flatMap(key -> ofNullable(availableLocalizedAttributes.get(key.locale()))
 							.map(it -> it.contains(key)).orElse(false) ? Stream.empty() : Stream.of(key))
 						.forEach(it -> missingAttributeHandler.accept(defaultValue, it));
-				} else if (checkGlobal) {
+				} else if (checkGlobal && !attribute.isLocalized()) {
 					final AttributeKey attributeKey = new AttributeKey(attribute.getName());
 					if (!availableGlobalAttributes.contains(attributeKey)) {
 						missingAttributeHandler.accept(defaultValue, attributeKey);

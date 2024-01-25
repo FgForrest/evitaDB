@@ -41,6 +41,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
@@ -192,7 +193,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * as soon as possible. We may take advantage of transitivity in boolean algebra to exchange formula placement
 	 * the way it's most performant.
 	 */
-	private final List<FormulaPostProcessor> postProcessors = new LinkedList<>();
+	private final LinkedHashMap<Class<? extends FormulaPostProcessor>, FormulaPostProcessor> postProcessors = new LinkedHashMap<>(16);
 	/**
 	 * Reference to the query context that allows to access entity bodies, indexes, original request and much more.
 	 */
@@ -261,25 +262,27 @@ public class FilterByVisitor implements ConstraintVisitor {
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index
-			final GlobalEntityIndex entityIndex = queryContext.getGlobalEntityIndex(entityType);
-			theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContext(
-					GlobalEntityIndex.class,
-					Collections.singletonList(entityIndex),
-					null,
-					entityIndex.getEntitySchema(),
-					null,
-					null,
-					null,
-					new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
-					AttributesContract::getAttribute,
-					() -> {
-						filterBy.accept(theFilterByVisitor);
-						// get the result and clear the visitor internal structures
-						return theFilterByVisitor.getFormulaAndClear();
-					}
-				)
-			);
+			theFormula = queryContext.getGlobalEntityIndexIfExists(entityType)
+				.map(
+					entityIndex -> queryContext.analyse(
+						theFilterByVisitor.executeInContext(
+							GlobalEntityIndex.class,
+							Collections.singletonList(entityIndex),
+							null,
+							entityIndex.getEntitySchema(),
+							null,
+							null,
+							null,
+							new AttributeSchemaAccessor(queryContext.getCatalogSchema(), queryContext.getSchema(entityType)),
+							AttributesContract::getAttribute,
+							() -> {
+								filterBy.accept(theFilterByVisitor);
+								// get the result and clear the visitor internal structures
+								return theFilterByVisitor.getFormulaAndClear();
+							}
+						)
+					)
+				).orElse(EmptyFormula.INSTANCE);
 		} finally {
 			queryContext.popStep();
 		}
@@ -298,7 +301,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		this.queryContext = queryContext;
 		//I just can't get generic to work here
 		//noinspection unchecked,rawtypes
-		this.targetIndexes = (List)targetIndexes;
+		this.targetIndexes = (List) targetIndexes;
 		this.indexSetToUse = indexSetToUse;
 		this.targetIndexQueriedByOtherConstraints = targetIndexQueriedByOtherConstraints;
 	}
@@ -343,8 +346,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFormulaAndClear() {
 		final Formula result = ofNullable(this.computedFormula)
+			.map(this::constructFinalFormula)
 			.orElseGet(this::getSuperSetFormula);
 		this.computedFormula = null;
+		this.postProcessors.clear();
 		return result;
 	}
 
@@ -512,8 +517,15 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Registers new {@link FormulaPostProcessor} to the list of processors that will be called just before
 	 * IndexFilterByVisitor hands the result of its work to the calling logic.
 	 */
-	public void registerFormulaPostProcessorIfNotPresent(@Nonnull FormulaPostProcessor formulaPostProcessor) {
-		this.postProcessors.add(formulaPostProcessor);
+	public <T extends FormulaPostProcessor> T registerFormulaPostProcessorIfNotPresent(
+		@Nonnull Class<T> postProcessorType,
+		@Nonnull Supplier<T> formulaPostProcessorSupplier
+	) {
+		//noinspection DataFlowIssue,unchecked
+		return (T) this.postProcessors.computeIfAbsent(
+			postProcessorType,
+			aClass -> formulaPostProcessorSupplier.get()
+		);
 	}
 
 	/**
@@ -559,7 +571,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns bitmap of primary keys ({@link EntityContract#getPrimaryKey()}) of referenced entities that satisfy
 	 * the passed filtering constraint.
 	 *
-	 * @param entitySchema that identifies the examined entities
+	 * @param entitySchema    that identifies the examined entities
 	 * @param referenceSchema that identifies the examined entities
 	 * @param filterBy        the filtering constraint to satisfy
 	 * @return bitmap with referenced entity ids
@@ -602,7 +614,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Returns stream of indexes that should be all considered for record lookup.
 	 */
 	@Nonnull
-	public Stream<EntityIndex<?>> getEntityIndexStream() {
+	public Stream<EntityIndex> getEntityIndexStream() {
 		final Deque<ProcessingScope<? extends Index<?>>> scope = getScope();
 		//noinspection unchecked
 		return scope.isEmpty() ? Stream.empty() : scope.peek().getIndexStream().filter(EntityIndex.class::isInstance).map(EntityIndex.class::cast);
@@ -718,7 +730,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Initializes new set of target {@link ProcessingScope} to be used in the visitor.
 	 */
 	@SafeVarargs
-	public final <T, S extends EntityIndex<S>> T executeInContext(
+	public final <T, S extends EntityIndex> T executeInContext(
 		@Nonnull Class<S> indexType,
 		@Nonnull List<S> targetIndexes,
 		@Nullable EntityContentRequire requirements,
@@ -794,7 +806,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set and returns collection of all formulas.
 	 */
 	@Nonnull
-	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex<?>, Stream<? extends Formula>> formulaFunction) {
+	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex, Stream<? extends Formula>> formulaFunction) {
 		return getEntityIndexStream().flatMap(formulaFunction).toList();
 	}
 
@@ -802,7 +814,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyOnIndexes(@Nonnull Function<EntityIndex<?>, Formula> formulaFunction) {
+	public Formula applyOnIndexes(@Nonnull Function<EntityIndex, Formula> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().map(formulaFunction));
 	}
 
@@ -810,7 +822,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 * Method executes the logic on the current entity set.
 	 */
 	@Nonnull
-	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex<?>, Stream<Formula>> formulaFunction) {
+	public Formula applyStreamOnIndexes(@Nonnull Function<EntityIndex, Stream<Formula>> formulaFunction) {
 		return joinFormulas(getEntityIndexStream().flatMap(formulaFunction));
 	}
 
@@ -819,7 +831,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	 */
 	@Nonnull
 	public Formula applyOnGlobalUniqueIndex(
-		@Nonnull AttributeSchemaContract attributeDefinition,
+		@Nonnull GlobalAttributeSchemaContract attributeDefinition,
 		@Nonnull Function<GlobalUniqueIndex, Formula> formulaFunction
 	) {
 		final Optional<CatalogIndex> catalogIndex = getIndex(CatalogIndexKey.INSTANCE);
@@ -827,7 +839,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		if (catalogIndex.isEmpty()) {
 			throw new EntityCollectionRequiredException("filter by attribute `" + attributeName + "`");
 		} else {
-			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeName);
+			final GlobalUniqueIndex globalUniqueIndex = catalogIndex.get().getGlobalUniqueIndex(attributeDefinition, getLocale());
 			if (globalUniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -841,10 +853,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Formula> formulaFunction) {
 		return applyOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
-			);
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
 			if (uniqueIndex == null) {
 				return EmptyFormula.INSTANCE;
 			}
@@ -858,10 +867,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula applyStreamOnUniqueIndexes(@Nonnull AttributeSchemaContract attributeDefinition, @Nonnull Function<UniqueIndex, Stream<Formula>> formulaFunction) {
 		return applyStreamOnIndexes(entityIndex -> {
-			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(
-				attributeDefinition.getName(),
-				attributeDefinition.isLocalized() ? getLocale() : null
-			);
+			final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(attributeDefinition, getLocale());
 			if (uniqueIndex == null) {
 				return Stream.empty();
 			}
@@ -967,7 +973,7 @@ public class FilterByVisitor implements ConstraintVisitor {
 		Formula finalFormula = constraintFormula;
 		if (!postProcessors.isEmpty()) {
 			final Set<FormulaPostProcessor> executedProcessors = CollectionUtils.createHashSet(postProcessors.size());
-			for (FormulaPostProcessor postProcessor : postProcessors) {
+			for (FormulaPostProcessor postProcessor : postProcessors.values()) {
 				if (!executedProcessors.contains(postProcessor)) {
 					postProcessor.visit(finalFormula);
 					finalFormula = postProcessor.getPostProcessedFormula();
@@ -997,10 +1003,6 @@ public class FilterByVisitor implements ConstraintVisitor {
 		 */
 		@Nullable
 		private final Supplier<List<T>> indexSupplier;
-		/**
-		 * Contains set of indexes, that should be used for accessing final indexes.
-		 */
-		private List<T> indexes;
 		/**
 		 * Suppressed constraints contains set of {@link FilterConstraint} that will not be evaluated by this visitor
 		 * in current scope.
@@ -1054,6 +1056,10 @@ public class FilterByVisitor implements ConstraintVisitor {
 		@Getter
 		@Nullable
 		private final EntityNestedQueryComparator entityNestedQueryComparator;
+		/**
+		 * Contains set of indexes, that should be used for accessing final indexes.
+		 */
+		private List<T> indexes;
 
 		private static void examineChildren(
 			@Nonnull Consumer<FilterConstraint> lambda,

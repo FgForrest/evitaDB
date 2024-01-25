@@ -14,16 +14,16 @@
         }
         parameterValues(
           filterBy: {
-          entityHaving: {
-            referenceParameterHaving: [
-              {
-                entityHaving: {
-                  attributeIsVisibleInDetailEquals: true
+            entityHaving: {
+              referenceParameterHaving: [
+                {
+                  entityHaving: {
+                    attributeIsVisibleInDetailEquals: true
+                  }
                 }
-              }
-            ]
+              ]
+            }
           }
-        }
         ) {
           referencedPrimaryKey
           referencedEntity {

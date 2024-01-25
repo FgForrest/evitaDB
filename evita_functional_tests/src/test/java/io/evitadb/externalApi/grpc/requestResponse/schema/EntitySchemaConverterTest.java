@@ -35,9 +35,11 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
-import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
 import io.evitadb.test.Entities;
@@ -96,17 +98,18 @@ class EntitySchemaConverterTest {
 			Set.of(Locale.ENGLISH, Locale.GERMAN),
 			Set.of(Currency.getInstance("EUR"), Currency.getInstance("USD")),
 			Map.of(
-				"test1", AttributeSchema._internalBuild("test1", LocalDateTime.class, true),
+				"test1", EntityAttributeSchema._internalBuild("test1", LocalDateTime.class, true),
 				"test2", GlobalAttributeSchema._internalBuild(
 					"test2",
 					"description",
 					"depr",
+					AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
+					GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG,
 					true,
 					true,
 					true,
 					true,
-					true,
-					true,
+					false,
 					String.class,
 					null,
 					0
@@ -139,10 +142,11 @@ class EntitySchemaConverterTest {
 					true,
 					true,
 					Map.of(
-						"code", AttributeSchema._internalBuild(
+						"code", EntityAttributeSchema._internalBuild(
 							"code",
 							"description",
 							"depr",
+							AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION,
 							true,
 							true,
 							true,
@@ -152,7 +156,7 @@ class EntitySchemaConverterTest {
 							null,
 							0
 						),
-						"priority", AttributeSchema._internalBuild(
+						"priority", EntityAttributeSchema._internalBuild(
 							"code",
 							Long[].class,
 							false

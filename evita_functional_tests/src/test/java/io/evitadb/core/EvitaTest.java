@@ -49,7 +49,13 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.exception.CatalogCorruptedException;
@@ -803,6 +809,44 @@ class EvitaTest implements EvitaTestSupport {
 	}
 
 	@Test
+	void shouldUpdateEntitySchemaAttributeDefinitionsReferingToGlobalOnes() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally())
+					.updateVia(session);
+
+				session
+					.defineEntitySchema(Entities.PRODUCT)
+					.withGlobalAttribute(ATTRIBUTE_URL)
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
+					.updateVia(session);
+
+				final EntityAttributeSchemaContract firstAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertTrue(firstAttribute instanceof GlobalAttributeSchemaContract);
+				assertTrue(firstAttribute.isLocalized());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG, ((GlobalAttributeSchemaContract)firstAttribute).getGlobalUniquenessType());
+
+				session.getCatalogSchema()
+					.openForWrite()
+					.withAttribute(ATTRIBUTE_URL, String.class, GlobalAttributeSchemaEditor::uniqueGloballyWithinLocale)
+					.updateVia(session);
+
+				final SealedCatalogSchema catalogSchema = session.getCatalogSchema();
+				assertTrue(catalogSchema.getAttribute(ATTRIBUTE_URL).isPresent());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, catalogSchema.getAttribute(ATTRIBUTE_URL).orElseThrow().getGlobalUniquenessType());
+
+				final EntityAttributeSchemaContract secondAttribute = session.getEntitySchemaOrThrow(Entities.PRODUCT).getAttribute(ATTRIBUTE_URL).orElseThrow();
+				assertTrue(secondAttribute instanceof GlobalAttributeSchemaContract);
+				assertTrue(secondAttribute.isLocalized());
+				assertEquals(GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE, ((GlobalAttributeSchemaContract)secondAttribute).getGlobalUniquenessType());
+			}
+		);
+	}
+
+	@Test
 	void shouldFetchEntityByLocalizedGlobalAttributeAutomaticallySelectingProperLocale() {
 		evita.updateCatalog(
 			TEST_CATALOG,
@@ -917,6 +961,96 @@ class EvitaTest implements EvitaTestSupport {
 					session.defineEntitySchema("ABc");
 				}
 			)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineReferencesToManagedEntitiesThatDontExist() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema("someEntity")
+						.withReferenceToEntity(
+							"someReference",
+							"nonExistingEntity",
+							Cardinality.ONE_OR_MORE
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldFailToDefineReferencesToManagedEntityGroupThatDoesntExist() {
+		assertThrows(
+			InvalidSchemaMutationException.class,
+			() -> evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(
+							"someEntity"
+						)
+						.withReferenceTo(
+							"someReference",
+							"nonExistingEntityNonManagedEntity",
+							Cardinality.ONE_OR_MORE,
+							whichIs -> whichIs.withGroupTypeRelatedToEntity("nonExistingGroup")
+						)
+						.updateVia(session);
+				}
+			)
+		);
+	}
+
+	@Test
+	void shouldCreateReferencesToNonManagedEntityAndGroup() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(
+						"someEntity"
+					)
+					.withReferenceTo(
+						"someReference",
+						"nonExistingEntityNonManagedEntity",
+						Cardinality.ONE_OR_MORE,
+						whichIs -> whichIs.withGroupType("nonExistingNonManagedGroup")
+					).updateVia(session);
+
+				assertNotNull(session.getEntitySchema("someEntity"));
+			}
+		);
+	}
+
+	@Test
+	void shouldCreateCircularReferencesToManagedEntitiesAndGroups() {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ModifyEntitySchemaMutation categoryMutation = session.defineEntitySchema(
+						Entities.CATEGORY
+					)
+					.withReferenceToEntity(Entities.PRODUCT, Entities.PRODUCT, Cardinality.ONE_OR_MORE)
+					.toMutation()
+					.orElseThrow();
+
+				final ModifyEntitySchemaMutation productMutation = session.defineEntitySchema(
+						Entities.PRODUCT
+					)
+					.withReferenceToEntity(Entities.CATEGORY, Entities.CATEGORY, Cardinality.ONE_OR_MORE)
+					.toMutation()
+					.orElseThrow();
+
+				session.updateCatalogSchema(
+					categoryMutation, productMutation
+				);
+
+				assertNotNull(session.getEntitySchema(Entities.CATEGORY));
+				assertNotNull(session.getEntitySchema(Entities.PRODUCT));
+			}
 		);
 	}
 

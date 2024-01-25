@@ -14,146 +14,87 @@
         ],
         "categories": [
           {
-            "referencedKey": 66472,
-            "attributes": {
-              "orderInCategory": "Predecessor[predecessorId=-1]"
-            }
+            "referencedKey": 66472
           }
         ],
         "parameterValues": [
           {
             "group": 66518,
-            "referencedKey": 103869,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103869
           },
           {
             "group": 66520,
-            "referencedKey": 103870,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103870
           },
           {
             "group": 66515,
-            "referencedKey": 103871,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103871
           },
           {
             "group": 66547,
-            "referencedKey": 103872,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103872
           },
           {
             "group": 66547,
-            "referencedKey": 103873,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103873
           },
           {
             "group": 66516,
-            "referencedKey": 103874,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103874
           },
           {
             "group": 114007,
-            "referencedKey": 103875,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103875
           },
           {
             "group": 114008,
-            "referencedKey": 103876,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103876
           },
           {
             "group": 67915,
-            "referencedKey": 103877,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103877
           },
           {
             "group": 114009,
-            "referencedKey": 103878,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103878
           },
           {
             "group": 67917,
-            "referencedKey": 103879,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103879
           },
           {
             "group": 66514,
-            "referencedKey": 103880,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103880
           },
           {
             "group": 66462,
-            "referencedKey": 103881,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103881
           },
           {
             "group": 66521,
-            "referencedKey": 103882,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103882
           },
           {
             "group": 66522,
-            "referencedKey": 103883,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103883
           },
           {
             "group": 66533,
-            "referencedKey": 103884,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 103884
           },
           {
             "group": 114010,
-            "referencedKey": 114011,
-            "attributes": {
-              "variant": false
-            }
+            "referencedKey": 114011
           }
         ],
         "stockVisibilities": [
           {
-            "group": 0,
             "referencedKey": 119334
           }
         ],
         "stocks": [
           {
-            "group": 0,
-            "referencedKey": 119334,
-            "attributes": {
-              "quantityOnStock": 544.00000
-            }
+            "referencedKey": 119334
           }
         ],
         "tags": [

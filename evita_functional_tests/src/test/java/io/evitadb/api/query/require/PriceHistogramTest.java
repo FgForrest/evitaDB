@@ -39,27 +39,37 @@ class PriceHistogramTest {
 	void shouldCreateViaFactoryClassWorkAsExpected() {
 		final PriceHistogram priceHistogram = priceHistogram(20);
 		assertEquals(20, priceHistogram.getRequestedBucketCount());
+		assertEquals(HistogramBehavior.STANDARD, priceHistogram.getBehavior());
 		assertNotNull(priceHistogram);
+
+		final PriceHistogram priceHistogram2 = priceHistogram(20, HistogramBehavior.OPTIMIZED);
+		assertEquals(20, priceHistogram2.getRequestedBucketCount());
+		assertEquals(HistogramBehavior.OPTIMIZED, priceHistogram2.getBehavior());
+		assertNotNull(priceHistogram2);
 	}
 
 	@Test
 	void shouldRecognizeApplicability() {
 		assertTrue(priceHistogram(20).isApplicable());
+		assertTrue(priceHistogram(20, HistogramBehavior.OPTIMIZED).isApplicable());
 	}
 
 	@Test
 	void shouldToStringReturnExpectedFormat() {
 		final PriceHistogram priceHistogram = priceHistogram(20);
-		assertEquals("priceHistogram(20)", priceHistogram.toString());
+		assertEquals("priceHistogram(20,STANDARD)", priceHistogram.toString());
 	}
 
 	@Test
 	void shouldConformToEqualsAndHashContract() {
 		assertNotSame(priceHistogram(20), priceHistogram(20));
 		assertEquals(priceHistogram(20), priceHistogram(20));
+		assertEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), priceHistogram(20, HistogramBehavior.OPTIMIZED));
 		assertNotEquals(priceHistogram(20), priceHistogram(25));
+		assertNotEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED), priceHistogram(20, HistogramBehavior.STANDARD));
 		assertEquals(priceHistogram(20).hashCode(), priceHistogram(20).hashCode());
 		assertNotEquals(priceHistogram(20).hashCode(), priceHistogram(22).hashCode());
+		assertNotEquals(priceHistogram(20, HistogramBehavior.OPTIMIZED).hashCode(), priceHistogram(20, HistogramBehavior.STANDARD).hashCode());
 	}
 	
 }

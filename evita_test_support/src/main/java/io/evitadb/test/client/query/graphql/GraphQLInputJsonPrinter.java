@@ -31,8 +31,17 @@ import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import io.evitadb.api.query.filter.AttributeSpecialValue;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.PriceContentMode;
+import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.StatisticsBase;
+import io.evitadb.api.query.require.StatisticsType;
 
 import javax.annotation.Nonnull;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -44,26 +53,32 @@ import java.util.stream.Collectors;
  */
 public class GraphQLInputJsonPrinter {
 
-	private final static String INDENTATION = "  ";
-	private final static Pattern ENUM_PATTERN = Pattern.compile("\"([A-Z]+(_[A-Z]+)*)\"");
-	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"([a-z]{2}(-[A-Z]{2})?)\"");
+	private final static Pattern LOCALE_PATTERN = Pattern.compile("\"(cs|en|de)\"");
+	private final static Pattern CURRENCY_PATTERN = Pattern.compile("\"(CZK|EUR|USD)\"");
+
+	private final static Set<Class<? extends Enum<?>>> KNOWN_ENUMS = Set.of(
+		AttributeSpecialValue.class, OrderDirection.class, EmptyHierarchicalEntityBehaviour.class, FacetStatisticsDepth.class, PriceContentMode.class, QueryPriceMode.class, StatisticsBase.class, StatisticsType.class
+	);
 
 	@Nonnull private final ObjectWriter constraintWriter;
+	@Nonnull private final Pattern knownEnumItemsPattern;
 
 	public GraphQLInputJsonPrinter() {
 		final ObjectMapper objectMapper = new ObjectMapper(new JsonFactoryBuilder()
 			.disable(JsonWriteFeature.QUOTE_FIELD_NAMES)
 			.build());
 		this.constraintWriter = objectMapper.writer(new CustomPrettyPrinter());
+
+		this.knownEnumItemsPattern = Pattern.compile(
+			KNOWN_ENUMS.stream()
+				.flatMap(enumClass -> Set.of(enumClass.getEnumConstants()).stream())
+				.map(Enum::name)
+				.collect(Collectors.joining("|", "\"(", ")\""))
+		);
 	}
 
 	@Nonnull
 	public String print(@Nonnull JsonNode node) {
-		return print(0, node);
-	}
-
-	@Nonnull
-	public String print(int offset, @Nonnull JsonNode node) {
 		String graphQLJson;
 		try {
 			graphQLJson = constraintWriter.writeValueAsString(node);
@@ -72,13 +87,13 @@ public class GraphQLInputJsonPrinter {
 		}
 		graphQLJson = correctEnumValues(graphQLJson);
 		graphQLJson = correctLocaleValues(graphQLJson);
-		graphQLJson = offsetJson(offset, graphQLJson);
+		graphQLJson = correctCurrencyValues(graphQLJson);
 		return graphQLJson;
 	}
 
 	@Nonnull
 	private String correctEnumValues(@Nonnull String graphQLJson) {
-		final Matcher enumMatcher = ENUM_PATTERN.matcher(graphQLJson);
+		final Matcher enumMatcher = knownEnumItemsPattern.matcher(graphQLJson);
 		return enumMatcher.replaceAll(mr -> mr.group(1));
 	}
 
@@ -89,13 +104,9 @@ public class GraphQLInputJsonPrinter {
 	}
 
 	@Nonnull
-	private String offsetJson(int offset, @Nonnull String graphQLJson) {
-		if (offset > 0) {
-			return graphQLJson.lines()
-				.map(it -> INDENTATION.repeat(offset) + it)
-				.collect(Collectors.joining("\n"));
-		}
-		return graphQLJson;
+	private String correctCurrencyValues(@Nonnull String graphQLJson) {
+		final Matcher currencyMatcher = CURRENCY_PATTERN.matcher(graphQLJson);
+		return currencyMatcher.replaceAll(mr -> mr.group(1));
 	}
 
 	private class CustomPrettyPrinter extends DefaultPrettyPrinter {

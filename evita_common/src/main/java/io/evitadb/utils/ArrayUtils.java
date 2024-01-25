@@ -727,6 +727,23 @@ public class ArrayUtils {
 	}
 
 	/**
+	 * Reverses contents of the array - i.e. first element becomes the last element of the array.
+	 * Modifies contents of the passed array.
+	 */
+	public static void reverseInPlace(@Nonnull int[] array) {
+		int i = 0;
+		int j = array.length - 1;
+		int tmp;
+		while (j > i) {
+			tmp = array[j];
+			array[j] = array[i];
+			array[i] = tmp;
+			j--;
+			i++;
+		}
+	}
+
+	/**
 	 * Sorts second array by the natural ordering of first array. Contents of the first are not changed, but the contents
 	 * of the second array are changed.
 	 */
@@ -786,8 +803,8 @@ public class ArrayUtils {
 			throw new IllegalArgumentException("Empty argument is not allowed!");
 		}
 		int resultSize = 0;
-		for (T[] configItem : array) {
-			resultSize = resultSize + configItem.length;
+		for (T[] arrayItem : array) {
+			resultSize = resultSize + arrayItem.length;
 		}
 		int offset = 0;
 		@SuppressWarnings({"unchecked"})
@@ -892,15 +909,18 @@ public class ArrayUtils {
 		final int[] positions = new int[arrayToSort.length];
 		Arrays.fill(positions, -1);
 		int itemsLocalized = 0;
+
 		for (int i = 0; i < sortedArray.length && itemsLocalized < arrayToSort.length; i++) {
 			final int number = sortedArray[i];
+
 			if (number >= arrayToSort[0] && number <= arrayToSort[lastIndex]) {
 				final int indexInArrayToSort = Arrays.binarySearch(arrayToSort, number);
-				if (indexInArrayToSort >= 0) {
+				if (indexInArrayToSort >= 0 && positions[indexInArrayToSort] == -1) {
 					positions[indexInArrayToSort] = itemsLocalized++;
 				}
 			}
 		}
+
 		final int[] copyOfSource = Arrays.copyOf(arrayToSort, arrayToSort.length);
 		int unknownNumbers = 0;
 		for (int i = 0; i < copyOfSource.length; i++) {
@@ -910,6 +930,7 @@ public class ArrayUtils {
 				arrayToSort[itemsLocalized + unknownNumbers++] = copyOfSource[i];
 			}
 		}
+
 		return arrayToSort.length - unknownNumbers;
 	}
 

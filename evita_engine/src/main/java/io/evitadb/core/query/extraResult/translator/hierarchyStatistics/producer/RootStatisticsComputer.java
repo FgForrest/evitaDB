@@ -27,6 +27,7 @@ import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.ChildrenStatisticsHierarchyVisitor;
+import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 
@@ -50,11 +51,16 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		@Nonnull HierarchyEntityFetcher entityFetcher,
 		@Nullable Function<StatisticsBase, HierarchyFilteringPredicate> hierarchyFilterPredicateProducer,
 		@Nullable HierarchyFilteringPredicate exclusionPredicate,
-		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nullable HierarchyTraversalPredicate scopePredicate,
 		@Nullable StatisticsBase statisticsBase,
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
-		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+		super(
+			context, entityFetcher,
+			hierarchyFilterPredicateProducer,
+			exclusionPredicate, scopePredicate,
+			statisticsBase, statisticsType
+		);
 	}
 
 	@Nonnull
@@ -64,9 +70,11 @@ public class RootStatisticsComputer extends AbstractHierarchyStatisticsComputer 
 		@Nonnull HierarchyFilteringPredicate filterPredicate
 	) {
 		// we always start with root nodes, but we respect the children exclusion
+		final Bitmap hierarchyNodes = context.queryContext().getRootHierarchyNodes();
 		final ChildrenStatisticsHierarchyVisitor visitor = new ChildrenStatisticsHierarchyVisitor(
 			context.removeEmptyResults(),
 			0,
+			hierarchyNodes::contains,
 			scopePredicate,
 			filterPredicate,
 			value -> context.directlyQueriedEntitiesFormulaProducer().apply(value, statisticsBase),

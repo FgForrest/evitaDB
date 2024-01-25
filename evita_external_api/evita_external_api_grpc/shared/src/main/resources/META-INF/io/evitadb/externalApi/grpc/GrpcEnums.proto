@@ -23,6 +23,33 @@ enum GrpcCatalogState {
   ALIVE = 1;
 }
 
+// This enum represents the uniqueness type of an {@link AttributeSchema}. It is used to determine whether the attribute
+// value must be unique among all the entity attributes of this type or whether it must be unique only among attributes
+// of the same locale.
+enum GrpcAttributeUniquenessType {
+  // The attribute is not unique (default).
+  NOT_UNIQUE = 0;
+  // The attribute value must be unique among all the entities of the same collection.
+  UNIQUE_WITHIN_COLLECTION = 1;
+  // The localized attribute value must be unique among all values of the same {@link Locale} among all the entities
+  // using of the same collection.
+  UNIQUE_WITHIN_COLLECTION_LOCALE = 2;
+}
+
+// This enum represents the uniqueness type of an {@link GlobalAttributeSchema}. It is used to determine whether
+// the attribute value must be unique among all the entities using this {@link GlobalAttributeSchema} or whether it
+// must be unique only among entities of the same locale.
+enum GrpcGlobalAttributeUniquenessType {
+  // The attribute is not unique (default).
+  NOT_GLOBALLY_UNIQUE = 0;
+  // The attribute value (either localized or non-localized) must be unique among all values among all the entities
+  // using this {@link GlobalAttributeSchema} in the entire catalog.
+  UNIQUE_WITHIN_CATALOG = 1;
+  // The localized attribute value must be unique among all values of the same {@link Locale} among all the entities
+  // using this {@link GlobalAttributeSchema} in the entire catalog.
+  UNIQUE_WITHIN_CATALOG_LOCALE = 2;
+}
+
 // Determines which price will be used for filtering.
 enum GrpcQueryPriceMode {
   // Price computation operations will use actual price with tax added for filtering.
@@ -99,6 +126,17 @@ enum GrpcStatisticsType {
   CHILDREN_COUNT = 0;
   // The statistics will be produce a reference entity count.
   QUERIED_ENTITY_COUNT = 1;
+}
+
+// The enum specifies whether the HistogramBehavior should produce histogram with exactly requested bucket counts
+// or optimized one, which may have less buckets than requested, but is more compact
+enum GrpcHistogramBehavior {
+  // Histogram always contains the number of buckets you asked for. This is the default behaviour.
+  STANDARD = 0;
+  // Histogram will never contain more buckets than you asked for, but may contain less when the data is scarce and
+  // there would be big gaps (empty buckets) between buckets. This leads to more compact histograms, which provide
+  // better user experience.
+  OPTIMIZED = 1;
 }
 
 // This enum controls how prices that share same `inner entity id` will behave during filtering and sorting.
@@ -183,6 +221,16 @@ enum GrpcCatalogEvolutionMode {
   // When new entity is inserted and no collection of its entity type exists, it is silently
   // created with empty schema and with all Evolution modes allowed.
   ADDING_ENTITY_TYPES = 0;
+}
+
+// Defines the type of the attribute schema
+enum GrpcAttributeSchemaType {
+  // attribute schema is GlobalAttributeSchemaContract
+  GLOBAL = 0;
+  // attribute schema is EntityAttributeSchemaContract
+  ENTITY = 1;
+  // attribute schema is AttributeSchemaContract
+  REFERENCE = 2;
 }
 
 // This enum contains all supported types in evitaDB query context.

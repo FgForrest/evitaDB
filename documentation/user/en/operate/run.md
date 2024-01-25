@@ -1,9 +1,11 @@
 ---
 title: Running
-perex:
+perex: |
+    If you want to run evitaDB as a separate service on your server, you can use Docker. This chapter describes how to
+    run evitaDB in Docker and how to configure it.
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 The Docker image is based on RedHat JDK / Linux (see <SourceClass>docker/Dockerfile</SourceClass>) base
@@ -22,23 +24,24 @@ You can do both in one command using `docker run`. This is the easiest way to ru
 
 ```shell
 # Linux variant: run on foreground, destroy container after exit, use host ports without NAT
-docker run --name evitadb -i --rm --net=host \ 
+docker run --name evitadb -i --rm --net=host \
 index.docker.io/evitadb/evitadb:latest
 
-# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238 
-# and you need to open ports manually
-docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \ 
-index.docker.io/evitadb/evitadb:latest
+# Windows / MacOS: there is open issue https://github.com/docker/roadmap/issues/238
+# and you need to open ports manually and propagate host IP address to the container
+docker run --name evitadb -i --rm -p 5555:5555 -p 5556:5556 -p 5557:5557 \
+       -e "api.exposedOn=localhost" \
+       index.docker.io/evitadb/evitadb:latest
 ```
 
 When you start the evitaDB server you should see the following information in the console output:
 
 ```plain
-            _ _        ____  ____  
-  _____   _(_) |_ __ _|  _ \| __ ) 
- / _ \ \ / / | __/ _` | | | |  _ \ 
+            _ _        ____  ____
+  _____   _(_) |_ __ _|  _ \| __ )
+ / _ \ \ / / | __/ _` | | | |  _ \
 |  __/\ V /| | || (_| | |_| | |_) |
- \___| \_/ |_|\__\__,_|____/|____/ 
+ \___| \_/ |_|\__\__,_|____/|____/
 
 You'll see some version here
 Visit us at: https://evitadb.io
@@ -76,8 +79,8 @@ API `system` listening on               http://your-server:5557/system/
         <Tr>
             <Td>`-i`</Td>
             <Td>
-                keeps STDIN open - the container will run in the foreground, and you'll see the container's 
-                standard/error output in the console. in the console, and you can stop the container by sending it 
+                keeps STDIN open - the container will run in the foreground, and you'll see the container's
+                standard/error output in the console. in the console, and you can stop the container by sending it
                 a terminal signal (usually the the key combination `Ctrl`+`C`, or `Command`+`.` on MacOS).
             </Td>
         </Tr>
@@ -91,9 +94,9 @@ API `system` listening on               http://your-server:5557/system/
         <Tr>
             <Td>`--net=host`</Td>
             <Td>
-            instructs Docker to use directly host system network stack, this way evitaDB behaves as if it runs directly 
-            on the host system network-wise, if the port configured in evitaDB configuration is already used on the 
-            system, Evita fails to set up appropriate web API (see next chapter for port remapping or 
+            instructs Docker to use directly host system network stack, this way evitaDB behaves as if it runs directly
+            on the host system network-wise, if the port configured in evitaDB configuration is already used on the
+            system, Evita fails to set up appropriate web API (see next chapter for port remapping or
             [evitaDB configuration](../operate/configure.md) for specifying open ports)
             </Td>
         </Tr>
@@ -109,11 +112,22 @@ open/re-mapping ports opened inside the Docker container in the following way:
 ```shell
 # run on foreground, destroy container after exit, use exact mapping for host ports
 docker run --name evitadb -i --rm \
--p 5555:5555 \ 
--p 5556:5556 \ 
--p 5557:5557 \  
-index.docker.io/evitadb/evitadb:latest
+        -p 5555:5555 \
+        -p 5556:5556 \
+        -p 5557:5557 \
+        -e "api.exposedOn=localhost" \
+        index.docker.io/evitadb/evitadb:latest
 ```
+
+<Note type="info">
+
+The `-e "api.exposedOn=localhost"` argument is necessary when evitaLab and/or Open API schema is generated and used
+from the host system the docker container is running on. This argument is not necessary when container shares
+the network with the host using argument `--net=host`. Argument tells evitaDB running in container to use `localhost`
+as a domain for generated URLs in the schemas and the evitaLab network requests. Otherwise it would use the container
+inner hostname as a domain, which is not accessible from the outer host system.
+
+</Note>
 
 <Table>
     <Thead>
@@ -156,7 +170,7 @@ index.docker.io/evitadb/evitadb:latest
         <Tr>
             <Td>`-p`</Td>
             <Td>
-            port remapping in the format `host port`:`container port`, so you could remap default ports opened by 
+            port remapping in the format `host port`:`container port`, so you could remap default ports opened by
             evitaDB inside the container to different ports on the host system.
             </Td>
         </Tr>
@@ -245,7 +259,7 @@ You can take advantage of all the following variables:
         </Tr>
         <Tr>
             <Td>**`EVITA_JAVA_OPTS`**</Td>
-            <Td>Java commandline arguments 
+            <Td>Java commandline arguments
             (list of basic arguments [can be found here](https://docs.oracle.com/en/java/javase/17/docs/specs/man/java.html#overview-of-java-options)),
             default: none (empty string)</Td>
         </Tr>
@@ -278,18 +292,18 @@ You can also provide the entire configuration YAML file using a special volume i
 ```shell
 ## run interactively, destroy container after exit, use host ports without NAT, specify your own data directory and configuration file
 docker run --name evitadb -i --net=host \
--v "__config_file__:/evita/conf/evita-configuration.yaml" \ 
+-v "__config_file__:/evita/conf/evita-configuration.yaml" \
 -v "__data_dir__:/evita/data" \
 -v "__certificate_dir__:/evita/certificates" \
 index.docker.io/evitadb/evitadb:latest
 ```
 
-You need to replace `__config_file__` with the path to the YAML file and `__data_dir__`, `__certificate_dir__` with 
+You need to replace `__config_file__` with the path to the YAML file and `__data_dir__`, `__certificate_dir__` with
 existing folders on the host file system.
 
 <Note type="info">
-The contents should match the default configuration file 
-<SourceClass>docker/evita-configuration.yaml</SourceClass>, but you can specify constants instead 
+The contents should match the default configuration file
+<SourceClass>docker/evita-configuration.yaml</SourceClass>, but you can specify constants instead
 of variables in certain settings.
 </Note>
 
@@ -317,7 +331,7 @@ You can check statuses of the GraphQL and the REST API by using the `curl` comma
 For GraphQL API run (applies to default evitaDB configuration):
 ```shell
 curl -k -X POST "https://localhost:5555/gql/system" \
-  -H 'Content-Type: application/graphql+json' \
+  -H 'Content-Type: application/json' \
   -d '{"query":"{liveness}"}'
 ```
 this should return following confirmation about liveness status of the GraphQL API:
@@ -334,13 +348,13 @@ curl -k "https://localhost:5555/rest/system/liveness" \
 ```
 this should return following confirmation about liveness status of the REST API:
 ```json
-{"alive":true}
+{"liveness":true}
 ```
 
 ### Control logging
 
 evitaDB uses the [Slf4j](https://www.slf4j.org/) logging facade with [Logback](https://logback.qos.ch/) implementation, but
-you're free to change this. The default logback configuration is defined in a file 
+you're free to change this. The default logback configuration is defined in a file
 <SourceClass>evita_server/src/main/resources/META-INF/logback.xml</SourceClass>.
 
 You can completely override the default logback configuration by providing your own
@@ -349,7 +363,7 @@ You can completely override the default logback configuration by providing your 
 ```shell
 ## run interactively, destroy container after exit, use host ports without NAT, specify your own data directory and configuration file
 docker run --name evitadb -i --net=host \
--v "__config_file__:/evita/conf/evita-configuration.yaml" \ 
+-v "__config_file__:/evita/conf/evita-configuration.yaml" \
 -v "__data_dir__:/evita/data" \
 -v "__certificate_dir__:/evita/certificates" \
 -v "__path_to_log_file__:/evita/logback.xml" \
@@ -387,7 +401,7 @@ evitaDB in the Docker compose file. The basic configuration could look like this
 version: "3.7"
 services:
   evita:
-    image: index.docker.io/evitadb/evitadb:latest  
+    image: index.docker.io/evitadb/evitadb:latest
     environment:
       - EVITA_JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5000
     volumes:

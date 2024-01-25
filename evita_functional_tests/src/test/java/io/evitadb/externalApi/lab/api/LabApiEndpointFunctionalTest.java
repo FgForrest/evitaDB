@@ -41,7 +41,6 @@ import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.tester.LabApiTester;
 import io.evitadb.test.tester.RestTester.Request;
 import io.evitadb.utils.NamingConvention;
-import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -106,7 +105,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 				"",
 				equalTo(
 					map()
-						.e(LivenessDescriptor.ALIVE.name(), true)
+						.e(LivenessDescriptor.LIVENESS.name(), true)
 						.build()
 				)
 			);
@@ -137,7 +136,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 	@DisplayName("Should return full catalog schema")
 	void shouldReturnFullCatalogSchema(Evita evita, LabApiTester tester) {
 		tester.test(LAB_API_URL)
-			.urlPathSuffix("/schema/catalogs/" + StringUtils.toKebabCase(TEST_CATALOG))
+			.urlPathSuffix("/schema/catalogs/" + TEST_CATALOG)
 			.httpMethod(Request.METHOD_GET)
 			.executeAndThen()
 			.statusCode(200)
@@ -180,7 +179,7 @@ class LabApiEndpointFunctionalTest extends RestEndpointFunctionalTest implements
 		);
 
 		tester.test(LAB_API_URL)
-			.urlPathSuffix("/data/catalogs/" + StringUtils.toKebabCase(TEST_CATALOG) + "/collections/query")
+			.urlPathSuffix("/data/catalogs/" + TEST_CATALOG + "/collections/query")
 			.httpMethod(Request.METHOD_POST)
 			.requestBody(
 				"""

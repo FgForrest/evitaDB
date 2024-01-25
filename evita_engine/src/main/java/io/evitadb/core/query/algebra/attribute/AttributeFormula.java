@@ -24,11 +24,12 @@
 package io.evitadb.core.query.algebra.attribute;
 
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.query.require.EntityRequire;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
-import io.evitadb.core.query.algebra.AbstractCacheableFormula;
-import io.evitadb.core.query.algebra.CacheableFormula;
+import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.prefetch.RequirementsDefiner;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -38,7 +39,11 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.function.Consumer;
+import java.math.BigDecimal;
+import java.util.function.Predicate;
+
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 
 /**
  * Attribute formula envelopes {@link Formula} that compute {@link io.evitadb.api.query.FilterConstraint} targeted
@@ -49,29 +54,33 @@ import java.util.function.Consumer;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class AttributeFormula extends AbstractCacheableFormula {
+public class AttributeFormula extends AbstractFormula implements RequirementsDefiner {
 	private static final long CLASS_ID = 4944486926494447594L;
 	public static final String ERROR_SINGLE_FORMULA_EXPECTED = "Exactly one inner formula is expected!";
 	/**
 	 * Contains {@link AttributeValue#key()} of the attribute that is targeted by inner query.
 	 */
 	@Getter private final AttributeKey attributeKey;
-
-	AttributeFormula(@Nullable Consumer<CacheableFormula> computationCallback, @Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula) {
-		super(computationCallback, innerFormula);
-		this.attributeKey = attributeKey;
-	}
+	/**
+	 * Contains possible predicate that can mark histogram buckets as requested by user constraint.
+	 */
+	@Getter private final Predicate<BigDecimal> requestedPredicate;
 
 	public AttributeFormula(@Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula) {
-		super(null, innerFormula);
+		this(attributeKey, innerFormula, null);
+	}
+
+	public AttributeFormula(@Nonnull AttributeKey attributeKey, @Nonnull Formula innerFormula, @Nullable Predicate<BigDecimal> requestedPredicate) {
+		super(innerFormula);
 		this.attributeKey = attributeKey;
+		this.requestedPredicate = requestedPredicate;
 	}
 
 	@Nonnull
 	@Override
 	public Formula getCloneWithInnerFormulas(@Nonnull Formula... innerFormulas) {
 		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(attributeKey, innerFormulas[0]);
+		return new AttributeFormula(attributeKey, innerFormulas[0], requestedPredicate);
 	}
 
 	/**
@@ -97,13 +106,6 @@ public class AttributeFormula extends AbstractCacheableFormula {
 	@Override
 	public int getEstimatedCardinality() {
 		return innerFormulas[0].getEstimatedCardinality();
-	}
-
-	@Nonnull
-	@Override
-	public CacheableFormula getCloneWithComputationCallback(@Nonnull Consumer<CacheableFormula> selfOperator, @Nonnull Formula... innerFormulas) {
-		Assert.isTrue(innerFormulas.length == 1, ERROR_SINGLE_FORMULA_EXPECTED);
-		return new AttributeFormula(selfOperator, attributeKey, innerFormulas[0]);
 	}
 
 	@Override
@@ -140,6 +142,12 @@ public class AttributeFormula extends AbstractCacheableFormula {
 	@Override
 	protected long getClassId() {
 		return CLASS_ID;
+	}
+
+	@Nullable
+	@Override
+	public EntityRequire getEntityRequire() {
+		return entityFetch(attributeContent(attributeKey.attributeName()));
 	}
 
 }

@@ -34,6 +34,8 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.math.BigDecimal;
+import java.util.function.Predicate;
 
 /**
  * PlainPriceTerminationFormula is a simplified variant of {@link PlainPriceTerminationFormulaWithPriceFilter} for cases
@@ -62,6 +64,12 @@ public class PlainPriceTerminationFormula extends AbstractFormula implements Pri
 	 */
 	public Formula getDelegate() {
 		return ((PriceHandlingContainerFormula) this.innerFormulas[0]).getDelegate();
+	}
+
+	@Nullable
+	@Override
+	public Predicate<BigDecimal> getRequestedPredicate() {
+		return threshold -> true;
 	}
 
 	@Nonnull

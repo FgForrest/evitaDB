@@ -52,23 +52,23 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories')
+ *             "categories",
+ *             attributeEquals("code", "accessories")
  *         )
  *     ),
  *     require(
  *         hierarchyOfReference(
- *             'categories',
+ *             "categories",
  *             children(
- *                 'subMenu',
- *                 entityFetch(attributeContent('code')),
+ *                 "subMenu",
+ *                 entityFetch(attributeContent("code")),
  *                 stopAt(
  *                     node(
  *                         filterBy(
- *                             attributeStartsWith('code', 'w')
+ *                             attributeStartsWith("code", "w")
  *                         )
  *                     )
  *                 )
@@ -77,12 +77,15 @@ import java.io.Serializable;
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#node">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "node",
 	shortDescription = "The constraint allows to locate the pivot hierarchy node.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#node",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyNode extends AbstractRequireConstraintContainer implements HierarchyStopAtRequireConstraint {

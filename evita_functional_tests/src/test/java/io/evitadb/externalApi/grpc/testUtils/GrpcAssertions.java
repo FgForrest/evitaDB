@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,7 @@ import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -60,8 +61,6 @@ import io.evitadb.externalApi.grpc.generated.*;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
-import java.math.MathContext;
-import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -137,15 +136,28 @@ public class GrpcAssertions {
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
 			assertEquals(EvitaDataTypesConverter.toGrpcEvitaDataType(expectedAttributeSchema.getType()), actualAttributeSchema.getType());
 			assertEquals(expectedAttributeSchema.getIndexedDecimalPlaces(), actualAttributeSchema.getIndexedDecimalPlaces());
+			assertEquals(expectedAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
 			assertEquals(expectedAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
 		}
 	}
 
-	public static void assertAttributes(@Nonnull Map<String, AttributeSchemaContract> expectedAttributesMap, @Nonnull Map<String, GrpcAttributeSchema> actualAttributesMap) {
+	public static void assertAttributes(@Nonnull Map<String, ? extends AttributeSchemaContract> expectedAttributesMap, @Nonnull Map<String, GrpcAttributeSchema> actualAttributesMap) {
 		assertEquals(expectedAttributesMap.size(), actualAttributesMap.size());
-		for (Map.Entry<String, AttributeSchemaContract> expectedAttributeEntry : expectedAttributesMap.entrySet()) {
+		for (Map.Entry<String, ? extends AttributeSchemaContract> expectedAttributeEntry : expectedAttributesMap.entrySet()) {
 			final AttributeSchemaContract expectedAttributeSchema = expectedAttributeEntry.getValue();
 			final GrpcAttributeSchema actualAttributeSchema = actualAttributesMap.get(expectedAttributeEntry.getKey());
+
+			if (expectedAttributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
+				assertEquals(GrpcAttributeSchemaType.GLOBAL, actualAttributeSchema.getSchemaType());
+				assertEquals(globalAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
+				assertEquals(globalAttributeSchema.isUniqueGlobally(), actualAttributeSchema.getUniqueGlobally());
+			} else if (expectedAttributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
+				assertEquals(GrpcAttributeSchemaType.ENTITY, actualAttributeSchema.getSchemaType());
+				assertEquals(entityAttributeSchema.isRepresentative(), actualAttributeSchema.getRepresentative());
+			} else {
+				assertEquals(GrpcAttributeSchemaType.REFERENCE, actualAttributeSchema.getSchemaType());
+			}
+
 			assertEquals(expectedAttributeSchema.getName(), actualAttributeSchema.getName());
 			if (expectedAttributeSchema.getDescription() == null) {
 				assertEquals(actualAttributeSchema.getDescription().getDefaultInstanceForType(), actualAttributeSchema.getDescription());
@@ -328,6 +340,7 @@ public class GrpcAssertions {
 			assertEquals(expectedChild.childrenCount(), actualChild.getChildrenCount().getValue());
 		}
 		assertEquals(expectedChild.children().size(), actualChild.getItemsCount());
+		assertEquals(expectedChild.requested(), actualChild.getRequested());
 
 		final EntityClassifier expectedEntity = expectedChild.entity();
 		if (expectedEntity instanceof EntityReference entityReference) {
@@ -598,19 +611,19 @@ public class GrpcAssertions {
 
 	public static void assertHistograms(@Nonnull HistogramContract expectedHistogram, @Nonnull GrpcHistogram actualHistogram) {
 		final GrpcBigDecimal histogramMin = actualHistogram.getMin();
-		assertEquals(expectedHistogram.getMin(), new BigDecimal(histogramMin.getValueString(), new MathContext(histogramMin.getPrecision())).setScale(histogramMin.getScale(), RoundingMode.UNNECESSARY));
+		assertEquals(expectedHistogram.getMin(), EvitaDataTypesConverter.toBigDecimal(histogramMin));
 		final GrpcBigDecimal histogramMax = actualHistogram.getMax();
-		assertEquals(expectedHistogram.getMax(), new BigDecimal(histogramMax.getValueString(), new MathContext(histogramMax.getPrecision())).setScale(histogramMax.getScale(), RoundingMode.UNNECESSARY));
+		assertEquals(expectedHistogram.getMax(), EvitaDataTypesConverter.toBigDecimal(histogramMax));
 		assertEquals(expectedHistogram.getOverallCount(), actualHistogram.getOverallCount());
 		assertEquals(expectedHistogram.getBuckets().length, actualHistogram.getBucketsCount());
 
 		for (int i = 0; i < expectedHistogram.getBuckets().length; i++) {
 			final HistogramContract.Bucket expectedBucket = expectedHistogram.getBuckets()[i];
 			final GrpcHistogram.GrpcBucket actualBucket = actualHistogram.getBucketsList().get(i);
-			assertEquals(expectedBucket.getIndex(), actualBucket.getIndex());
 			final GrpcBigDecimal bucketThreshold = actualBucket.getThreshold();
-			assertEquals(expectedBucket.getThreshold(), new BigDecimal(bucketThreshold.getValueString(), new MathContext(bucketThreshold.getPrecision())).setScale(bucketThreshold.getScale(), RoundingMode.UNNECESSARY));
-			assertEquals(expectedBucket.getOccurrences(), actualBucket.getOccurrences());
+			assertEquals(expectedBucket.threshold(), EvitaDataTypesConverter.toBigDecimal(bucketThreshold));
+			assertEquals(expectedBucket.occurrences(), actualBucket.getOccurrences());
+			assertEquals(expectedBucket.requested(), actualBucket.getRequested());
 		}
 	}
 

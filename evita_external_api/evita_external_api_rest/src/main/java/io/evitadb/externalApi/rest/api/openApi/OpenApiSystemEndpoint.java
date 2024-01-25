@@ -65,7 +65,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 	                              @Nonnull List<OpenApiEndpointParameter> parameters,
 	                              @Nullable OpenApiSimpleType requestBody,
 	                              @Nonnull OpenApiSimpleType successResponse,
-	                              @Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder) {
+	                              @Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder) {
 		super(method, path, false, operationId, description, deprecationNotice, parameters, requestBody, successResponse, handlerBuilder);
 	}
 
@@ -79,7 +79,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 
 	@Nonnull
 	@Override
-	public RestEndpointHandler<?, SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
+	public RestEndpointHandler<SystemRestHandlingContext> toHandler(@Nonnull ObjectMapper objectMapper,
 	                                                                   @Nonnull Evita evita,
 	                                                                   @Nonnull OpenAPI openApi,
 	                                                                   @Nonnull Map<String, Class<? extends Enum<?>>> enumMapping) {
@@ -107,7 +107,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		@Nullable private OpenApiSimpleType requestBody;
 		@Nullable private OpenApiSimpleType successResponse;
 
-		@Nullable private Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder;
+		@Nullable private Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder;
 
 		private Builder() {
 			this.parameters = new LinkedList<>();
@@ -215,7 +215,7 @@ public class OpenApiSystemEndpoint extends OpenApiEndpoint<SystemRestHandlingCon
 		 * Sets handler builder.
 		 */
 		@Nonnull
-		public Builder handler(@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<?, SystemRestHandlingContext>> handlerBuilder) {
+		public Builder handler(@Nonnull Function<SystemRestHandlingContext, RestEndpointHandler<SystemRestHandlingContext>> handlerBuilder) {
 			this.handlerBuilder = handlerBuilder;
 			return this;
 		}

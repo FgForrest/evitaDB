@@ -74,7 +74,7 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         and(
  *             entityPrimaryKeyInSet(110066, 106742, 110513),
@@ -87,12 +87,15 @@ import java.io.Serializable;
  *
  * ... returns a single result - product with entity primary key 106742, which is the only one that all three
  * `entityPrimaryKeyInSet` constraints have in common.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/logical#and">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný, FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "and",
 	shortDescription = "The container that combines inner constraints with [logical AND](https://en.wikipedia.org/wiki/Logical_conjunction).",
+	userDocsLink = "/documentation/query/filtering/logical#and",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE }
 )
 public class And extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {

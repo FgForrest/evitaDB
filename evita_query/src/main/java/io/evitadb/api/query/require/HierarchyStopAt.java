@@ -49,12 +49,15 @@ import java.io.Serializable;
  *
  * which define the constraint that stops traversing the hierarchy tree when it's satisfied by a currently traversed
  * node.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/requirements/hierarchy#stop-at">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "stopAt",
 	shortDescription = "The constraint defines the traversal stop condition that limits the scope of the returned hierarchy tree.",
+	userDocsLink = "/documentation/query/requirements/hierarchy#stop-at",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyStopAt extends AbstractRequireConstraintContainer implements HierarchyOutputRequireConstraint {

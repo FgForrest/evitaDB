@@ -48,34 +48,37 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
- *         attributeEquals('code', 'garmin-vivoactive-4')
+ *         attributeEquals("code", "garmin-vivoactive-4")
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code'),
+ *             attributeContent("code"),
  *             referenceContent(
- *                 'parameterValues',
+ *                 "parameterValues",
  *                 orderBy(
  *                     entityProperty(
- *                         attributeNatural('code', DESC)
+ *                         attributeNatural("code", DESC)
  *                     )
  *                 ),
  *                 entityFetch(
- *                     attributeContent('code')
+ *                     attributeContent("code")
  *                 )
  *             )
  *         )
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/reference#entity-property">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "property",
 	shortDescription = "The constraint sorts returned references by applying ordering constraint on referenced entity.",
+	userDocsLink = "/documentation/query/ordering/reference#entity-property",
 	supportedIn = ConstraintDomain.REFERENCE
 )
 public class EntityProperty extends AbstractOrderConstraintContainer implements EntityConstraint<OrderConstraint> {

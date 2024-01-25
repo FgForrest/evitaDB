@@ -116,10 +116,20 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * having certain value of this attribute among other entities in the same collection.
    * </pre>
    *
-   * <code>bool unique = 4;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
+   * @return The enum numeric value on the wire for unique.
+   */
+  int getUniqueValue();
+  /**
+   * <pre>
+   * When attribute is unique it is automatically filterable, and it is ensured there is exactly one single entity
+   * having certain value of this attribute among other entities in the same collection.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType unique = 4;</code>
    * @return The unique.
    */
-  boolean getUnique();
+  io.evitadb.externalApi.grpc.generated.GrpcAttributeUniquenessType getUnique();
 
   /**
    * <pre>
@@ -127,10 +137,20 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * entity having certain value of this attribute in entire catalog.
    * </pre>
    *
-   * <code>bool uniqueGlobally = 5;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5;</code>
+   * @return The enum numeric value on the wire for uniqueGlobally.
+   */
+  int getUniqueGloballyValue();
+  /**
+   * <pre>
+   * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+   * entity having certain value of this attribute in entire catalog.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType uniqueGlobally = 5;</code>
    * @return The uniqueGlobally.
    */
-  boolean getUniqueGlobally();
+  io.evitadb.externalApi.grpc.generated.GrpcGlobalAttributeUniquenessType getUniqueGlobally();
 
   /**
    * <pre>
@@ -180,10 +200,24 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
 
   /**
    * <pre>
+   * If an attribute is flagged as representative, it should be used in developer tools along with the entity's
+   * primary key to describe the entity or reference to that entity. The flag is completely optional and doesn't
+   * affect the core functionality of the database in any way. However, if it's used correctly, it can be very
+   * helpful to developers in quickly finding their way around the data. There should be very few representative
+   * attributes in the entity type, and the unique ones are usually the best to choose.
+   * </pre>
+   *
+   * <code>bool representative = 10;</code>
+   * @return The representative.
+   */
+  boolean getRepresentative();
+
+  /**
+   * <pre>
    * Type of the attribute. Must be one of supported data types or its array.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
    * @return The enum numeric value on the wire for type.
    */
   int getTypeValue();
@@ -192,7 +226,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * Type of the attribute. Must be one of supported data types or its array.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 10;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType type = 11;</code>
    * @return The type.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaDataType getType();
@@ -205,7 +239,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * of ten using `indexedDecimalPlaces` as exponent.
    * </pre>
    *
-   * <code>int32 indexedDecimalPlaces = 11;</code>
+   * <code>int32 indexedDecimalPlaces = 12;</code>
    * @return The indexedDecimalPlaces.
    */
   int getIndexedDecimalPlaces();
@@ -216,7 +250,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 13;</code>
    * @return Whether the defaultValue field is set.
    */
   boolean hasDefaultValue();
@@ -226,7 +260,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 13;</code>
    * @return The defaultValue.
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValue getDefaultValue();
@@ -236,7 +270,7 @@ public interface GrpcCreateGlobalAttributeSchemaMutationOrBuilder extends
    * non-null checks even if no attributes of such name are specified.
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 12;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcEvitaValue defaultValue = 13;</code>
    */
   io.evitadb.externalApi.grpc.generated.GrpcEvitaValueOrBuilder getDefaultValueOrBuilder();
 }

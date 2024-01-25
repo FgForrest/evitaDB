@@ -77,6 +77,10 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 			return SkipFormula.INSTANCE;
 		} else {
 			final String[] priceLists = priceInPriceLists.getPriceLists();
+			if (priceLists.length == 0) {
+				return EmptyFormula.INSTANCE;
+			}
+
 			final Currency currency = ofNullable(filterByVisitor.findInConjunctionTree(PriceInCurrency.class))
 				.map(PriceInCurrency::getCurrency)
 				.orElse(null);
@@ -91,7 +95,9 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 					return new SelectionFormula(
 						filterByVisitor,
 						filteringFormula,
-						new SellingPriceAvailableBitmapFilter()
+						new SellingPriceAvailableBitmapFilter(
+							filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+						)
 					);
 				} else {
 					return filteringFormula;
@@ -100,7 +106,9 @@ public class PriceInPriceListsTranslator extends AbstractPriceRelatedConstraintT
 				return new EntityFilteringFormula(
 					"price in price lists filter",
 					filterByVisitor,
-					new SellingPriceAvailableBitmapFilter()
+					new SellingPriceAvailableBitmapFilter(
+						filterByVisitor.getEvitaRequest().getFetchesAdditionalPriceLists()
+					)
 				);
 			}
 		}

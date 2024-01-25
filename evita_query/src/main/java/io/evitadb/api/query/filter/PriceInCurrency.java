@@ -35,30 +35,26 @@ import java.io.Serializable;
 import java.util.Currency;
 
 /**
- * This `priceInCurrency` is query accepts single {@link String}
- * argument that represents [currency](https://en.wikipedia.org/wiki/ISO_4217) in ISO 4217 code or direct {@link Currency}
- * instance.
+ * The `priceInCurrency` constraint can be used to limit the result set to entities that have a price in the specified
+ * currency. Except for the <a href="https://evitadb.io/documentation/query/filtering/price?lang=evitaql#typical-usage-of-price-constraints">standard use-case</a>
+ * you can also create query with this constraint only:
  *
- * Function returns true if entity has at least one price with specified currency. This function is also affected by
- * {@link PriceInPriceLists} function that limits the examined prices as well. When this query
- * is used in the query returned entities will contain only prices matching specified locale. In other words if entity has
- * two prices: USD and CZK and `priceInCurrency('CZK')` is used in query returned entity would have only Czech crown prices
- * fetched along with it.
+ * <pre>
+ * priceInCurrency("EUR")
+ * </pre>
  *
- * Only single `priceInCurrency` query can be used in the query. Constraint must be defined when other price related
- * constraints are used in the query.
- *
- * Example:
- *
- * ```
- * priceInCurrency('USD')
- * ```
+ * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
+ * Currently, there is no way to switch context between different parts of the filter and build queries such as find
+ * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-in-currency">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "inCurrency",
 	shortDescription = "The constraint filters out all entities that lack selling price in specified currency.",
+	userDocsLink = "/documentation/query/filtering/price#price-in-currency",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceInCurrency extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {

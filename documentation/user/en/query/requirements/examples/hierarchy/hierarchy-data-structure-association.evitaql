@@ -1,20 +1,20 @@
 query(
-    collection('Category'),
+    collection("Category"),
     filterBy(
         hierarchyWithinSelf(
-            attributeEquals('code', 'audio')
+            attributeEquals("code", "audio")
         )
     ),
     require(
         hierarchyOfSelf(
             children(
-                'directChildren',
-                entityFetch(attributeContent('code')),
+                "directChildren",
+                entityFetch(attributeContent("code")),
                 stopAt(distance(1))
             ),
             parents(
-                'directParent',
-                entityFetch(attributeContent('code')),
+                "directParent",
+                entityFetch(attributeContent("code")),
                 stopAt(distance(1))
             )
         )

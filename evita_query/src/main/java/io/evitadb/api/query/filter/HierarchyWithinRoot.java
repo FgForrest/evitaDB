@@ -25,7 +25,6 @@ package io.evitadb.api.query.filter;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainerWithSuffix;
-import io.evitadb.api.query.ConstraintWithSuffix;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.AliasForParameter;
@@ -74,13 +73,13 @@ import static java.util.Optional.ofNullable;
  *
  * <pre>
  * query(
- *     collection('Category'),
+ *     collection("Category"),
  *     filterBy(
  *         hierarchyWithinRootSelf()
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -91,13 +90,13 @@ import static java.util.Optional.ofNullable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
- *         hierarchyWithinRoot('categories')
+ *         hierarchyWithinRoot("categories")
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -105,12 +104,15 @@ import static java.util.Optional.ofNullable;
  *
  * Products assigned to only one orphan category will be missing from the result. Products assigned to two or more
  * categories will only appear once in the response (contrary to what you might expect if you have experience with SQL).
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#hierarchy-within-root">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "withinRoot",
 	shortDescription = "The constraint if entity is placed inside the defined hierarchy tree starting at the root of the tree (or has reference to any hierarchical entity in the tree).",
+	userDocsLink = "/documentation/query/filtering/hierarchy#hierarchy-within-root",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class HierarchyWithinRoot extends AbstractFilterConstraintContainer

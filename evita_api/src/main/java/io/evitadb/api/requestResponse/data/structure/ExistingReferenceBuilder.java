@@ -27,12 +27,15 @@ import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceGroupMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaProvider;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -45,7 +48,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
@@ -68,23 +74,51 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Getter private final ReferenceContract baseReference;
 	@Getter private final EntitySchemaContract entitySchema;
 	@Delegate(types = AttributesContract.class)
-	private final ExistingAttributesBuilder attributesBuilder;
+	private final ExistingReferenceAttributesBuilder attributesBuilder;
 	private ReferenceMutation<ReferenceKey> referenceGroupMutation;
 
 	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
 		@Nonnull ReferenceContract baseReference,
 		@Nonnull EntitySchemaContract entitySchema
 	) {
+		this(baseReference, entitySchema, Collections.emptyList());
+	}
+
+	public <T extends BiPredicate<String, String> & Serializable> ExistingReferenceBuilder(
+		@Nonnull ReferenceContract baseReference,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Collection<LocalMutation<?, ?>> mutations
+	) {
 		this.baseReference = baseReference;
 		this.entitySchema = entitySchema;
-		this.attributesBuilder = new ExistingAttributesBuilder(
+		final List<AttributeMutation> attributeMutations = new ArrayList<>(mutations.size());
+		for (LocalMutation<?, ?> mutation : mutations) {
+			if (mutation instanceof AttributeMutation attributeMutation) {
+				attributeMutations.add(attributeMutation);
+			} else if (mutation instanceof SetReferenceGroupMutation referenceMutation) {
+				this.referenceGroupMutation = referenceMutation;
+			} else if (mutation instanceof RemoveReferenceMutation referenceMutation) {
+				this.referenceGroupMutation = referenceMutation;
+			} else {
+				throw new EvitaInvalidUsageException("Unsupported mutation type: " + mutation.getClass().getName());
+			}
+		}
+		this.attributesBuilder = new ExistingReferenceAttributesBuilder(
 			entitySchema,
-			baseReference.getReferenceSchema().orElse(null),
+			baseReference.getReferenceSchema().orElseGet(
+				() -> Reference.createImplicitSchema(
+					baseReference.getReferenceName(),
+					baseReference.getReferencedEntityType(),
+					baseReference.getReferenceCardinality(),
+					baseReference.getGroup().orElse(null)
+				)
+			),
 			baseReference.getAttributeValues(),
 			baseReference.getReferenceSchema()
 				.map(AttributeSchemaProvider::getAttributes)
 				.orElse(Collections.emptyMap()),
-			true
+			true,
+			attributeMutations
 		);
 	}
 
@@ -197,7 +231,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -210,7 +246,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, attributeValue);
 			return this;
 		}
@@ -230,7 +268,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName, locale);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale);
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), locale, attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
@@ -243,7 +283,9 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 			return removeAttribute(attributeName, locale);
 		} else {
 			final ReferenceSchemaContract referenceSchema = entitySchema.getReference(this.getReferenceName()).orElse(null);
-			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(entitySchema, referenceSchema, attributeName, attributeValue.getClass());
+			InitialReferenceBuilder.verifyAttributeIsInSchemaAndTypeMatch(
+				entitySchema, referenceSchema, attributeName, attributeValue.getClass(), attributesBuilder.getLocationResolver()
+			);
 			attributesBuilder.setAttribute(attributeName, locale, attributeValue);
 			return this;
 		}
@@ -254,6 +296,11 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	public ReferenceBuilder mutateAttribute(@Nonnull AttributeMutation mutation) {
 		attributesBuilder.mutateAttribute(mutation);
 		return this;
+	}
+
+	@Override
+	public boolean hasChanges() {
+		return referenceGroupMutation != null || attributesBuilder.isThereAnyChangeInMutations();
 	}
 
 	@Nonnull
@@ -286,7 +333,7 @@ public class ExistingReferenceBuilder implements ReferenceBuilder, Serializable 
 	@Override
 	public ReferenceContract build() {
 		final Optional<GroupEntityReference> newGroup = getGroup();
-		final Attributes newAttributes = attributesBuilder.build();
+		final Attributes<AttributeSchemaContract> newAttributes = attributesBuilder.build();
 		final boolean groupDiffers = baseReference.getGroup()
 			.map(it -> it.differsFrom(newGroup.orElse(null)))
 			.orElseGet(newGroup::isPresent);

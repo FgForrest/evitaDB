@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -670,8 +670,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 			);
 
 			if (query != null) {
+				final EvitaRequest evitaRequest = new EvitaRequest(
+					query,
+					OffsetDateTime.now(),
+					EntityClassifier.class,
+					null,
+					EvitaRequest.CONVERSION_NOT_SUPPORTED
+				);
+
 				final GrpcQueryOneResponse.Builder responseBuilder = GrpcQueryOneResponse.newBuilder();
-				session.queryOne(query, EntityClassifier.class).ifPresent(responseEntity -> {
+				session.queryOne(evitaRequest).ifPresent(responseEntity -> {
 					if (responseEntity instanceof final EntityReference entityReference) {
 						responseBuilder.setEntityReference(GrpcEntityReference.newBuilder()
 							.setEntityType(entityReference.getType())

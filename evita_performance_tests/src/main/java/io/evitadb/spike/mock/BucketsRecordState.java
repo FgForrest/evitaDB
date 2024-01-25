@@ -23,6 +23,7 @@
 
 package io.evitadb.spike.mock;
 
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -31,8 +32,8 @@ import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.histogram.InvertedIndex;
-import io.evitadb.index.histogram.ValueToRecordBitmap;
+import io.evitadb.index.invertedIndex.InvertedIndex;
+import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.range.RangeIndex;
 import lombok.Getter;
 import org.openjdk.jmh.annotations.Level;
@@ -69,11 +70,11 @@ public class BucketsRecordState {
 		request = new AttributeHistogramRequest(
 			AttributeSchema._internalBuild("whatever", Integer.class, false),
 			Arrays.asList(
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
-				new FilterIndex(new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex())
+				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
+				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
+				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
+				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex()),
+				new FilterIndex(new AttributeKey("whatever"), new InvertedIndex<>(generateBuckets(BUCKET_COUNT, VALUE_COUNT / 5)), new RangeIndex())
 			),
 			Collections.emptySet()
 		);

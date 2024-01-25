@@ -52,7 +52,7 @@ public class EntityReferenceContractAdvice implements Advice<SealedEntityReferen
 			GetReferencedEntityPrimaryKeyMethodClassifier.INSTANCE,
 			GetReferencedGroupEntityPrimaryKeyMethodClassifier.INSTANCE,
 			GetReferencedEntityMethodClassifier.INSTANCE,
-			GetAttributeMethodClassifier.INSTANCE
+			GetReferenceAttributeMethodClassifier.INSTANCE
 		}
 	);
 

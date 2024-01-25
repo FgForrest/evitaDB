@@ -59,8 +59,8 @@ import java.util.Optional;
  * Example:
  *
  * <pre>
- * inRange('valid', 2020-07-30T20:37:50+00:00)
- * inRange('age', 18)
+ * inRange("valid", 2020-07-30T20:37:50+00:00)
+ * inRange("age", 18)
  * </pre>
  *
  * Function supports attribute arrays and when attribute is of array type `inRange` returns true if any of attribute
@@ -68,10 +68,12 @@ import java.util.Optional;
  * `[[18, 25],[60,65]]` all these constraints will match:
  *
  * <pre>
- * inRange('age', 18)
- * inRange('age', 24)
- * inRange('age', 63)
+ * inRange("age", 18)
+ * inRange("age", 24)
+ * inRange("age", 63)
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/range#attribute-in-range">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -80,6 +82,7 @@ import java.util.Optional;
 	shortDescription = "Compares value of the attribute with passed value and checks if the range value of that " +
 		"attribute contains the passed value within its limits (both ends are inclusive). " +
 		"The constraint can be used only for Range data type values.",
+	userDocsLink = "/documentation/query/filtering/range#attribute-in-range",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE },
 	supportedValues = @ConstraintSupportedValues(
 		supportedTypes = {

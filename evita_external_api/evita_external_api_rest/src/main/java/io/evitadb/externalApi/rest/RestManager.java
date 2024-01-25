@@ -51,10 +51,10 @@ import io.undertow.util.Methods;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Set;
 
-import static io.evitadb.externalApi.api.ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION;
 import static io.evitadb.utils.CollectionUtils.createConcurrentHashMap;
 import static io.evitadb.utils.CollectionUtils.createHashSet;
 
@@ -72,6 +72,7 @@ public class RestManager {
 	@Nonnull private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Nonnull private final Evita evita;
+	@Nullable private final String exposedOn;
 	@Nonnull private final RestConfig restConfig;
 
 	/**
@@ -84,8 +85,9 @@ public class RestManager {
 	private final RoutingHandler restRouter = Handlers.routing();
 	@Nonnull private final Map<UriPath, CorsEndpoint> corsEndpoints = createConcurrentHashMap(20);
 
-	public RestManager(@Nonnull Evita evita, @Nonnull RestConfig restConfig) {
+	public RestManager(@Nonnull Evita evita, @Nullable String exposedOn, @Nonnull RestConfig restConfig) {
 		this.evita = evita;
+		this.exposedOn = exposedOn;
 		this.restConfig = restConfig;
 
 		final long buildingStartTime = System.currentTimeMillis();
@@ -117,7 +119,7 @@ public class RestManager {
 			() -> new OpenApiInternalError("Catalog `" + catalogName + "` has been already registered.")
 		);
 
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);
+		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
 		final Rest builtRest = catalogRestBuilder.build();
 
 		builtRest.endpoints().forEach(endpoint -> registerCatalogRestEndpoint(catalog, endpoint));
@@ -155,7 +157,7 @@ public class RestManager {
 		}
 
 		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(restConfig, evita, catalog);
+		final CatalogRestBuilder catalogRestBuilder = new CatalogRestBuilder(exposedOn, restConfig, evita, catalog);
 		final Rest builtRest = catalogRestBuilder.build();
 
 		unregisterCatalog(catalogName);
@@ -166,7 +168,7 @@ public class RestManager {
 	 * Builds and registers system API to manage evitaDB
 	 */
 	private void registerSystemApi() {
-		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(restConfig, evita);
+		final SystemRestBuilder systemRestBuilder = new SystemRestBuilder(exposedOn, restConfig, evita);
 		final Rest builtRest = systemRestBuilder.build();
 		builtRest.endpoints().forEach(this::registerSystemRestEndpoint);
 	}
@@ -199,7 +201,7 @@ public class RestManager {
 	/**
 	 * Registers endpoints into router. Also CORS endpoint is created automatically for this endpoint.
 	 */
-	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?, ?> handler) {
+	private void registerRestEndpoint(@Nonnull HttpString method, @Nonnull UriPath path, @Nonnull RestEndpointHandler<?> handler) {
 		final CorsEndpoint corsEndpoint = corsEndpoints.computeIfAbsent(path, p -> new CorsEndpoint(restConfig));
 		corsEndpoint.addMetadataFromHandler(handler);
 
@@ -220,6 +222,6 @@ public class RestManager {
 
 	@Nonnull
 	private UriPath constructCatalogPath(@Nonnull CatalogContract catalog, @Nonnull UriPath endpointPath) {
-		return UriPath.of(catalog.getSchema().getNameVariant(URL_NAME_NAMING_CONVENTION), endpointPath);
+		return UriPath.of(catalog.getSchema().getName(), endpointPath);
 	}
 }

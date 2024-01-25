@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -51,23 +51,35 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	protected final EvitaQLValueTokenVisitor comparableValueTokenVisitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor inRangeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
 		Long.class,
 		BigDecimal.class,
 		OffsetDateTime.class
 	);
 	protected final EvitaQLValueTokenVisitor priceBetweenArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
 		Long.class,
 		BigDecimal.class
 	);
@@ -240,12 +252,18 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitAttributeInSetConstraint(@Nonnull EvitaQLParser.AttributeInSetConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new AttributeInSet(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				ctx.args.values
-					.accept(comparableValueTokenVisitor)
-					.asSerializableAndComparableArray()
-			)
+			() -> {
+				final String classifier = ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier();
+				if (ctx.args.values == null) {
+					return new AttributeInSet(classifier);
+				}
+				return new AttributeInSet(
+					classifier,
+					ctx.args.values
+						.accept(comparableValueTokenVisitor)
+						.asSerializableArray()
+				);
+			}
 		);
 	}
 
@@ -376,9 +394,14 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitEntityPrimaryKeyInSetConstraint(@Nonnull EvitaQLParser.EntityPrimaryKeyInSetConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new EntityPrimaryKeyInSet(
-				ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
-			)
+			() -> {
+				if (ctx.args == null) {
+					return new EntityPrimaryKeyInSet();
+				}
+				return new EntityPrimaryKeyInSet(
+					ctx.args.values.accept(intValueTokenVisitor).asIntegerArray()
+				);
+			}
 		);
 	}
 
@@ -466,12 +489,22 @@ public class EvitaQLFilterConstraintVisitor extends EvitaQLBaseConstraintVisitor
 	public FilterConstraint visitReferenceHavingConstraint(@Nonnull EvitaQLParser.ReferenceHavingConstraintContext ctx) {
 		return parse(
 			ctx,
-			() -> new ReferenceHaving(
-				ctx.args.classifier.accept(classifierTokenVisitor).asSingleClassifier(),
-				visitChildConstraint(ctx.args.filter, FilterConstraint.class)
-			)
+			() -> {
+				if (ctx.classifierWithFilterConstraintArgs() != null) {
+					return new ReferenceHaving(
+						ctx.classifierWithFilterConstraintArgs().classifier.accept(classifierTokenVisitor).asSingleClassifier(),
+						visitChildConstraint(ctx.classifierWithFilterConstraintArgs().filter, FilterConstraint.class)
+					);
+				} else {
+					return new ReferenceHaving(
+						ctx.classifierArgs().classifier.accept(classifierTokenVisitor).asSingleClassifier()
+					);
+				}
+			}
 		);
 	}
+
+
 
 	@Override
 	public FilterConstraint visitHierarchyWithinConstraint(@Nonnull EvitaQLParser.HierarchyWithinConstraintContext ctx) {

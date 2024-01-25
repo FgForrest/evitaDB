@@ -23,7 +23,6 @@
 
 package io.evitadb.api.requestResponse.data;
 
-import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -52,7 +51,7 @@ import static io.evitadb.utils.ComparatorUtils.compareLocale;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface AssociatedDataContract extends Serializable {
+public interface AssociatedDataContract extends Serializable, AssociatedDataAvailabilityChecker {
 
 	/**
 	 * Returns true if single associated data differs between first and second instance.
@@ -76,33 +75,6 @@ public interface AssociatedDataContract extends Serializable {
 				});
 		}
 	}
-
-	/**
-	 * Returns true if entity associated data were fetched along with the entity. Calling this method before calling any
-	 * other method that requires associated data to be fetched will allow you to avoid {@link ContextMissingException}.
-	 */
-	boolean associatedDataAvailable();
-
-	/**
-	 * Returns true if entity associated data in specified locale were fetched along with the entity. Calling this
-	 * method before calling any other method that requires associated data to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 */
-	boolean associatedDataAvailable(@Nonnull Locale locale);
-
-	/**
-	 * Returns true if entity associated data of particular name was fetched along with the entity. Calling this method
-	 * before calling any other method that requires associated data to be fetched will allow you to avoid
-	 * {@link ContextMissingException}.
-	 */
-	boolean associatedDataAvailable(@Nonnull String associatedDataName);
-
-	/**
-	 * Returns true if entity associated data of particular name in particular locale was fetched along with the entity.
-	 * Calling this method before calling any other method that requires associated data to be fetched will allow you to
-	 * avoid {@link ContextMissingException}.
-	 */
-	boolean associatedDataAvailable(@Nonnull String associatedDataName, @Nonnull Locale locale);
 
 	/**
 	 * Returns value associated with the key or null when the associatedData is missing.
@@ -281,6 +253,11 @@ public interface AssociatedDataContract extends Serializable {
 				MemoryMeasuringConstants.REFERENCE_SIZE + MemoryMeasuringConstants.computeStringSize(associatedDataName) +
 				// locale
 				MemoryMeasuringConstants.REFERENCE_SIZE;
+		}
+
+		@Override
+		public String toString() {
+			return associatedDataName + (locale == null ? "" : ":" + locale);
 		}
 	}
 

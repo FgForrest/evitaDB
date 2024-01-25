@@ -28,6 +28,7 @@ import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.require.StatisticsBase;
@@ -35,10 +36,15 @@ import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.dto.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.grpc.generated.*;
 import lombok.AccessLevel;
@@ -79,7 +85,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
-
+	/**
+	 * Converts {@link GrpcQueryPriceMode} to {@link QueryPriceMode}.
+	 *
+	 * @param grpcQueryPriceMode the {@link GrpcQueryPriceMode} to be converted
+	 * @return the converted {@link QueryPriceMode}
+	 * @throws EvitaInternalError if the remote query price mode is unrecognized
+	 */
 	@Nonnull
 	public static QueryPriceMode toQueryPriceMode(@Nonnull GrpcQueryPriceMode grpcQueryPriceMode) {
 		return switch (grpcQueryPriceMode.getNumber()) {
@@ -90,6 +102,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link QueryPriceMode} to {@link GrpcQueryPriceMode}.
+	 *
+	 * @param queryPriceMode the {@link QueryPriceMode} to be converted
+	 * @return the converted {@link GrpcQueryPriceMode}
+	 */
 	@Nonnull
 	public static GrpcQueryPriceMode toGrpcQueryPriceMode(@Nonnull QueryPriceMode queryPriceMode) {
 		return switch (queryPriceMode) {
@@ -98,6 +116,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcPriceContentMode} to {@link PriceContentMode}.
+	 *
+	 * @param grpcPriceContentMode the {@link GrpcPriceContentMode} to be converted
+	 * @return the converted {@link PriceContentMode}
+	 * @throws EvitaInternalError if an unrecognized remote price content mode is encountered
+	 */
 	@Nonnull
 	public static PriceContentMode toPriceContentMode(@Nonnull GrpcPriceContentMode grpcPriceContentMode) {
 		return switch (grpcPriceContentMode.getNumber()) {
@@ -109,6 +134,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link PriceContentMode} to {@link GrpcPriceContentMode}.
+	 *
+	 * @param priceContentMode the {@link PriceContentMode} to be converted
+	 * @return the converted {@link GrpcPriceContentMode}
+	 */
 	@Nonnull
 	public static GrpcPriceContentMode toGrpcPriceContentMode(@Nonnull PriceContentMode priceContentMode) {
 		return switch (priceContentMode) {
@@ -118,6 +149,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcOrderDirection} to {@link OrderDirection}.
+	 *
+	 * @param grpcOrderDirection the {@link GrpcOrderDirection} to be converted
+	 * @return the converted {@link OrderDirection}
+	 * @throws EvitaInternalError if the remote order direction is unrecognized
+	 */
 	@Nonnull
 	public static OrderDirection toOrderDirection(@Nonnull GrpcOrderDirection grpcOrderDirection) {
 		return switch (grpcOrderDirection.getNumber()) {
@@ -128,6 +166,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link OrderDirection} to {@link GrpcOrderDirection}.
+	 *
+	 * @param orderDirection the {@link OrderDirection} to be converted
+	 * @return the converted {@link GrpcOrderDirection}
+	 */
 	@Nonnull
 	public static GrpcOrderDirection toGrpcOrderDirection(@Nonnull OrderDirection orderDirection) {
 		return switch (orderDirection) {
@@ -136,6 +180,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcOrderBehaviour} to {@link OrderBehaviour}.
+	 *
+	 * @param grpcOrderBehaviour the {@link GrpcOrderBehaviour} to be converted
+	 * @return the converted {@link OrderBehaviour}
+	 * @throws EvitaInternalError if the remote order behaviour is unrecognized
+	 */
 	@Nonnull
 	public static OrderBehaviour toOrderBehaviour(@Nonnull GrpcOrderBehaviour grpcOrderBehaviour) {
 		return switch (grpcOrderBehaviour.getNumber()) {
@@ -146,6 +197,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link OrderBehaviour} to {@link GrpcOrderBehaviour}.
+	 *
+	 * @param orderBehaviour the {@link OrderBehaviour} to be converted
+	 * @return the converted {@link GrpcOrderBehaviour}
+	 * @throws IllegalArgumentException if the order behaviour is unrecognized
+	 */
 	@Nonnull
 	public static GrpcOrderBehaviour toGrpcOrderBehaviour(@Nonnull OrderBehaviour orderBehaviour) {
 		return switch (orderBehaviour) {
@@ -154,6 +212,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcEmptyHierarchicalEntityBehaviour} to {@link EmptyHierarchicalEntityBehaviour}.
+	 *
+	 * @param grpcEmptyHierarchicalEntityBehaviour the {@link GrpcEmptyHierarchicalEntityBehaviour} to be converted
+	 * @return the converted {@link EmptyHierarchicalEntityBehaviour}
+	 * @throws EvitaInternalError if the remote empty hierarchical entity behaviour is unrecognized
+	 */
 	@Nonnull
 	public static EmptyHierarchicalEntityBehaviour toEmptyHierarchicalEntityBehaviour(@Nonnull GrpcEmptyHierarchicalEntityBehaviour grpcEmptyHierarchicalEntityBehaviour) {
 		return switch (grpcEmptyHierarchicalEntityBehaviour.getNumber()) {
@@ -164,6 +229,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link EmptyHierarchicalEntityBehaviour} to {@link GrpcEmptyHierarchicalEntityBehaviour}.
+	 *
+	 * @param emptyHierarchicalEntityBehaviour the {@link EmptyHierarchicalEntityBehaviour} to be converted
+	 * @return the converted {@link GrpcEmptyHierarchicalEntityBehaviour}
+	 */
 	@Nonnull
 	public static GrpcEmptyHierarchicalEntityBehaviour toGrpcEmptyHierarchicalEntityBehaviour(@Nonnull EmptyHierarchicalEntityBehaviour emptyHierarchicalEntityBehaviour) {
 		return switch (emptyHierarchicalEntityBehaviour) {
@@ -172,6 +243,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcStatisticsBase} to {@link StatisticsBase}.
+	 *
+	 * @param grpcStatisticsBase the {@link GrpcStatisticsBase} to be converted
+	 * @return the converted {@link StatisticsBase}
+	 * @throws EvitaInternalError if the remote statistics base is unrecognized
+	 */
 	@Nonnull
 	public static StatisticsBase toStatisticsBase(@Nonnull GrpcStatisticsBase grpcStatisticsBase) {
 		return switch (grpcStatisticsBase.getNumber()) {
@@ -182,6 +260,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link StatisticsBase} to {@link GrpcStatisticsBase}.
+	 *
+	 * @param statisticsBase the {@link StatisticsBase} to be converted
+	 * @return the converted {@link GrpcStatisticsBase}
+	 */
 	@Nonnull
 	public static GrpcStatisticsBase toGrpcStatisticsBase(@Nonnull StatisticsBase statisticsBase) {
 		return switch (statisticsBase) {
@@ -190,6 +274,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcStatisticsType} to {@link StatisticsType}.
+	 *
+	 * @param grpcStatisticsType the {@link GrpcStatisticsType} to be converted
+	 * @return the converted {@link StatisticsType}
+	 * @throws EvitaInternalError if the given grpcStatisticsType is unrecognized
+	 */
 	@Nonnull
 	public static StatisticsType toStatisticsType(@Nonnull GrpcStatisticsType grpcStatisticsType) {
 		return switch (grpcStatisticsType.getNumber()) {
@@ -200,6 +291,29 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcHistogramBehavior} to {@link HistogramBehavior}.
+	 *
+	 * @param grpcHistogramBehavior the {@link GrpcHistogramBehavior} to be converted
+	 * @return the converted {@link HistogramBehavior}
+	 * @throws EvitaInternalError if the given grpcHistogramBehavior is unrecognized
+	 */
+	@Nonnull
+	public static HistogramBehavior toHistogramBehavior(@Nonnull GrpcHistogramBehavior grpcHistogramBehavior) {
+		return switch (grpcHistogramBehavior.getNumber()) {
+			case 0 -> HistogramBehavior.STANDARD;
+			case 1 -> HistogramBehavior.OPTIMIZED;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote histogram behavior: " + grpcHistogramBehavior);
+		};
+	}
+
+	/**
+	 * Converts {@link StatisticsType} to {@link GrpcStatisticsType}.
+	 *
+	 * @param statisticsType the {@link StatisticsType} to be converted
+	 * @return the converted {@link GrpcStatisticsType}
+	 */
 	@Nonnull
 	public static GrpcStatisticsType toGrpcStatisticsType(@Nonnull StatisticsType statisticsType) {
 		return switch (statisticsType) {
@@ -208,6 +322,27 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link HistogramBehavior} to {@link GrpcHistogramBehavior}.
+	 *
+	 * @param histogramBehavior the {@link HistogramBehavior} to be converted
+	 * @return the converted {@link GrpcHistogramBehavior}
+	 */
+	@Nonnull
+	public static GrpcHistogramBehavior toGrpcHistogramBehavior(@Nonnull HistogramBehavior histogramBehavior) {
+		return switch (histogramBehavior) {
+			case STANDARD -> GrpcHistogramBehavior.STANDARD;
+			case OPTIMIZED -> GrpcHistogramBehavior.OPTIMIZED;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcAttributeSpecialValue} to {@link AttributeSpecialValue}.
+	 *
+	 * @param grpcAttributeSpecialValue the {@link GrpcAttributeSpecialValue} to be converted
+	 * @return the converted {@link AttributeSpecialValue}
+	 * @throws EvitaInternalError if the remote attribute special value is unrecognized
+	 */
 	@Nonnull
 	public static AttributeSpecialValue toAttributeSpecialValue(@Nonnull GrpcAttributeSpecialValue grpcAttributeSpecialValue) {
 		return switch (grpcAttributeSpecialValue.getNumber()) {
@@ -218,6 +353,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link AttributeSpecialValue} to {@link GrpcAttributeSpecialValue}.
+	 *
+	 * @param attributeSpecialValue the {@link AttributeSpecialValue} to be converted
+	 * @return the converted {@link GrpcAttributeSpecialValue}
+	 */
 	@Nonnull
 	public static GrpcAttributeSpecialValue toGrpcAttributeSpecialValue(@Nonnull AttributeSpecialValue attributeSpecialValue) {
 		return switch (attributeSpecialValue) {
@@ -226,6 +367,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcFacetStatisticsDepth} to {@link FacetStatisticsDepth}.
+	 *
+	 * @param grpcFacetStatisticsDepth the {@link GrpcFacetStatisticsDepth} to be converted
+	 * @return the converted {@link FacetStatisticsDepth}
+	 */
 	@Nonnull
 	public static FacetStatisticsDepth toFacetStatisticsDepth(@Nonnull GrpcFacetStatisticsDepth grpcFacetStatisticsDepth) {
 		return switch (grpcFacetStatisticsDepth.getNumber()) {
@@ -236,6 +383,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link FacetStatisticsDepth} to {@link GrpcFacetStatisticsDepth}.
+	 *
+	 * @param facetStatisticsDepth the {@link FacetStatisticsDepth} to be converted
+	 * @return the converted {@link GrpcFacetStatisticsDepth}
+	 */
 	@Nonnull
 	public static GrpcFacetStatisticsDepth toGrpcFacetStatisticsDepth(@Nonnull FacetStatisticsDepth facetStatisticsDepth) {
 		return switch (facetStatisticsDepth) {
@@ -244,6 +397,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcPriceInnerRecordHandling} to {@link PriceInnerRecordHandling}.
+	 *
+	 * @param grpcPriceInnerRecordHandling the {@link GrpcPriceInnerRecordHandling} to be converted
+	 * @return the converted {@link PriceInnerRecordHandling}
+	 * @throws EvitaInternalError if the remote price inner record handling is unrecognized
+	 */
 	@Nonnull
 	public static PriceInnerRecordHandling toPriceInnerRecordHandling(@Nonnull GrpcPriceInnerRecordHandling grpcPriceInnerRecordHandling) {
 		return switch (grpcPriceInnerRecordHandling.getNumber()) {
@@ -256,6 +416,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link PriceInnerRecordHandling} to {@link GrpcPriceInnerRecordHandling}.
+	 *
+	 * @param priceInnerRecordHandling the {@link PriceInnerRecordHandling} to be converted
+	 * @return the converted {@link GrpcPriceInnerRecordHandling}
+	 */
 	@Nonnull
 	public static GrpcPriceInnerRecordHandling toGrpcPriceInnerRecordHandling(@Nonnull PriceInnerRecordHandling priceInnerRecordHandling) {
 		return switch (priceInnerRecordHandling) {
@@ -266,6 +432,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcCardinality} to {@link Cardinality}.
+	 *
+	 * @param grpcCardinality the {@link GrpcCardinality} to be converted
+	 * @return the converted {@link Cardinality}, or null if grpcCardinality is 0
+	 * @throws EvitaInternalError if the grpcCardinality is unrecognized
+	 */
 	@Nullable
 	public static Cardinality toCardinality(@Nonnull GrpcCardinality grpcCardinality) {
 		return switch (grpcCardinality.getNumber()) {
@@ -279,6 +452,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link Cardinality} to {@link GrpcCardinality}.
+	 *
+	 * @param cardinality the {@link Cardinality} to be converted
+	 * @return the converted {@link GrpcCardinality}, or {@link GrpcCardinality#NOT_SPECIFIED} if cardinality is null
+	 */
 	@Nonnull
 	public static GrpcCardinality toGrpcCardinality(@Nullable Cardinality cardinality) {
 		if (cardinality == null) {
@@ -292,6 +471,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcCatalogEvolutionMode} to {@link CatalogEvolutionMode}.
+	 *
+	 * @param grpcEvolutionMode the {@link GrpcCatalogEvolutionMode} to be converted
+	 * @return the converted {@link CatalogEvolutionMode}
+	 * @throws EvitaInternalError if the remote evolution mode is unrecognized
+	 */
 	@Nonnull
 	public static CatalogEvolutionMode toCatalogEvolutionMode(@Nonnull GrpcCatalogEvolutionMode grpcEvolutionMode) {
 		return switch (grpcEvolutionMode.getNumber()) {
@@ -301,6 +487,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link CatalogEvolutionMode} to {@link GrpcCatalogEvolutionMode}.
+	 *
+	 * @param evolutionMode the {@link CatalogEvolutionMode} to be converted
+	 * @return the converted {@link GrpcCatalogEvolutionMode}
+	 */
 	@Nonnull
 	public static GrpcCatalogEvolutionMode toGrpcCatalogEvolutionMode(@Nonnull CatalogEvolutionMode evolutionMode) {
 		return switch (evolutionMode) {
@@ -308,6 +500,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcEvolutionMode} to {@link EvolutionMode}.
+	 *
+	 * @param grpcEvolutionMode the {@link GrpcEvolutionMode} to be converted
+	 * @return the converted {@link EvolutionMode}
+	 * @throws EvitaInternalError if the remote evolution mode is unrecognized
+	 */
 	@Nonnull
 	public static EvolutionMode toEvolutionMode(@Nonnull GrpcEvolutionMode grpcEvolutionMode) {
 		return switch (grpcEvolutionMode.getNumber()) {
@@ -324,6 +523,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link EvolutionMode} to {@link GrpcEvolutionMode}.
+	 *
+	 * @param evolutionMode the {@link EvolutionMode} to be converted
+	 * @return the converted {@link GrpcEvolutionMode}
+	 */
 	@Nonnull
 	public static GrpcEvolutionMode toGrpcEvolutionMode(@Nonnull EvolutionMode evolutionMode) {
 		return switch (evolutionMode) {
@@ -338,6 +543,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcQueryPhase} to {@link QueryPhase}.
+	 *
+	 * @param grpcQueryPhase the {@link GrpcQueryPhase} to be converted
+	 * @return the converted {@link QueryPhase}
+	 * @throws EvitaInternalError if the remote query phase is unrecognized
+	 */
 	@Nonnull
 	public static QueryPhase toQueryPhase(@Nonnull GrpcQueryPhase grpcQueryPhase) {
 		return switch (grpcQueryPhase.getNumber()) {
@@ -367,6 +579,12 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link QueryPhase} to {@link GrpcQueryPhase}.
+	 *
+	 * @param queryPhase the {@link QueryPhase} to be converted
+	 * @return the converted {@link GrpcQueryPhase}
+	 */
 	@Nonnull
 	public static GrpcQueryPhase toGrpcQueryPhase(@Nonnull QueryPhase queryPhase) {
 		return switch (queryPhase) {
@@ -394,6 +612,13 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link GrpcEntityExistence} to {@link EntityExistence}.
+	 *
+	 * @param grpcEntityExistence the {@link GrpcEntityExistence} to be converted
+	 * @return the converted {@link EntityExistence}
+	 * @throws EvitaInternalError if the remote entity existence is unrecognized
+	 */
 	@Nonnull
 	public static EntityExistence toEntityExistence(@Nonnull GrpcEntityExistence grpcEntityExistence) {
 		return switch (grpcEntityExistence.getNumber()) {
@@ -405,12 +630,102 @@ public class EvitaEnumConverter {
 		};
 	}
 
+	/**
+	 * Converts {@link EntityExistence} to {@link GrpcEntityExistence}.
+	 *
+	 * @param entityExistence the {@link EntityExistence} to be converted
+	 * @return the converted {@link GrpcEntityExistence}
+	 */
 	@Nonnull
 	public static GrpcEntityExistence toGrpcEntityExistence(@Nonnull EntityExistence entityExistence) {
 		return switch (entityExistence) {
 			case MAY_EXIST -> GrpcEntityExistence.MAY_EXIST;
 			case MUST_NOT_EXIST -> GrpcEntityExistence.MUST_NOT_EXIST;
 			case MUST_EXIST -> GrpcEntityExistence.MUST_EXIST;
+		};
+	}
+
+	/**
+	 * Converts a subclass of {@link AttributeSchemaContract} to {@link GrpcAttributeSchemaType}.
+	 *
+	 * @param attributeSchemaClass the class of the attribute schema to be converted
+	 * @return the converted {@link GrpcAttributeSchemaType}
+	 * @throws EvitaInternalError if the attribute schema type is unrecognized
+	 */
+	@Nonnull
+	public static GrpcAttributeSchemaType toGrpcAttributeSchemaType(@Nonnull Class<? extends AttributeSchemaContract> attributeSchemaClass) {
+		if (GlobalAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
+			return GrpcAttributeSchemaType.GLOBAL;
+		} else if (EntityAttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
+			return GrpcAttributeSchemaType.ENTITY;
+		} else if (AttributeSchemaContract.class.isAssignableFrom(attributeSchemaClass)) {
+			return GrpcAttributeSchemaType.REFERENCE;
+		} else {
+			throw new EvitaInternalError("Unrecognized attribute schema type: " + attributeSchemaClass);
+		}
+	}
+
+	/**
+	 * Converts {@link GrpcAttributeUniquenessType} to {@link AttributeUniquenessType}.
+	 *
+	 * @param type the {@link GrpcAttributeUniquenessType} to convert
+	 * @return the converted {@link AttributeUniquenessType}
+	 */
+	@Nonnull
+	public static AttributeUniquenessType toAttributeUniquenessType(@Nonnull GrpcAttributeUniquenessType type) {
+		return switch (type.getNumber()) {
+			case 0 -> AttributeUniquenessType.NOT_UNIQUE;
+			case 1 -> AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION;
+			case 2 -> AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote attribute uniqueness type: " + type);
+		};
+	}
+
+	/**
+	 * Converts {@link AttributeUniquenessType} to {@link GrpcAttributeUniquenessType}.
+	 *
+	 * @param type the {@link AttributeUniquenessType} to convert
+	 * @return the converted {@link GrpcAttributeUniquenessType}
+	 */
+	@Nonnull
+	public static GrpcAttributeUniquenessType toGrpcAttributeUniquenessType(@Nonnull AttributeUniquenessType type) {
+		return switch (type) {
+			case NOT_UNIQUE -> GrpcAttributeUniquenessType.NOT_UNIQUE;
+			case UNIQUE_WITHIN_COLLECTION -> GrpcAttributeUniquenessType.UNIQUE_WITHIN_COLLECTION;
+			case UNIQUE_WITHIN_COLLECTION_LOCALE -> GrpcAttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE;
+		};
+	}
+
+	/**
+	 * Converts {@link GrpcGlobalAttributeUniquenessType} to {@link GlobalAttributeUniquenessType}.
+	 *
+	 * @param type the {@link GrpcGlobalAttributeUniquenessType} to convert
+	 * @return the converted {@link GlobalAttributeUniquenessType}
+	 */
+	@Nonnull
+	public static GlobalAttributeUniquenessType toGlobalAttributeUniquenessType(@Nonnull GrpcGlobalAttributeUniquenessType type) {
+		return switch (type.getNumber()) {
+			case 0 -> GlobalAttributeUniquenessType.NOT_UNIQUE;
+			case 1 -> GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG;
+			case 2 -> GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
+			default ->
+				throw new EvitaInternalError("Unrecognized remote global attribute uniqueness type: " + type);
+		};
+	}
+
+	/**
+	 * Converts {@link GlobalAttributeUniquenessType} to {@link GrpcGlobalAttributeUniquenessType}.
+	 *
+	 * @param type the {@link GlobalAttributeUniquenessType} to convert
+	 * @return the converted {@link GrpcGlobalAttributeUniquenessType}
+	 */
+	@Nonnull
+	public static GrpcGlobalAttributeUniquenessType toGrpcGlobalAttributeUniquenessType(@Nonnull GlobalAttributeUniquenessType type) {
+		return switch (type) {
+			case NOT_UNIQUE -> GrpcGlobalAttributeUniquenessType.NOT_GLOBALLY_UNIQUE;
+			case UNIQUE_WITHIN_CATALOG -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG;
+			case UNIQUE_WITHIN_CATALOG_LOCALE -> GrpcGlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE;
 		};
 	}
 

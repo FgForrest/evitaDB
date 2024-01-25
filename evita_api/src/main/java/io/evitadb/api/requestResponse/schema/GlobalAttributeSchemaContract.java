@@ -26,6 +26,9 @@ package io.evitadb.api.requestResponse.schema;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
+import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeUniquenessType;
+
+import javax.annotation.Nonnull;
 
 /**
  * This schema is an extension of standard {@link AttributeSchema} that adds support for marking the attribute as
@@ -33,7 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface GlobalAttributeSchemaContract extends AttributeSchemaContract {
+public interface GlobalAttributeSchemaContract extends EntityAttributeSchemaContract {
 
 	/**
 	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
@@ -44,5 +47,26 @@ public interface GlobalAttributeSchemaContract extends AttributeSchemaContract {
 	 * better to have this ensured by the database engine.
 	 */
 	boolean isUniqueGlobally();
+
+	/**
+	 * When attribute is unique globally it is automatically filterable, and it is ensured there is exactly one single
+	 * entity having certain value of this attribute in entire {@link CatalogContract}.
+	 * {@link AttributeSchemaContract#getType() Type} of the unique attribute must implement {@link Comparable} interface.
+	 *
+	 * As an example of unique attribute can be URL - there is no sense in having two entities with same URL, and it's
+	 * better to have this ensured by the database engine.
+	 *
+	 * This method differs from {@link #isUniqueGlobally()} in that it is possible to have multiple entities with same
+	 * value of this attribute as long as the attribute is {@link #isLocalized()} and the values relate to different
+	 * locales.
+	 */
+	boolean isUniqueGloballyWithinLocale();
+
+	/**
+	 * Returns type of uniqueness of the attribute. See {@link #isUniqueGlobally()} ()} and {@link #isUniqueGloballyWithinLocale()}.
+	 * @return type of uniqueness
+	 */
+	@Nonnull
+	GlobalAttributeUniquenessType getGlobalUniquenessType();
 
 }

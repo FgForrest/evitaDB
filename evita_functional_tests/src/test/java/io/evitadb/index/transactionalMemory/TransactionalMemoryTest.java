@@ -79,7 +79,8 @@ class TransactionalMemoryTest {
 		underlyingData3A.put("c", 3);
 		underlyingData3B.put("d", 4);
 
-		tested3 = new TransactionalMap<>(new LinkedHashMap<>(), TransactionalMap::new);
+		//noinspection unchecked
+		tested3 = new TransactionalMap<>(new LinkedHashMap<>(), it -> new TransactionalMap<>((Map<String, Integer>) it));
 		for (Entry<String, Map<String, Integer>> entry : underlyingData3.entrySet()) {
 			tested3.put(entry.getKey(), new TransactionalMap<>(entry.getValue()));
 		}

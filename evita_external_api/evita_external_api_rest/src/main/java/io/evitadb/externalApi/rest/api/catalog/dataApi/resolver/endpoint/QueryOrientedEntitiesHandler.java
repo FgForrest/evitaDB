@@ -67,7 +67,7 @@ import static java.util.Optional.ofNullable;
  * @author Martin Veska (veska@fg.cz), FG Forrest a.s. (c) 2022
  */
 @Slf4j
-public abstract class QueryOrientedEntitiesHandler<R> extends JsonRestHandler<R, CollectionRestHandlingContext> {
+public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<CollectionRestHandlingContext> {
 
 	@Nonnull private final FilterConstraintResolver filterConstraintResolver;
 	@Nonnull private final OrderConstraintResolver orderConstraintResolver;
@@ -118,7 +118,7 @@ public abstract class QueryOrientedEntitiesHandler<R> extends JsonRestHandler<R,
 			.orElse(null);
 
 		return query(
-			collection(restApiHandlingContext.getEntityType()),
+			collection(restHandlingContext.getEntityType()),
 			addLocaleIntoFilterByWhenUrlPathLocalized(exchange, filterBy),
 			orderBy,
 			require
@@ -127,7 +127,7 @@ public abstract class QueryOrientedEntitiesHandler<R> extends JsonRestHandler<R,
 
 	@Nonnull
 	protected FilterBy addLocaleIntoFilterByWhenUrlPathLocalized(@Nonnull EndpointExchange exchange, @Nullable FilterBy filterBy) {
-		if (restApiHandlingContext.isLocalized()) {
+		if (restHandlingContext.isLocalized()) {
 			final Map<String, Object> parametersFromRequest = getParametersFromRequest(exchange);
 			final Locale locale = (Locale) parametersFromRequest.get(FetchEntityEndpointHeaderDescriptor.LOCALE.name());
 			if (locale == null) {

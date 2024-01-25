@@ -96,22 +96,22 @@ import java.io.Serializable;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'accessories'),
+ *             "categories",
+ *             attributeEquals("code", "accessories"),
  *             having(
  *                 or(
- *                     attributeIsNull('validity'),
- *                     attributeInRange('validity', 2023-10-01T01:00:00-01:00)
+ *                     attributeIsNull("validity"),
+ *                     attributeInRange("validity", 2023-10-01T01:00:00-01:00)
  *                 )
  *             )
  *         )
  *     ),
  *     require(
  *         entityFetch(
- *             attributeContent('code')
+ *             attributeContent("code")
  *         )
  *     )
  * )
@@ -131,12 +131,15 @@ import java.io.Serializable;
  * In the situation where the single product, let's say Garmin Vivosmart 5, is in both the excluded category Christmas
  * Electronics and the included category Smartwatches, it will remain in the query result because there is at least one
  * product reference that is part of the visible part of the tree.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/hierarchy#having">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 @ConstraintDefinition(
 	name = "having",
 	shortDescription = "The constraint narrows hierarchy within parent constraint to include specified hierarchy subtrees from search.",
+	userDocsLink = "/documentation/query/filtering/hierarchy#having",
 	supportedIn = ConstraintDomain.HIERARCHY
 )
 public class HierarchyHaving extends AbstractFilterConstraintContainer implements HierarchySpecificationFilterConstraint {

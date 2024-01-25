@@ -23,16 +23,32 @@
 
 package io.evitadb.documentation.csharp;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.documentation.Environment;
 import io.evitadb.exception.EvitaInternalError;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -46,7 +62,7 @@ public class CShell {
     /**
      * URL of the latest version of C# query validator executable.
      */
-    private static final String VALIDATOR_ZIP_URL = "https://github.com/FgForrest/evitaDB-C-Sharp-client/releases/download/latest/Validator"+(isWindows() ? "-win" : "")+".zip";
+    private static final String VALIDATOR_ZIP_URL = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator"+(isWindows() ? "-win" : "")+".zip");
     /**
      * Path to the C# query validator folder locates in a system temp folder.
      */
@@ -61,9 +77,16 @@ public class CShell {
     private static final Pattern COMPILE = Pattern.compile("\\p{C}");
 
     /**
+     * Profile of the documentation that is currently being tested - either localhost or the default; the latter represents
+     * evita demo instance.
+     */
+    private final Environment profile;
+
+    /**
      * Constructor for CShell. It downloads the C# query validator executable if it is not present in the temporary folder.
      */
-    public CShell() {
+    public CShell(@Nonnull Environment profile) {
+        this.profile = profile;
         if (!Files.exists(Paths.get(VALIDATOR_PATH))) {
             downloadValidator();
         }
@@ -80,7 +103,7 @@ public class CShell {
      */
     @Nonnull
     public String evaluate(String command, @Nonnull String outputFormat, @Nullable String sourceVariable) throws CsharpExecutionException, CsharpCompilationException {
-        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable);
+        final ProcessBuilder processBuilder = getProcessBuilder(command, outputFormat, sourceVariable, profile);
         final StringBuilder actualOutput = new StringBuilder(64);
         try {
             // Start the process
@@ -206,18 +229,20 @@ public class CShell {
      * encountered during the execution to the standard output
      */
     @Nonnull
-    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable) {
+    private static ProcessBuilder getProcessBuilder(@Nonnull String command, @Nonnull String outputFormat, @Nullable String sourceVariable, @Nonnull Environment profile) {
         final ProcessBuilder processBuilder;
         final String commandToSend = COMPILE.matcher(isWindows() ? command.replace("\"", "\\\"") : command).replaceAll("");
+        final String host = profile.equals(Environment.LOCALHOST) ? "localhost" : "demo.evitadb.io";
         if (sourceVariable == null) {
-            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat);
+            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat);
         } else {
-            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, outputFormat, sourceVariable);
+            processBuilder = new ProcessBuilder(VALIDATOR_PATH, commandToSend, host, outputFormat, sourceVariable);
         }
 
         // This is here for debugging purposes of future added tests
 
-		/*System.out.println("\""+commandToSend+"\"" + "\n");
+		/*System.out.println("\""+command.replace("\"", "\\\"")+"\"" + "\n");
+		System.out.println("\""+host+"\"" + "\n");
 		System.out.println("\""+outputFormat+"\"" + "\n");
 		if (sourceVariable != null) {
 			System.out.println("\""+sourceVariable+"\"" + "\n");
@@ -261,5 +286,61 @@ public class CShell {
      */
     private static String getExtensionForOs() {
         return isWindows() ? ".exe" : "";
+    }
+
+    /**
+     * Finds URL of an asset with a given name from GitHub release.
+     *
+     * @author Lukáš Hornych, 2023
+     */
+    private static class GithubLatestAssetUrlFetcher {
+        private static final String GITHUB_RELEASE_API_URL_TEMPLATE = "https://api.github.com/repos/FgForrest/evitaDB-C-Sharp-client/releases/latest";
+        private final ObjectMapper objectMapper = new ObjectMapper();
+        private final HttpClient httpClient = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.ALWAYS)
+            .build();
+
+        @Nonnull
+        public String fetchAssetUrl(@Nonnull String assetName) throws EvitaInternalError {
+            final Map<String, Object> release = fetchRelease();
+            return findAsset(release, assetName);
+        }
+
+        @Nonnull
+        private Map<String, Object> fetchRelease() throws EvitaInternalError {
+            final HttpRequest releaseRequest = HttpRequest.newBuilder(URI.create(GITHUB_RELEASE_API_URL_TEMPLATE))
+                .GET()
+                .build();
+
+            final HttpResponse<String> releaseResponse;
+            try {
+                releaseResponse = httpClient.send(releaseRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            } catch (IOException | InterruptedException e) {
+                throw new EvitaInternalError("Could not find GitHub release: ", e);
+            }
+
+            try {
+                //noinspection unchecked
+                return (Map<String, Object>) objectMapper.readValue(releaseResponse.body(), Map.class);
+            } catch (JsonProcessingException e) {
+                throw new EvitaInternalError("Could not parse GitHub release: ", e);
+            }
+        }
+
+        @Nonnull
+        private static String findAsset(@Nonnull Map<String, Object> release, @Nonnull String assetName) throws EvitaInternalError {
+            //noinspection unchecked
+            final List<Map<String, Object>> assets = (List<Map<String, Object>>) release.get("assets");
+            if (assets == null || assets.isEmpty()) {
+                throw new EvitaInternalError("No assets found in GitHub release.");
+            }
+
+            final Map<String, Object> asset = assets.stream()
+                .filter(it -> assetName.equals(it.get("name")))
+                .findFirst()
+                .orElseThrow(() -> new EvitaInternalError("Asset not found in GitHub release."));
+
+            return (String) asset.get("browser_download_url");
+        }
     }
 }

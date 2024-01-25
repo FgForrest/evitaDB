@@ -44,14 +44,8 @@ message GrpcDateTimeRange {
 
 // Representation of Java's BigDecimal class with arbitrary precision.
 message GrpcBigDecimal {
-  // The unscaled value of the BigDecimal.
-  uint32 scale = 1;
-  // The precision of the BigDecimal.
-  uint32 precision = 2;
-  // The byte serialized value in integer form.
-  bytes value = 3;
   // The string serialized value.
-  string valueString = 4;
+  string valueString = 1;
 }
 
 // Structure for representing Locale objects specified by language tag.
@@ -225,6 +219,12 @@ message GrpcStatisticsBaseArray {
 message GrpcStatisticsTypeArray {
   // Value that supports storing a StatisticsType array.
   repeated GrpcStatisticsType value = 1;
+}
+
+// Wrapper for representing an array of HistogramBehavior enums.
+message GrpcHistogramBehaviorTypeArray {
+  // Value that supports storing a HistogramBehavior array.
+  repeated GrpcHistogramBehavior value = 1;
 }
 
 // Structure that holds one of the supported data type values, its type and version of stored value.

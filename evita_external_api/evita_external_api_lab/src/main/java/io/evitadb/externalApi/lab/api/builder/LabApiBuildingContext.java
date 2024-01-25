@@ -29,6 +29,7 @@ import io.evitadb.externalApi.rest.api.builder.RestBuildingContext;
 import io.swagger.v3.oas.models.servers.Server;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
 
@@ -43,14 +44,14 @@ public class LabApiBuildingContext extends RestBuildingContext {
 
 	private static final String OPEN_API_TITLE = "Web services for managing evitaDB.";
 
-	public LabApiBuildingContext(@Nonnull LabConfig labConfig, @Nonnull Evita evita) {
-		super(labConfig, evita);
+	public LabApiBuildingContext(@Nullable String exposedOn, @Nonnull LabConfig labConfig, @Nonnull Evita evita) {
+		super(exposedOn, labConfig, evita);
 	}
 
 	@Nonnull
 	@Override
 	protected List<Server> buildOpenApiServers() {
-		return Arrays.stream(restConfig.getBaseUrls())
+		return Arrays.stream(restConfig.getBaseUrls(getExposedOn()))
 			.map(baseUrl -> new Server()
 				.url(baseUrl + LAB_API_URL_PREFIX))
 			.toList();

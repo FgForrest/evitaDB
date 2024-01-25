@@ -50,27 +50,30 @@ import java.util.Locale;
  *
  * <pre>
  * query(
- *     collection('Product'),
+ *     collection("Product"),
  *     filterBy(
  *         hierarchyWithin(
- *             'categories',
- *             attributeEquals('code', 'vouchers-for-shareholders')
+ *             "categories",
+ *             attributeEquals("code", "vouchers-for-shareholders")
  *         ),
- *         entityLocaleEquals('en')
+ *         entityLocaleEquals("en")
  *     ),
  *     require(
  *        entityFetch(
- *            attributeContent('code', 'name')
+ *            attributeContent("code", "name")
  *        )
  *     )
  * )
  * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/locale#entity-locale-equals">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "equals",
 	shortDescription = "The constraint if at least one of entity locales (derived from entity attributes or associated data) equals to the passed one.",
+	userDocsLink = "/documentation/query/filtering/locale#entity-locale-equals",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class EntityLocaleEquals extends AbstractFilterConstraintLeaf

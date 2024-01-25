@@ -23,8 +23,6 @@
 
 package io.evitadb.externalApi.rest.api.system.resolver.endpoint;
 
-import io.evitadb.api.CatalogContract;
-import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.http.EndpointResponse;
 import io.evitadb.externalApi.http.NotFoundEndpointResponse;
 import io.evitadb.externalApi.http.SuccessEndpointResponse;
@@ -49,12 +47,12 @@ public class GetCatalogHandler extends CatalogHandler {
 
 	@Nonnull
 	@Override
-	protected EndpointResponse<CatalogContract> doHandleRequest(@Nonnull RestEndpointExchange exchange) {
+	protected EndpointResponse doHandleRequest(@Nonnull RestEndpointExchange exchange) {
 		final Map<String, Object> parameters = getParametersFromRequest(exchange);
 		final String catalogName = (String) parameters.get(CatalogsHeaderDescriptor.NAME.name());
-		return restApiHandlingContext.getCatalog(catalogName, ExternalApiNamingConventions.URL_NAME_NAMING_CONVENTION)
-			.map(it -> (EndpointResponse<CatalogContract>) new SuccessEndpointResponse<>(it))
-			.orElse(new NotFoundEndpointResponse<>());
+		return restHandlingContext.getEvita().getCatalogInstance(catalogName)
+			.map(it -> (EndpointResponse) new SuccessEndpointResponse(convertResultIntoSerializableObject(exchange, it)))
+			.orElse(new NotFoundEndpointResponse());
 	}
 
 	@Nonnull

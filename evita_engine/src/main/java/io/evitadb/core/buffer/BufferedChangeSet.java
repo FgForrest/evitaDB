@@ -86,7 +86,7 @@ public class BufferedChangeSet<IK extends IndexKey, I extends Index<IK>> {
 	 * the moments when it has a sense.
 	 */
 	@Nonnull
-	public Stream<StoragePart> getTrappedMemTableUpdates() {
+	public Stream<StoragePart> getTrappedUpdates() {
 		return dirtyEntityIndexes
 			.values()
 			.stream()

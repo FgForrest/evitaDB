@@ -2,7 +2,7 @@
 title: Introduction
 date: '17.1.2023'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 evitaDB helps developers to create fast product catalog applications, which are the heart of every e-commerce site.
@@ -35,12 +35,12 @@ in the separate part of this site.
 </NoteTitle>
 
 evitaDB is currently in alpha version and a lot of development is going on right now. We plan to stabilize the first 
-generally available version at the beginning of 2024. Until that time, the storage format may change at any time, which 
+generally available version in 2024. Until that time, the storage format may change at any time, which 
 will require all existing data to be dropped and re-indexed from the primary storage.
 
 **Please do not use evitaDB to store your primary data for the reasons mentioned above.**
 
-In the fall of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
+In the spring of 2023, we plan to release a beta version and deploy it first to our own customers to gain first-hand 
 experience using it ourselves. When we can be sure that the database engine is stable and reliable, we will release 
 the first version to the general public.
 </Note>
@@ -87,7 +87,7 @@ the first version to the general public.
    10. [Behavioral filter containers](query/filtering/behavioral.md)
 3. **Ordering**
    1. [Constant](query/ordering/constant.md)
-   1. [Natural](query/ordering/natural.md)
+   1. [Comparable](query/ordering/comparable.md)
    2. [Price](query/ordering/price.md)
    3. [Reference](query/ordering/reference.md)
    4. [Random](query/ordering/random.md)
@@ -112,8 +112,9 @@ the first version to the general public.
 1. [Storage model](deep-dive/storage-model.md)
 2. [Bulk vs. incremental indexing](deep-dive/bulk-vs-incremental-indexing.md)
 3. [Transactions](deep-dive/transactions.md)
-4. [Cache](deep-dive/cache.md)
-5. [Observe changes](deep-dive/observing.md)
+4. [Price for sale calculation](deep-dive/price-for-sale-calculation.md)
+5. [Cache](deep-dive/cache.md)
+6. [Observe changes](deep-dive/observing.md)
 
 ## Solve
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,9 +24,12 @@
 package io.evitadb.api;
 
 import com.github.javafaker.Faker;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.PriceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -40,9 +43,9 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.Evita;
-import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -76,6 +79,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.api.query.order.OrderDirection.ASC;
 import static io.evitadb.api.query.order.OrderDirection.DESC;
 import static io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement.attributeElement;
+import static io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor.doWithCustomPrefetchCostEstimator;
 import static io.evitadb.test.TestConstants.FUNCTIONAL_TEST;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.generator.DataGenerator.*;
@@ -112,13 +116,15 @@ public class EntityByAttributeFilteringFunctionalTest {
 	private static final String ATTRIBUTE_MARKET_SHARE = "marketShare";
 	private static final String ATTRIBUTE_FOUNDED = "founded";
 	private static final String ATTRIBUTE_CAPACITY = "capacity";
+	private static final String ATTRIBUTE_RELATIVE_URL = "relativeUrl";
+	private static final String ATTRIBUTE_NATIONAL_CODE = "nationalCode";
 
 	private static final int SEED = 40;
 
 	/**
 	 * Verifies histogram integrity against source entities.
 	 */
-	private static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts, String attributeName) {
+	private static void assertHistogramIntegrity(EvitaResponse<SealedEntity> result, List<SealedEntity> filteredProducts, String attributeName, BigDecimal from, BigDecimal to) {
 		final AttributeHistogram histogramPacket = result.getExtraResult(AttributeHistogram.class);
 		assertNotNull(histogramPacket);
 		final HistogramContract histogram = histogramPacket.getHistogram(attributeName);
@@ -161,9 +167,18 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = 0; i < buckets.length; i++) {
 			final Bucket bucket = histogram.getBuckets()[i];
+			if (from == null && to == null) {
+				assertTrue(bucket.requested());
+			} else if (
+				(from == null || from.compareTo(bucket.threshold()) <= 0) &&
+				(to == null || to.compareTo(bucket.threshold()) >= 0)) {
+				assertTrue(bucket.requested());
+			} else {
+				assertFalse(bucket.requested());
+			}
 			assertEquals(
-				ofNullable(expectedOccurrences.get(i)).orElse(0), bucket.getOccurrences(),
-				"Expected " + expectedOccurrences.get(i) + " occurrences in bucket " + i + ", but got " + bucket.getOccurrences() + "!"
+				ofNullable(expectedOccurrences.get(i)).orElse(0), bucket.occurrences(),
+				"Expected " + expectedOccurrences.get(i) + " occurrences in bucket " + i + ", but got " + bucket.occurrences() + "!"
 			);
 		}
 	}
@@ -191,7 +206,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 		final Bucket[] buckets = histogram.getBuckets();
 		for (int i = buckets.length - 1; i >= 0; i--) {
 			final Bucket bucket = buckets[i];
-			final int valueCompared = attributeValue.compareTo(bucket.getThreshold());
+			final int valueCompared = attributeValue.compareTo(bucket.threshold());
 			if (valueCompared >= 0) {
 				return i;
 			}
@@ -208,6 +223,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.openForWrite()
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.sortable().uniqueGlobally().nullable())
 					.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().uniqueGlobally().nullable())
+					.withAttribute(ATTRIBUTE_RELATIVE_URL, String.class, whichIs -> whichIs.localized().uniqueGloballyWithinLocale().nullable())
 			);
 
 			final DataGenerator dataGenerator = new DataGenerator();
@@ -253,6 +269,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 						session,
 						schemaBuilder -> {
 							schemaBuilder
+								.withGlobalAttribute(ATTRIBUTE_RELATIVE_URL)
 								.withAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class, whichIs -> whichIs.filterable().sortable().indexDecimalPlaces(2))
 								.withAttribute(ATTRIBUTE_PRIORITY, Long.class, whichIs -> whichIs.sortable().filterable())
 								.withAttribute(ATTRIBUTE_SIZE, IntegerNumberRange[].class, whichIs -> whichIs.filterable().nullable())
@@ -260,6 +277,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 								.withAttribute(ATTRIBUTE_MANUFACTURED, LocalDate.class, whichIs -> whichIs.filterable().sortable())
 								.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, whichIs -> whichIs.filterable())
 								.withAttribute(ATTRIBUTE_UUID, UUID.class, whichIs -> whichIs.unique())
+								.withAttribute(ATTRIBUTE_NATIONAL_CODE, String.class, whichIs -> whichIs.localized().uniqueWithinLocale())
 								.withAttribute(ATTRIBUTE_LOCALE, Locale.class, whichIs -> whichIs.filterable())
 								.withSortableAttributeCompound(
 									ATTRIBUTE_COMBINED_PRIORITY,
@@ -297,6 +315,32 @@ public class EntityByAttributeFilteringFunctionalTest {
 				.map(it -> session.getEntity(it.getType(), it.getPrimaryKey(), entityFetchAllContent()).orElseThrow())
 				.collect(Collectors.toList());
 		});
+	}
+
+	@DisplayName("Should return no entities when set is empty")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesWhenSetIsEmpty(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet()
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(0, result.getTotalRecordCount());
+				return null;
+			}
+		);
 	}
 
 	@DisplayName("Should return entities by matching locale")
@@ -354,6 +398,31 @@ public class EntityByAttributeFilteringFunctionalTest {
 					sealedEntity -> codeAttribute.equals(sealedEntity.getAttribute(ATTRIBUTE_CODE)),
 					result.getRecordData()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return no entity for empty price list constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntityForEmptyPriceListConstraint(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							priceInPriceLists()
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertEquals(0, result.getTotalRecordCount());
 				return null;
 			}
 		);
@@ -450,6 +519,33 @@ public class EntityByAttributeFilteringFunctionalTest {
 					sealedEntity -> Objects.equals(selectedEntity.getPrimaryKey(), sealedEntity.getPrimaryKey()),
 					result.getRecordData()
 				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return no entities for empty attribute in set constraint")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnNoEntitiesForEmptyAttributeInSetConstraint(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							attributeInSet(ATTRIBUTE_CODE)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+
+				assertEquals(0, result.getTotalRecordCount());
+
 				return null;
 			}
 		);
@@ -657,6 +753,164 @@ public class EntityByAttributeFilteringFunctionalTest {
 					result.getRecordData()
 				);
 				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity by equals to unique attribute (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityByUniqueAttributeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities) {
+		final String codeAttribute = getRandomAttributeValue(originalProductEntities, ATTRIBUTE_CODE);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, codeAttribute)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> codeAttribute.equals(sealedEntity.getAttribute(ATTRIBUTE_CODE)),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entity by equals to unique locale specific attribute (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityByUniqueLocaleSpecificAttributeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities) {
+		final AttributeValue codeAttribute = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_NATIONAL_CODE);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeEquals(ATTRIBUTE_NATIONAL_CODE, codeAttribute.value()),
+							entityLocaleEquals(codeAttribute.key().locale())
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getAttributeValue(ATTRIBUTE_NATIONAL_CODE, codeAttribute.key().locale())
+						.map(it -> !codeAttribute.differsFrom(it))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when filtering entity by equals to unique locale specific attribute without Locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenFilteringByUniqueLocalSpecificAttributeWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+		assertThrows(
+			EntityLocaleMissingException.class,
+			() -> {
+				final AttributeValue nationalCode = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_NATIONAL_CODE);
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final EvitaResponse<EntityReference> result = session.query(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(
+									attributeEquals(ATTRIBUTE_NATIONAL_CODE, nationalCode.value())
+								),
+								require(
+									page(1, Integer.MAX_VALUE),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						);
+						return null;
+					}
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should return entity by equals to globally unique locale specific attribute (String)")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntityByGloballyUniqueLocaleSpecificCodeWithoutSpecifyingCollection(Evita evita, List<SealedEntity> originalProductEntities) {
+		final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						filterBy(
+							attributeEquals(ATTRIBUTE_RELATIVE_URL, relativeUrl.value()),
+							entityLocaleEquals(relativeUrl.key().locale())
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> sealedEntity.getAttributeValue(ATTRIBUTE_RELATIVE_URL, relativeUrl.key().locale())
+						.map(it -> !relativeUrl.differsFrom(it))
+						.orElse(false),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should throw exception when filtering entity by equals to globally unique locale specific attribute without Locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldThrowExceptionWhenFilteringByGloballyUniqueLocalSpecificAttributeWithoutLocale(Evita evita, List<SealedEntity> originalProductEntities) {
+		assertThrows(
+			EntityLocaleMissingException.class,
+			() -> {
+				final AttributeValue relativeUrl = getRandomAttributeValueObject(originalProductEntities, ATTRIBUTE_RELATIVE_URL);
+				evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final EvitaResponse<EntityReference> result = session.query(
+							query(
+								filterBy(
+									attributeEquals(ATTRIBUTE_RELATIVE_URL, relativeUrl.value())
+								),
+								require(
+									page(1, Integer.MAX_VALUE),
+									debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+								)
+							),
+							EntityReference.class
+						);
+						return null;
+					}
+				);
 			}
 		);
 	}
@@ -2364,6 +2618,87 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return entities having a reference of particular name")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesByHavingAReferenceOfParticularName(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							referenceHaving(
+								Entities.BRAND
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					),
+					EntityReference.class
+				);
+				assertResultIs(
+					originalProductEntities,
+					sealedEntity -> !sealedEntity.getReferences(Entities.BRAND).isEmpty(),
+					result.getRecordData()
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should fail to process query targeting non existing attribute on reference")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToProcessQueryTargetingNonExistingAttributeOnReference(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					AttributeNotFoundException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								referenceHaving(
+									Entities.BRAND,
+									attributeEquals(ATTRIBUTE_CODE, "apple")
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
+	@DisplayName("Should fail to order by localized attribute when locale is not known")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldFailToOrderByLocalizedAttributeWhenLocaleIsNotKnown(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							orderBy(
+								attributeNatural(ATTRIBUTE_NAME)
+							)
+						),
+						EntityReference.class
+					)
+				);
+			}
+		);
+	}
+
 	@DisplayName("Should return entities by referenced entity of particular id")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -2583,6 +2918,76 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertEquals(2, sealedEntity.getLocales().size());
 				assertTrue(sealedEntity.getLocales().contains(Locale.ENGLISH));
 				assertTrue(sealedEntity.getLocales().contains(CZECH_LOCALE));
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return entities from different collections by equals to global localized attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnEntitiesFromDifferentCollectionsByEqualsToGlobalLocalizedAttribute(Evita evita) {
+		final SealedEntity product = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL),
+								dataInLocales(Locale.ENGLISH)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String productUrl = product.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		final SealedEntity category = evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return session.queryListOfSealedEntities(
+					query(
+						collection(Entities.CATEGORY),
+						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						require(
+							page(1, 1),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					)
+				).get(0);
+			}
+		);
+		final String categoryUrl = category.getAttribute(ATTRIBUTE_URL, Locale.ENGLISH);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						filterBy(
+							attributeInSet(ATTRIBUTE_URL, productUrl, categoryUrl),
+							entityLocaleEquals(Locale.ENGLISH)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							//debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(
+								attributeContent(ATTRIBUTE_URL)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+				assertEquals(2, result.getRecordData().size());
+				assertEquals(productUrl, result.getRecordData().get(0).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
+				assertEquals(categoryUrl, result.getRecordData().get(1).getAttribute(ATTRIBUTE_URL, Locale.ENGLISH));
 				return null;
 			}
 		);
@@ -3087,6 +3492,60 @@ public class EntityByAttributeFilteringFunctionalTest {
 		);
 	}
 
+	@DisplayName("Should return products sorted by exact order of the attribute in the filter constraint with duplicate attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderInFilterWithDuplicateAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final String[] randomCodes = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+					.toArray(String[]::new);
+				final String[] randomCodesWithDuplicates = new String[randomCodes.length + 1];
+				for (int i = -1; i < randomCodes.length; i++) {
+					if (i == -1) {
+						randomCodesWithDuplicates[i + 1] = randomCodes[0];
+					} else {
+						randomCodesWithDuplicates[i + 1] = randomCodes[i];
+					}
+				}
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							attributeInSet(ATTRIBUTE_CODE, randomCodesWithDuplicates)
+						),
+						orderBy(
+							attributeSetInFilter(ATTRIBUTE_CODE)
+						),
+						require(
+							entityFetch(
+								attributeContentAll()
+							),
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomCodes,
+					products.getRecordData().stream()
+						.map(it -> it.getAttribute(ATTRIBUTE_CODE, String.class))
+						.toArray(String[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
 	@DisplayName("Should return products sorted by exact order of the attribute with prefetch")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
@@ -3111,7 +3570,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.toArray(String[]::new);
 				ArrayUtils.shuffleArray(random, randomCodes);
 
-				final EvitaResponse<SealedEntity> products = SelectionFormula.doWithCustomPrefetchCostEstimator(
+				final EvitaResponse<SealedEntity> products = doWithCustomPrefetchCostEstimator(
 					() -> session.querySealedEntity(
 						query(
 							collection(Entities.PRODUCT),
@@ -3122,6 +3581,7 @@ public class EntityByAttributeFilteringFunctionalTest {
 								attributeSetExact(ATTRIBUTE_CODE, randomCodes)
 							),
 							require(
+								page(1, randomCodes.length),
 								entityFetch(
 									attributeContent(ATTRIBUTE_CODE)
 								)
@@ -3269,6 +3729,77 @@ public class EntityByAttributeFilteringFunctionalTest {
 					ArrayUtils.mergeArrays(
 						exactOrder, theRest
 					),
+					products.getRecordData().stream()
+						.map(EntityContract::getPrimaryKey)
+						.toArray(Integer[]::new)
+				);
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return products sorted by exact order with duplicate attributes")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnProductSortedByExactOrderWithDuplicateAttributes(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Random random = new Random();
+				final AttributeTuple[] randomData = originalProductEntities
+					.stream()
+					.filter(it -> random.nextInt(10) == 1)
+					.map(it -> new AttributeTuple(
+						it.getPrimaryKey(),
+						it.getAttribute(ATTRIBUTE_CODE, String.class)
+					))
+					.toArray(AttributeTuple[]::new);
+				final Integer[] randomProductIds = Arrays.stream(randomData)
+					.map(AttributeTuple::primaryKey)
+					.toArray(Integer[]::new);
+				final String[] randomCodes = Arrays.stream(randomData)
+					.map(AttributeTuple::attributeValue)
+					.toArray(String[]::new);
+				ArrayUtils.shuffleArray(random, randomCodes);
+				final String[] randomCodesWithDuplicates = new String[randomCodes.length + 1];
+				for (int i = -1; i < randomCodes.length; i++) {
+					if (i == -1) {
+						randomCodesWithDuplicates[i + 1] = randomCodes[0];
+					} else {
+						randomCodesWithDuplicates[i + 1] = randomCodes[i];
+					}
+				}
+				final Integer[] randomSortedProductIds = Arrays.stream(randomCodes)
+					.map(
+						it -> Arrays.stream(randomData)
+							.filter(att -> it.equals(att.attributeValue()))
+							.map(AttributeTuple::primaryKey)
+							.findFirst()
+							.orElseThrow()
+					)
+					.toArray(Integer[]::new);
+
+				final EvitaResponse<SealedEntity> products = session.querySealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(randomProductIds)
+						),
+						orderBy(
+							attributeSetExact(ATTRIBUTE_CODE, randomCodesWithDuplicates)
+						),
+						require(
+							entityFetch(
+								attributeContent(ATTRIBUTE_CODE)
+							)
+						)
+					)
+				);
+				assertEquals(randomCodes.length, products.getRecordData().size());
+				assertEquals(randomCodes.length, products.getTotalRecordCount());
+
+				assertArrayEquals(
+					randomSortedProductIds,
 					products.getRecordData().stream()
 						.map(EntityContract::getPrimaryKey)
 						.toArray(Integer[]::new)
@@ -3501,8 +4032,108 @@ public class EntityByAttributeFilteringFunctionalTest {
 					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null)
 					.collect(Collectors.toList());
 
-				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY);
-				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY);
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, null, null);
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_PRIORITY, null, null);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return attribute histogram with attribute between")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnAttributeHistogramWithAttributeBetweenIsUsed(Evita evita, List<SealedEntity> originalProductEntities) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<BigDecimal> sortedQuantities = originalProductEntities.stream()
+					.map(it -> it.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class))
+					.filter(Objects::nonNull)
+					.sorted()
+					.toList();
+				final BigDecimal from = sortedQuantities.get(sortedQuantities.size() / 3);
+				final BigDecimal to = sortedQuantities.get(sortedQuantities.size() / 3 * 2);
+
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							userFilter(
+								attributeBetween(ATTRIBUTE_QUANTITY, from, to)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_QUANTITY, BigDecimal.class) != null)
+					.collect(Collectors.toList());
+
+				assertHistogramIntegrity(result, filteredProducts, ATTRIBUTE_QUANTITY, from, to);
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("Should return attribute histogram for returned products excluding constraints targeting that attribute")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldReturnSingleAttributeHistogramWithoutBeingAffectedByAttributeFilter(Evita evita, List<SealedEntity> originalProductEntities) {
+		final Predicate<SealedEntity> quantityAttributePredicate = it -> ofNullable((BigDecimal) it.getAttribute(ATTRIBUTE_QUANTITY))
+			.map(attr -> attr.compareTo(new BigDecimal("100")) >= 0 && attr.compareTo(new BigDecimal("900")) <= 0)
+			.orElse(false);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> result = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								attributeIsNotNull(ATTRIBUTE_ALIAS),
+								userFilter(
+									attributeBetween(ATTRIBUTE_QUANTITY, 100, 900)
+								)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES),
+							entityFetch(),
+							attributeHistogram(20, ATTRIBUTE_QUANTITY)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final List<SealedEntity> filteredProducts = originalProductEntities
+					.stream()
+					.filter(sealedEntity -> sealedEntity.getAttribute(ATTRIBUTE_ALIAS) != null).toList();
+
+				// verify our test works
+				final Predicate<SealedEntity> attributePredicate = quantityAttributePredicate;
+				assertTrue(
+					filteredProducts.size() > filteredProducts.stream().filter(attributePredicate).count(),
+					"Price between query didn't filter out any products. Test is not testing anything!"
+				);
+
+				// the attribute `between(ATTRIBUTE_QUANTITY, 100, 900)` query must be ignored while computing its histogram
+				assertHistogramIntegrity(
+					result,
+					filteredProducts,
+					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
+				);
 
 				return null;
 			}
@@ -3560,14 +4191,14 @@ public class EntityByAttributeFilteringFunctionalTest {
 				assertHistogramIntegrity(
 					result,
 					filteredProducts.stream().filter(priorityAttributePredicate).collect(Collectors.toList()),
-					ATTRIBUTE_QUANTITY
+					ATTRIBUTE_QUANTITY, new BigDecimal("100"), new BigDecimal("900")
 				);
 
 				// the attribute `between(ATTRIBUTE_PRIORITY, 15000, 90000)` query must be ignored while computing its histogram
 				assertHistogramIntegrity(
 					result,
 					filteredProducts.stream().filter(quantityAttributePredicate).collect(Collectors.toList()),
-					ATTRIBUTE_PRIORITY
+					ATTRIBUTE_PRIORITY, new BigDecimal("15000"), new BigDecimal("90000")
 				);
 
 				return null;
@@ -3730,6 +4361,26 @@ public class EntityByAttributeFilteringFunctionalTest {
 		return originalProductEntities
 			.stream()
 			.map(it -> (T) it.getAttribute(attributeName))
+			.filter(Objects::nonNull)
+			.skip(order)
+			.findFirst()
+			.orElseThrow(() -> new IllegalStateException("Failed to localize `" + attributeName + "` attribute!"));
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName) {
+		return getRandomAttributeValueObject(originalProductEntities, attributeName, 10);
+	}
+
+	/**
+	 * Returns value of "random" value in the dataset.
+	 */
+	private AttributeValue getRandomAttributeValueObject(@Nonnull List<SealedEntity> originalProductEntities, @Nonnull String attributeName, int order) {
+		return originalProductEntities
+			.stream()
+			.flatMap(it -> it.getAttributeValues(attributeName).stream())
 			.filter(Objects::nonNull)
 			.skip(order)
 			.findFirst()

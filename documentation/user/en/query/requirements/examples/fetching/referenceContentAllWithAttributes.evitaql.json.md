@@ -239,13 +239,11 @@
         ],
         "stockVisibilities": [
           {
-            "group": 0,
             "referencedKey": 119334
           }
         ],
         "stocks": [
           {
-            "group": 0,
             "referencedKey": 119334,
             "attributes": {
               "quantityOnStock": 4.00000

@@ -28,28 +28,36 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
+import io.evitadb.api.query.require.PriceType;
 
 import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 
 /**
- * This `price` is ordering that sorts returned entities by most priority price in defined order direction in the first
- * optional argument.
- * Most priority price relates to [price computation algorithm](price_computation.md) described in special article.
+ * The `priceNatural` constraint allows output entities to be sorted by their selling price in their natural numeric
+ * order. It requires only the order direction and the price constraints in the `filterBy` section of the query.
+ * The price variant (with or without tax) is determined by the {@link PriceType} requirement of the query (price with
+ * tax is used by default).
+ *
+ * Please read the <a href="https://evitadb.io/documentation/deep-dive/price-for-sale-calculation">price for sale
+ * calculation algorithm documentation</a> to understand how the price for sale is calculated.
  *
  * Example:
  *
- * ```
- * price()
- * price(DESC)
- * ```
+ * <pre>
+ * priceNatural()
+ * priceNatural(DESC)
+ * </pre>
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/ordering/price#price-natural">Visit detailed user documentation</a></p>
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
 @ConstraintDefinition(
 	name = "natural",
 	shortDescription = "The constraint sorts returned entities by selected price for sale.",
+	userDocsLink = "/documentation/query/ordering/price#price-natural",
 	supportedIn = { ConstraintDomain.ENTITY }
 )
 public class PriceNatural extends AbstractOrderConstraintLeaf implements PriceConstraint<OrderConstraint> {

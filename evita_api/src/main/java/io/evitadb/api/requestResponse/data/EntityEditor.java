@@ -28,11 +28,10 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ReferenceNotKnownException;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
-import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.structure.Entity;
-import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -40,7 +39,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -52,7 +50,7 @@ import static io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySch
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W>, AssociatedDataEditor<W>, PricesEditor<W> {
+public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract, AttributesEditor<W, EntityAttributeSchemaContract>, AssociatedDataEditor<W>, PricesEditor<W> {
 
 	/**
 	 * Sets hierarchy information of the entity. Hierarchy information allows to compose hierarchy tree composed of
@@ -63,8 +61,8 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 
 	/**
 	 * Removes existing parent of the entity. If there are other entities, that refer transitively via
-	 * {@link EntityContract#getParent()} this entity their will become "orphans" and their parent needs to be removed
-	 * as well, or it must be "rewired" to another parent.
+	 * {@link EntityContract#getParentEntity()} this entity their will become "orphans" and their parent needs to be
+	 * removed as well, or it must be "rewired" to another parent.
 	 */
 	W removeParent();
 
@@ -106,10 +104,10 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * automatically set up:
 	 *
 	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE - you'll be able to filter by presence of this reference
-	 *   (but this setting also consumes more memory)
+	 * (but this setting also consumes more memory)
 	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE - reference data will not be part of the {@link FacetSummary}
 	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is entity with matching
-	 *   `referencedEntityType` in current catalog, otherwise FALSE
+	 * `referencedEntityType` in current catalog, otherwise FALSE
 	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} - not defined
 	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} FALSE
 	 *
@@ -135,13 +133,13 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * automatically set up:
 	 *
 	 * - {@link ReferenceSchemaContract#isIndexed()} TRUE - you'll be able to filter by presence of this reference
-	 *   (but this setting also consumes more memory)
+	 * (but this setting also consumes more memory)
 	 * - {@link ReferenceSchemaContract#isFaceted()} FALSE - reference data will not be part of the {@link FacetSummary}
 	 * - {@link ReferenceSchemaContract#isReferencedEntityTypeManaged()} TRUE if there already is entity with matching
-	 *   `referencedEntityType` in current catalog, otherwise FALSE
+	 * `referencedEntityType` in current catalog, otherwise FALSE
 	 * - {@link ReferenceSchemaContract#getReferencedGroupType()} - as defined in `whichIs` lambda
 	 * - {@link ReferenceSchemaContract#isReferencedGroupTypeManaged()} TRUE if there already is entity with matching
-	 * 	 {@link ReferenceContract#getGroup()} in current catalog, otherwise FALSE
+	 * {@link ReferenceContract#getGroup()} in current catalog, otherwise FALSE
 	 *
 	 * If you need to change this defaults you need to fetch the reference schema by calling
 	 * {@link CatalogContract#getEntitySchema(String)} and accessing it by
@@ -155,6 +153,16 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 		int referencedPrimaryKey,
 		@Nullable Consumer<ReferenceBuilder> whichIs
 	);
+
+	/**
+	 * Adds new set of reference mutations for particular `referenceKey`, if some set is already present for that key,
+	 * it is replaced by a new set.
+	 *
+	 * This method is considered to be a part of private API.
+	 *
+	 * @param referenceBuilder reference builder wrapping the changes in the reference contract
+	 */
+	void addOrReplaceReferenceMutations(@Nonnull ReferenceBuilder referenceBuilder);
 
 	/**
 	 * Removes existing reference of specified name and primary key.
@@ -173,40 +181,15 @@ public interface EntityEditor<W extends EntityEditor<W>> extends EntityContract,
 	 * is in the database at the time update request arrives.
 	 */
 	@NotThreadSafe
-	interface EntityBuilder extends EntityEditor<EntityBuilder> {
+	interface EntityBuilder extends EntityEditor<EntityBuilder>, InstanceEditor<SealedEntity> {
 
 		/**
-		 * Returns object that contains set of {@link LocalMutation} instances describing
-		 * what changes occurred in the builder and which should be applied on the existing {@link EntityContract} version.
-		 * Each mutation increases {@link Versioned#version()} of the modified object and allows to detect race conditions
-		 * based on "optimistic locking" mechanism in very granular way.
+		 * {@inheritDoc}
 		 */
+		@Override
 		@Nonnull
-		Optional<EntityMutation> toMutation();
-
-		/**
-		 * Returns built "local up-to-date" {@link EntityContract} instance that may not represent globally "up-to-date"
-		 * state because it is based on the version of the entity known when builder was created.
-		 *
-		 * Mutation allows Evita to perform surgical updates on the latest version of the {@link EntityContract} object
-		 * which is in the database at the time update request arrives.
-		 *
-		 * This method is particularly useful for tests.
-		 */
-		@Nonnull
-		Entity toInstance();
-
-		/**
-		 * The method is a shortcut for calling {@link EvitaSessionContract#upsertEntity(EntityBuilder)} the other
-		 * way around. Method simplifies the statements, makes them more readable and in combination with builder
-		 * pattern usage it's also easier to use.
-		 *
-		 * @param session to use for upserting the modified (built) entity
-		 * @return the reference to the updated / created entity
-		 */
-		@Nonnull
-		default EntityReference upsertVia(@Nonnull EvitaSessionContract session) {
-			return session.upsertEntity(this);
+		default Class<SealedEntity> getContract() {
+			return SealedEntity.class;
 		}
 
 	}

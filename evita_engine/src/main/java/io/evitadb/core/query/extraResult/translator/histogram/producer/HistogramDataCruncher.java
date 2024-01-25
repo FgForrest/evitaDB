@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.histogram.producer;
 
 import io.evitadb.api.exception.InvalidHistogramBucketCountException;
-import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
+import io.evitadb.core.query.extraResult.translator.histogram.cache.CacheableHistogramContract.CacheableBucket;
 import io.evitadb.index.array.CompositeObjectArray;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -69,7 +69,7 @@ public class HistogramDataCruncher<T> {
 	/**
 	 * Contains array of output data (buckets in histogram).
 	 */
-	@Getter private final Bucket[] histogram;
+	@Getter private final CacheableBucket[] histogram;
 	/**
 	 * Internal variable containing optimal threshold step between buckets.
 	 */
@@ -111,13 +111,9 @@ public class HistogramDataCruncher<T> {
 	 */
 	private BigDecimal currentStep;
 	/**
-	 * Internal variable containing current index in output histogram.
-	 */
-	private int index;
-	/**
 	 * Internal variable containing reference to last bucket that contains at least single record (weight > 0)
 	 */
-	private Bucket lastNonEmptyBucket;
+	private CacheableBucket lastNonEmptyBucket;
 	/**
 	 * Internal variable containing the longest empty space (multiple empty columns in the row).
 	 */
@@ -158,9 +154,9 @@ public class HistogramDataCruncher<T> {
 		this.fromBigDecimalConverter = fromBigDecimalConverter;
 
 		// now compute the result
-		final CompositeObjectArray<Bucket> elasticHistogram = new CompositeObjectArray<>(Bucket.class, false);
+		final CompositeObjectArray<CacheableBucket> elasticHistogram = new CompositeObjectArray<>(CacheableBucket.class, false);
 		// identify first bucket - this must never be empty column, because we start at the first known value
-		final Bucket firstColumn = consumeStep(elasticHistogram);
+		final CacheableBucket firstColumn = consumeStep(elasticHistogram);
 		this.lastNonEmptyBucket = firstColumn;
 		elasticHistogram.add(firstColumn);
 		// examine source data until all are exhausted
@@ -246,10 +242,10 @@ public class HistogramDataCruncher<T> {
 	/**
 	 * Computes next bucket in the histogram.
 	 */
-	private void computeNext(@Nonnull CompositeObjectArray<Bucket> histogram) {
+	private void computeNext(@Nonnull CompositeObjectArray<CacheableBucket> histogram) {
 		if (!finished) {
-			final Bucket nextBucket = consumeStep(histogram);
-			if (nextBucket.getOccurrences() == 0) {
+			final CacheableBucket nextBucket = consumeStep(histogram);
+			if (nextBucket.occurrences() == 0) {
 				// if the bucket is empty increase empty thresholds counter
 				this.emptyBucketsInRow++;
 			} else {
@@ -258,8 +254,8 @@ public class HistogramDataCruncher<T> {
 					// if yes create information about next largest gap
 					this.longestSpace = new LongestSpaceRange(
 						this.emptyBucketsInRow,
-						this.lastNonEmptyBucket.getThreshold(),
-						nextBucket.getThreshold()
+						this.lastNonEmptyBucket.threshold(),
+						nextBucket.threshold()
 					);
 				}
 				// reset empty buckets counter
@@ -276,7 +272,7 @@ public class HistogramDataCruncher<T> {
 	 * lower than the computed next threshold.
 	 */
 	@Nonnull
-	private Bucket consumeStep(@Nonnull CompositeObjectArray<Bucket> histogram) {
+	private CacheableBucket consumeStep(@Nonnull CompositeObjectArray<CacheableBucket> histogram) {
 		int distinctValues = 0;
 		// compute next threshold
 		final BigDecimal nextThresholdValue = this.currentStep.add(this.optimalStep).setScale(limitDecimalPlacesTo, RoundingMode.CEILING);
@@ -290,8 +286,7 @@ public class HistogramDataCruncher<T> {
 		} while (!finished && thresholdRetriever.applyAsInt(sourceData[sourceIndex]) < nextThreshold);
 
 		// create bucket in the output histogram
-		final Bucket result = new Bucket(
-			this.index++,
+		final CacheableBucket result = new CacheableBucket(
 			this.currentStep.setScale(limitDecimalPlacesTo, RoundingMode.HALF_UP),
 			distinctValues
 		);

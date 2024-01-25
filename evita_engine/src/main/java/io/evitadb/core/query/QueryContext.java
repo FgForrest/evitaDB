@@ -33,7 +33,6 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
-import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupsConjunction;
@@ -41,6 +40,7 @@ import io.evitadb.api.query.require.FacetGroupsDisjunction;
 import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -78,6 +78,7 @@ import io.evitadb.index.array.CompositeIntArray;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.store.entity.model.entity.AssociatedDataStoragePart;
 import io.evitadb.store.entity.model.entity.AttributesStoragePart;
@@ -116,7 +117,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class QueryContext implements AutoCloseable {
+public class QueryContext implements AutoCloseable, LocaleProvider {
 	private static final EntityIndexKey GLOBAL_INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL);
 
 	/**
@@ -233,7 +234,6 @@ public class QueryContext implements AutoCloseable {
 	 * Contains reference to the {@link Formula} that calculates the root hierarchy node ids used for filtering
 	 * the query result to be reused in other query evaluation phases (require).
 	 */
-	@Getter
 	private Formula rootHierarchyNodesFormula;
 	/**
 	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
@@ -504,6 +504,18 @@ public class QueryContext implements AutoCloseable {
 	}
 
 	/**
+	 * Method returns requested entity primary key by specifying its primary key (either virtual or real).
+	 */
+	public int translateToEntityPrimaryKey(int primaryKey) {
+		if (this.entityReferencePkSequence > 0) {
+			final EntityReferenceContract<EntityReference> referencedEntity = this.entityReferencePkIndex.get(primaryKey);
+			return referencedEntity == null ? primaryKey : referencedEntity.getPrimaryKey();
+		} else {
+			return primaryKey;
+		}
+	}
+
+	/**
 	 * Method returns requested {@link EntityReference} by specifying its primary key (either virtual or real).
 	 */
 	@Nonnull
@@ -730,6 +742,7 @@ public class QueryContext implements AutoCloseable {
 	/**
 	 * Returns language specified in {@link EvitaRequest}. Language is valid for entire query.
 	 */
+	@Override
 	@Nullable
 	public Locale getLocale() {
 		return evitaRequest.getLocale();
@@ -794,15 +807,6 @@ public class QueryContext implements AutoCloseable {
 		return getGlobalEntityIndexIfExists()
 			.map(GlobalEntityIndex.class::cast)
 			.orElseThrow(() -> new EvitaInternalError("Global index of entity unexpectedly not found!"));
-	}
-
-	/**
-	 * Returns {@link EntityIndex} by its key and entity type.
-	 */
-	@Nonnull
-	public GlobalEntityIndex getGlobalEntityIndex(@Nonnull String entityType) {
-		return getGlobalEntityIndexIfExists(entityType)
-			.orElseThrow(() -> new EvitaInternalError("Global index of entity " + entityType + " unexpectedly not found!"));
 	}
 
 	/**
@@ -987,18 +991,24 @@ public class QueryContext implements AutoCloseable {
 	 */
 	public boolean isFacetGroupConjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
-		if (groupId == null || facetGroupConjunction.isEmpty()) {
+		final Optional<FacetFilterBy> facetGroupConjunction = getEvitaRequest().getFacetGroupConjunction(referenceName);
+		if (facetGroupConjunction.isEmpty()) {
 			return false;
+		} else if (facetGroupConjunction.get().isFilterDefined()) {
+			if (groupId == null) {
+				return false;
+			} else {
+				return getFacetRelationTuples().computeIfAbsent(
+					new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
+					refName -> new FilteringFormulaPredicate(
+						this, facetGroupConjunction.get().filterBy(),
+						referenceSchema.getReferencedGroupType(),
+						() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
+					)
+				).test(groupId);
+			}
 		} else {
-			return getFacetRelationTuples().computeIfAbsent(
-				new FacetRelationTuple(referenceName, FacetRelation.CONJUNCTION),
-				refName -> new FilteringFormulaPredicate(
-					this, facetGroupConjunction.get(),
-					referenceSchema.getReferencedGroupType(),
-					() -> "Facet group conjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupConjunction.get()
-				)
-			).test(groupId);
+			return true;
 		}
 	}
 
@@ -1008,18 +1018,24 @@ public class QueryContext implements AutoCloseable {
 	 */
 	public boolean isFacetGroupDisjunction(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
-		if (groupId == null || facetGroupDisjunction.isEmpty()) {
+		final Optional<FacetFilterBy> facetGroupDisjunction = getEvitaRequest().getFacetGroupDisjunction(referenceName);
+		if (facetGroupDisjunction.isEmpty()) {
 			return false;
+		} else if (facetGroupDisjunction.get().isFilterDefined()) {
+			if (groupId == null) {
+				return false;
+			} else {
+				return getFacetRelationTuples().computeIfAbsent(
+					new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
+					refName -> new FilteringFormulaPredicate(
+						this, facetGroupDisjunction.get().filterBy(),
+						referenceSchema.getReferencedGroupType(),
+						() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
+					)
+				).test(groupId);
+			}
 		} else {
-			return getFacetRelationTuples().computeIfAbsent(
-				new FacetRelationTuple(referenceName, FacetRelation.DISJUNCTION),
-				refName -> new FilteringFormulaPredicate(
-					this, facetGroupDisjunction.get(),
-					referenceSchema.getReferencedGroupType(),
-					() -> "Facet group disjunction of `" + referenceSchema.getName() + "` filter: " + facetGroupDisjunction.get()
-				)
-			).test(groupId);
+			return true;
 		}
 	}
 
@@ -1029,18 +1045,24 @@ public class QueryContext implements AutoCloseable {
 	 */
 	public boolean isFacetGroupNegation(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer groupId) {
 		final String referenceName = referenceSchema.getName();
-		final Optional<FilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
-		if (groupId == null || facetGroupNegation.isEmpty()) {
+		final Optional<FacetFilterBy> facetGroupNegation = getEvitaRequest().getFacetGroupNegation(referenceName);
+		if (facetGroupNegation.isEmpty()) {
 			return false;
+		} else if (facetGroupNegation.get().isFilterDefined()) {
+			if (groupId == null) {
+				return false;
+			} else {
+				return getFacetRelationTuples().computeIfAbsent(
+					new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
+					refName -> new FilteringFormulaPredicate(
+						this, facetGroupNegation.get().filterBy(),
+						referenceSchema.getReferencedGroupType(),
+						() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
+					)
+				).test(groupId);
+			}
 		} else {
-			return getFacetRelationTuples().computeIfAbsent(
-				new FacetRelationTuple(referenceName, FacetRelation.NEGATION),
-				refName -> new FilteringFormulaPredicate(
-					this, facetGroupNegation.get(),
-					referenceSchema.getReferencedGroupType(),
-					() -> "Facet group negation of `" + referenceSchema.getName() + "` filter: " + facetGroupNegation.get()
-				)
-			).test(groupId);
+			return true;
 		}
 	}
 
@@ -1063,6 +1085,13 @@ public class QueryContext implements AutoCloseable {
 	 */
 	public void returnBuffer(@Nonnull int[] borrowedBuffer) {
 		this.buffers.push(borrowedBuffer);
+	}
+
+	@Nonnull
+	public Bitmap getRootHierarchyNodes() {
+		return ofNullable(rootHierarchyNodesFormula)
+			.map(Formula::compute)
+			.orElse(EmptyBitmap.INSTANCE);
 	}
 
 	/**
@@ -1208,18 +1237,14 @@ public class QueryContext implements AutoCloseable {
 			}
 
 			// init collection
-			final boolean collectionChanged;
+			final String entityTypeChangedTo;
 			if (prefetchedEntity == null && !Objects.equals(lastEntityType, entityType)) {
 				Assert.isTrue(entityType != null, () -> new EntityCollectionRequiredException("fetch entity"));
-				entityCollection.set(getEntityCollectionOrThrowException(entityType, "fetch entity"));
-				lastEntityType = entityType;
-				collectionChanged = true;
+				entityTypeChangedTo = entityType;
 			} else if (prefetchedEntity != null && !Objects.equals(lastEntityType, prefetchedEntity.getType())) {
-				entityCollection.set(getEntityCollectionOrThrowException(prefetchedEntity.getType(), "fetch entity"));
-				lastEntityType = prefetchedEntity.getType();
-				collectionChanged = true;
+				entityTypeChangedTo = prefetchedEntity.getType();
 			} else {
-				collectionChanged = false;
+				entityTypeChangedTo = null;
 			}
 
 			// resolve the request that should be used for fetching
@@ -1233,8 +1258,14 @@ public class QueryContext implements AutoCloseable {
 				// that will use such implicit locale as if it would have been part of the original request
 				lastImplicitLocale = implicitLocale;
 				requestToUse.set(new EvitaRequest(evitaRequest, implicitLocale));
-			} else if (collectionChanged) {
+			} else if (entityTypeChangedTo != null) {
 				dataCollector.run();
+			}
+
+			// now change the collection if necessary
+			if (entityTypeChangedTo != null) {
+				entityCollection.set(getEntityCollectionOrThrowException(entityTypeChangedTo, "fetch entity"));
+				lastEntityType = entityTypeChangedTo;
 			}
 
 			// now apply collector to fetch the entity in requested form using potentially enriched request
@@ -1277,8 +1308,8 @@ public class QueryContext implements AutoCloseable {
 	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
-	 * {@link EntityCollection#limitEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} or
-	 * {@link EntityCollection#enrichEntity(SealedEntity, EvitaRequest, EvitaSessionContract)} methods.
+	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
+	 * {@link EntityCollection#enrichEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  methods.
 	 */
 	@Nonnull
 	private EvitaRequest fabricateFetchRequest(@Nonnull String entityType, @Nonnull EntityFetchRequire requirements) {

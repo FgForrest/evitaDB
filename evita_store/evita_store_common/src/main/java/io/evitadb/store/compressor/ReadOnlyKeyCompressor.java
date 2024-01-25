@@ -50,7 +50,7 @@ public class ReadOnlyKeyCompressor implements KeyCompressor {
 
 	/**
 	 * Contains key index extracted from {@link KeyCompressor} that is necessary for
-	 * bootstraping {@link KeyCompressor} used for MemTable deserialization.
+	 * bootstraping {@link KeyCompressor} used for file offset index deserialization.
 	 */
 	@Getter private final Map<Integer, Object> idToKeyIndex;
 	/**

@@ -28,7 +28,6 @@ import io.evitadb.api.query.PriceConstraint;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
-import io.evitadb.api.query.require.PriceType;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -37,32 +36,29 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 
 /**
- * This `priceBetween` query accepts two {@link BigDecimal} arguments that represents lower and higher price
- * bounds (inclusive).
- *
- * Function returns true if entity has sellable price in most prioritized price list according to {@link PriceInPriceLists}
- * query greater than or equal to passed lower bound and lesser than or equal to passed higher bound. This function
- * is also affected by other price related constraints such as {@link PriceInCurrency} functions that limits the examined
- * prices as well.
- *
- * Most prioritized price term relates to [price computation algorithm](price_computation.md) described in special article.
- *
- * By default, price with tax is used for filtering, you can change this by using {@link PriceType} require query.
- * Non-sellable prices doesn't participate in the filtering at all.
- *
- * Only single `priceBetween` query can be used in the query.
+ * The `priceBetween` constraint restricts the result set to items that have a price for sale within the specified price
+ * range. This constraint is typically set by the user interface to allow the user to filter products by price, and
+ * should be nested inside the userFilter constraint container so that it can be properly handled by the facet or
+ * histogram computations.
  *
  * Example:
  *
- * ```
+ * <pre>
  * priceBetween(150.25, 220.0)
- * ```
+ * </pre>
+ *
+ * Warning: Only a single occurrence of any of this constraint is allowed in the filter part of the query.
+ * Currently, there is no way to switch context between different parts of the filter and build queries such as find
+ * a product whose price is either in "CZK" or "EUR" currency at this or that time using this constraint.
+ * 
+ * <p><a href="https://evitadb.io/documentation/query/filtering/price#price-between">Visit detailed user documentation</a></p>
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ConstraintDefinition(
 	name = "between",
 	shortDescription = "The constraint checks if entity has price for sale within the passed range of prices (both ends are inclusive).",
+	userDocsLink = "/documentation/query/filtering/price#price-between",
 	supportedIn = ConstraintDomain.ENTITY
 )
 public class PriceBetween extends AbstractFilterConstraintLeaf implements PriceConstraint<FilterConstraint>, IndexUsingConstraint {

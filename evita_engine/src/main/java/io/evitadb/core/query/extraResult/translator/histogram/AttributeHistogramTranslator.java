@@ -25,6 +25,7 @@ package io.evitadb.core.query.extraResult.translator.histogram;
 
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.require.AttributeHistogram;
+import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -67,6 +68,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 		final EntitySchemaContract schema = extraResultPlanner.getSchema();
 		final String[] attributeNames = attributeHistogram.getAttributeNames();
 		final int bucketCount = attributeHistogram.getRequestedBucketCount();
+		final HistogramBehavior behavior = attributeHistogram.getBehavior();
 
 		// find user filters that enclose variable user defined part
 		final Set<Formula> userFilters = extraResultPlanner.getUserFilteringFormula();
@@ -76,7 +78,7 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 			.collect(Collectors.groupingBy(AttributeFormula::getAttributeName));
 
 		// get all indexes that should be used for query execution
-		final TargetIndexes<EntityIndex<?>> indexSetToUse = extraResultPlanner.getIndexSetToUse();
+		final TargetIndexes<?> indexSetToUse = extraResultPlanner.getIndexSetToUse();
 		// find existing AttributeHistogramProducer for potential reuse
 		AttributeHistogramProducer attributeHistogramProducer = extraResultPlanner.findExistingProducer(AttributeHistogramProducer.class);
 		for (String attributeName : attributeNames) {
@@ -85,14 +87,14 @@ public class AttributeHistogramTranslator implements RequireConstraintTranslator
 				attributeHistogramProducer = new AttributeHistogramProducer(
 					schema.getName(),
 					bucketCount,
+					behavior,
 					extraResultPlanner.getFilteringFormula(),
 					extraResultPlanner.getExtraResultCacheAccessor()
 				);
 			}
 
 			// collect all FilterIndexes for requested attribute and requested language
-			final List<FilterIndex> attributeIndexes = indexSetToUse.getIndexes()
-				.stream()
+			final List<FilterIndex> attributeIndexes = indexSetToUse.getIndexStream(EntityIndex.class)
 				.map(it -> it.getFilterIndex(attributeName, language))
 				.filter(Objects::nonNull)
 				.collect(Collectors.toList());
