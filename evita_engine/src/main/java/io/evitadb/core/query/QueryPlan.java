@@ -54,7 +54,6 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 import static io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase.EXTRA_RESULT_ITEM_FABRICATION;
@@ -110,8 +109,7 @@ public class QueryPlan {
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T execute() {
 		queryContext.pushStep(QueryPhase.EXECUTION);
-		new QueryPlanStepExecutedEvent(QueryPhase.EXECUTION.name(), new Random().nextLong()).commit();
-		log.info("Query plan execution started.");
+		new QueryPlanStepExecutedEvent(QueryPhase.EXECUTION.name(), this.filter.getEstimatedCost()).commit();
 
 		try {
 			// prefetch the entities to allow using them in filtering / sorting in next step

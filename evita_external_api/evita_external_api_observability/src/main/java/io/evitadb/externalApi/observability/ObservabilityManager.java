@@ -27,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.core.Evita;
 import io.evitadb.core.metric.event.CustomMetricsExecutionEvent;
 import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
@@ -36,6 +37,7 @@ import io.evitadb.externalApi.observability.logging.StartLoggingHandler;
 import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.externalApi.observability.metric.provider.CustomEventProvider;
+import io.evitadb.utils.Assert;
 import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
 import io.undertow.Handlers;
 import io.undertow.Undertow;
@@ -112,6 +114,7 @@ public class ObservabilityManager {
 	/**
 	 * Stops currently running JFR recording and stores recorded content to a file.
 	 */
+	@Nonnull
 	public String stop() throws IOException {
 		if (recording.getState() != RecordingState.RUNNING) {
 			return "There is no currently running recording.";
@@ -137,12 +140,17 @@ public class ObservabilityManager {
 	private void registerRecordingFileResourceHandler() {
 		final File directory = new File(String.valueOf(RECORDING_FILE_DIRECTORY_PATH));
 		if (!directory.exists()) {
-			directory.mkdir();
+			Assert.isPremiseValid(
+				directory.mkdir(),
+				() -> new UnexpectedIOException(
+					"Unable to create directory for recording file.",
+					"Unable to create directory `" + directory + "` for recording file."
+				)
+			);
 		}
 		final ResourceHandler resourceHandler;
 		try (FileResourceManager resourceManager = new FileResourceManager(RECORDING_FILE_DIRECTORY_PATH.toFile(), 100)) {
 			resourceHandler = new ResourceHandler((exchange, path) -> {
-				System.out.println("Path: " + path);
 				if (("/" + DUMP_FILE_NAME).equals(path)) {
 					return resourceManager.getResource(DUMP_FILE_NAME);
 				} else {

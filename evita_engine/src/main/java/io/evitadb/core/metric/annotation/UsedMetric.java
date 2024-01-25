@@ -38,5 +38,12 @@ import java.lang.annotation.Target;
 @Target(ElementType.FIELD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface UsedMetric {
+
+	/**
+	 * Returns the type of Prometheus metric to be used when handling a field marked with the {@link UsedMetric} annotation.
+	 *
+	 * @return the type of Prometheus metric
+	 */
 	MetricType metricType();
+
 }
