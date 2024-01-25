@@ -11,7 +11,7 @@ proofreading: 'done'
 preferredLang: 'evitaql'
 ---
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 If no content requirement is used in the query, the result will contain only the primary key of the entity. While this
 may be sufficient for some queries, it is usually necessary to fetch some data from the entity or even other entities
@@ -65,22 +65,22 @@ entityFetch(
     </dd>
 </dl>
 
-</LanguageSpecific>
+</LS>
 
-The `entityFetch` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EntityFetch.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/EntityFetch.cs</SourceClass></LanguageSpecific>)
+The `entityFetch` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/EntityFetch.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/EntityFetch.cs</SourceClass></LS>)
 requirement is used to trigger loading one or more entity data containers from the disk by its primary key.
 This operation requires a disk access unless the entity is already loaded in the database cache (frequently fetched
 entities have higher chance to stay in the cache).
 
-<LanguageSpecific to="java,csharp">
-<LanguageSpecific to="java">In the Java API</LanguageSpecific><LanguageSpecific to="csharp">In the C# client</LanguageSpecific>,
+<LS to="j,c">
+<LS to="j">In the Java API</LS><LS to="c">In the C# client</LS>,
 including the `entityFetch` requirement in the query changes the output type in the response container.
-Instead of returning an <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass></LanguageSpecific>
-for each entity, the <LanguageSpecific to="java"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass></LanguageSpecific>
+Instead of returning an <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass></LS>
+for each entity, the <LS to="j"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass></LS>
 type is returned.
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ## Entity group fetch
 
@@ -131,9 +131,9 @@ entityGroupFetch(
 
 Same as the [`entityFetch`](#entity-fetch) but used for fetching entities that represents reference group.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 ## Entity content
 
@@ -178,11 +178,11 @@ The query returns the following entity body of the `Brand` entity:
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 ## Attribute content
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ```evitaql-syntax
 attributeContent(
@@ -197,7 +197,7 @@ attributeContent(
     </dd>
 </dl>
 
-The `attributeContent` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LanguageSpecific>)
+The `attributeContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AttributeContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AttributeContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized). [Localized attributes](../../use/data-model.md#localized-attributes)
 are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
 filter constraint or the [`dataInLocales`](#data-in-locale) require constraint.
@@ -226,25 +226,25 @@ To select a `code` and localized `name` attribute for the `Brand` entity, use th
 
 The query returns the following attributes of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with named attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContent.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the name is in the English localization thanks to the `entityLocaleEquals` filter constraint in
 the query.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 To fetch entity or reference [attributes](../../use/data-model.md#attributes-unique-filterable-sortable-localized),
 use the `attributes` field within an entity or reference object and specify the required attribute names as sub-fields.
@@ -334,9 +334,9 @@ satisfied by the entity.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ### Attribute content all
 
@@ -364,26 +364,26 @@ To select all non-localized attributes for the `Brand` entity, use the following
 
 The query returns the following attributes of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with all attributes](/documentation/user/en/query/requirements/examples/fetching/attributeContentAll.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 All the localized attributes are missing, because there is no localization context present in the query.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 ## Associated data content
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ```evitaql-syntax
 associatedDataContent(
@@ -398,7 +398,7 @@ associatedDataContent(
     </dd>
 </dl>
 
-The `associatedDataContent` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AssociatedDataContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/AssociatedDataContent.cs</SourceClass></LanguageSpecific>)
+The `associatedDataContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/AssociatedDataContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/AssociatedDataContent.cs</SourceClass></LS>)
 requirement is used to retrieve one or more entity [associated data](../../use/data-model.md#associated-data).
 [Localized associated data](../../use/data-model.md#localized-associated-data) are only fetched if
 there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
@@ -420,16 +420,16 @@ To select an *allActiveUrls* and localized *localization* associated data for th
 
 The query returns the following associated data of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with named associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContent.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the *localization* related data item contains the texts in the English localization thanks
 to the `entityLocaleEquals` filter constraint in the query. The *allActiveUrls* is a non-localized related
@@ -438,9 +438,9 @@ be used to generate a language selection menu for this brand record.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 To fetch entity [associated data](../../use/data-model.md#associated-data),
 use the `associatedData` field within an entity object and specify required associated data names as sub-fields.
@@ -519,9 +519,9 @@ satisfied by the entity.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ### Associated data content all
 
@@ -557,29 +557,29 @@ To select all non-localized associated data for the `Brand` entity, use the foll
 
 The query returns the following associated data of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with all the associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch with all the associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with all the associated data](/documentation/user/en/query/requirements/examples/fetching/associatedDataContentAll.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 All the localized associated data are missing, because there is no localization context present in the query.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ## Data in locales
 
@@ -598,7 +598,7 @@ dataInLocales(
     </dd>
 </dl>
 
-The `dataInLocales` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DataInLocales.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/DataInLocales.cs</SourceClass></LanguageSpecific>)
+The `dataInLocales` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/DataInLocales.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/DataInLocales.cs</SourceClass></LS>)
 requirement is used in two scenarios:
 
 1. there is no *locale context* in the filter part of the query, because you don't want to exclude entities without
@@ -624,16 +624,16 @@ query:
 
 The query returns the following localized attributes of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes](/documentation/user/en/query/requirements/examples/fetching/dataInLocales.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 If the `dataInLocales` requirement was not used in the query, accessing the *name* attribute would throw an exception.
 In the example above, the *name* attribute is accessible in the Czech locale even though the `entityLocaleEquals` filter
@@ -658,16 +658,16 @@ get Czech and English *name* attribute values. The following query will do the j
 
 The query returns the following localized attributes of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with localized attributes in multiple locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesWithFilter.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the localized attributes are available both for the Czech and English locales.
 The entity is still present in the result, because the filter constraint enforces the Czech locale context, which is
@@ -675,9 +675,9 @@ satisfied by the entity.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ### Data in locales all
 
@@ -707,32 +707,32 @@ To fetch entity in all locales available, use the following query:
 
 The query returns the following localized attributes of the `Brand` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch in all available locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryBrand.recordPage">[The result of an entity fetch in all available locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch in all available locales](/documentation/user/en/query/requirements/examples/fetching/dataInLocalesAll.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the entity is returned with the Czech and English locales for which the localized attributes or
 associated data are available.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 ## Hierarchy content
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ```evitaql-syntax
 hierarchyContent(
@@ -753,7 +753,7 @@ hierarchyContent(
     </dd>
 </dl>
 
-The `hierarchyContent` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/HierarchyContent.cs</SourceClass></LanguageSpecific>)
+The `hierarchyContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/HierarchyContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/HierarchyContent.cs</SourceClass></LS>)
 requirement allows you to access the information about the hierarchical placement of the entity.
 
 If no additional constraints are specified, entity will contain a full chain of parent primary keys up to the root of
@@ -783,16 +783,16 @@ To fetch an entity with basic hierarchy information, use the following query:
 
 The query returns the following hierarchy of the `Category` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContent.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 The `Category` entity is returned with the hierarchy information up to the root of the hierarchy tree.
 
@@ -816,25 +816,25 @@ categories. The query looks like this:
 
 The query returns the following product with the reference to the full `Category` entity hierarchy chain:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetch with hierarchy placement](/documentation/user/en/query/requirements/examples/fetching/hierarchyContentViaReference.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 This quite complex example uses the [`referenceContent`](#reference-content) requirement that is described in a following
 chapter.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 To access the information about the hierarchical placement of an entity, use either the `parentPrimaryKey` or the `parents` field (or both).
 
@@ -898,11 +898,11 @@ chapter.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 ## Price content
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ```evitaql-syntax
 priceContent(
@@ -914,7 +914,7 @@ priceContent(
 <dl>
     <dt>argument:enum(NONE|RESPECTING_FILTER|ALL)</dt>
     <dd>
-        optional argument of type <LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContentMode.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContentMode.cs</SourceClass></LanguageSpecific>
+        optional argument of type <LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContentMode.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContentMode.cs</SourceClass></LS>
         enum allowing you to specify whether to fetch all, selected or no price records for the entity:
 
         - **NONE**: no prices will be fetched for the entity (even if the filter contains a price constraint)
@@ -929,7 +929,7 @@ priceContent(
     </dd>
 </dl>
 
-The `priceContent` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass></LanguageSpecific>)
+The `priceContent` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass></LS>)
 requirement allows you to access the information about the prices of the entity.
 
 If the `RESPECTING_FILTER` mode is used, the `priceContent` requirement will only retrieve the prices selected by
@@ -958,16 +958,16 @@ To get an entity with prices that you filter by, use the following query:
 
 The query returns the following list of prices of the `Product` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices](/documentation/user/en/query/requirements/examples/fetching/priceContent.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned. This query is
 equivalent to using the [`priceContentRespectingFilter`](#price-content-respecting-filter) alias.
@@ -990,7 +990,7 @@ priceContent(
     </dd>
 </dl>
 
-The `priceContentRespectingFilter` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass></LanguageSpecific>)
+The `priceContentRespectingFilter` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass></LS>)
 requirement allows you to access the information about the prices of the entity. It fetches only the prices selected by
 the [`priceInPriceLists`](../filtering/price.md#price-in-price-lists) constraint.
 
@@ -1017,16 +1017,16 @@ To get an entity with prices that you filter by and a *reference* price on top o
 
 The query returns the following list of prices of the `Product` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with its selected prices and reference price](/documentation/user/en/query/requirements/examples/fetching/priceContentRespectingFilter.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the prices for the filtered price lists *employee-basic-price* and *basic* are returned, as well as
 the price in the *reference* price lists requested by the `priceContent` requirement.
@@ -1039,7 +1039,7 @@ the price in the *reference* price lists requested by the `priceContent` require
 priceContentAll()
 ```
 
-The `priceContentAll` (<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass></LanguageSpecific>)
+The `priceContentAll` (<LS to="e,j,r"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceContent.cs</SourceClass></LS>)
 requirement allows you to access all of the entity's price information regardless of the filtering constraints specified
 in the query.
 
@@ -1061,24 +1061,24 @@ To get an entity with all of the entity's prices, use the following query:
 
 The query returns the following list of prices of the `Product` entity:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all its prices](/documentation/user/en/query/requirements/examples/fetching/priceContentAll.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, all prices of the entity are returned in all available currencies - not only the filtered price lists
 *employee-basic-price* and *basic*. Thanks to `priceContentAll` you have an overview of all prices of the entity.
 
 </Note>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 To fetch price information for an entity, there are several different fields available within an entity: `priceForSale`, `price` and `prices`.
 Each has a different purpose and returns different prices.
@@ -1223,11 +1223,11 @@ As you can see, the filtered price list is returned.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 ## Reference content
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ```evitaql-syntax
 referenceContent(
@@ -1272,14 +1272,14 @@ referenceContent(
     </dd>
 </dl>
 
-The `referenceContent` (<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LanguageSpecific>)
+The `referenceContent` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LS>)
 requirement allows you to access the information about the references the entity has towards other entities (either
 managed by evitaDB itself or by any other external system). This variant of `referenceContent` doesn't return
 the attributes set on the reference itself - if you need those attributes, use the [`referenceContentWithAttributes`](#reference-content-with-attributes)
 variant of it.
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 Reference fields allow you to access the information about the references the entity has towards other entities (either
 managed by evitaDB itself or by any other external system). However, reference fields are a bit different from the other
@@ -1287,7 +1287,7 @@ entity fields. They are dynamically generated based on the reference schemas, so
 the entity object by a schema-defined name, and also, each reference object has a slightly different structure based on
 the specific reference schema.
 
-</LanguageSpecific>
+</LS>
 
 To get an entity with reference to categories and brand, use the following query:
 
@@ -1305,21 +1305,21 @@ To get an entity with reference to categories and brand, use the following query
 
 The returned `Product` entity will contain primary keys of all categories and brand it references:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with category and brand references](/documentation/user/en/query/requirements/examples/fetching/referenceContent.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -1343,21 +1343,21 @@ the bodies of the groups the references refer to. One such common scenario is fe
 The returned `Product` entity will contain a list of all parameter codes it references and the code of the group to
 which each parameter belongs:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentBodies.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 The example lists only a *code* attribute for each referenced entity and group for brevity, but you can retrieve any of
 their content - associated data, prices, hierarchies, or nested references as well.
@@ -1383,27 +1383,27 @@ related entities: product → group → tag → tag category. The query looks li
 The returned `Product` entity will contain a list of all groups it references, for each group a list of all its tags and
 for each tag its category assignment:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies and group bodies](/documentation/user/en/query/requirements/examples/fetching/referenceContentNested.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 The tag category is not an entity managed by evitaDB and that's why we retrieve only its primary key.
 
 </Note>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 #### Reference attributes fetching
 
@@ -1429,18 +1429,18 @@ combination and which parameter values are merely informative, use the following
 The returned `Product` entity will contain references to parameter values and for each of it, it specifies the type
 of the relation between the product and the parameter value:
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-memory-256* and *color-yellow* parameter
 values define the product variant, while the other parameters only describe the additional properties of the product.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 #### Filtering references
 
@@ -1449,8 +1449,8 @@ can use the filter constraint to filter out the references you don't need.
 
 <Note type="info">
 
-The <LanguageSpecific to="evitaql,java,rest,csharp">`referenceContent`</LanguageSpecific> filter
-<LanguageSpecific to="graphql">on reference fields</LanguageSpecific>
+The <LS to="e,j,r,c">`referenceContent`</LS> filter
+<LS to="g">on reference fields</LS>
 implicitly targets the attributes on the same reference it points to, so you don't need to
 specify a [`referenceHaving`](../filtering/references.md#reference-having) constraint. However, if you need to declare
 constraints on referenced entity attributes, you must wrap them in the [`entityHaving`](../filtering/references.md#entity-having)
@@ -1477,21 +1477,21 @@ following query:
 The returned `Product` entity will contain a list of all parameter codes it references and the code of the group to
 which each parameter belongs:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter bodies that belong to group visible on detail page](/documentation/user/en/query/requirements/examples/fetching/referenceContentFilter.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see only the parameters of the groups having *isVisibleInDetail* set to *TRUE* are returned.
 
@@ -1505,8 +1505,8 @@ you can use the order constraint inside the `referenceContent` requirement.
 
 <Note type="info">
 
-The <LanguageSpecific to="evitaql,java,rest,csharp">`referenceContent`</LanguageSpecific> ordering
-<LanguageSpecific to="graphql">on reference fields</LanguageSpecific> implicitly targets the attributes on the same reference
+The <LS to="e,j,r,c">`referenceContent`</LS> ordering
+<LS to="g">on reference fields</LS> implicitly targets the attributes on the same reference
 it points to, so you don't need to specify a [`referenceProperty`](../ordering/reference.md#reference-property) constraint.
 However, if you need to declare
 constraints on referenced entity attributes, you must wrap them in the [`entityProperty`](../ordering/reference.md#entity-property)
@@ -1531,25 +1531,25 @@ query:
 
 The returned `Product` entity will contain a list of all parameters in the expected order:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with referenced parameter ordered by name](/documentation/user/en/query/requirements/examples/fetching/referenceContentOrder.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ### Reference content all
 
@@ -1589,7 +1589,7 @@ referenceContentAll(
     </dd>
 </dl>
 
-The `referenceContentAll` (<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LanguageSpecific>)
+The `referenceContentAll` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LS>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
 system). The `referenceContentAll` is a shortcut that simply targets all references defined for the entity. It can be
@@ -1613,17 +1613,17 @@ To get an entity with all the references available, use the following query:
 
 The returned `Product` entity will contain primary keys and codes of all its references:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAll.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp,rest">
+<LS to="e,j,c,r">
 
 ### Reference content with attributes
 
@@ -1674,7 +1674,7 @@ referenceContentWithAttributes(
     </dd>
 </dl>
 
-The `referenceContentWithAttributes` (<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LanguageSpecific>)
+The `referenceContentWithAttributes` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LS>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
 system) and the attributes set on those references. The `referenceContentWithAttributes` allows you to specify the list
@@ -1700,25 +1700,25 @@ combination and which parameter values are merely informative, use the following
 The returned `Product` entity will contain references to parameter values and for each of it, it specifies the type
 of the relation between the product and the parameter value:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentWithAttributes.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 As you can see, the *cellular-true*, *display-size-10-2*, *ram-memory-4*, *rom-memory-256* and *color-yellow* parameter
 values define the product variant, while the other parameters only describe the additional properties of the product.
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ### Reference content all with attributes
 
@@ -1764,14 +1764,14 @@ referenceContentAllWithAttributes(
     </dd>
 </dl>
 
-The `referenceContentAllWithAttributes` (<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LanguageSpecific>)
+The `referenceContentAllWithAttributes` (<LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/ReferenceContent.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/ReferenceContent.cs</SourceClass></LS>)
 is a variation of the [`referenceContent`](#reference-content) requirement that allows you to access the information
 about the references the entity has towards other entities (either managed by evitaDB itself or by any other external
 system) and the attributes set on those references. The `referenceContentAllWithAttributes` allows you to specify the list
 of attributes to fetch, but by default it fetches all attributes on the reference. It doesn't allow you to specify
 the reference names - because it targets all of them, and so you can specify the constraints and the attributes that are
 shared by all of the references. This constraint is only useful in exploration scenarios.
-</LanguageSpecific>
+</LS>
 
 For detail information, see the [`referenceContent`](#reference-content) requirement chapter.
 
@@ -1791,15 +1791,15 @@ To obtain an entity with all the references and their attributes, use the follow
 
 The returned `Product` entity will contain all the references and the attributes set on this relation:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of an entity fetched with all references](/documentation/user/en/query/requirements/examples/fetching/referenceContentAllWithAttributes.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

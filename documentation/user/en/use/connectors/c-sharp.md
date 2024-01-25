@@ -10,13 +10,13 @@ author: 'Ing. Tomáš Pozler'
 preferredLang: 'cs'
 ---
 
-<LanguageSpecific to="evitaql,java,graphql,rest">
-This chapter describes the C# driver for evitaDB and doesn't make sense for other languages. If you're interested in 
+<LS to="e,j,g,r">
+This chapter describes the C# driver for evitaDB and doesn't make sense for other languages. If you're interested in
 the details of the C# implementation, please change your preferred language in the upper right corner.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 This API unification was possible thanks to the common [gRPC](grpc.md) protocol and protobuf data format used by both clients.
-It is built on top of the same interfaces (especially <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass> 
+It is built on top of the same interfaces (especially <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaContract.java</SourceClass>
 and <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass>) for the client and the database itself,
 where on the C# side, there has been only an adaptation without the need of these specific interfaces - classes were used instead.
 
@@ -44,12 +44,12 @@ Install-Package EvitaDB.Client
 </CodeTabsBlock>
 </CodeTabs>
 
-As you may notice, install commands lack the version specification. This is because the client is currently meant to be 
-always compatible with the latest version of the server in [master branch](https://github.com/FgForrest/evitaDB/tree/master) 
+As you may notice, install commands lack the version specification. This is because the client is currently meant to be
+always compatible with the latest version of the server in [master branch](https://github.com/FgForrest/evitaDB/tree/master)
 which corresponds with latest evitaDB [docker image](https://hub.docker.com/r/evitadb/evitadb). This may change in the future.
 
 *Suggestions to use*
-- in the most cases, you should be specifying `using` keyword when initializing <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass> and <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> to take advantage of their `IDisposable` implementation for automatic resource release 
+- in the most cases, you should be specifying `using` keyword when initializing <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass> and <SourceClass>EvitaDB.Client/EvitaClientSession.cs</SourceClass> to take advantage of their `IDisposable` implementation for automatic resource release
 - when working with queries, you should statically use `IQueryConstrains` interface for more compact and readable queries
 
 ## Notes
@@ -64,7 +64,7 @@ to existing <Term location="/documentation/user/en/index.md">catalog</Term>.
 
 <Note type="warning">
 The <SourceClass>EvitaDB.Client/EvitaClient.cs</SourceClass>
-keeps a pool of opened resources and should be terminated by a `Close()` method when you stop using it.  
+keeps a pool of opened resources and should be terminated by a `Close()` method when you stop using it.
 </Note>
 
 ### TLS configuration
@@ -92,7 +92,7 @@ configuration on the client side:
 
 <Note type="warning">
 If `mTLS` is enabled on the server side and `UseGeneratedCertificate` is set to `false`, you must provide your
-manually generated certificate in settings `CertificatePath` and `CertificateKeyPath`, otherwise the verification 
+manually generated certificate in settings `CertificatePath` and `CertificateKeyPath`, otherwise the verification
 process will fail and the connection will not be established.
 </Note>
 
@@ -125,4 +125,4 @@ The above intervals are not currently configurable because we believe they are o
 to change them, please contact us with your specific use case and we will consider adding the configuration option.
 
 </Note>
-</LanguageSpecific>
+</LS>

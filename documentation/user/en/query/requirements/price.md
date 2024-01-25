@@ -30,7 +30,7 @@ priceType(
 </dl>
 
 
-The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass></LanguageSpecific> requirement
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/PriceType.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/PriceType.cs</SourceClass></LS> requirement
 controls which price type is used when calculating the sales price and filtering or sorting by it. If no such
 requirement is specified, **the price with tax is used by default**.
 
@@ -53,21 +53,21 @@ between `€100` and `€105`. The following query will do that:
 
 The result contains some products, which you can see in the following table:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Results filtered by price between €100 and €105](/documentation/user/en/query/requirements/examples/price/price-type.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[Results filtered by price between €100 and €105](/documentation/user/en/query/requirements/examples/price/price-type.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[Results filtered by price between €100 and €105](/documentation/user/en/query/requirements/examples/price/price-type.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -91,20 +91,20 @@ in this range with the price without tax. To do this, we need to modify the quer
 And now the result contains completely different products (in the output we show the price with tax to demonstrate the
 difference - in regular UI you'd choose to show the price without tax) with more appropriate price for particular user:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Different results filtered by price between €100 and €105 without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[Different results filtered by price between €100 and €105 without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[Different results filtered by price between €100 and €105 without tax](/documentation/user/en/query/requirements/examples/price/price-type-without-tax.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

@@ -32,9 +32,6 @@ message GrpcHistogram {
   int32 overallCount = 3;
   // Data object that carries out threshold in histogram (or bucket if you will) along with number of occurrences in it.
   message GrpcBucket {
-    // Contains index (starting with zero) of the bucket in the histogram. First bucket / column of the histogram
-    // will have index zero, second bucket / column one and so forth.
-    int32 index = 1;
     // Contains threshold (left bound - inclusive) of the bucket.
     GrpcBigDecimal threshold = 2;
     // Contains number of entity occurrences in this bucket - e.g. number of entities that has monitored property value

@@ -63,6 +63,11 @@ public class AttributeInSetTranslator implements FilteringConstraintTranslator<A
 	public Formula translate(@Nonnull AttributeInSet attributeInSet, @Nonnull FilterByVisitor filterByVisitor) {
 		final String attributeName = attributeInSet.getAttributeName();
 		final Serializable[] comparedValues = attributeInSet.getAttributeValues();
+
+		if (ArrayUtils.isEmpty(comparedValues)) {
+			return EmptyFormula.INSTANCE;
+		}
+
 		final AttributeSchemaContract attributeDefinition = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 		final List<? extends Serializable> valueStream = Arrays.stream(comparedValues)
 			.map(it -> EvitaDataTypes.toTargetType(it, attributeDefinition.getPlainType()))

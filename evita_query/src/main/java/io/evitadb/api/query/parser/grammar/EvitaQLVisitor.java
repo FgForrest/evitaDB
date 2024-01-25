@@ -1025,6 +1025,12 @@ public interface EvitaQLVisitor<T> extends ParseTreeVisitor<T> {
 	 */
 	T visitClassifierWithValueListArgs(EvitaQLParser.ClassifierWithValueListArgsContext ctx);
 	/**
+	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithOptionalValueListArgs}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitClassifierWithOptionalValueListArgs(EvitaQLParser.ClassifierWithOptionalValueListArgsContext ctx);
+	/**
 	 * Visit a parse tree produced by {@link EvitaQLParser#classifierWithBetweenValuesArgs}.
 	 * @param ctx the parse tree
 	 * @return the visitor result

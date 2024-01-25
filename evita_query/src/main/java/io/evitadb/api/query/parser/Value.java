@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
 import java.util.UUID;
@@ -248,16 +249,6 @@ public class Value {
     }
 
     @Nonnull
-    public <T extends Serializable & Comparable<?>> T[] asSerializableAndComparableArray() {
-        try {
-            //noinspection unchecked
-            return asArray(v -> (T) v, null);
-        } catch (ClassCastException e) {
-            throw new EvitaInvalidUsageException("Unexpected type of value array `" + actualValue.getClass().getName() + "`.");
-        }
-    }
-
-    @Nonnull
     public Integer[] asIntegerArray() {
         try {
             return asArray(
@@ -353,28 +344,35 @@ public class Value {
     }
 
     @Nonnull
-    private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nullable Class<T> expectedItemType) {
+    private <T> T[] asArray(@Nonnull Function<Object, T> itemTransformer, @Nonnull Class<T> expectedItemType) {
         final Object values = actualValue;
         if (values instanceof Iterable<?> iterableValues) {
-            final Class<?> guessedExpectedItemType;
-            if (expectedItemType == null) {
-                guessedExpectedItemType = iterableValues.iterator().next().getClass();
-                for (Object value : iterableValues) {
-                    if (!guessedExpectedItemType.isAssignableFrom(value.getClass())) {
-                        throw new EvitaInvalidUsageException("Expected all variadic values to be of type `" + guessedExpectedItemType.getName() + "` but got `" + value.getClass().getName() + "`.");
-                    }
-                }
-            } else {
-                guessedExpectedItemType = null;
+            if (!iterableValues.iterator().hasNext()) {
+                //noinspection unchecked
+                return (T[]) Array.newInstance(expectedItemType, 0);
             }
 
             //noinspection unchecked
             return StreamSupport.stream(iterableValues.spliterator(), false)
                 .map(itemTransformer)
-                .toArray(size -> (T[]) Array.newInstance(expectedItemType != null ? expectedItemType : guessedExpectedItemType, size));
+                .toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
         } else if (values.getClass().isArray()) {
+            final int length = Array.getLength(values);
+
+            if (length == 0) {
+                //noinspection unchecked
+                return (T[]) Array.newInstance(expectedItemType, 0);
+            }
+
+            final Object[] iterableValues = new Object[length];
+            for (int i = 0; i < length; i++) {
+                iterableValues[i] = Array.get(values, i);
+            }
+
             //noinspection unchecked
-            return (T[]) values;
+            return Arrays.stream(iterableValues)
+                .map(itemTransformer)
+                .toArray(size -> (T[]) Array.newInstance(expectedItemType, size));
         } else {
             throw new EvitaInvalidUsageException("Expected value of iterable type or array but got `" + actualValue.getClass().getName() + "`.");
         }

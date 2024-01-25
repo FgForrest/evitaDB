@@ -580,7 +580,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					query.normalizeQuery(),
 					OffsetDateTime.now(),
 					EntityClassifier.class,
-					request.getCollection(),
+					null,
 					EvitaRequest.CONVERSION_NOT_SUPPORTED
 				);
 
@@ -674,7 +674,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					query,
 					OffsetDateTime.now(),
 					EntityClassifier.class,
-					request.getCollection(),
+					null,
 					EvitaRequest.CONVERSION_NOT_SUPPORTED
 				);
 
@@ -720,7 +720,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					query,
 					OffsetDateTime.now(),
 					EntityClassifier.class,
-					request.getCollection(),
+					null,
 					EvitaRequest.CONVERSION_NOT_SUPPORTED
 				);
 				final List<EntityClassifier> responseEntities = session.queryList(evitaRequest);

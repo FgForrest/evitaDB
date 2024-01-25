@@ -21,17 +21,17 @@ referenceHaving(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        the name of the [entity reference](../../use/schema.md#reference) that will be subjected to the filtering 
+        the name of the [entity reference](../../use/schema.md#reference) that will be subjected to the filtering
         constraints in the second and subsequent arguments
     </dd>
     <dt>filterConstraint:any+</dt>
     <dd>
-        one or more filter constraints that must be satisfied by one of the entity references with name specified in 
+        one or more filter constraints that must be satisfied by one of the entity references with name specified in
         the first argument
     </dd>
 </dl>
 
-The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/ReferenceHaving.cs</SourceClass></LanguageSpecific> constraint
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/ReferenceHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/ReferenceHaving.cs</SourceClass></LS> constraint
 eliminates entities which has no reference of particular name satisfying set of filtering constraints. You can examine
 either the attributes specified on the relation itself or wrap the filtering constraint
 in [`entityHaving`](#entity-having)
@@ -59,23 +59,23 @@ Returns the following result:
 
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Products with at least one `relatedProducts` reference of `alternativeProduct` category](/documentation/user/en/query/filtering/examples/references/reference-having.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Products with at least one `relatedProducts` reference of `alternativeProduct` category](/documentation/user/en/query/filtering/examples/references/reference-having.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Products with at least one `relatedProducts` reference of `alternativeProduct` category](/documentation/user/en/query/filtering/examples/references/reference-having.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -97,23 +97,23 @@ Which returns the following result:
 
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Products with at least one `relatedProducts` reference of any category](/documentation/user/en/query/filtering/examples/references/reference-having-any.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Products with at least one `relatedProducts` reference of any category](/documentation/user/en/query/filtering/examples/references/reference-having-any.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Products with at least one `relatedProducts` reference of any category](/documentation/user/en/query/filtering/examples/references/reference-having-any.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -136,30 +136,30 @@ Which returns the following result:
 
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Products referencing `brand` of particular primary key](/documentation/user/en/query/filtering/examples/references/reference-having-exact-id.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Products referencing `brand` of particular primary key](/documentation/user/en/query/filtering/examples/references/reference-having-exact-id.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Products referencing `brand` of particular primary key](/documentation/user/en/query/filtering/examples/references/reference-having-exact-id.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
 ## Entity having
 
 ```evitaql-syntax
-entityHaving(   
+entityHaving(
     filterConstraint:any+
 )
 ```
@@ -167,7 +167,7 @@ entityHaving(
 <dl>
     <dt>filterConstraint:any+</dt>
     <dd>
-        one or more filter constraints that must be satisfied by the target referenced entity of any of the source 
+        one or more filter constraints that must be satisfied by the target referenced entity of any of the source
         entity references identified by the parent `referenceHaving` constraint
     </dd>
 </dl>
@@ -196,23 +196,23 @@ Which returns the following result:
 
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Products referencing `brand` of with code `apple`](/documentation/user/en/query/filtering/examples/references/entity-having.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -228,17 +228,17 @@ facetHaving(
 <dl>
     <dt>argument:string!</dt>
     <dd>
-        the name of the [entity reference](../../use/schema.md#reference) that will be subject to the filtering 
+        the name of the [entity reference](../../use/schema.md#reference) that will be subject to the filtering
         constraints in the second and subsequent arguments
     </dd>
     <dt>filterConstraint:any*</dt>
     <dd>
-        zero or more filter constraints that identify the facet (reference) that must be present on the entities in 
+        zero or more filter constraints that identify the facet (reference) that must be present on the entities in
         the result set
     </dd>
 </dl>
 
-The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetHaving.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/FacetHaving.cs</SourceClass></LanguageSpecific> filtering
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/FacetHaving.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/FacetHaving.cs</SourceClass></LS> filtering
 constraint is typically placed inside the [`userFilter`](behavioral.md#user-filter) constraint container and represents
 the user's request to drill down the result set by a particular facet. The `facetHaving` constraint works exactly like
 the [`referenceHaving`](#reference-having) constraint, but works in conjunction with
@@ -277,22 +277,22 @@ Because the facet summary JSON is quite long and not very readable, we will only
 summary result in this documentation. As you can see, the selected facet is checked and the predicted numbers have
 changed accordingly:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="extraResults.FacetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.evitaql.string.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude sourceVariable="extraResults.facetSummary">[The result of facet having filtering constraint](/documentation/user/en/query/filtering/examples/references/facet-having.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

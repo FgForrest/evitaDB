@@ -10,16 +10,16 @@ proofreading: 'done'
 preferredLang: 'java'
 ---
 
-<LanguageSpecific to="evitaql">
+<LS to="e">
 The evitaQL language selection for this article makes no sense.
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 Unfortunately, we don't have a support written for a C# client, yet. Want to
 [contribute](https://github.com/FgForrest/evitaDB)?
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,graphql,rest">
+<LS to="j,g,r">
 
 <UsedTerms>
     <h4>Terms used in this document</h4>
@@ -101,9 +101,9 @@ the test method implementation to query and assert the results of the data in th
 
 ### Test web APIs
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 A similar approach is possible with the evitaDB Java Client through gRPC API. When setting up your dataset, simply declare that you also
 want to initialize the gRPC web server and open required set of web APIs:
@@ -126,9 +126,9 @@ instance that is properly configured to communicate with this gRPC API, the clie
 certificate to pass [mTLS verification](../../operate/tls.md#default-mtls-behaviour-not-secure), and
 communicates with the *embedded evitaDB* over the wire.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 A similar approach is possible with the evitaDB GraphQL API. When setting up your dataset, simply declare that you also
 want to initialize the GraphQL web server and open required web API:
@@ -153,9 +153,9 @@ just a wrapper around the [REST-assured](https://rest-assured.io/) library to pr
 builder specific to our GraphQL API. However, after the `.executeAndThen()` method is called, the request is sent,
 and you can use assertion methods provided directly by the [REST-assured](https://github.com/rest-assured/rest-assured/wiki/Usage#verifying-response-data) library.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 A similar approach is possible with the evitaDB REST API. When setting up your dataset, simply declare that you also
 want to initialize the REST web server and open required web API:
@@ -180,9 +180,9 @@ just a wrapper around the [REST-assured](https://rest-assured.io/) library to pr
 builder specific to our REST API. However, after the `.executeAndThen()` method is called, the request is sent,
 and you can use assertion methods provided directly by the [REST-assured](https://github.com/rest-assured/rest-assured/wiki/Usage#verifying-response-data) library.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,graphql,rest">
+<LS to="j,g,r">
 
 ### Init shared data objects
 
@@ -331,9 +331,9 @@ The annotation is expected to be placed on the `@Test` method or an argument of 
     </dd>
 </dl>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 Besides the standard [autowired arguments](#annotations-reference) you can also inject
 <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
@@ -341,9 +341,9 @@ to any of the defined arguments. The client will open a gRPC connection to the w
 <SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
 with the server over the network even if the server is running locally as an embedded database.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 Besides the standard [autowired arguments](#annotations-reference) you can also inject
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/GraphQLTester.java</SourceClass>
@@ -351,9 +351,9 @@ to any of the defined arguments. The tester will open a GraphQL connection to th
 <SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
 with the server over the network even if the server is running locally as an embedded database.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 Besides the standard [autowired arguments](#annotations-reference) you can also inject
 <SourceClass>evita_test_support/src/main/java/io/evitadb/test/tester/RestTester.java</SourceClass>
@@ -361,9 +361,9 @@ to any of the defined arguments. The tester will open a REST connection to the w
 <SourceClass>evita_server/src/main/java/io/evitadb/server/EvitaServer.java</SourceClass> and you can start communicating
 with the server over the network even if the server is running locally as an embedded database.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,graphql,rest">
+<LS to="j,g,r">
 
 ### @OnDataSetTearDown
 
@@ -378,4 +378,4 @@ you'd need a special cleanup procedure for your shared objects, and you might ap
     <dd>Defines name of the associated dataset.</dd>
 </dl>
 
-</LanguageSpecific>
+</LS>

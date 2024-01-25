@@ -65,9 +65,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor facetStatisticsDepthValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(FacetStatisticsDepth.class);
 	protected final EvitaQLValueTokenVisitor histogramBehaviorValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(HistogramBehavior.class);
 	protected final EvitaQLValueTokenVisitor intValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
 		Long.class
 	);
 	protected final EvitaQLValueTokenVisitor stringValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(String.class);
@@ -76,9 +80,13 @@ public class EvitaQLRequireConstraintVisitor extends EvitaQLBaseConstraintVisito
 	protected final EvitaQLValueTokenVisitor statisticsArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(StatisticsBase.class, StatisticsType.class);
 	protected final EvitaQLValueTokenVisitor priceContentModeValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(PriceContentMode.class);
 	protected final EvitaQLValueTokenVisitor attributeHistogramArgValueTokenVisitor = EvitaQLValueTokenVisitor.withAllowedTypes(
+		byte.class,
 		Byte.class,
+		short.class,
 		Short.class,
+		int.class,
 		Integer.class,
+		long.class,
 		Long.class,
 		String.class,
 		HistogramBehavior.class,

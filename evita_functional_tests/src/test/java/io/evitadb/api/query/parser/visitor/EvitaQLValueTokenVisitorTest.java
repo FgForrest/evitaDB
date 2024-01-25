@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -77,13 +77,13 @@ class EvitaQLValueTokenVisitorTest {
     @Test
     void shouldCreateVisitorWithAllComparableDataTypes() {
         final EvitaQLValueTokenVisitor visitor = EvitaQLValueTokenVisitor.withComparableTypesAllowed();
-        assertEquals(19, visitor.allowedDataTypes.size());
+        assertEquals(25, visitor.allowedDataTypes.size());
     }
 
     @Test
     void shouldCreateVisitorWithAllDataTypes() {
         final EvitaQLValueTokenVisitor visitor = EvitaQLValueTokenVisitor.withAllDataTypesAllowed();
-        assertEquals(22, visitor.allowedDataTypes.size());
+        assertEquals(28, visitor.allowedDataTypes.size());
     }
 
     @Test
