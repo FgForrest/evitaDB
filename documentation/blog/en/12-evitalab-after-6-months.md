@@ -81,9 +81,9 @@ The price for sale section simply visualizes the evitaDB price object.
 
 The list of prices, on the other hand, allows you not only to see all prices, but also to filter them in a way similar
 to what you would do with actual evitaQL or GraphQL queries. You can filter the prices by price lists, just like using
-the `[priceInPriceLists](https://evitadb.io/documentation/query/filtering/price#price-in-price-lists)`
+the [priceInPriceLists](https://evitadb.io/documentation/query/filtering/price#price-in-price-lists)
 constraint (even the order of selection is important as it defines the priority of the price lists). You can also filter
-by currency as you would with the `[priceInCurrency](https://evitadb.io/documentation/query/filtering/price#price-in-currency)`,
+by currency as you would with the [priceInCurrency](https://evitadb.io/documentation/query/filtering/price#price-in-currency),
 and on top of that you can even filter by price ID and inner record ID (which is something you cannot do with evitaQL or 
 GraphQL alone right now). And if you define price lists and currency in the filter, evitaLab will automatically calculate 
 the price for sale for your filter and display the preview of the calculated price for sale as the first one in the list.
@@ -121,8 +121,8 @@ to select a query part to visualize.
 #### Facet summary
 
 One of the supported extra results that are supported in the visualizer is the [facet summary](https://evitadb.io/documentation/query/requirements/facet).
-If you execute an evitaQL or GraphQL query with `[facetSummary](https://evitadb.io/documentation/query/requirements/facet#facet-summary)`
-or `[facetSummaryOfReference](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)`
+If you execute an evitaQL or GraphQL query with [facetSummary](https://evitadb.io/documentation/query/requirements/facet#facet-summary)
+or [facetSummaryOfReference](https://evitadb.io/documentation/query/requirements/facet#facet-summary-of-reference)
 require constraint, a facet summary visualization will be available in the visualization panel.
 
 <Note type="warning">
@@ -152,8 +152,8 @@ _Checkout the example [here](https://demo.evitadb.io/lab?sharedTab=N4IgLghgRgKgn
 
 The second important feature of evitaDB is the calculation of [hierarchy trees](https://evitadb.io/documentation/query/requirements/hierarchy)
 for menus and navigation. There is a visualization for that too. 
-If you use `[hierarchyOfSelf](https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self)` or 
-`[hierarchyOfReference](https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference)` require 
+If you use [hierarchyOfSelf](https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-self) or 
+[hierarchyOfReference](https://evitadb.io/documentation/query/requirements/hierarchy#hierarchy-of-reference) require 
 constraint, a hierarchy tree visualization will be available in the visualization panel.
 
 <Note type="info">
@@ -181,8 +181,8 @@ The last currently supported visualization extra results are histograms, both pr
 [Histograms](https://evitadb.io/documentation/query/requirements/histogram) allow you to nicely visualize large cardinality 
 of values in a limited space. The actual JSON returned for visualization of histograms in your application isn’t as
 complex as the other extra results. However, it is much harder to visualize in your head. 
-If you use `[attributeHistogram](https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram)` or 
-`[priceHistogram](https://evitadb.io/documentation/query/requirements/histogram#price-histogram)` require constraint in
+If you use [attributeHistogram](https://evitadb.io/documentation/query/requirements/histogram#attribute-histogram) or 
+[priceHistogram](https://evitadb.io/documentation/query/requirements/histogram#price-histogram) require constraint in
 the query, a histogram visualization will be available in the visualization panel.
 
 ![Histogram visualization in console](assets/images/12-visualizer-histogram.png "Histogram visualization in console")
@@ -190,9 +190,9 @@ the query, a histogram visualization will be available in the visualization pane
 _Checkout the example [here](https://demo.evitadb.io/lab?sharedTab=N4IgLghgRgKgngBwKYgFwiQNwJaQI4A2AtAMYD2AdgM5kEoA040AChAE4QC2Vao5FFJCTDZKASQAmaEBKScyIRiQiQCZAOYA5LinRZcEEAF9GkKABEVh1KDwBXJGzjT7juAAoAOhQAEfn+QEdMKiFF4gzGxkEnbCniAAlPTe-j4AZtgEYI4AQh4pqT4IbNgkSGIUkaVIADLYVGBU4VAQVKXxSQWpxdUVAMJ2bGxIFCT5IACiAKoASh1dPp2+-sP22MNey90lZQAS9WAaHJzuAIwADAkLVxQJiiCY7NjQdDzowAXeRsZGQA)._
 
 You will see the actual histogram as well as additional information for each bucket. If you then extend your query 
-with a `[userFilter](https://evitadb.io/documentation/query/filtering/behavioral#user-filter)` that contains either 
-`[attributeBetween](https://evitadb.io/documentation/query/filtering/comparable#attribute-between)` or
-`[priceBetween](https://evitadb.io/documentation/query/filtering/price#price-between)` to simulate user selection, 
+with a [userFilter](https://evitadb.io/documentation/query/filtering/behavioral#user-filter) that contains either 
+[attributeBetween](https://evitadb.io/documentation/query/filtering/comparable#attribute-between) or
+[priceBetween](https://evitadb.io/documentation/query/filtering/price#price-between) to simulate user selection, 
 the visualization will take this into account and visualize the narrowed view as well.
 
 ![Narrowed histogram visualization in console](assets/images/12-visualizer-histogram-narrowed.png "Narrowed histogram visualization in console")
