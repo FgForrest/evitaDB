@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.pooling.ChannelPool;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.InvalidEvitaVersionException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
 import io.evitadb.externalApi.grpc.generated.*;
 import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlockingStub;
@@ -183,8 +184,22 @@ public class EvitaClient implements EvitaContract {
 
 		try {
 			final SystemStatus systemStatus = this.getSystemStatus();
-			final SemVer serverVersion = new SemVer(systemStatus.version());
-			final SemVer clientVersion = new SemVer(getVersion());
+			final SemVer serverVersion;
+			final SemVer clientVersion;
+
+			try {
+				serverVersion = SemVer.fromString(systemStatus.version());
+			} catch (InvalidEvitaVersionException e) {
+				log.warn("Server version `{}` is not a valid semantic version. Aborting version check, this situation may lead to compatibility issues.", systemStatus.version());
+				return;
+			}
+			try {
+				clientVersion = SemVer.fromString(getVersion());
+			} catch (InvalidEvitaVersionException e) {
+				log.warn("Client version `{}` is not a valid semantic version. Aborting version check, this situation may lead to compatibility issues.", getVersion());
+				return;
+			}
+
 			final int comparisonResult = SemVer.compare(clientVersion, serverVersion);
 			if (comparisonResult < 0) {
 				log.warn(
