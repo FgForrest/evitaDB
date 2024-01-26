@@ -23,47 +23,56 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import io.evitadb.store.offsetIndex.io.OffHeapMemoryOutputStream.Mode;
+import io.evitadb.store.offsetIndex.stream.AbstractRandomAccessInputStream;
+import io.evitadb.utils.Assert;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.function.Consumer;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * Provides an InputStream implementation that reads from off-heap memory.
  * This class is not thread-safe.
  */
 @NotThreadSafe
-public class OffHeapMemoryInputStream extends InputStream {
+public class OffHeapMemoryInputStream extends AbstractRandomAccessInputStream {
+	@Nonnull private final Supplier<Mode> bufferModeSupplier;
+	@Nonnull private final IntSupplier writePositionSupplier;
+	@Nonnull private final Consumer<Mode> switchModeCallback;
 	@Getter private ByteBuffer buffer;
-	@Getter private final int written;
 	private final Runnable closeCallback;
 
-	public OffHeapMemoryInputStream(@Nonnull ByteBuffer buffer, @Nonnull Runnable closeCallback) {
+	public OffHeapMemoryInputStream(
+		@Nonnull ByteBuffer buffer,
+		@Nonnull Supplier<Mode> bufferModeSupplier,
+		@Nonnull IntSupplier writePositionSupplier,
+		@Nonnull Consumer<Mode> switchModeCallback,
+		@Nonnull Runnable closeCallback
+	) {
 		this.buffer = buffer;
-		this.written = buffer.position();
-		this.buffer.position(0);
+		this.bufferModeSupplier = bufferModeSupplier;
+		this.writePositionSupplier = writePositionSupplier;
+		this.switchModeCallback = switchModeCallback;
 		this.closeCallback = closeCallback;
-
 	}
 
-	public OffHeapMemoryInputStream(@Nonnull ByteBuffer buffer) {
-		this.buffer = buffer;
-		this.written = buffer.position();
-		this.buffer.position(0);
-		this.closeCallback = null;
-	}
-
-	private int remaining() {
-		return written - buffer.position();
+	@Override
+	public void seek(long position) {
+		switchToReadIfNecessary();
+		Assert.isPremiseValid(position < getWrittenBytes(), "Cannot seek past the end of the stream.");
+		this.buffer.position((int) position);
 	}
 
 	@Override
 	public int read() throws IOException {
-		if (remaining() > 0) {
-			return (int) buffer.get();
+		if (available() > 0) {
+			return (int) this.buffer.get();
 		} else {
 			return -1;
 		}
@@ -71,62 +80,74 @@ public class OffHeapMemoryInputStream extends InputStream {
 
 	@Override
 	public int read(@Nonnull byte[] b) throws IOException {
-		return read(b, 0, Math.min(written, b.length));
+		switchToReadIfNecessary();
+		final int toRead = Math.min(Math.min(getWrittenBytes(), b.length), available());
+		this.buffer.get(b, 0, toRead);
+		return toRead;
 	}
 
 	@Override
 	public int read(@Nonnull byte[] b, int off, int len) {
-		final int toRead = Math.min(Math.min(written, len), remaining() - off);
-		buffer.get(b, off, toRead);
+		switchToReadIfNecessary();
+		final int toRead = Math.min(Math.min(getWrittenBytes(), len), available() - off);
+		this.buffer.get(b, off, toRead);
 		return toRead;
 	}
 
 	@Override
 	public byte[] readAllBytes() {
-		final byte[] written = new byte[this.written];
-		buffer.get(written);
-		return written;
+		switchToReadIfNecessary();
+		final byte[] writtenData = new byte[this.getWrittenBytes()];
+		buffer.get(writtenData);
+		return writtenData;
 	}
 
 	@Override
 	public byte[] readNBytes(int len) {
-		final int toRead = Math.min(Math.min(written, len), remaining());
+		switchToReadIfNecessary();
+		final int toRead = Math.min(Math.min(getWrittenBytes(), len), available());
 		final byte[] result = new byte[toRead];
-		buffer.get(result);
+		this.buffer.get(result);
 		return result;
 	}
 
 	@Override
 	public int readNBytes(byte[] b, int off, int len) {
-		final int toRead = Math.min(Math.min(written, len), remaining() - off);
-		buffer.get(b, off, toRead);
+		switchToReadIfNecessary();
+		final int toRead = Math.min(Math.min(getWrittenBytes(), len), available() - off);
+		this.buffer.get(b, off, toRead);
 		return toRead;
 	}
 
 	@Override
 	public long skip(long n) throws IOException {
-		buffer.position(Math.min(written, buffer.position() + (int) n));
-		return buffer.position();
+		switchToReadIfNecessary();
+		this.buffer.position(Math.min(getWrittenBytes(), buffer.position() + (int) n));
+		return this.buffer.position();
 	}
 
 	@Override
 	public void skipNBytes(long n) {
-		buffer.position(Math.min(written, buffer.position() + (int) n));
+		switchToReadIfNecessary();
+		this.buffer.position(Math.min(getWrittenBytes(), buffer.position() + (int) n));
 	}
 
 	@Override
-	public int available() throws IOException {
-		return remaining();
+	public int available() {
+		switchToReadIfNecessary();
+		return getWrittenBytes() - this.buffer.position();
 	}
 
 	@Override
 	public synchronized void mark(int readlimit) {
-		buffer.mark();
+		switchToReadIfNecessary();
+		this.buffer.mark();
 	}
 
 	@Override
 	public synchronized void reset() throws IOException {
-		buffer.reset();
+		switchToReadIfNecessary();
+		this.buffer.reset();
 	}
 
 	@Override
@@ -136,9 +157,28 @@ public class OffHeapMemoryInputStream extends InputStream {
 
 	@Override
 	public void close() {
-		buffer = null;
-		if (closeCallback != null) {
-			closeCallback.run();
+		switchToReadIfNecessary();
+		this.buffer.position(0);
+		this.buffer = null;
+		this.closeCallback.run();
+	}
+
+	/**
+	 * Checks the current buffer mode and switches to READ mode if necessary.
+	 * If the buffer mode is WRITE, the switchModeCallback function is invoked with the READ mode.
+	 */
+	private void switchToReadIfNecessary() {
+		if (bufferModeSupplier.get() == Mode.WRITE) {
+			switchModeCallback.accept(Mode.READ);
 		}
+	}
+
+	/**
+	 * Returns the number of bytes that have been getWrittenBytes() to the buffer.
+	 *
+	 * @return The number of getWrittenBytes() bytes.
+	 */
+	private int getWrittenBytes() {
+		return this.writePositionSupplier.getAsInt();
 	}
 }

@@ -29,7 +29,9 @@ import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainerFinalize
 import javax.annotation.Nonnull;
 
 /**
- * TODO JNO - document me
+ * Represents a transaction handler that allows registering mutations in particular transaction. It also inherits
+ * methods from {@link TransactionalLayerMaintainerFinalizer} that are used to commit or rollback the transaction
+ * and apply the changes to the immutable state.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */

@@ -25,6 +25,7 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
@@ -110,8 +111,12 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Retrieves the CompletableFuture representing the finalization of the transaction that conforms to
+	 * requested {@link CommitBehaviour} bound to the current transaction.
+	 *
+	 * @return An Optional that contains a CompletableFuture of type Long if the transaction finalization
+	 *         is in progress, or an empty Optional if no transaction is currently in progress (session is read-only
+	 *         for exmple).
 	 */
 	@Nonnull
 	Optional<CompletableFuture<Long>> getTransactionFinalizationFuture();

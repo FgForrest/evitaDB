@@ -79,7 +79,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 	}
 
 	@Override
-	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+	public void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause) {
 		throw new EvitaInternalError("Rollback is not supported here!");
 	}
 
@@ -103,6 +103,8 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		Assert.isPremiseValid(committedCatalog == null, "Catalog was already committed!");
 		// init new catalog with the same collections as previous one
 		final Catalog newCatalog = this.lastTransactionLayer.getStateCopyWithCommittedChanges(catalogToUpdate);
+		// verify everything was processed
+		lastTransactionLayer.verifyLayerWasFullySwept();
 		// now let's flush the catalog on the disk
 		newCatalog.flush(transactionId);
 		// assign committed catalog

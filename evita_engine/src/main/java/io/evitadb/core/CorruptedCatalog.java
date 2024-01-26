@@ -28,9 +28,11 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.CollectionNotFoundException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
@@ -171,6 +173,11 @@ public final class CorruptedCatalog implements CatalogContract {
 	@Nonnull
 	@Override
 	public Optional<SealedEntitySchema> getEntitySchema(@Nonnull String entityType) {
+		throw new CatalogCorruptedException(this);
+	}
+
+	@Override
+	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
 		throw new CatalogCorruptedException(this);
 	}
 

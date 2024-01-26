@@ -29,10 +29,12 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
@@ -40,6 +42,7 @@ import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.mutation.Mutation;
@@ -70,6 +73,7 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.transaction.stage.AbstractTransactionStage;
 import io.evitadb.core.transaction.stage.CatalogSnapshotPropagationTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
@@ -115,12 +119,14 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.SubmissionPublisher;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.evitadb.utils.CollectionUtils.MAX_POWER_OF_TWO;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -138,7 +144,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	/**
 	 * Contains information about version of the catalog which corresponds to transaction commit sequence number.
 	 */
-	@Getter private final TransactionalReference<Long> versionId;
+	private final TransactionalReference<Long> versionId;
 	/**
 	 * CatalogIndex factory implementation.
 	 */
@@ -157,10 +163,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final TransactionalMap<String, EntitySchemaContract> entitySchemaIndex;
 	/**
-	 * Contains count of concurrently opened read-write sessions connected with this catalog.
+	 * Contains count of concurrently opened writers connected with this catalog.
 	 * This information is used to control lifecycle of {@link #persistenceService} object.
 	 */
-	private final AtomicInteger readWriteSessionCount;
+	private final AtomicInteger writerCount;
 	/**
 	 * Service containing I/O related methods.
 	 */
@@ -210,27 +216,29 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
-	 * TODO JNO - document me
+	 * Reference to the current {@link EvitaConfiguration#storage()} settings.
 	 */
 	private final StorageOptions storageOptions;
 	/**
-	 * TODO JNO - document me
+	 * Reference to the current {@link EvitaConfiguration#transactions()} settings.
 	 */
 	private final TransactionOptions transactionOptions;
 	/**
-	 * TODO JNO - document me
+	 * Reference to the shared executor service that provides carrier threads for transaction processing.
 	 */
 	private final ExecutorService executorService;
 	/**
-	 * TODO JNO - document me
+	 * Callback function that allows to propagate reference to the new catalog version to the {@link Evita}
+	 * instance that is referring to the current version of the catalog.
 	 */
-	private final Consumer<CatalogContract> newCatalogVersionConsumer;
+	private final Consumer<Catalog> newCatalogVersionConsumer;
 	/**
 	 * Provides access to the entity schema in the catalog.
 	 */
 	@Getter private final CatalogEntitySchemaAccessor entitySchemaAccessor = new CatalogEntitySchemaAccessor();
 	/**
-	 * TODO JNO - document me
+	 * Java {@link java.util.concurrent.Flow} implementation that allows to process transactional tasks in
+	 * asynchronous reactive manner.
 	 */
 	private final SubmissionPublisher<ConflictResolutionTransactionTask> transactionalPipeline;
 	/**
@@ -259,17 +267,18 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull Catalog catalog,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(executorService, transactionOptions.maxQueueSize());
 		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog);
 		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog);
 		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequency());
+		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(catalogName, newCatalogVersionConsumer);
 
 		txPublisher.subscribe(stage1);
 		stage1.subscribe(stage2);
 		stage2.subscribe(stage3);
-		stage3.subscribe(new CatalogSnapshotPropagationTransactionStage(catalogName, newCatalogVersionConsumer));
+		stage3.subscribe(stage4);
 		return txPublisher;
 	}
 
@@ -280,7 +289,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		final String catalogName = catalogSchema.getName();
 		final CatalogSchema internalCatalogSchema = CatalogSchema._internalBuild(
@@ -304,8 +313,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 
 		// initialize container buffer
 		this.state = CatalogState.WARMING_UP;
-		this.readWriteSessionCount = new AtomicInteger(0);
-		this.versionId = new TransactionalReference<>(1L);
+		this.writerCount = new AtomicInteger(0);
+		this.versionId = new TransactionalReference<>(0L);
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(1L, this, storagePartPersistenceService);
 		this.cacheSupervisor = cacheSupervisor;
 		this.entityCollections = new TransactionalMap<>(createHashMap(0), EntityCollection.class, Function.identity());
@@ -332,7 +341,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		this.persistenceService = ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 			.findFirst()
@@ -352,7 +361,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
 		this.catalogIndex = this.persistenceService.readCatalogIndex(this);
 
-		this.readWriteSessionCount = new AtomicInteger(0);
+		this.writerCount = new AtomicInteger(0);
 		this.versionId = new TransactionalReference<>(catalogHeader.version());
 		this.cacheSupervisor = cacheSupervisor;
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(catalogHeader.version(), this, storagePartPersistenceService);
@@ -414,23 +423,42 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		long versionId,
 		@Nonnull CatalogState catalogState,
 		@Nonnull CatalogIndex catalogIndex,
-		@Nonnull CatalogPersistenceService persistenceService,
-		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nonnull AtomicInteger readWriteSessionCount,
-		@Nonnull AtomicInteger entityTypeSequence,
 		@Nonnull Map<String, EntityCollection> entityCollections,
-		@Nonnull ProxyFactory proxyFactory,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
+		@Nonnull Catalog previousCatalogVersion
+	) {
+		this(
+			versionId,
+			catalogState,
+			catalogIndex,
+			entityCollections,
+			previousCatalogVersion.persistenceService,
+			previousCatalogVersion
+		);
+	}
+
+	Catalog(
+		long versionId,
+		@Nonnull CatalogState catalogState,
+		@Nonnull CatalogIndex catalogIndex,
+		@Nonnull Map<String, EntityCollection> entityCollections,
+		@Nonnull CatalogPersistenceService persistenceService,
+		@Nonnull Catalog previousCatalogVersion
 	) {
 		this.versionId = new TransactionalReference<>(versionId);
 		this.state = catalogState;
 		this.catalogIndex = catalogIndex;
-		catalogIndex.updateReferencesTo(this);
-
 		this.persistenceService = persistenceService;
+		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
+		this.writerCount = previousCatalogVersion.writerCount;
+		this.entityTypeSequence = previousCatalogVersion.entityTypeSequence;
+		this.proxyFactory = previousCatalogVersion.proxyFactory;
+		this.storageOptions = previousCatalogVersion.storageOptions;
+		this.transactionOptions = previousCatalogVersion.transactionOptions;
+		this.executorService = previousCatalogVersion.executorService;
+		this.newCatalogVersionConsumer = previousCatalogVersion.newCatalogVersionConsumer;
+		this.transactionalPipeline = previousCatalogVersion.transactionalPipeline;
+
+		catalogIndex.updateReferencesTo(this);
 		final StoragePartPersistenceService storagePartPersistenceService = persistenceService.getStoragePartPersistenceService();
 		final CatalogSchema catalogSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
 			this,
@@ -439,14 +467,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				.orElseThrow(() -> new SchemaNotFoundException(this.persistenceService.getCatalogHeader().catalogName()))
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(catalogSchema));
-
-		this.cacheSupervisor = cacheSupervisor;
-		this.readWriteSessionCount = readWriteSessionCount;
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(versionId, this, storagePartPersistenceService);
 		// we need to switch references working with catalog (inter index relations) to new catalog
 		// the collections are not yet used anywhere - we're still safe here
 		entityCollections.values().forEach(it -> it.updateReferenceToCatalog(this));
-		this.entityTypeSequence = entityTypeSequence;
 		this.entityCollections = new TransactionalMap<>(entityCollections, EntityCollection.class, Function.identity());
 		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
 			entityCollections.values()
@@ -469,24 +493,29 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					)
 				)
 		);
-		this.proxyFactory = proxyFactory;
-		this.storageOptions = storageOptions;
-		this.transactionOptions = transactionOptions;
-		this.executorService = executorService;
-		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = this.schema.get().version();
-		this.transactionalPipeline = createTransactionPipeline(
-			catalogSchema.getName(), this,
-			transactionOptions,
-			executorService,
-			newCatalogVersionConsumer
-		);
 	}
 
 	@Override
 	@Nonnull
 	public SealedCatalogSchema getSchema() {
 		return schema.get();
+	}
+
+	@Override
+	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
+		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
+			// apply schema mutation to the catalog
+			updateSchema(schemaMutation);
+		} else if (mutation instanceof EntityMutation entityMutation) {
+			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
+				.applyMutation(entityMutation);
+		} else {
+			throw new InvalidMutationException(
+				"Unexpected mutation type: " + mutation.getClass().getName(),
+				"Unexpected mutation type."
+			);
+		}
 	}
 
 	@Nonnull
@@ -737,16 +766,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				versionId.get() + 1,
 				getCatalogState(),
 				catalogIndex,
-				newIoService,
-				cacheSupervisor,
-				readWriteSessionCount,
-				entityTypeSequence,
 				newCollections,
-				proxyFactory,
-				storageOptions,
-				transactionOptions,
-				executorService,
-				newCatalogVersionConsumer
+				newIoService,
+				this
 			);
 			newCollections.values().forEach(it -> it.updateReferenceToCatalog(catalogAfterRename));
 			return catalogAfterRename;
@@ -783,6 +805,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 					1,
 					CatalogState.ALIVE,
 					catalogIndex,
+					entityCollections,
 					ServiceLoader.load(CatalogPersistenceServiceFactory.class)
 						.findFirst()
 						.map(
@@ -795,15 +818,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 							)
 						)
 						.orElseThrow(StorageImplementationNotFoundException::new),
-					cacheSupervisor,
-					readWriteSessionCount,
-					entityTypeSequence,
-					entityCollections,
-					proxyFactory,
-					storageOptions,
-					transactionOptions,
-					executorService,
-					newCatalogVersionConsumer
+					this
 				)
 			);
 			return true;
@@ -923,95 +938,81 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Nonnull
 	@Override
 	public Catalog createCopyWithMergedTransactionalMemory(@Nullable DataStoreChanges<CatalogIndexKey, CatalogIndex> layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
-		final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema).orElseThrow();
-		final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
+		return this.persistenceService.executeWriteSafely(() -> {
+			final CatalogSchemaDecorator newSchema = transactionalLayer.getStateCopyWithCommittedChanges(schema).orElseThrow();
+			final DataStoreChanges<CatalogIndexKey, CatalogIndex> transactionalChanges = transactionalLayer.getTransactionalMemoryLayer(this);
 
-		final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(entityCollections);
-		if (collectionChanges != null) {
-			final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
-			final Set<String> removedCollections = new HashSet<>(collectionChanges.getRemovedKeys());
-			final ObjectObjectIdentityHashMap<EntityCollection, String> originalCollections = new ObjectObjectIdentityHashMap<>(removedCollections.size());
-			for (String removedKey : removedCollections) {
-				originalCollections.put(collectionChanges.getMapDelegate().get(removedKey), removedKey);
-			}
-			for (Entry<String, EntityCollection> updatedKey : collectionChanges.getModifiedKeys().entrySet()) {
-				final EntityCollection updatedCollection = updatedKey.getValue();
-				final String removedEntityType = originalCollections.get(updatedCollection);
-				final String newEntityType = updatedKey.getKey();
-				if (removedEntityType != null) {
-					this.persistenceService.replaceCollectionWith(removedEntityType, updatedCollection.getEntityTypePrimaryKey(), newEntityType);
-					removedCollections.remove(removedEntityType);
-					ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(it -> it.removeLayer(transactionalLayer));
+			final MapChanges<String, EntityCollection> collectionChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(entityCollections);
+			if (collectionChanges != null) {
+				final Map<String, EntityCollection> originalCollectionContents = collectionChanges.getMapDelegate();
+				final Set<String> removedCollections = new HashSet<>(collectionChanges.getRemovedKeys());
+				final ObjectObjectIdentityHashMap<EntityCollection, String> originalCollections = new ObjectObjectIdentityHashMap<>(removedCollections.size());
+				for (String removedKey : removedCollections) {
+					originalCollections.put(collectionChanges.getMapDelegate().get(removedKey), removedKey);
+				}
+				for (Entry<String, EntityCollection> updatedKey : collectionChanges.getModifiedKeys().entrySet()) {
+					final EntityCollection updatedCollection = updatedKey.getValue();
+					final String removedEntityType = originalCollections.get(updatedCollection);
+					final String newEntityType = updatedKey.getKey();
+					if (removedEntityType != null) {
+						this.persistenceService.replaceCollectionWith(removedEntityType, updatedCollection.getEntityTypePrimaryKey(), newEntityType);
+						removedCollections.remove(removedEntityType);
+						ofNullable(originalCollectionContents.get(newEntityType)).ifPresent(it -> it.removeLayer(transactionalLayer));
+					}
+				}
+				for (String removedKey : removedCollections) {
+					this.persistenceService.deleteEntityCollection(removedKey);
+					originalCollectionContents.get(removedKey).removeLayer(transactionalLayer);
 				}
 			}
-			for (String removedKey : removedCollections) {
-				this.persistenceService.deleteEntityCollection(removedKey);
-				originalCollectionContents.get(removedKey).removeLayer(transactionalLayer);
-			}
-		}
 
-		final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(versionId).orElseThrow() + 1;
-		final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
-		final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
-		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
+			final long newCatalogVersionId = transactionalLayer.getStateCopyWithCommittedChanges(versionId).orElseThrow() + 1;
+			final Map<String, EntityCollection> possiblyUpdatedCollections = transactionalLayer.getStateCopyWithCommittedChanges(entityCollections);
+			final CatalogIndex possiblyUpdatedCatalogIndex = transactionalLayer.getStateCopyWithCommittedChanges(catalogIndex);
+			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entityCollectionsByPrimaryKey);
+			transactionalLayer.removeTransactionalMemoryLayerIfExists(this.entitySchemaIndex);
 
-		if (transactionalChanges != null) {
-			final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
-			final CatalogSchemaStoragePart storedSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
-				this, () -> storagePartPersistenceService.getStoragePart(1, CatalogSchemaStoragePart.class)
-			);
+			if (transactionalChanges != null) {
+				final StoragePartPersistenceService storagePartPersistenceService = this.persistenceService.getStoragePartPersistenceService();
+				final CatalogSchemaStoragePart storedSchema = CatalogSchemaStoragePart.deserializeWithCatalog(
+					this, () -> storagePartPersistenceService.getStoragePart(1, CatalogSchemaStoragePart.class)
+				);
 
-			if (newSchema.version() != storedSchema.catalogSchema().version()) {
-				final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
-				storagePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
-			}
+				if (newSchema.version() != storedSchema.catalogSchema().version()) {
+					final CatalogSchemaStoragePart storagePart = new CatalogSchemaStoragePart(newSchema.getDelegate());
+					storagePartPersistenceService.putStoragePart(storagePart.getStoragePartPK(), storagePart);
+				}
 
-			// when we register all storage parts for persisting we can now release transactional memory
-			transactionalLayer.removeTransactionalMemoryLayer(this);
+				// when we register all storage parts for persisting we can now release transactional memory
+				transactionalLayer.removeTransactionalMemoryLayer(this);
 
-			return new Catalog(
-				newCatalogVersionId,
-				getCatalogState(),
-				possiblyUpdatedCatalogIndex,
-				persistenceService,
-				cacheSupervisor,
-				readWriteSessionCount,
-				entityTypeSequence,
-				possiblyUpdatedCollections,
-				proxyFactory,
-				storageOptions,
-				transactionOptions,
-				executorService,
-				newCatalogVersionConsumer
-			);
-		} else {
-			if (possiblyUpdatedCatalogIndex != catalogIndex ||
-				possiblyUpdatedCollections
-					.entrySet()
-					.stream()
-					.anyMatch(it -> this.entityCollections.get(it.getKey()) != it.getValue())
-			) {
 				return new Catalog(
 					newCatalogVersionId,
 					getCatalogState(),
 					possiblyUpdatedCatalogIndex,
-					persistenceService,
-					cacheSupervisor,
-					readWriteSessionCount,
-					entityTypeSequence,
 					possiblyUpdatedCollections,
-					proxyFactory,
-					storageOptions,
-					transactionOptions,
-					executorService,
-					newCatalogVersionConsumer
+					this
 				);
 			} else {
-				// no changes present we can return self
-				return this;
+				if (possiblyUpdatedCatalogIndex != catalogIndex ||
+					possiblyUpdatedCollections
+						.entrySet()
+						.stream()
+						.anyMatch(it -> this.entityCollections.get(it.getKey()) != it.getValue())
+				) {
+					return new Catalog(
+						newCatalogVersionId,
+						getCatalogState(),
+						possiblyUpdatedCatalogIndex,
+						possiblyUpdatedCollections,
+						this
+					);
+				} else {
+					// no changes present we can return self
+					return this;
+				}
 			}
-		}
+		});
 	}
 
 	/**
@@ -1021,7 +1022,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 * @param commitBehaviour       The requested stage the transaction needs to reach in order the returned future
 	 *                              is completed.
 	 * @param walPersistenceService The Write-Ahead Log persistence service.
-	 * @return A CompletableFuture that completes with the requested stage reached by the transaction processing.
 	 * @throws TransactionException If an unknown exception occurs while processing the transaction.
 	 */
 	public void commitWal(
@@ -1054,11 +1054,18 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Retrieves the stream of committed mutations since the given catalogVersion. The first mutation in the stream
+	 * will be {@link TransactionMutation} that evolved the catalog to the catalogVersion plus one.
+	 *
+	 * TODO JNO - implement support for multiple WAL files (with different index and iterating over them)
+	 * TODO JNO - maybe the WALs should have a tail information about first and last transaction = catalog ID
+	 *
+	 * @param catalogVersion The catalog version to start the stream from
+	 * @return The stream of committed mutations since the given catalogVersion
 	 */
 	@Nonnull
-	public Iterator<Mutation> getCommittedMutationIterator(long catalogVersion) {
-		return this.persistenceService.getCommittedMutationIterator(catalogVersion);
+	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+		return this.persistenceService.getCommittedMutationStream(catalogVersion);
 	}
 
 	/**
@@ -1068,7 +1075,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	public void flush(long catalogVersion) {
 		boolean changeOccurred = schema.get().version() != lastPersistedSchemaVersion;
 		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
-		for (EntityCollection entityCollection : entityCollections.values()) {
+		for (EntityCollection entityCollection : this.entityCollections.values()) {
 			final long lastSeenVersion = entityCollection.getVersion();
 			entityHeaders.add(entityCollection.flush(catalogVersion));
 			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
@@ -1111,6 +1118,27 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.persistenceService.appendWalAndDiscard(transactionMutation, walReference);
 	}
 
+	/**
+	 * Notifies the system that a catalog is present in the live view.
+	 * This method is used to indicate that a catalog is currently available in the live view.
+	 */
+	public void notifyCatalogPresentInLiveView() {
+		SubmissionPublisher<?> current = this.transactionalPipeline;
+		while (current != null) {
+			//noinspection unchecked
+			final List<Subscriber<?>> subscribers = (List<Subscriber<?>>) current.getSubscribers();
+			Assert.isPremiseValid(subscribers.size() == 1, "Only one subscriber is expected!");
+			for (Subscriber<?> subscriber : subscribers) {
+				if (subscriber instanceof AbstractTransactionStage<?, ?> stage) {
+					stage.updateCatalogReference(this);
+					current = stage;
+				} else {
+					current = null;
+				}
+			}
+		}
+	}
+
 	/*
 		PROTECTED METHODS
 	 */
@@ -1151,22 +1179,22 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	/**
 	 * Increases number of read and write sessions that are currently talking with this catalog.
 	 *
-	 * TODO JNO - these methods should be removed
+	 * This method is part of the internal API.
 	 */
-	void increaseReadWriteSessionCount() {
-		if (readWriteSessionCount.getAndIncrement() == 0) {
+	public void increaseWriterCount() {
+		if (writerCount.getAndIncrement() == 0) {
 			persistenceService.prepare();
 		}
 	}
 
 	/**
 	 * Decreases number of read and write sessions that are currently talking with this catalog.
-	 * When session count reaches zero - opened output buffers are released to free memory.
+	 * When writer count reaches zero - opened output buffers are released to free memory.
 	 *
-	 * TODO JNO - these methods should be removed
+	 * This method is part of the internal API.
 	 */
-	void decreaseReadWriteSessionCount() {
-		if (readWriteSessionCount.decrementAndGet() == 0) {
+	public void decreaseWriterCount() {
+		if (writerCount.decrementAndGet() == 0) {
 			persistenceService.release();
 		}
 	}

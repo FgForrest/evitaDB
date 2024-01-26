@@ -24,6 +24,8 @@
 package io.evitadb.index.transactionalMemory;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Closeable;
 
 /**
  * Interface implementation contains logic, that applies cherry-picked changes from {@link TransactionalLayerMaintainer} upon
@@ -41,15 +43,16 @@ public interface TransactionalLayerMaintainerFinalizer {
 	/**
 	 * Contains logic that calls {@link TransactionalLayerMaintainer#getStateCopyWithCommittedChanges(TransactionalLayerProducer)}
 	 * which internally calls {@link TransactionalLayerProducer#createCopyWithMergedTransactionalMemory(Object, TransactionalLayerMaintainer)}
-	 * and also unregisters the transactional piece with diff from the internal memory. At the end of the transaction
-	 * there must be no diff left (all must be processed/consumed by TransactionalLayerMaintainerFinalizer implementations.
+	 * and also unregisters the transactional piece with diff from the internal memory.
 	 */
 	void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer);
 
 	/**
-	 * TODO JNO - document me
-	 * @param transactionalLayer
+	 * Rolls back the changes made in a transactional layer and frees related {@link Closeable} resources.
+	 *
+	 * @param transactionalLayer the transactional layer to rollback changes from
+	 * @param cause              the cause of the rollback
 	 */
-	void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer);
+	void rollback(@Nonnull TransactionalLayerMaintainer transactionalLayer, @Nullable Throwable cause);
 
 }

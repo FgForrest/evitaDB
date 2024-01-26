@@ -36,6 +36,7 @@ import io.evitadb.store.spi.StoragePartPersistenceService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -44,9 +45,9 @@ import static io.evitadb.core.Transaction.getTransactionalMemoryLayerIfExists;
 
 /**
  * DataStoreMemoryBuffer represents volatile temporal memory between the {@link EntityCollection} and persistent
- * storage that takes {@link io.evitadb.core.Transaction} into an account. Even if
- * transactional memory is not available this buffer traps updates of certain objects in {@link DataStoreIndexMemoryBuffer} to
- * avoid persistence of large indexes with each update (which would drastically slow initial bulk database setup).
+ * storage that takes {@link io.evitadb.core.Transaction} into an account. Even if transactional memory is not available
+ * this buffer traps updates of certain objects in {@link DataStoreIndexMemoryBuffer} to avoid persistence of large
+ * indexes with each update (which would drastically slow initial bulk database setup).
  *
  * All reads-writes are primarily targeting transactional memory if it's present for the current thread. If the value
  * is not found there it's located via {@link StoragePartPersistenceService#getStoragePart(long, Class)}.
@@ -242,13 +243,9 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 */
 	public DataStoreIndexChanges<IK, I> getTrappedIndexChanges() {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);
-		if (layer != null) {
-			// return current transactional layer that contains trapped updates
-			return layer;
-		} else {
-			// return shared memory buffer with trapped updates
-			return this.dataStoreIndexChanges;
-		}
+		// return current transactional layer that contains trapped updates
+		// or fallback to shared memory buffer with trapped updates
+		return Objects.requireNonNullElse(layer, this.dataStoreIndexChanges);
 	}
 
 }

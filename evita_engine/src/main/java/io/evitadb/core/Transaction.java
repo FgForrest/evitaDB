@@ -76,9 +76,18 @@ public final class Transaction implements TransactionContract {
 	 */
 	private final TransactionHandler transactionHandler;
 	/**
+	 * Flag that marks this transaction as replay transaction - i.e. when the transaction is being incorporated in
+	 * the trunk and is then replayed for the second time (now finally in correct sequence order).
+	 */
+	@Getter private final boolean replay;
+	/**
 	 * Rollback only flag.
 	 */
 	@Getter private boolean rollbackOnly;
+	/**
+	 * Exception that caused the rollback.
+	 */
+	@Getter private Throwable rollbackCause;
 	/**
 	 * Flag that marks this instance closed and unusable. Once closed it can never be opened again.
 	 */
@@ -111,7 +120,7 @@ public final class Transaction implements TransactionContract {
 	 * Method initializes current session UUID to the thread context and binds transaction for particular session as
 	 * the "current" transaction.
 	 */
-	public static <T> T executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Supplier<T> lambda) {
+	public static <T> T executeInTransactionIfProvided(@Nullable Transaction transaction, @Nonnull Supplier<T> lambda, boolean rollbackOnException) {
 		if (transaction == null) {
 			return lambda.get();
 		} else {
@@ -120,7 +129,9 @@ public final class Transaction implements TransactionContract {
 				bound = transaction.bindTransactionToThread();
 				return lambda.get();
 			} catch (Throwable ex) {
-				transaction.setRollbackOnly();
+				if (rollbackOnException) {
+					transaction.setRollbackOnlyWithException(ex);
+				}
 				throw ex;
 			} finally {
 				if (bound) {
@@ -259,13 +270,11 @@ public final class Transaction implements TransactionContract {
 		@Nonnull StoragePartPersistenceService storagePartPersistenceService
 	) {
 		final Transaction transaction = CURRENT_TRANSACTION.get();
-		if (transaction != null) {
+		if (transaction != null && !transaction.isReplay()) {
 			final StoragePartPersistenceService transactionalService = storagePartPersistenceService.createTransactionalService(transaction.getTransactionId());
 			final TransactionalLayerMaintainerFinalizer finalizer = transaction.getTransactionalMemory().getTransactionalLayerMaintainerFinalizer();
 			if (finalizer instanceof TransactionWalFinalizer transactionWalFinalizer) {
 				transactionWalFinalizer.registerCloseable(transactionalService);
-			} else {
-				throw new EvitaInternalError("Unexpected finalizer type: " + finalizer.getClass().getName());
 			}
 			return transactionalService;
 		} else {
@@ -281,11 +290,13 @@ public final class Transaction implements TransactionContract {
 	 */
 	public Transaction(
 		@Nonnull UUID transactionId,
-		@Nonnull TransactionHandler transactionHandler
+		@Nonnull TransactionHandler transactionHandler,
+		boolean replay
 	) {
 		this.transactionId = transactionId;
 		this.transactionHandler = transactionHandler;
 		this.transactionalMemory = new TransactionalMemory(transactionHandler);
+		this.replay = replay;
 	}
 
 	/**
@@ -297,7 +308,8 @@ public final class Transaction implements TransactionContract {
 	public Transaction(
 		@Nonnull UUID transactionId,
 		@Nonnull TransactionHandler transactionHandler,
-		@Nonnull TransactionalMemory transactionalMemory
+		@Nonnull TransactionalMemory transactionalMemory,
+		boolean replay
 	) {
 		Assert.isPremiseValid(
 			transactionHandler == transactionalMemory.getFinalizer(),
@@ -306,11 +318,17 @@ public final class Transaction implements TransactionContract {
 		this.transactionId = transactionId;
 		this.transactionHandler = transactionHandler;
 		this.transactionalMemory = transactionalMemory;
+		this.replay = replay;
 	}
 
 	@Override
 	public void setRollbackOnly() {
 		this.rollbackOnly = true;
+	}
+
+	public void setRollbackOnlyWithException(@Nonnull Throwable cause) {
+		this.rollbackOnly = true;
+		this.rollbackCause = cause;
 	}
 
 	@Override
@@ -321,7 +339,7 @@ public final class Transaction implements TransactionContract {
 
 		try {
 			if (isRollbackOnly()) {
-				transactionalMemory.rollback();
+				transactionalMemory.rollback(rollbackCause);
 			} else {
 				transactionalMemory.commit();
 			}

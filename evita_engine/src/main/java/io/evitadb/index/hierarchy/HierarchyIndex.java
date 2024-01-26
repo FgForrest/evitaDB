@@ -786,9 +786,9 @@ public class HierarchyIndex implements HierarchyIndexContract, VoidTransactionMe
 		if (orphans.contains(hierarchyNode.parentEntityPrimaryKey())) {
 			return empty();
 		} else {
-			hierarchyNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
-			Assert.isTrue(hierarchyNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
-			return of(hierarchyNode);
+			final HierarchyNode parentNode = this.itemIndex.get(hierarchyNode.parentEntityPrimaryKey());
+			Assert.isTrue(parentNode != null, "The node parent `" + hierarchyNode.parentEntityPrimaryKey() + "` is unexpectedly not present in the index!");
+			return of(parentNode);
 		}
 	}
 

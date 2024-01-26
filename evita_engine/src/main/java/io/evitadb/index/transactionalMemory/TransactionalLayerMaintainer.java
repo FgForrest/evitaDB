@@ -29,6 +29,7 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Closeable;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -215,29 +216,13 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
-	 * Method discards all transactional memory containers. This method should be called only when transaction is
-	 * rolled back.
-	 */
-	public void discard() {
-		this.transactionalLayer.clear();
-	}
-
-	/**
-	 * Method uses {@link #finalizer} to collect new objects that combine original state and diff in transactional
-	 * memory. Method doesn't handle propagation of newly created object to the `currently used state`.
-	 * Consumers should build up new internal state and then `old state` should be swapped with `new state` in single
-	 * reference change so that all transactional changes are applied atomically.
+	 * Verifies that all layers in the transactional memory have been fully processed and there is no single diff piece
+	 * that was not integrated into a new version.
 	 *
 	 * @throws StaleTransactionMemoryException when there are diff pieces left that no consumer has handled, this would
 	 *                                         mean that part of the changes would get lost, which is unacceptable
 	 */
-	void commit() {
-		// no new transactional memories may happen
-		allowTransactionalLayerCreation = false;
-
-		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
-		// memory containers
-		finalizer.commit(this);
+	public void verifyLayerWasFullySwept() throws StaleTransactionMemoryException {
 		// collect all data that has not been processed and discarded by the consumers and connect them with their creators
 		final List<TransactionalLayerCreator<?>> uncommittedData = new LinkedList<>();
 		for (Entry<TransactionalLayerCreatorKey, TransactionalLayerWrapper<?>> entry : transactionalLayer.entrySet()) {
@@ -255,15 +240,35 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Method uses {@link #finalizer} to collect new objects that combine original state and diff in transactional
+	 * memory. Method doesn't handle propagation of newly created object to the `currently used state`.
+	 * Consumers should build up new internal state and then `old state` should be swapped with `new state` in single
+	 * reference change so that all transactional changes are applied atomically.
+	 *
+	 * @throws StaleTransactionMemoryException when there are diff pieces left that no consumer has handled, this would
+	 *                                         mean that part of the changes would get lost, which is unacceptable
 	 */
-	void rollback() {
+	void commit() {
+		// no new transactional memories may happen
+		allowTransactionalLayerCreation = false;
+
+		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
+		// memory containers and if finalizer returns true, check that entire transactional memory was cleaned up
+		finalizer.commit(this);
+	}
+
+	/**
+	 * Rolls back the changes made in a transactional layer and frees related {@link Closeable} resources.
+	 *
+	 * @param exception the cause of the rollback
+	 */
+	void rollback(@Nullable Throwable exception) {
 		// no new transactional memories may happen
 		allowTransactionalLayerCreation = false;
 
 		// let's process all the transactional memory consumers - it's their responsibility to process all transactional
 		// memory containers
-		finalizer.rollback(this);
+		finalizer.rollback(this, exception);
 	}
 
 	/**
@@ -296,13 +301,6 @@ public class TransactionalLayerMaintainer {
 		}
 
 		@Override
-		public int hashCode() {
-			int result = transactionalLayerCreator.getClass().hashCode();
-			result = 31 * result + Long.hashCode(transactionalLayerProviderId);
-			return result;
-		}
-
-		@Override
 		public boolean equals(Object o) {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
@@ -311,6 +309,13 @@ public class TransactionalLayerMaintainer {
 
 			return transactionalLayerProviderId == that.transactionalLayerProviderId &&
 				transactionalLayerCreator.getClass().equals(that.transactionalLayerCreator.getClass());
+		}
+
+		@Override
+		public int hashCode() {
+			int result = transactionalLayerCreator.getClass().hashCode();
+			result = 31 * result + Long.hashCode(transactionalLayerProviderId);
+			return result;
 		}
 
 	}

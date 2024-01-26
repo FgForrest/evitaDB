@@ -24,6 +24,7 @@
 package io.evitadb.core.transaction.stage;
 
 import io.evitadb.api.exception.TransactionTimedOutException;
+import io.evitadb.core.Catalog;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -38,12 +39,16 @@ import java.util.concurrent.SubmissionPublisher;
 import java.util.function.BiPredicate;
 
 /**
- * TODO JNO - document me
+ * Abstract class representing a transaction stage in a catalog processing pipeline.
+ * It is a {@link Flow} processor that receives a specific type of transaction task, processes it, and produces
+ * a different type of transaction task.
  *
+ * @param <T> The type of the input transaction task.
+ * @param <F> The type of the output transaction task.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @Slf4j
-sealed abstract class AbstractTransactionStage<T extends TransactionTask, F extends TransactionTask>
+public sealed abstract class AbstractTransactionStage<T extends TransactionTask, F extends TransactionTask>
 	extends SubmissionPublisher<F>
 	implements Flow.Processor<T, F>
 	permits ConflictResolutionTransactionStage, WalAppendingTransactionStage, TrunkIncorporationTransactionStage {
@@ -129,6 +134,12 @@ sealed abstract class AbstractTransactionStage<T extends TransactionTask, F exte
 	 * @param task The task to be handled.
 	 */
 	protected abstract void handleNext(@Nonnull T task);
+
+	/**
+	 * Method is called when new catalog version is propagated to the "live view" in evitaDB engine.
+	 * @param catalog
+	 */
+	public abstract void updateCatalogReference(@Nonnull Catalog catalog);
 
 	/**
 	 * Pushes a target task to the next transaction stage.

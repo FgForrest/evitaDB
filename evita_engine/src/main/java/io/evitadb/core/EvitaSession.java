@@ -169,6 +169,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	@Getter private final ProxyFactory proxyFactory;
 	/**
+	 * CompletableFuture representing the finalization of the transaction that conforms to requested
+	 * {@link CommitBehaviour} bound to the current transaction. May be null if the session is read-only and
+	 * no transaction is in progress.
+	 */
+	@Nullable private final CompletableFuture<Long> transactionFinalizationFuture;
+	/**
 	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
 	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
 	 */
@@ -178,9 +184,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private long lastCall = System.currentTimeMillis();
 	/**
-	 * TODO JNO - document me
+	 * Contains number of nested session calls.
 	 */
-	private final CompletableFuture<Long> transactionFinalizationFuture;
+	private int nestLevel;
 
 	/**
 	 * Method creates implicit filtering constraint that contains price filtering constraints for price in case
@@ -966,15 +972,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public UUID openTransaction() {
-		assertTransactionIsNotOpened();
-		final Transaction transaction = createAndInitTransaction();
-		this.transactionAccessor.set(transaction);
-		return transaction.getTransactionId();
-	}
-
-	@Nonnull
-	@Override
 	public Optional<UUID> getOpenedTransactionId() {
 		return ofNullable(transactionAccessor.get())
 			.filter(it -> !it.isClosed())
@@ -1017,6 +1014,15 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public long getInactivityDurationInSeconds() {
 		return (System.currentTimeMillis() - lastCall) / 1000;
+	}
+
+	@Nonnull
+	@Override
+	public UUID openTransaction() {
+		assertTransactionIsNotOpened();
+		final Transaction transaction = createAndInitTransaction();
+		this.transactionAccessor.set(transaction);
+		return transaction.getTransactionId();
 	}
 
 	@Nonnull
@@ -1068,6 +1074,18 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return response;
 	}
 
+	/**
+	 * Retrieves a CompletableFuture that represents the finalization status of a transaction.
+	 *
+	 * @return an Optional containing the CompletableFuture that indicates the finalization status of the transaction,
+	 * or an empty Optional if the CompletableFuture is not available
+	 * .
+	 */
+	@Nonnull
+	public Optional<CompletableFuture<Long>> getTransactionFinalizationFuture() {
+		return ofNullable(transactionFinalizationFuture);
+	}
+
 	@Nonnull
 	public Optional<Transaction> getOpenedTransaction() {
 		return ofNullable(transactionAccessor.get())
@@ -1087,6 +1105,33 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			"Catalog is in transactional mode and can't be updated within session!"
 		);
 		this.catalog.set(catalog);
+	}
+
+	/**
+	 * Determines if the current execution is at the root level.
+	 *
+	 * @return {@code true} if the execution is at the root level, {@code false} otherwise.
+	 */
+	boolean isRootLevelExecution() {
+		return nestLevel == 1;
+	}
+
+	/**
+	 * Increases the session execution nest level by one.
+	 *
+	 * @return the incremented nest level
+	 */
+	int increaseNestLevel() {
+		return nestLevel++;
+	}
+
+	/**
+	 * Decreases the session execution nest level by one.
+	 *
+	 * @return The updated nest level.
+	 */
+	int decreaseNestLevel() {
+		return nestLevel--;
 	}
 
 	/**
@@ -1213,7 +1258,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 					commitBehaviour,
 					theCatalog::createIsolatedWalService,
 					this.transactionFinalizationFuture
-				)
+				),
+				false
 			);
 			// when the session is marked as "dry run" we never commit the transaction but always roll-back
 			if (sessionTraits.isDryRun()) {
@@ -1223,18 +1269,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		} else {
 			throw new CatalogCorruptedException((CorruptedCatalog) currentCatalog);
 		}
-	}
-
-	/**
-	 * Retrieves a CompletableFuture that represents the finalization status of a transaction.
-	 *
-	 * @return an Optional containing the CompletableFuture that indicates the finalization status of the transaction,
-	 * or an empty Optional if the CompletableFuture is not available
-	 *.
-	 */
-	@Nonnull
-	public Optional<CompletableFuture<Long>> getTransactionFinalizationFuture() {
-		return ofNullable(transactionFinalizationFuture);
 	}
 
 	/**
@@ -1284,29 +1318,44 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	private <T> T executeInTransactionIfPossible(@Nonnull Function<EvitaSessionContract, T> logic) {
 		if (transactionAccessor.get() == null && getCatalog().supportsTransaction()) {
 			try (final Transaction newTransaction = createTransaction(commitBehaviour)) {
+				increaseNestLevel();
 				transactionAccessor.set(newTransaction);
 				return Transaction.executeInTransactionIfProvided(
 					newTransaction,
-					() -> logic.apply(this)
+					() -> logic.apply(this),
+					isRootLevelExecution()
 				);
 			} catch (Throwable ex) {
 				ofNullable(transactionAccessor.get())
-					.ifPresent(Transaction::setRollbackOnly);
+					.ifPresent(tx -> {
+						if (isRootLevelExecution()) {
+							tx.setRollbackOnlyWithException(ex);
+						}
+					});
 				throw ex;
 			} finally {
+				decreaseNestLevel();
 				transactionAccessor.set(null);
 			}
 		} else {
 			// the transaction might already exist
 			try {
+				increaseNestLevel();
 				return Transaction.executeInTransactionIfProvided(
 					transactionAccessor.get(),
-					() -> logic.apply(this)
+					() -> logic.apply(this),
+					isRootLevelExecution()
 				);
 			} catch (Throwable ex) {
 				ofNullable(transactionAccessor.get())
-					.ifPresent(Transaction::setRollbackOnly);
+					.ifPresent(tx -> {
+						if (isRootLevelExecution()) {
+							tx.setRollbackOnlyWithException(ex);
+						}
+					});
 				throw ex;
+			} finally {
+				decreaseNestLevel();
 			}
 		}
 	}

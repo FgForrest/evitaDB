@@ -28,6 +28,7 @@ import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
+import io.evitadb.utils.Assert;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
@@ -37,7 +38,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * TODO JNO - document me
+ * Represents a transaction stage responsible for resolving conflicts during a transaction and assigning a new
+ * catalog version to the transaction which makes a non-interrupted sequence increased by one with each committed
+ * transaction (when no conflicts occur).
+ *
+ * It processes {@link ConflictResolutionTransactionTask} objects and produces {@link WalAppendingTransactionTask}
+ * objects.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -84,6 +90,19 @@ public final class ConflictResolutionTransactionStage
 				task.commitBehaviour() != CommitBehaviour.NO_WAIT ? task.future() : null
 			)
 		);
+	}
+
+	@Override
+	public void updateCatalogReference(@Nonnull Catalog catalog) {
+		if (this.catalogVersion == 0) {
+			// at this moment, the catalog transitions from non-transactional to transactional state
+			this.catalogVersion = catalog.getVersion();
+		} else {
+			Assert.isPremiseValid(
+				this.catalogVersion >= catalog.getVersion(),
+				"Unexpected catalog version " + catalog.getVersion() + " vs. " + this.catalogVersion + "!"
+			);
+		}
 	}
 
 	/**

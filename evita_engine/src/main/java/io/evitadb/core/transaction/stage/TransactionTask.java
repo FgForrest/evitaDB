@@ -31,24 +31,57 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * TODO JNO - document me
+ * This interface represents a transaction task, which is a unit of work performed within a transaction. It provides
+ * methods to retrieve information about the task, such as the catalog name, catalog version, transaction ID,
+ * commit behavior, and future completion.
+ *
+ * It should be implemented by simple data structures - most probably records that are propagated through
+ * the transaction processing pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface TransactionTask {
 
+	/**
+	 * Retrieves the name of the catalog the transaction is bound to.
+	 *
+	 * @return The name of the catalog
+	 */
 	@Nonnull
 	String catalogName();
 
+	/**
+	 * Returns the version of the catalog the transaction is bound to.
+	 *
+	 * @return The catalog version assigned to the transaction task
+	 */
 	long catalogVersion();
 
+	/**
+	 * Retrieves the unique ID of the transaction that carries the changes to the database.
+	 *
+	 * @return The transaction ID
+	 */
 	@Nonnull
 	UUID transactionId();
 
+	/**
+	 * Retrieves the commit behavior of the transaction task. Commit behavior defines the moment the transaction is
+	 * considered as committed from the client point of view.
+	 *
+	 * @return The commit behavior of the transaction task
+	 */
 	@Nonnull
 
 	CommitBehaviour commitBehaviour();
 
+	/**
+	 * Retrieves the future associated with this transaction task. The future represents the completion of the task
+	 * execution and returns a new catalog version when completed. It's non-null ony if the client still waits for
+	 * the transaction to reach the requested processing stage.
+	 *
+	 * @return The future associated with the transaction task
+	 */
 	@Nullable
 	CompletableFuture<Long> future();
 

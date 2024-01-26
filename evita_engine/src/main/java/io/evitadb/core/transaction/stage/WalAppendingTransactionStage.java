@@ -36,9 +36,11 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * TODO JNO - document me
+ * Represents a stage in a catalog processing pipeline that appends isolated write-ahead log (WAL) entries to a shared
+ * WAL. So that it can be consumed by later stages and also propagated to external subscribers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -46,7 +48,11 @@ import java.util.concurrent.Executor;
 public final class WalAppendingTransactionStage
 	extends AbstractTransactionStage<WalAppendingTransactionTask, TrunkIncorporationTransactionTask> {
 
-	private final Catalog catalog;
+	/**
+	 * Contains current version of the catalog that should be responsible for appending WAL entries to the shared
+	 * WAL.
+	 */
+	private final AtomicReference<Catalog> catalog;
 
 	public WalAppendingTransactionStage(
 		@Nonnull Executor executor,
@@ -54,7 +60,7 @@ public final class WalAppendingTransactionStage
 		@Nonnull Catalog catalog
 	) {
 		super(executor, maxBufferCapacity, catalog.getName());
-		this.catalog = catalog;
+		this.catalog = new AtomicReference<>(catalog);
 	}
 
 	@Override
@@ -64,7 +70,8 @@ public final class WalAppendingTransactionStage
 
 	@Override
 	protected void handleNext(@Nonnull WalAppendingTransactionTask task) {
-		catalog.appendWalAndDiscard(
+		// append WAL and discard the contents of the isolated WAL
+		catalog.get().appendWalAndDiscard(
 			new TransactionMutation(
 				task.transactionId(),
 				task.catalogVersion(),
@@ -73,7 +80,7 @@ public final class WalAppendingTransactionStage
 			),
 			task.walReference()
 		);
-
+		// and continue with trunk incorporation
 		push(
 			task,
 			new TrunkIncorporationTransactionTask(
@@ -84,6 +91,11 @@ public final class WalAppendingTransactionStage
 				task.commitBehaviour() != CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE ? task.future() : null
 			)
 		);
+	}
+
+	@Override
+	public void updateCatalogReference(@Nonnull Catalog catalog) {
+		this.catalog.set(catalog);
 	}
 
 	/**

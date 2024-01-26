@@ -47,10 +47,10 @@ import io.evitadb.utils.NamingConvention;
 import javax.annotation.Nonnull;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * This interface represents a link between {@link CatalogContract} and its persistent storage.
@@ -234,7 +234,7 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	 * TODO JNO - document me
 	 */
 	@Nonnull
-	Iterator<Mutation> getCommittedMutationIterator(long catalogVersion);
+	Stream<Mutation> getCommittedMutationStream(long catalogVersion);
 
 	/**
 	 * Method closes this persistence service and also all {@link EntityCollectionPersistenceService} that were created

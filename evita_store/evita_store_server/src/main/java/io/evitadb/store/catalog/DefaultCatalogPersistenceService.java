@@ -106,7 +106,6 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -908,8 +907,8 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 
 	@Nonnull
 	@Override
-	public Iterator<Mutation> getCommittedMutationIterator(long catalogVersion) {
-		return null;
+	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+		return this.catalogWal.getCommittedMutationStream(catalogVersion);
 	}
 
 	@Override

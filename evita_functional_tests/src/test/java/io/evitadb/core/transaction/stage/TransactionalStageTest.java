@@ -108,7 +108,6 @@ class TransactionalStageTest {
 		}
 	}
 
-
 	public static class Stage
 		extends SubmissionPublisher<Item>
 		implements Flow.Processor<Item, Item> {

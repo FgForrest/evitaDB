@@ -24,14 +24,15 @@
 package io.evitadb.store.wal;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.util.Pool;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
-import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.spi.OffHeapWithFileBackupReference;
@@ -47,11 +48,15 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.evitadb.store.spi.CatalogPersistenceService.getWalFileName;
 
@@ -83,9 +88,13 @@ public class CatalogWriteAheadLog implements Closeable {
 	 */
 	private final String catalogName;
 	/**
+	 * The path to the WAL file.
+	 */
+	private final Path walFilePath;
+	/**
 	 * The file channel for writing to the WAL file.
 	 */
-	private final FileChannel fileChannel;
+	private final FileChannel walFileChannel;
 	/**
 	 * The output stream for writing {@link TransactionMutation} to the WAL file.
 	 */
@@ -179,7 +188,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			}
 
 			try {
-				input.seek(new FileLocation(lastTxStartPosition + 4, lastTxLength));
+				input.seekWithUnknownLength(lastTxStartPosition + 4);
 				final TransactionMutation transactionMutation = (TransactionMutation) StorageRecord.read(
 					input, (stream, length) -> kryo.readClassAndObject(stream)
 				).payload();
@@ -269,7 +278,8 @@ public class CatalogWriteAheadLog implements Closeable {
 
 			// create the WAL file if it does not exist
 			createWalFileNotExists(walFilePath);
-			this.fileChannel = FileChannel.open(
+			this.walFilePath = walFilePath;
+			this.walFileChannel = FileChannel.open(
 				walFilePath,
 				StandardOpenOption.WRITE, StandardOpenOption.APPEND, StandardOpenOption.DSYNC
 			);
@@ -330,7 +340,7 @@ public class CatalogWriteAheadLog implements Closeable {
 			int written = 0;
 			contentLengthBuffer.flip(); // Switch the buffer from writing mode to reading mode
 			while (contentLengthBuffer.hasRemaining()) {
-				written += this.fileChannel.write(contentLengthBuffer);
+				written += this.walFileChannel.write(contentLengthBuffer);
 			}
 			Assert.isPremiseValid(
 				written == record.fileLocation().recordLength() + 4,
@@ -342,7 +352,7 @@ public class CatalogWriteAheadLog implements Closeable {
 				final ByteBuffer byteBuffer = walReference.getBuffer().get();
 				written = 0;
 				while (byteBuffer.hasRemaining()) {
-					written += this.fileChannel.write(byteBuffer);// Write buffer to file
+					written += this.walFileChannel.write(byteBuffer);// Write buffer to file
 				}
 			} else if (walReference.getFilePath().isPresent()) {
 				try (
@@ -353,7 +363,7 @@ public class CatalogWriteAheadLog implements Closeable {
 				) {
 					written = 0;
 					while (written < contentLength) {
-						written += Math.toIntExact(readChannel.transferTo(written, contentLength, this.fileChannel));
+						written += Math.toIntExact(readChannel.transferTo(written, contentLength, this.walFileChannel));
 					}
 				}
 			}
@@ -373,11 +383,173 @@ public class CatalogWriteAheadLog implements Closeable {
 		}
 	}
 
+	@Nonnull
+	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
+		final File walFile = this.walFilePath.toFile();
+		if (!walFile.exists() || walFile.length() < 4) {
+			// WAL file does not exist or is empty, nothing to read
+			return Stream.empty();
+		} else {
+			// TODO JNO - consider some kind of caching for last queried positions (FIFO, search nearest and go from there)
+			final MutationSupplier supplier = new MutationSupplier(catalogVersion, walFile, catalogKryoPool);
+			return Stream.generate(supplier)
+				.takeWhile(Objects::nonNull)
+				.onClose(supplier::close);
+		}
+	}
+
 	@Override
 	public void close() throws IOException {
 		this.output.close();
-		this.fileChannel.close();
+		this.walFileChannel.close();
 		this.transactionMutationOutputStream.close();
 	}
 
+	private static class MutationSupplier implements Supplier<Mutation>, AutoCloseable {
+		private final Pool<Kryo> catalogKryoPool;
+		private final Kryo kryo;
+		private final File walFile;
+		private final ObservableInput<RandomAccessFileInputStream> observableInput;
+		private TransactionMutation transactionMutation;
+		private int leadTransactionMutationSize;
+		private int contentLength;
+		private long filePosition;
+		private int transactionMutationRead;
+
+		public MutationSupplier(long catalogVersion, @Nonnull File walFile, @Nonnull Pool<Kryo> catalogKryoPool) {
+			this.walFile = walFile;
+			if (walFile.length() == 0) {
+				this.catalogKryoPool = catalogKryoPool;
+				this.kryo = null;
+				this.observableInput = null;
+				this.transactionMutation = null;
+			} else {
+				this.catalogKryoPool = catalogKryoPool;
+				this.kryo = catalogKryoPool.obtain();
+				ObservableInput<RandomAccessFileInputStream> theObservableInput;
+				try {
+					final RandomAccessFile randomWalFile = new RandomAccessFile(walFile, "r");
+					theObservableInput = new ObservableInput<>(
+						new RandomAccessFileInputStream(
+							randomWalFile
+						)
+					);
+					this.filePosition = 0;
+					// read content length and leading transaction mutation
+					final long totalBefore = theObservableInput.total();
+					this.contentLength = theObservableInput.readInt();
+					TransactionMutation transactionMutation = (TransactionMutation) StorageRecord.read(
+						theObservableInput, (stream, length) -> kryo.readClassAndObject(stream)
+					).payload();
+					// measure the lead mutation size + verify the content length
+					this.leadTransactionMutationSize = Math.toIntExact(theObservableInput.total() - totalBefore);
+					Assert.isPremiseValid(
+						this.contentLength + 4 == this.leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
+						"Invalid WAL file on position `" + this.filePosition + "`!"
+					);
+					// move cursor to the end of the lead mutation
+					this.filePosition += this.leadTransactionMutationSize;
+					while (transactionMutation.getCatalogVersion() < catalogVersion) {
+						// move cursor to the next transaction mutation
+						this.filePosition += transactionMutation.getWalSizeInBytes();
+						theObservableInput.seekWithUnknownLength(this.filePosition);
+						// read content length and leading transaction mutation
+						final long totalBeforeRead = theObservableInput.total();
+						this.contentLength = theObservableInput.readInt();
+						transactionMutation = (TransactionMutation) StorageRecord.read(
+							theObservableInput, (stream, length) -> kryo.readClassAndObject(stream)
+						).payload();
+						// measure the lead mutation size + verify the content length
+						this.leadTransactionMutationSize = Math.toIntExact(theObservableInput.total() - totalBeforeRead);
+						Assert.isPremiseValid(
+							this.contentLength + 4 == this.leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
+							"Invalid WAL file on position `" + this.filePosition + "`!"
+						);
+						// move cursor to the end of the lead mutation
+						this.filePosition += this.leadTransactionMutationSize;
+						// if the file is shorter than the expected size of the transaction mutation, we've reached EOF
+						if (this.walFile.length() < this.filePosition + transactionMutation.getWalSizeInBytes()) {
+							transactionMutation = null;
+							break;
+						}
+					}
+					// we've reached the first transaction mutation with catalog version >= requested catalog version
+					this.transactionMutation = transactionMutation;
+				} catch (BufferUnderflowException e) {
+					// we've reached EOF or the tx mutation hasn't been yet completely written
+					this.transactionMutation = null;
+					theObservableInput = null;
+				} catch (IOException e) {
+					throw new UnexpectedIOException(
+						"Failed to read WAL file `" + walFile.getName() + "`!",
+						"Failed to read WAL file!",
+						e
+					);
+				}
+				this.observableInput = theObservableInput;
+			}
+		}
+
+		@Override
+		public Mutation get() {
+			if (this.transactionMutationRead == 0) {
+				this.transactionMutationRead++;
+				return this.transactionMutation;
+			} else {
+				if (this.transactionMutationRead <= this.transactionMutation.getMutationCount()) {
+					this.transactionMutationRead++;
+					return (Mutation) StorageRecord.read(
+						this.observableInput, (stream, length) -> kryo.readClassAndObject(stream)
+					).payload();
+				} else {
+					// advance position to the end of the last transaction
+					this.filePosition += this.transactionMutation.getWalSizeInBytes();
+					try {
+						// check the entire transaction was written
+						final long currentFileLength = this.walFile.length();
+						if (currentFileLength <= this.filePosition) {
+							// we've reached EOF
+							return null;
+						}
+						// read content length and next leading transaction mutation
+						final long totalBeforeRead = this.observableInput.total();
+						this.contentLength = this.observableInput.readInt();
+						transactionMutation = (TransactionMutation) StorageRecord.read(
+							this.observableInput, (stream, length) -> kryo.readClassAndObject(stream)
+						).payload();
+						// measure the lead mutation size + verify the content length
+						this.leadTransactionMutationSize = Math.toIntExact(this.observableInput.total() - totalBeforeRead);
+						Assert.isPremiseValid(
+							this.contentLength + 4 == this.leadTransactionMutationSize + transactionMutation.getWalSizeInBytes(),
+							"Invalid WAL file on position `" + this.filePosition + "`!"
+						);
+						// move cursor to the end of the lead mutation
+						this.filePosition += this.leadTransactionMutationSize;
+						// check the entire transaction was written
+						if (currentFileLength > this.filePosition + this.transactionMutation.getWalSizeInBytes()) {
+							this.transactionMutationRead = 1;
+							// return the transaction mutation
+							return this.transactionMutation;
+						} else {
+							// we've reached EOF or the tx mutation hasn't been yet completely written
+							return null;
+						}
+					} catch (BufferUnderflowException | KryoException ex) {
+						// we've reached EOF or the tx mutation hasn't been yet completely written
+						return null;
+					}
+				}
+			}
+		}
+
+		@Override
+		public void close() {
+			if (this.kryo != null) {
+				this.catalogKryoPool.free(this.kryo);
+			}
+			if (observableInput != null) {
+				this.observableInput.close();
+			}
+		}
+	}
 }

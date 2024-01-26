@@ -157,4 +157,27 @@ class OffHeapMemoryOutputStreamTest {
 		assertEquals(10, inputStream.read());
 		assertEquals(-1, inputStream.read());
 	}
+
+	@Test
+	void shouldReadAndWriteInterleaved() throws IOException {
+		outputStream.write(new byte[] {1, 5, 10});
+		final OffHeapMemoryInputStream inputStream = outputStream.getInputStream();
+
+		assertEquals(1, inputStream.read());
+		assertEquals(5, inputStream.read());
+		assertEquals(10, inputStream.read());
+		assertEquals(-1, inputStream.read());
+
+		outputStream.write(new byte[] {15, 20, 25});
+		assertEquals(15, inputStream.read());
+		assertEquals(20, inputStream.read());
+		assertEquals(25, inputStream.read());
+		assertEquals(-1, inputStream.read());
+
+		inputStream.seek(0);
+		assertArrayEquals(
+			new byte[] {1, 5, 10, 15, 20, 25},
+			inputStream.readAllBytes()
+		);
+	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -66,10 +66,10 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	 */
 	private final AtomicBoolean dirty = new AtomicBoolean();
 
-	public ReadWriteKeyCompressor(Map<Integer, Object> keys) {
+	public ReadWriteKeyCompressor(@Nonnull Map<Integer, Object> keys) {
 		int peek = 0;
-		this.idToKeyIndex = createHashMap(keys.size());
-		this.keyToIdIndex = createHashMap(keys.size());
+		this.idToKeyIndex = createHashMap(Math.min(256, keys.size()));
+		this.keyToIdIndex = createHashMap(Math.min(256, keys.size()));
 		for (Entry<Integer, Object> entry : keys.entrySet()) {
 			this.idToKeyIndex.put(entry.getKey(), entry.getValue());
 			this.keyToIdIndex.put(entry.getValue(), entry.getKey());
@@ -114,6 +114,14 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	public <T extends Comparable<T>> T getKeyForId(int id) {
 		final Object key = idToKeyIndex.get(id);
 		Assert.notNull(key, "There is no key for id " + id + "!");
+		//noinspection unchecked
+		return (T) key;
+	}
+
+	@Nullable
+	@Override
+	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
+		final Object key = idToKeyIndex.get(id);
 		//noinspection unchecked
 		return (T) key;
 	}

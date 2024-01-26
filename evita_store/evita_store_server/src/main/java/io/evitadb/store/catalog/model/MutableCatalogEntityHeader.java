@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -111,6 +111,14 @@ public class MutableCatalogEntityHeader implements KeyCompressor {
 	public <T extends Comparable<T>> T getKeyForId(int id) {
 		final Object key = idToKeyIndex.get(id);
 		Assert.notNull(key, "There is no key for id " + id + "!");
+		//noinspection unchecked
+		return (T) key;
+	}
+
+	@Nullable
+	@Override
+	public <T extends Comparable<T>> T getKeyForIdIfExists(int id) {
+		final Object key = idToKeyIndex.get(id);
 		//noinspection unchecked
 		return (T) key;
 	}

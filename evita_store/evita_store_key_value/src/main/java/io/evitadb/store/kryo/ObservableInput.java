@@ -520,6 +520,21 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 *
 	 * @throws ClassCastException when internal stream is not {@link RandomAccessFileInputStream}
 	 */
+	public void seekWithUnknownLength(@Nonnull long startingPosition) throws ClassCastException {
+		seek(new FileLocation(startingPosition, this.buffer.length));
+	}
+
+	/**
+	 * Method requires {@link AbstractRandomAccessInputStream} as an inner stream of this instance. If different stream
+	 * is present ClassCastException is thrown.
+	 *
+	 * Method will position location in the file to the desired location, resets all internal flags and settings to
+	 * the initial state and initializes capacity of the buffer to the record length. This speeds reading process
+	 * because only necessary amount of data is read, even if ObservableInput is initialized with much bigger
+	 * buffer.
+	 *
+	 * @throws ClassCastException when internal stream is not {@link RandomAccessFileInputStream}
+	 */
 	public void seek(@Nonnull FileLocation location) throws ClassCastException {
 		((AbstractRandomAccessInputStream) this.inputStream).seek(location.startingPosition());
 		this.limit = 0;

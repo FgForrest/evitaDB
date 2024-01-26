@@ -40,6 +40,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -261,12 +262,15 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	) {
 		try {
 			return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).get();
-		} catch (Exception e) {
-			if (e instanceof TransactionException transactionException) {
+		} catch (ExecutionException e) {
+			if (e.getCause() instanceof TransactionException transactionException) {
 				throw transactionException;
 			} else {
 				throw new TransactionException("Unexpected exception occurred while executing transaction!", e);
 			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new TransactionException("Thread interrupted exception occurred while executing transaction!", e);
 		}
 	}
 
@@ -298,7 +302,6 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 * If you want to have waiting under the control, use {@link #updateCatalogAsync(String, Consumer, CommitBehaviour, SessionFlags...)}
 	 * alternative.
 	 *
-	 * @throws TransactionException when transaction fails
 	 * @see #updateCatalog(String, Function, CommitBehaviour, SessionFlags[])
 	 */
 	default void updateCatalog(
@@ -306,17 +309,19 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 		@Nonnull Consumer<EvitaSessionContract> updater,
 		@Nonnull CommitBehaviour commitBehaviour,
 		@Nullable SessionFlags... flags
-	)
-		throws TransactionException {
+	) {
 		try {
 			final CompletableFuture<Long> future = updateCatalogAsync(catalogName, updater, commitBehaviour, flags);
 			future.get();
-		} catch (Exception e) {
-			if (e instanceof TransactionException transactionException) {
+		} catch (ExecutionException e) {
+			if (e.getCause() instanceof TransactionException transactionException) {
 				throw transactionException;
 			} else {
-				throw new TransactionException("Unexpected exception occurred while executing transaction!", e);
+				throw new TransactionException("Unexpected exception occurred while executing transaction!", e.getCause());
 			}
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new TransactionException("Thread interrupted exception occurred while executing transaction!", e);
 		}
 	}
 

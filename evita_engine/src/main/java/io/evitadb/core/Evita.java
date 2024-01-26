@@ -709,15 +709,13 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Replaces current catalog reference with updated one.
-	 *
-	 * TODO JNO - tohle musí být voláno z místa, kde se zpracovávají mutace
 	 */
-	private void replaceCatalogReference(@Nonnull CatalogContract catalog) {
+	private void replaceCatalogReference(@Nonnull Catalog catalog) {
 		notNull(catalog, "Sanity check.");
 		final String catalogName = catalog.getName();
 		// catalog indexes are ConcurrentHashMap - we can do it safely here
 		final AtomicReference<CatalogContract> originalCatalog = new AtomicReference<>();
-		final CatalogContract actualCatalog = this.catalogs.computeIfPresent(
+		this.catalogs.computeIfPresent(
 			catalogName, (cName, currentCatalog) -> {
 				// replace catalog only when reference/pointer differs
 				// TOBEDONE JNO - we should add `&& currentCatalog.getVersion() < catalog.getVersion()` when the commits are linearized
@@ -736,6 +734,9 @@ public final class Evita implements EvitaContract {
 		// notify structural changes callbacks
 		ofNullable(originalCatalog.get())
 			.ifPresent(it -> notifyStructuralChangeObservers(catalog, it));
+
+		// notify callback that it's now a live snapshot
+		catalog.notifyCatalogPresentInLiveView();
 	}
 
 	/**
@@ -816,7 +817,7 @@ public final class Evita implements EvitaContract {
 			sessionRegistry.removeSession(session);
 
 			if (sessionTraits.isReadWrite()) {
-				catalog.decreaseReadWriteSessionCount();
+				catalog.decreaseWriterCount();
 				ofNullable(nonTransactionalCatalogDescriptor)
 					.ifPresent(NonTransactionalCatalogDescriptor::notifyStructuralChangeObservers);
 			}
@@ -833,7 +834,7 @@ public final class Evita implements EvitaContract {
 			if (supportsTransactionInTheBeginning) {
 				newSession.openTransaction();
 			}
-			catalog.increaseReadWriteSessionCount();
+			catalog.increaseWriterCount();
 		}
 
 		return newSession;

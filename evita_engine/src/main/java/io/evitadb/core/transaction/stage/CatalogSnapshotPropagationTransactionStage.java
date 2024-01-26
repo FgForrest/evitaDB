@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.CatalogContract;
+import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -36,7 +36,11 @@ import java.util.concurrent.Flow.Subscription;
 import java.util.function.Consumer;
 
 /**
- * TODO JNO - document me
+ * The CatalogSnapshotPropagationTransactionStage class is a subscriber implementation that processes
+ * {@link UpdatedCatalogTransactionTask} objects and propagates new catalog versions (snapshots) to
+ * the "live view" of the evitaDB engine.
+ *
+ * This is the last stage of the transaction processing pipeline.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -57,7 +61,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 	 * Contains lambda function that accepts newly created catalog instance and propagates it to the "live view" of
 	 * the evitaDB engine, to be used by subsequent requests to the catalog.
 	 */
-	private final Consumer<CatalogContract> newCatalogVersionConsumer;
+	private final Consumer<Catalog> newCatalogVersionConsumer;
 	/**
 	 * Contains TRUE if the processor has been completed and does not accept any more data.
 	 */
@@ -65,7 +69,7 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 
 	public CatalogSnapshotPropagationTransactionStage(
 		@Nonnull String catalogName,
-		@Nonnull Consumer<CatalogContract> newCatalogVersionConsumer
+		@Nonnull Consumer<Catalog> newCatalogVersionConsumer
 	) {
 		this.catalogName = catalogName;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
@@ -85,6 +89,9 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 				"Catalog name mismatch!"
 			);
 			this.newCatalogVersionConsumer.accept(task.catalog());
+			if (task.future() != null) {
+				task.future().complete(task.catalogVersion());
+			}
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);
 			task.future().completeExceptionally(ex);

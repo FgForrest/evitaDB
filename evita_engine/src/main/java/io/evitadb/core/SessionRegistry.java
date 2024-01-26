@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -164,45 +164,51 @@ final class SessionRegistry {
 
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) {
-			// invoke original method on delegate
-			return Transaction.executeInTransactionIfProvided(
-				evitaSession.getOpenedTransaction().orElse(null),
-				() -> {
-					try {
-						return method.invoke(evitaSession, args);
-					} catch (InvocationTargetException ex) {
-						// handle the error
-						final Throwable targetException = ex.getTargetException();
-						if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
-							// just unwrap and rethrow
-							throw evitaInvalidUsageException;
-						} else if (targetException instanceof EvitaInternalError evitaInternalError) {
-							log.error(
-								"Internal Evita error occurred in {}: {}",
-								evitaInternalError.getErrorCode(),
-								evitaInternalError.getPrivateMessage(),
-								targetException
-							);
-							// unwrap and rethrow
-							throw evitaInternalError;
-						} else {
-							log.error("Unexpected internal Evita error occurred: {}", ex.getCause().getMessage(), ex);
+			try {
+				evitaSession.increaseNestLevel();
+				// invoke original method on delegate
+				return Transaction.executeInTransactionIfProvided(
+					evitaSession.getOpenedTransaction().orElse(null),
+					() -> {
+						try {
+							return method.invoke(evitaSession, args);
+						} catch (InvocationTargetException ex) {
+							// handle the error
+							final Throwable targetException = ex.getTargetException();
+							if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
+								// just unwrap and rethrow
+								throw evitaInvalidUsageException;
+							} else if (targetException instanceof EvitaInternalError evitaInternalError) {
+								log.error(
+									"Internal Evita error occurred in {}: {}",
+									evitaInternalError.getErrorCode(),
+									evitaInternalError.getPrivateMessage(),
+									targetException
+								);
+								// unwrap and rethrow
+								throw evitaInternalError;
+							} else {
+								log.error("Unexpected internal Evita error occurred: {}", ex.getCause().getMessage(), ex);
+								throw new EvitaInternalError(
+									"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
+									"Unexpected internal Evita error occurred.",
+									targetException
+								);
+							}
+						} catch (Throwable ex) {
+							log.error("Unexpected system error occurred: {}", ex.getMessage(), ex);
 							throw new EvitaInternalError(
-								"Unexpected internal Evita error occurred: " + ex.getCause().getMessage(),
-								"Unexpected internal Evita error occurred.",
-								targetException
+								"Unexpected system error occurred: " + ex.getMessage(),
+								"Unexpected system error occurred.",
+								ex
 							);
 						}
-					} catch (Throwable ex) {
-						log.error("Unexpected system error occurred: {}", ex.getMessage(), ex);
-						throw new EvitaInternalError(
-							"Unexpected system error occurred: " + ex.getMessage(),
-							"Unexpected system error occurred.",
-							ex
-						);
-					}
-				}
-			);
+					},
+					evitaSession.isRootLevelExecution()
+				);
+			} finally {
+				evitaSession.decreaseNestLevel();
+			}
 		}
 	}
 

@@ -25,10 +25,11 @@ package io.evitadb.api;
 
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityTypeAlreadyPresentInCatalogSchemaException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.schema.CatalogEvolutionMode;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -111,6 +112,12 @@ public interface CatalogContract {
 	<S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session);
 
 	/**
+	 * Applies mutation to the catalog. This is a generic method that accepts any mutation and tries to apply it to
+	 * the catalog. If the mutation is not applicable to the catalog, exception is thrown.
+	 */
+	void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException;
+
+	/**
 	 * Creates and returns collection maintaining all entities of same type. If collection for the entity type exists
 	 * existing collection is returned.
 	 *
@@ -147,12 +154,12 @@ public interface CatalogContract {
 	 * Returns collection maintaining all entities of same type. If no such collection exists new one is created.
 	 *
 	 * @param entityType type (name) of the entity
-	 * @throws InvalidSchemaMutationException when collection doesn't exist and {@link CatalogSchemaContract#getCatalogEvolutionMode()}
-	 *                                        doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
+	 * @throws SchemaAlteringException when collection doesn't exist and {@link CatalogSchemaContract#getCatalogEvolutionMode()}
+	 *                                 doesn't allow {@link CatalogEvolutionMode#ADDING_ENTITY_TYPES}
 	 */
 	@Nonnull
 	EntityCollectionContract getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session)
-		throws InvalidSchemaMutationException;
+		throws SchemaAlteringException;
 
 	/**
 	 * Deletes entire collection of entities along with its schema. After this operation there will be nothing left
@@ -209,6 +216,7 @@ public interface CatalogContract {
 	/**
 	 * Returns map with current {@link EntitySchemaContract entity schema} instances indexed by their
 	 * {@link EntitySchemaContract#getName() name}.
+	 *
 	 * @return map with current {@link EntitySchemaContract entity schema} instances indexed by their name
 	 */
 	@Nonnull

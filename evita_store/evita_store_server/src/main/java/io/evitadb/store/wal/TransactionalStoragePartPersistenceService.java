@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.EntityCollection;
+import io.evitadb.store.compressor.AggregatedKeyCompressor;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.kryo.VersionedKryo;
 import io.evitadb.store.kryo.VersionedKryoKeyInputs;
@@ -46,7 +47,6 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -65,16 +65,6 @@ import static java.util.Optional.ofNullable;
  * the entity is found - but these data are natively directly written to a file and therefore this implementation allows
  * to imitate the original behavior of {@link StoragePartPersistenceService} that is used in {@link Catalog} and
  * {@link EntityCollection} persistence services.
- *
- * TODO In January 2024:
- * ---------------------
- * - rewire EntityCollection + Catalog to use this StoragePartPersistenceService in their persistence services inside transaction
- * - contents of this storage part layer will be always completely removed on transaction commit / rollback
- * - separately there will be a WAL which will record all the mutations in its own offset index and that will copy
- *   the data directly to shared WAL in single thread
- * - the WAL logic (maybe of name TransactionManager?!) will be also responsible for conflict detection and consistency
- *   checks
- * - then there will be a WAL processor that will replay those mutations using standard implementations of StoragePartPersistenceService
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -102,7 +92,7 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 			.resolve(name + ".tmp");
 		this.offsetIndex = new OffsetIndex(
 			new OffsetIndexDescriptor(
-				new PersistentStorageHeader(1L, null, Collections.emptyMap()),
+				new PersistentStorageHeader(1L, null, this.delegate.getReadOnlyKeyCompressor().getKeys()),
 				kryoFactory
 			),
 			storageOptions,
@@ -158,7 +148,6 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 		if (stableLayerContains || addedLayerContains) {
 			if (stableLayerContains) {
 				this.removedStoragePartKeys.add(new RecordKey(this.offsetIndex.getIdForRecordType(containerType), storagePartPk));
-				this.delegate.removeStoragePart(storagePartPk, containerType);
 			}
 			if (addedLayerContains) {
 				return this.offsetIndex.remove(storagePartPk, containerType);
@@ -218,7 +207,10 @@ public class TransactionalStoragePartPersistenceService implements StoragePartPe
 	@Nonnull
 	@Override
 	public KeyCompressor getReadOnlyKeyCompressor() {
-		return this.offsetIndex.getReadOnlyKeyCompressor();
+		return new AggregatedKeyCompressor(
+			this.offsetIndex.getReadOnlyKeyCompressor(),
+			this.delegate.getReadOnlyKeyCompressor()
+		);
 	}
 
 	@Override

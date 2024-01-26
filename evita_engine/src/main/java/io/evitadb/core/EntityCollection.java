@@ -74,6 +74,7 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
@@ -163,7 +164,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 */
 	@Getter private final int entityTypePrimaryKey;
 	/**
-	 * TODO JNO - document me
+	 * TODO JNO - try to move to persistence service
 	 */
 	@Getter private final int fileIndex;
 	/**
@@ -227,12 +228,31 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	/**
 	 * The factory that reads the {@link PersistentStorageDescriptor} and creates {@link EntityCollectionHeader} from
 	 * it.
+	 *
+	 * TODO JNO - pokusit se toto posunout až na úroveň persistence service, protože to vyžaduje znalost fileIndex,
+	 * který je persistence specific a teoreticky by neměl být na úrovni této třídy, tím by bylo API čistší
 	 */
 	private final Function<PersistentStorageDescriptor, EntityCollectionHeader> catalogEntityHeaderFactory;
 	/**
 	 * Service containing I/O related methods.
 	 */
 	private EntityCollectionPersistenceService persistenceService;
+
+	/**
+	 * Retrieves the primary key of the given entity or throws an unified exception.
+	 */
+	private static int getPrimaryKey(@Nonnull Serializable entity) {
+		if (entity instanceof EntityClassifier entityClassifier) {
+			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
+		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
+			return Objects.requireNonNull(sealedEntityProxy.entity().getPrimaryKey());
+		} else {
+			throw new EvitaInvalidUsageException(
+				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
+				"Unsupported entity type!"
+			);
+		}
+	}
 
 	public EntityCollection(
 		@Nonnull Catalog catalog,
@@ -466,6 +486,20 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	}
 
 	@Override
+	public void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
+		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
+			upsertEntity(upsertMutation);
+		} else if (entityMutation instanceof EntityRemoveMutation removeMutation) {
+			deleteEntity(removeMutation.getEntityPrimaryKey());
+		} else {
+			throw new InvalidMutationException(
+				"Unexpected mutation type: " + entityMutation.getClass().getName(),
+				"Unexpected mutation type."
+			);
+		}
+	}
+
+	@Override
 	@Nonnull
 	public EntityReference upsertEntity(@Nonnull EntityMutation entityMutation) throws InvalidMutationException {
 		final int primaryKey = upsertEntityInternal(entityMutation);
@@ -638,10 +672,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	public SealedEntitySchema updateSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaMutation... schemaMutation) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
 		final EntitySchema currentSchema = getInternalSchema();
-		final Optional<Transaction> transactionRef = Transaction.getTransaction();
 		EntitySchemaContract updatedSchema = currentSchema;
 		for (EntitySchemaMutation theMutation : schemaMutation) {
-			transactionRef.ifPresent(it -> it.registerMutation(theMutation));
 			updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
 			/* TOBEDONE JNO - this should be diverted to separate class and handle all necessary DDL operations */
 			if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
@@ -673,6 +705,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 		}
+
+		final Optional<Transaction> transactionRef = Transaction.getTransaction();
+		transactionRef.ifPresent(it -> it.registerMutation(new ModifyEntitySchemaMutation(getEntityType(), schemaMutation)));
 
 		final SealedEntitySchema schemaResult = getSchema();
 		this.catalogAccessor.get().entitySchemaUpdated(schemaResult);
@@ -973,6 +1008,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		);
 	}
 
+	/*
+		TransactionalLayerProducer implementation
+	 */
+
 	@Override
 	public DataStoreChanges<EntityIndexKey, EntityIndex> createLayer() {
 		return new DataStoreChanges<>(
@@ -981,10 +1020,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			)
 		);
 	}
-
-	/*
-		TransactionalLayerProducer implementation
-	 */
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
@@ -1050,22 +1085,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		this.catalogAccessor.set(catalog);
 	}
 
-	/**
-	 * Retrieves the primary key of the given entity or throws an unified exception.
-	 */
-	private static int getPrimaryKey(@Nonnull Serializable entity) {
-		if (entity instanceof EntityClassifier entityClassifier) {
-			return Objects.requireNonNull(entityClassifier.getPrimaryKey());
-		} else if (entity instanceof SealedEntityProxy sealedEntityProxy) {
-			return Objects.requireNonNull(sealedEntityProxy.entity().getPrimaryKey());
-		} else {
-			throw new EvitaInvalidUsageException(
-				"Unsupported entity type `" + entity.getClass() + "`! The class doesn't implement EntityClassifier nor represents a SealedEntityProxy!",
-				"Unsupported entity type!"
-			);
-		}
-	}
-
 	/*
 		PRIVATE METHODS
 	 */
@@ -1100,8 +1119,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			this.entityTypePrimaryKey,
 			this.fileIndex,
 			this.size(),
-			pkSequence.get(),
-			indexPkSequence.get(),
+			this.pkSequence.get(),
+			this.indexPkSequence.get(),
 			newDescriptor,
 			ofNullable(this.indexes.get(new EntityIndexKey(EntityIndexType.GLOBAL)))
 				.map(EntityIndex::getPrimaryKey)
@@ -1283,14 +1302,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		final SealedEntitySchema currentSchema = getSchema();
 		final int entityPrimaryKey = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
 
-		// register the mutation to the write ahead log
-		Transaction.getTransaction().ifPresent(it -> it.registerMutation(entityMutation));
-
 		applyMutations(
 			entityPrimaryKey,
-			entityMutation.expects(),
-			entityMutation.getLocalMutations(),
-			false
+			entityMutation,
+			null
 		);
 
 		return entityPrimaryKey;
@@ -1351,40 +1366,38 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		applyMutations(
 			entityToRemovePrimaryKey,
-			entityMutation.expects(),
-			entityMutation.computeLocalMutationsForEntityRemoval(entityToRemove),
-			true
+			entityMutation,
+			entityToRemove
 		);
 	}
 
 	/**
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
+	 * TODO JNO - if exception occurs - we should revert the already applied changes in indexes!
 	 *
-	 * @param entityPrimaryKey   the primary key of the affected entity
-	 * @param expects            enum controlling behaviour of the code when entity is or is not found
-	 * @param localMutations     set of mutations to apply
-	 * @param removeEntireEntity sanitization flag that verifies that in case of complete entity removal no update
-	 *                           or insertion occurs and also removes the information about the entity primary key
-	 *                           from the main entity indexes
+	 * @param entityPrimaryKey the primary key of the affected entity
+	 * @param entityMutation   entity mutation to apply
+	 * @param entity           the entity to apply mutation on (needed only for entity removal)
 	 */
 	private void applyMutations(
 		int entityPrimaryKey,
-		@Nonnull EntityExistence expects,
-		@Nonnull Collection<? extends LocalMutation<?, ?>> localMutations,
-		boolean removeEntireEntity
+		@Nonnull EntityMutation entityMutation,
+		@Nullable Entity entity
 	) {
 		// prepare collectors
 		final Function<String, EntitySchema> otherEntitySchemaAccessor = entityType -> this.catalogAccessor.get()
 			.getCollectionForEntityOrThrowException(entityType).getInternalSchema();
 
+		final EntityRemoveMutation entityRemoveMutation = entityMutation instanceof EntityRemoveMutation erm ? erm : null;
+
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			dataStoreBuffer,
 			entityPrimaryKey,
-			expects,
+			entityMutation.expects(),
 			this::getInternalSchema,
 			otherEntitySchemaAccessor,
 			entityIndexCreator,
-			removeEntireEntity
+			entityRemoveMutation != null
 		);
 
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
@@ -1396,6 +1409,9 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			otherEntitySchemaAccessor
 		);
 
+		final Collection<? extends LocalMutation<?, ?>> localMutations = entityRemoveMutation != null ?
+			entityRemoveMutation.computeLocalMutationsForEntityRemoval(entity) : entityMutation.getLocalMutations();
+
 		// apply mutations leading to clearing storage containers
 		EntitySchemaContext.executeWithSchemaContext(
 			getInternalSchema(),
@@ -1405,10 +1421,13 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			)
 		);
 
-		if (removeEntireEntity) {
+		if (entityRemoveMutation != null) {
 			// remove the entity itself from the indexes
 			entityIndexUpdater.removeEntity(entityPrimaryKey);
 		}
+
+		// register the mutation to the write ahead log
+		Transaction.getTransaction().ifPresent(it -> it.registerMutation(entityMutation));
 	}
 
 	/**

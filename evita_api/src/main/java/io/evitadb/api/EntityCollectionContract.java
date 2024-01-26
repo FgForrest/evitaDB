@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -259,6 +259,12 @@ public interface EntityCollectionContract {
 	 */
 	@Nonnull
 	SealedEntitySchema getSchema();
+
+	/**
+	 * Applies mutation to the entity collection. This is a generic method that accepts any mutation and tries to apply
+	 * it to the collection. If the mutation is not applicable to the catalog, exception is thrown.
+	 */
+	void applyMutation(@Nonnull EntityMutation entityMutation) throws InvalidMutationException;
 
 	/**
 	 * Alters existing schema applying passed schema mutation.

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ public class EntityUpsertMutationSerializer extends Serializer<EntityUpsertMutat
 	@Override
 	public void write(Kryo kryo, Output output, EntityUpsertMutation mutation) {
 		output.writeString(mutation.getEntityType());
-		output.writeInt(mutation.getEntityPrimaryKey());
+		kryo.writeObjectOrNull(output, mutation.getEntityPrimaryKey(), Integer.class);
 		kryo.writeObject(output, mutation.expects());
 		final Collection<? extends LocalMutation<?, ?>> localMutations = mutation.getLocalMutations();
 		output.writeVarInt(localMutations.size(), true);
@@ -55,7 +55,7 @@ public class EntityUpsertMutationSerializer extends Serializer<EntityUpsertMutat
 	@Override
 	public EntityUpsertMutation read(Kryo kryo, Input input, Class<? extends EntityUpsertMutation> type) {
 		final String entityType = input.readString();
-		final int entityPrimaryKey = input.readInt();
+		final Integer entityPrimaryKey = kryo.readObjectOrNull(input, Integer.class);
 		final EntityExistence entityExistence = kryo.readObject(input, EntityExistence.class);
 		final int localMutationsSize = input.readVarInt(true);
 		final LocalMutation<?, ?>[] localMutations = new LocalMutation<?, ?>[localMutationsSize];

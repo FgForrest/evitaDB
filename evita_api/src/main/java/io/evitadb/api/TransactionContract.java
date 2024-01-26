@@ -89,8 +89,6 @@ public interface TransactionContract extends AutoCloseable {
 		 * may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
 		 * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
 		 * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
-		 *
-		 * This behaviour is default.
 		 */
 		WAIT_FOR_LOG_PERSISTENCE,
 
@@ -100,6 +98,8 @@ public interface TransactionContract extends AutoCloseable {
 		 * to indexes. After that the transaction is marked as completed and commit is finished. This behaviour is
 		 * slowest but guarantees that the changes are persisted on disk and durable and that they are visible
 		 * immediately after the commit is marked as completed.
+		 *
+		 * This behaviour is default.
 		 */
 		WAIT_FOR_INDEX_PROPAGATION;
 
@@ -108,7 +108,7 @@ public interface TransactionContract extends AutoCloseable {
 		 * @return default commit behaviour
 		 */
 		public static CommitBehaviour defaultBehaviour() {
-			return WAIT_FOR_LOG_PERSISTENCE;
+			return WAIT_FOR_INDEX_PROPAGATION;
 		}
 
 	}

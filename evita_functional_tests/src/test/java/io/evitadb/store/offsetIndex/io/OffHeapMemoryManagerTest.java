@@ -58,15 +58,6 @@ class OffHeapMemoryManagerTest {
 	}
 
 	@Test
-	void shouldFailToWriteToStreamAfterInputStreamWasRetrieved() throws IOException {
-		try (final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow()) {
-			outputStream.write("Hello world!".getBytes());
-			outputStream.getInputStream();
-			assertThrows(RuntimeException.class, () -> outputStream.write("Hello world!".getBytes()));
-		}
-	}
-
-	@Test
 	void shouldFailToWriteToStreamAfterItWasClosed() {
 		final var outputStream = memoryManager.acquireRegionOutputStream().orElseThrow();
 		outputStream.close();

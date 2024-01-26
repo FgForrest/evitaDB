@@ -35,8 +35,15 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * TODO JNO - document me
+ * This interface represents a collection of changes to the index data structures stored in memory. It provides methods7
+ * to get, create, remove, and track modifications to indexes. The changes are cached in memory and can be persisted to
+ * the storage using the {@link #popTrappedUpdates()} method.
  *
+ * This mechanism allows to buffer frequent changes in indexes whose persistence is costly and flush the changes once in
+ * a while to the persistent storage.
+ *
+ * @param <IK> the type of the index key
+ * @param <I>  the type of the index
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface DataStoreIndexChanges<IK extends IndexKey, I extends Index<IK>> {

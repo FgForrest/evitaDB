@@ -74,6 +74,18 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 * It is created when the getInputStream() method is called for the first time.
 	 */
 	private OffHeapMemoryInputStream inputStream;
+	/**
+	 * Represents the position in the buffer where the next byte will be read.
+	 */
+	@Getter private int readPosition;
+	/**
+	 * Represents the position in the buffer where the next byte will be written.
+	 */
+	@Getter private int writePosition;
+	/**
+	 * Represents the current mode on the shared byte buffer.
+	 */
+	@Getter private Mode mode;
 
 	/**
 	 * Initializes the OffHeapMemoryOutputStream with the given buffer and finalizer.
@@ -86,23 +98,56 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 		this.regionIndex = index;
 		this.buffer = buf;
     	this.finalizer = finalizer;
+		this.mode = Mode.WRITE;
+	}
+
+	/**
+	 * Switches the mode of the OffHeapMemoryOutputStream shared byte buffer.
+	 * If the current mode is READ, it can only be switched to WRITE mode.
+	 * If the current mode is WRITE, it can only be switched to READ mode.
+	 *
+	 * @param newMode The new mode to switch to. Must not be null.
+	 * @throws IllegalArgumentException If the new mode is invalid.
+	 */
+	private void switchMode(@Nonnull Mode newMode) {
+		switch (mode) {
+			case READ:
+				Assert.isPremiseValid(
+					newMode == Mode.WRITE,
+					"Cannot switch from READ to WRITE mode!"
+				);
+				this.readPosition = this.buffer.position();
+				this.buffer.position(this.writePosition);
+				break;
+			case WRITE:
+				Assert.isPremiseValid(
+					newMode == Mode.READ,
+					"Cannot switch from WRITE to READ mode!"
+				);
+				this.writePosition = this.buffer.position();
+				this.buffer.position(this.readPosition);
+				break;
+		}
+		this.mode = newMode;
 	}
 
 	/**
 	 * Retrieves the OffHeapMemoryInputStream associated with this OffHeapMemoryOutputStream.
 	 * If the input stream has not been created yet, it is created and the underlying buffer is set to null.
-	 * After calling this method for the first time, the OffHeapMemoryOutputStream is no longer usable for writing.
-	 *
-	 * Closing the input stream effectively closes the output stream as well.
 	 *
 	 * @return The OffHeapMemoryInputStream associated with this OffHeapMemoryOutputStream.
 	 */
 	@Nonnull
 	public OffHeapMemoryInputStream getInputStream() {
 		if (inputStream == null) {
-			// create input stream and make this output stream
-			inputStream = new OffHeapMemoryInputStream(buffer, this::close);
-			buffer = null;
+			inputStream = new OffHeapMemoryInputStream(
+				this.buffer,
+				this::getMode,
+				this::getWritePosition,
+				this::switchMode,
+				() -> this.inputStream = null
+			);
+			switchMode(Mode.READ);
 		}
 		return inputStream;
 	}
@@ -110,27 +155,37 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	/**
 	 * Retrieves the ByteBuffer associated with this OffHeapMemoryOutputStream.
 	 * If the input stream has not been created yet, it is created and the underlying buffer is set to null.
-	 * After calling this method for the first time, the OffHeapMemoryOutputStream is no longer usable for writing.
 	 *
 	 * @return The ByteBuffer associated with this OffHeapMemoryOutputStream.
 	 */
 	@Nonnull
 	public ByteBuffer getByteBuffer() {
 		if (inputStream == null) {
-			// create input stream and make this output stream
-			inputStream = new OffHeapMemoryInputStream(buffer, this::close);
-			buffer = null;
+			this.inputStream = new OffHeapMemoryInputStream(
+				this.buffer,
+				this::getMode,
+				this::getWritePosition,
+				this::switchMode,
+				() -> this.inputStream = null
+			);
+			switchMode(Mode.READ);
 		}
 		return inputStream.getBuffer();
 	}
 
 	@Override
 	public void write(int b) throws IOException {
-		buffer.put((byte) b);
+		if (this.mode == Mode.READ) {
+			switchMode(Mode.WRITE);
+		}
+		this.buffer.put((byte) b);
 	}
 
 	@Override
 	public void write(@Nonnull byte[] bytes, int off, int len) throws IOException {
+		if (mode == Mode.READ) {
+			switchMode(Mode.WRITE);
+		}
 		buffer.put(bytes, off, len);
 	}
 
@@ -140,7 +195,7 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	 * @return The length of the peak data written to the output stream.
 	 */
 	public long getPeakDataWrittenLength() {
-		return inputStream == null ? buffer.position() : inputStream.getWritten();
+		return this.mode == Mode.WRITE ? this.buffer.position() : this.writePosition;
 	}
 
 	/**
@@ -152,6 +207,9 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 	public void dumpToChannel(
 		@Nonnull FileChannel fileChannel
 	) throws IOException {
+		if (mode == Mode.READ) {
+			switchMode(Mode.WRITE);
+		}
 		while(buffer.hasRemaining()) {
 			buffer.flip();
 			final int written = fileChannel.write(buffer);
@@ -175,6 +233,14 @@ public class OffHeapMemoryOutputStream extends OutputStream {
 			this.finalizer = null;
 			this.inputStream = null;
 		}
+	}
+
+	/**
+	 * Represents the current mode on the shared byte buffer. Since we don't support parallel access, but we do support
+	 * interleaving reading and writing from the same buffer, we need to keep track of the current mode.
+	 */
+	enum Mode {
+		READ, WRITE
 	}
 
 }
