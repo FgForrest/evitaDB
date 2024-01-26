@@ -5,7 +5,7 @@ perex: |
   There are features for learning evitaDB as well as for debugging data.
 date: '26.1.2024'
 author: 'Lukáš Hornych'
-motive: assets/images/12-evitalab-after-6-months.png.png
+motive: assets/images/12-evitalab-after-6-months.png
 proofreading: 'done'
 ---
 
@@ -111,10 +111,7 @@ visualize them properly, so we are still thinking about the right solution. As f
 difficult to read without visualization, but it’s not the most used feature of evitaDB right now.
 
 The visualizations are available after you execute a query in an alternative panel to the raw JSON output. You can switch
- between these panels in the navigation bar on the right side of the console.
-
-<p id="gdcalert1" ><span style="color: red; font-weight: bold">>>>>>  gd2md-html alert: inline image link here (to images/image1.png). Store image on your image server and adjust path/filename/extension if necessary. </span><br>(<a href="#">Back to top</a>)(<a href="#gdcalert2">Next alert</a>)<br><span style="color: red; font-weight: bold">>>>>> </span></p>
-
+between these panels in the navigation bar on the right side of the console.
 
 ![Result visualizer switch in console](assets/images/12-console-visualizer-switch.png "Result visualizer switch in console")
 
