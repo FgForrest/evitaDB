@@ -1,0 +1,27 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "audio")
+        )
+    ),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "topLevel",
+                entityFetch(attributeContent("code")),
+                stopAt(level(1))
+            ),
+            parents(
+                "parents",
+                entityFetch(attributeContent("code"))
+            ),
+            siblings(
+                "siblings",
+                entityFetch(attributeContent("code"))
+            )
+        )
+    )
+)

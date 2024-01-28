@@ -1,0 +1,29 @@
+query(
+  collection("Product"),
+  filterBy(
+    attributeEquals("status", "ACTIVE"),
+    userFilter(
+      facetHaving(
+        "groups",
+        entityHaving(
+          attributeEquals("code", "sale")
+        )
+      )
+    )
+  ),
+  require(
+    facetSummaryOfReference(
+      "parameterValues",
+      IMPACT,
+      filterGroupBy(
+        attributeEquals("isVisibleInFilter", true)
+      ),
+      entityFetch(
+        attributeContent("code")
+      ),
+      entityGroupFetch(
+        attributeContent("code")
+      )
+    )
+  )
+)

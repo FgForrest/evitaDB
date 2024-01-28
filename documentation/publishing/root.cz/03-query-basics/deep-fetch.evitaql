@@ -1,0 +1,24 @@
+query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885),
+    entityLocaleEquals("cs")
+  ),
+  require(
+    entityFetch(
+      attributeContent("name"),
+      referenceContentWithAttributes(
+        "parameterValues",
+        entityFetch(
+          attributeContent("code", "name"),
+          referenceContentWithAttributes(
+            "parameter",
+            entityFetch(
+              attributeContent("code", "name")
+            )
+          )
+        )
+      )
+    )
+  )
+)
