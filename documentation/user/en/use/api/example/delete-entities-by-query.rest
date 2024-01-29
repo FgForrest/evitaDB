@@ -1,9 +1,8 @@
-DELETE /rest/evita/brand
+DELETE /rest/evita/Brand
 
 {
   "filterBy": {
-	"attributeNameStartsWith": "A",
-	"entityLocaleEquals": "en"
+	"attributeNameStartsWith": "A"
   },
   "require": {
 	"page": {
