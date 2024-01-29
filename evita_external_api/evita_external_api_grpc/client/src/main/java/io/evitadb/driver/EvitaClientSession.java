@@ -1463,8 +1463,8 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 * @return result of the applied function
 	 */
 	private <T> T executeWithEvitaSessionService(@Nonnull Function<EvitaSessionServiceBlockingStub, T> evitaSessionServiceBlockingStub) {
-		return executeWithClientId(
-			clientId,
+		return executeWithinBlock(
+			"executeWithEvitaSessionService",
 			() -> {
 				final ManagedChannel managedChannel = this.channelPool.getChannel();
 				try {

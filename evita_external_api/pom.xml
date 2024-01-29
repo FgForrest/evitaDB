@@ -37,6 +37,7 @@
 	    <module>evita_external_api_core</module>
 	    <module>evita_external_api_graphql</module>
 	    <module>evita_external_api_grpc/client</module>
+	    <module>evita_external_api_grpc/client_observability</module>
 	    <module>evita_external_api_grpc/server</module>
 	    <module>evita_external_api_grpc/shared</module>
 	    <module>evita_external_api_rest</module>

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,30 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.driver.trace;
 
-import io.evitadb.api.ClientContext;
-import io.evitadb.externalApi.utils.ExternalApiClientContext;
-import io.evitadb.externalApi.utils.JsonApiClientContext;
+import io.grpc.ClientInterceptor;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Implementation of {@link ExternalApiClientContext} for GraphQL API.
+ * Client contexts interface that defines all necessary resources for proper tracing.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class GraphQLClientContext extends JsonApiClientContext {
-
-	private static final String PROTOCOL = "GQL";
-
-	public GraphQLClientContext(@Nonnull ClientContext internalClientContext) {
-		super(internalClientContext);
-	}
-
-	@Nonnull
-	@Override
-	protected String getProtocol() {
-		return PROTOCOL;
+public interface ClientTracingContext {
+	/**
+	 * Marker default method that should in its implementation provide an implementation of a gRPC ClientInterceptor.
+	 */
+	@Nullable
+	default ClientInterceptor getClientInterceptor() {
+		return null;
 	}
 }

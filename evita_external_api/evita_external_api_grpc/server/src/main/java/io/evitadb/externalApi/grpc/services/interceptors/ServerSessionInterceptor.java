@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.core.Evita;
 import io.evitadb.core.EvitaInternalSessionContract;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
@@ -83,9 +84,7 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 	 * Context that holds current {@link EvitaSessionContract} session.
 	 */
 	public static final Context.Key<EvitaInternalSessionContract> SESSION = Context.key(SESSION_ID_HEADER);
-	public static final Context.Key<String> REQUEST_ID = Context.key(REQUEST_ID_HEADER);
-	public static final Context.Key<String> CLIENT_ID = Context.key(CLIENT_ID_HEADER);
-	public static final Context.Key<SocketAddress> CLIENT_ADDRESS = Context.key(CLIENT_ADDRESS_HEADER);
+
 	/**
 	 * Reference to the {@link EvitaContract} instance.
 	 */
@@ -117,21 +116,16 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			serverCall.close(status, metadata);
 			return new ServerCall.Listener<>() {};
 		}
-		final Metadata.Key<String> clientMetadata = Metadata.Key.of(CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
-		final Metadata.Key<String> requestMetadata = Metadata.Key.of(REQUEST_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER);
-		final String clientId = metadata.get(clientMetadata);
-		final String requestId = metadata.get(requestMetadata);
 		final SocketAddress clientAddress = serverCall.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
 
-		Context context = Context.current()
-			.withValue(CLIENT_ID, clientId)
-			.withValue(REQUEST_ID, requestId)
-			.withValue(CLIENT_ADDRESS, clientAddress);
+		Context context = Context.current();
+
 		if (activeSession.isPresent()) {
 			context = context.withValue(SESSION, activeSession.get());
 		}
 
-		return Contexts.interceptCall(context, serverCall, metadata, serverCallHandler);
+		final Context finalContext = context;
+		return ExternalApiTracingContextProvider.getContext().executeWithinBlock("gRPC", clientAddress, metadata, () -> Contexts.interceptCall(finalContext, serverCall, metadata, serverCallHandler));
 	}
 
 	@Nonnull

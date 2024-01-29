@@ -23,7 +23,7 @@ scrape_configs:
             time: timestamp
             message: message
             level: level
-            request_id: request_id
+            trace_id: trace_id
             client_id: client_id
       - timestamp:
           source: time

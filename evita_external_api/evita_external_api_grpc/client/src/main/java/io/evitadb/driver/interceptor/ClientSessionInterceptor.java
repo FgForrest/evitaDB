@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,7 +23,8 @@
 
 package io.evitadb.driver.interceptor;
 
-import io.evitadb.api.ClientContext;
+import io.evitadb.driver.trace.ClientTracingContext;
+import io.evitadb.driver.trace.ClientTracingContextProvider;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -36,9 +37,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * This class is used to intercept client calls prior their sending to the server. If client did set sessionId and sessionType
@@ -47,15 +46,10 @@ import java.util.Optional;
  * @author Tomáš Pozler, 2022
  */
 public class ClientSessionInterceptor implements ClientInterceptor {
-	@Nullable
-	private final ClientContext clientContext;
-
-	public ClientSessionInterceptor(@Nullable ClientContext clientContext) {
-		this.clientContext = clientContext;
-	}
+	private final ClientTracingContext clientContext;
 
 	public ClientSessionInterceptor() {
-		this.clientContext = null;
+		this.clientContext = ClientTracingContextProvider.getContext();
 	}
 
 	/**
@@ -79,10 +73,9 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 					metadata.put(Metadata.Key.of(GrpcHeaders.CATALOG_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER), Objects.requireNonNull(SessionIdHolder.getCatalogName()));
 				}
 				if (clientContext != null) {
-					final Optional<String> clientId = clientContext.getClientId();
-					clientId.ifPresent(s -> metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), s));
-					final Optional<String> requestId = clientContext.getRequestId();
-					requestId.ifPresent(s -> metadata.put(Metadata.Key.of(GrpcHeaders.REQUEST_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), s));
+					// TODO tpz: fetch client id
+					/*final Optional<String> clientId = clientContext.getClientId();
+					clientId.ifPresent(s -> metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), s));*/
 				}
 				super.start(listener, metadata);
 			}

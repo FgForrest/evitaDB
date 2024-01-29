@@ -17,6 +17,8 @@
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_graphql/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client_observability/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/client_observability/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/server/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/server/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/evita_external_api/evita_external_api_grpc/shared/src/main/java" charset="UTF-8" />

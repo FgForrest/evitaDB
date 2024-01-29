@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
 import io.evitadb.driver.exception.IncompatibleClientException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.pooling.ChannelPool;
+import io.evitadb.driver.trace.ClientTracingContextProvider;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter;
@@ -55,6 +56,7 @@ import io.evitadb.utils.ReflectionLookup;
 import io.evitadb.utils.UUIDUtil;
 import io.evitadb.utils.VersionUtils;
 import io.evitadb.utils.VersionUtils.SemVer;
+import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -158,14 +160,20 @@ public class EvitaClient implements EvitaContract {
 			.clientPrivateKeyPassword(configuration.certificateKeyPassword())
 			.build();
 
-		final NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
+		NettyChannelBuilder nettyChannelBuilder = NettyChannelBuilder.forAddress(configuration.host(), configuration.port())
 			.sslContext(clientCertificateManager.buildClientSslContext())
 			.executor(Executors.newCachedThreadPool())
 			.defaultLoadBalancingPolicy("round_robin")
-			.intercept(new ClientSessionInterceptor(this));
+			.intercept(new ClientSessionInterceptor());
 
+		final ClientInterceptor clientInterceptor = ClientTracingContextProvider.getContext().getClientInterceptor();
+		if (clientInterceptor != null) {
+			nettyChannelBuilder = nettyChannelBuilder.intercept(clientInterceptor);
+		}
+
+		final NettyChannelBuilder finalNettyChannelBuilder = nettyChannelBuilder;
 		ofNullable(grpcConfigurator)
-			.ifPresent(it -> it.accept(nettyChannelBuilder));
+			.ifPresent(it -> it.accept(finalNettyChannelBuilder));
 		this.reflectionLookup = new ReflectionLookup(configuration.reflectionLookupBehaviour());
 		this.channelPool = new ChannelPool(nettyChannelBuilder, 10);
 		this.terminationCallback = () -> {
@@ -315,7 +323,7 @@ public class EvitaClient implements EvitaContract {
 	public void terminateSession(@Nonnull EvitaSessionContract session) {
 		assertActive();
 		if (session instanceof EvitaClientSession evitaClientSession) {
-			executeWithClientId(
+			executeWithinBlock(
 				configuration.clientId(),
 				evitaClientSession::close
 			);
@@ -341,8 +349,8 @@ public class EvitaClient implements EvitaContract {
 	public CatalogSchemaBuilder defineCatalog(@Nonnull String catalogName) {
 		assertActive();
 
-		return executeWithClientId(
-			configuration.clientId(),
+		return executeWithinBlock(
+			"defineCatalog",
 			() -> {
 				if (!getCatalogNames().contains(catalogName)) {
 					update(new CreateCatalogSchemaMutation(catalogName));
@@ -420,8 +428,8 @@ public class EvitaClient implements EvitaContract {
 	public <T> T queryCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> queryLogic, @Nullable SessionFlags... flags) {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
-			return session.executeWithClientId(
-				configuration.clientId(),
+			return session.executeWithinBlock(
+				"queryCatalog",
 				() -> queryLogic.apply(session)
 			);
 		}
@@ -432,8 +440,8 @@ public class EvitaClient implements EvitaContract {
 		                         catalogName, @Nonnull Consumer<EvitaSessionContract> queryLogic, @Nullable SessionFlags... flags) {
 		assertActive();
 		try (final EvitaSessionContract session = this.createSession(new SessionTraits(catalogName, flags))) {
-			session.executeWithClientId(
-				configuration.clientId(),
+			session.executeWithinBlock(
+				"queryCatalog",
 				() -> queryLogic.accept(session)
 			);
 		}
@@ -451,8 +459,8 @@ public class EvitaClient implements EvitaContract {
 				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
 		);
 		try (final EvitaSessionContract session = this.createSession(traits)) {
-			return session.executeWithClientId(
-				configuration.clientId(),
+			return session.executeWithinBlock(
+				"updateCatalog",
 				() -> session.execute(updater)
 			);
 		}
@@ -464,8 +472,8 @@ public class EvitaClient implements EvitaContract {
 		updateCatalog(
 			catalogName,
 			session -> {
-				session.executeWithClientId(
-					configuration.clientId(),
+				session.executeWithinBlock(
+					"updateCatalog",
 					() -> updater.accept(session)
 				);
 				return null;
@@ -523,9 +531,8 @@ public class EvitaClient implements EvitaContract {
 	 */
 	private <T> T
 	executeWithEvitaService(@Nonnull Function<EvitaServiceBlockingStub, T> evitaServiceBlockingStub) {
-		return executeWithClientAndRequestId(
-			configuration.clientId(),
-			UUIDUtil.randomUUID().toString(),
+		return executeWithinBlock(
+			"executeWithEvitaService",
 			() -> {
 				final ManagedChannel managedChannel = this.channelPool.getChannel();
 				try {

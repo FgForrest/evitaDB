@@ -50,14 +50,14 @@ api:
       enabled: ${api.endpoints.graphQL.enabled:true}
       host: ${api.endpoints.graphQL.host:localhost:5555}
       exposedHost: ${api.endpoints.graphQL.exposedHost:null}
-      tlsEnabled: ${api.endpoints.graphQL.tlsEnabled:true}
+      tlsEnabled: ${api.endpoints.graphQL.tlsEnabled:false}
       allowedOrigins: ${api.endpoints.graphQL.allowedOrigins:null}
       parallelize: ${api.endpoints.graphQL.parallelize:true}
     rest:
       enabled: ${api.endpoints.rest.enabled:true}
       host: ${api.endpoints.rest.host:localhost:5555}
       exposedHost: ${api.endpoints.rest.exposedHost:null}
-      tlsEnabled: ${api.endpoints.rest.tlsEnabled:true}
+      tlsEnabled: ${api.endpoints.rest.tlsEnabled:false}
       allowedOrigins: ${api.endpoints.rest.allowedOrigins:null}
     gRPC:
       enabled: ${api.endpoints.gRPC.enabled:true}
@@ -69,9 +69,17 @@ api:
     lab:
       enabled: ${api.endpoints.lab.enabled:true}
       host: ${api.endpoints.lab.host:localhost:5555}
-      tlsEnabled: ${api.endpoints.lab.tlsEnabled:true}
+      tlsEnabled: ${api.endpoints.lab.tlsEnabled:false}
       allowedOrigins: ${api.endpoints.lab.allowedOrigins:null}
       gui:
         enabled: ${api.endpoints.lab.gui.enabled:true}
         readOnly: ${api.endpoints.lab.gui.readOnly:false}
         preconfiguredConnections: !include ${api.endpoints.lab.gui.preconfiguredConnections:null}
+    observability:
+      enabled: ${api.endpoints.observability.enabled:true}
+      host: ${api.endpoints.observability.host:localhost:5557}
+      exposedHost: ${api.endpoints.observability.exposedHost:null}
+      tlsEnabled: ${api.endpoints.observability.tlsEnabled:false}
+      allowedOrigins: ${api.endpoints.observability.allowedOrigins:null}
+      tracingEndpoint: ${api.endpoints.observability.tracingEndpoint:http://localhost:4318/v1/traces}
+      allowedEvents: !include ${api.endpoints.observability.allowedEvents:null}

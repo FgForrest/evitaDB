@@ -60,9 +60,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange> {
 
-    private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
-    private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
-
     @Nonnull
     protected final CTX restHandlingContext;
     @Nonnull
@@ -85,9 +82,10 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
      * Process every request with client context, so we can classify it in evitaDB.
      */
     private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
-        restHandlingContext.getClientContext().executeWithClientAndRequestId(
+        restHandlingContext.getClientContext().executeWithinBlock(
+            "REST",
             serverExchange.getSourceAddress(),
-            serverExchange.getRequestHeaders(),
+            serverExchange,
             () -> super.handleRequest(serverExchange)
         );
     }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2024
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,30 +21,12 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io;
-
-import io.evitadb.api.ClientContext;
-import io.evitadb.externalApi.utils.ExternalApiClientContext;
-import io.evitadb.externalApi.utils.JsonApiClientContext;
-
-import javax.annotation.Nonnull;
+package io.evitadb.driver.trace;
 
 /**
- * Implementation of {@link ExternalApiClientContext} for REST API.
+ * Default NOOP implementation of {@link ClientTracingContext}.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class RestClientContext extends JsonApiClientContext {
-
-	private static final String PROTOCOL = "REST";
-
-	public RestClientContext(@Nonnull ClientContext internalClientContext) {
-		super(internalClientContext);
-	}
-
-	@Nonnull
-	@Override
-	protected String getProtocol() {
-		return PROTOCOL;
-	}
+public class DefaultClientTracingContext implements ClientTracingContext {
 }

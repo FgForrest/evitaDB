@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,8 +21,10 @@
  *   limitations under the License.
  */
 
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.externalApi.grpc.GrpcProviderRegistrar;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 
 /**
@@ -32,6 +34,8 @@ module evita.external.api.grpc {
 
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
+	uses TracingContext;
+	uses ExternalApiTracingContext;
 
 	provides ExternalApiProviderRegistrar with GrpcProviderRegistrar;
 
@@ -60,5 +64,5 @@ module evita.external.api.grpc {
 	requires io.grpc.netty;
 	requires io.netty.transport;
 	requires io.grpc;
-
+	requires io.grpc.stub;
 }

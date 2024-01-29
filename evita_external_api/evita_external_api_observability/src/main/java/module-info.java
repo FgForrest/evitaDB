@@ -21,8 +21,12 @@
  *   limitations under the License.
  */
 
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.ObservabilityProviderRegistrar;
+import io.evitadb.externalApi.observability.trace.DelegateExternalApiClientContext;
+import io.evitadb.externalApi.observability.trace.ObservabilityTracingContext;
+import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
 /**
  * Module contains Observability API for evitaDB.
@@ -31,7 +35,11 @@ module evita.external.api.observability {
 
 	uses CatalogPersistenceServiceFactory;
 	uses ExternalApiProviderRegistrar;
+	uses TracingContext;
+	uses ExternalApiTracingContext;
 
+	provides TracingContext with ObservabilityTracingContext;
+	provides ExternalApiTracingContext with DelegateExternalApiClientContext;
 	provides ExternalApiProviderRegistrar with ObservabilityProviderRegistrar;
 
 	opens io.evitadb.externalApi.observability.configuration to com.fasterxml.jackson.databind;
@@ -57,7 +65,19 @@ module evita.external.api.observability {
 	requires jakarta.servlet;
 	requires jdk.jfr;
 	requires jboss.threads;
+	requires io.grpc;
+
+	requires io.opentelemetry.sdk.trace;
+	requires io.opentelemetry.sdk;
+	requires io.opentelemetry.context;
+	requires io.opentelemetry.api;
+	requires io.opentelemetry.sdk.common;
+	requires io.opentelemetry.semconv;
+	requires io.opentelemetry.exporter.logging;
+	requires io.opentelemetry.exporter.otlp;
+	requires io.opentelemetry.sdk.autoconfigure;
+	requires io.opentelemetry.instrumentation.grpc_1_6;
 
 	exports io.evitadb.externalApi.observability.configuration;
-	exports io.evitadb.externalApi.observability;
+	exports io.evitadb.externalApi.observability.trace;
 }

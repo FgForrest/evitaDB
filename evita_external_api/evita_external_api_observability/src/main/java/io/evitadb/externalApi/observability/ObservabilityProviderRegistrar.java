@@ -28,6 +28,7 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.ExternalApiProvider;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.trace.OpenTelemetryTracerSetup;
 
 import javax.annotation.Nonnull;
 import java.util.Arrays;
@@ -38,7 +39,6 @@ import java.util.Arrays;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ObservabilityProviderRegistrar implements ExternalApiProviderRegistrar<ObservabilityConfig> {
-
 	@Nonnull
 	@Override
 	public String getExternalApiCode() {
@@ -55,6 +55,7 @@ public class ObservabilityProviderRegistrar implements ExternalApiProviderRegist
 	@Override
 	public ExternalApiProvider<ObservabilityConfig> register(@Nonnull Evita evita, @Nonnull ApiOptions apiOptions, @Nonnull ObservabilityConfig observabilityConfig) {
 		final ObservabilityManager observabilityManager = new ObservabilityManager(observabilityConfig, apiOptions, evita);
+		OpenTelemetryTracerSetup.setOpenTelemetryConfig(observabilityConfig);
 		observabilityManager.registerPrometheusMetricHandler();
 		return new ObservabilityProvider(
 			observabilityConfig,
