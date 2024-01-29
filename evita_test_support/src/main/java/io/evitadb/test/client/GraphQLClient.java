@@ -43,12 +43,8 @@ import java.io.IOException;
  */
 public class GraphQLClient extends ApiClient {
 
-	public GraphQLClient(@Nonnull String url) {
-		super(url);
-	}
-
-	public GraphQLClient(@Nonnull String url, boolean validateSsl) {
-		super(url, validateSsl);
+	public GraphQLClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
+		super(url, validateSsl, useConnectionPool);
 	}
 
 	@Nonnull

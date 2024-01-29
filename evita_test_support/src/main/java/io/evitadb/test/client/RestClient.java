@@ -43,12 +43,8 @@ import java.util.Optional;
  */
 public class RestClient extends ApiClient {
 
-	public RestClient(@Nonnull String url) {
-		super(url);
-	}
-
-	public RestClient(@Nonnull String url, boolean validateSsl) {
-		super(url, validateSsl);
+	public RestClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
+		super(url, validateSsl, useConnectionPool);
 	}
 
 	@Nullable

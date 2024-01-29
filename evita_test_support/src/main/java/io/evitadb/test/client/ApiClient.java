@@ -53,17 +53,18 @@ abstract class ApiClient {
 	@Nonnull protected final String url;
 	@Nonnull protected final OkHttpClient client;
 
-	protected ApiClient(@Nonnull String url) {
-		this(url, true);
+	protected ApiClient(@Nonnull String url, boolean validateSsl, boolean useConnectionPool) {
+		this.url = url;
+		this.client = createClient(validateSsl, useConnectionPool);
 	}
 
-	protected ApiClient(@Nonnull String url, boolean validateSsl) {
-		this.url = url;
+	protected OkHttpClient createClient(boolean validateSsl, boolean useConnectionPool) {
+		final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder();
 
-		final OkHttpClient.Builder clientBuilder = new OkHttpClient.Builder()
-			.connectionPool(new ConnectionPool(0, 1, TimeUnit.NANOSECONDS))
-			.connectTimeout(10, TimeUnit.SECONDS)
-			.readTimeout(30, TimeUnit.SECONDS);
+		if (!useConnectionPool) {
+			clientBuilder.connectionPool(new ConnectionPool(0, 1, TimeUnit.NANOSECONDS));
+		}
+
 		if (!validateSsl) {
 			// Create a trust manager that does not validate certificate chains
 			final TrustManager[] trustAllCerts = new TrustManager[] {
@@ -95,7 +96,7 @@ abstract class ApiClient {
 				.sslSocketFactory(sc.getSocketFactory(), (X509TrustManager) trustAllCerts[0])
 				.hostnameVerifier(hostnameVerifier);
 		}
-		this.client = clientBuilder.build();
+		return clientBuilder.build();
 	}
 
 	@Nonnull
