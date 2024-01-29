@@ -183,24 +183,26 @@ public class EvitaClient implements EvitaContract {
 
 		try {
 			final SystemStatus systemStatus = this.getSystemStatus();
-			final SemVer serverVersion = new SemVer(systemStatus.version());
-			final SemVer clientVersion = new SemVer(getVersion());
-			final int comparisonResult = SemVer.compare(clientVersion, serverVersion);
-			if (comparisonResult < 0) {
-				log.warn(
-					"Client version {} is lower than server version {}. " +
-						"It may not represent a compatibility issue, but it is recommended to update " +
-						"the client to the latest version.",
-					clientVersion,
-					serverVersion
-				);
-			} else if (comparisonResult > 0) {
-				throw new IncompatibleClientException(
-					"Client version `" + clientVersion + "` is higher than server version `" + serverVersion +  "`. " +
-						"This situation will probably lead to  compatibility issues. Please update the server to " +
-						"the latest version.",
-					"Incompatible client version!"
-				);
+			final SemVer serverVersion = "?".equals(systemStatus.version()) ? null : new SemVer(systemStatus.version());
+			final SemVer clientVersion = "?".equals(getVersion()) ? null : new SemVer(getVersion());
+			if (serverVersion != null && clientVersion != null) {
+				final int comparisonResult = SemVer.compare(clientVersion, serverVersion);
+				if (comparisonResult < 0) {
+					log.warn(
+						"Client version {} is lower than server version {}. " +
+							"It may not represent a compatibility issue, but it is recommended to update " +
+							"the client to the latest version.",
+						clientVersion,
+						serverVersion
+					);
+				} else if (comparisonResult > 0) {
+					throw new IncompatibleClientException(
+						"Client version `" + clientVersion + "` is higher than server version `" + serverVersion + "`. " +
+							"This situation will probably lead to  compatibility issues. Please update the server to " +
+							"the latest version.",
+						"Incompatible client version!"
+					);
+				}
 			}
 		} catch (IncompatibleClientException ex) {
 			throw ex;
