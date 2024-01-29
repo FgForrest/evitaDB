@@ -12,7 +12,7 @@ evitaDB is a [Java application](https://openjdk.org/), and you can run it as an
 [a separate service](../operate/run.md) connected to applications via
 the HTTPS protocol using one of the provided web APIs.
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 <Note type="question">
 
@@ -191,8 +191,8 @@ API `rest` listening on                 https://your-domain:5555/rest/
 API `system` listening on               http://your-domain:5557/system/
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="evitaql,graphql,rest,csharp">
+</LS>
+<LS to="e,g,r,c">
 
 ### Install Docker
 
@@ -256,7 +256,7 @@ API `lab` listening on                  https://localhost:5555/lab/
 
 More information about running evitaDB Server in Docker is available in the [separate chapter](../operate/run.md).
 
-</LanguageSpecific>
+</LS>
 
 ## What's next?
 

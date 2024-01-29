@@ -2,7 +2,7 @@
 title: Behavioral filtering containers
 date: '7.11.2023'
 perex: |
-  Special behavioral filtering constraint containers are used only for the definition of a filter constraint scope, 
+  Special behavioral filtering constraint containers are used only for the definition of a filter constraint scope,
   which has a different treatment in calculations.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
@@ -17,7 +17,7 @@ userFilter(
 )
 ```
 
-<dl> 
+<dl>
     <dt>filterConstraint:any+</dt>
     <dd>
         one or more mandatory filter constraints that will produce logical conjunction
@@ -25,7 +25,7 @@ userFilter(
 </dl>
 
 
-The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass></LanguageSpecific> 
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/UserFilter.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/UserFilter.cs</SourceClass></LS>
 works identically to the [`and`](logical.md#and) constraint, but it distinguishes the filter scope, which is controlled by the user
 through some kind of user interface, from the rest of the query, which contains the mandatory constraints on the result
 set. The user-defined scope can be modified during certain calculations (such as the [facet](../requirements/facet.md)
@@ -42,7 +42,7 @@ the `userFilter` container:
 
 And compare it to the situation when we remove the `userFilter` container:
 
-| Facet summary with `facetHaving` in `userFilter`  | Facet summary without `userFilter` scope       | 
+| Facet summary with `facetHaving` in `userFilter`  | Facet summary without `userFilter` scope       |
 |---------------------------------------------------|------------------------------------------------|
 | ![Before](assets/user-filter-before.png "Before") | ![After](assets/user-filter-after.png "After") |
 

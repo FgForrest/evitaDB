@@ -2,16 +2,16 @@
 title: Price filtering
 date: '7.11.2023'
 perex: |
-  In the realm of e-commerce, users expect to see prices that are personalized to their context: local currency for easy 
-  understanding, accurate selling prices from the correct price list, and timely offers that may only be valid during 
-  specific periods. Catering to these expectations with sophisticated database filtering not only enhances user 
+  In the realm of e-commerce, users expect to see prices that are personalized to their context: local currency for easy
+  understanding, accurate selling prices from the correct price list, and timely offers that may only be valid during
+  specific periods. Catering to these expectations with sophisticated database filtering not only enhances user
   experience but also streamlines the shopping process, boosting satisfaction and sales.
 author: 'Ing. Jan Novotný'
 proofreading: 'done'
 preferredLang: 'evitaql'
 ---
 
-This chapter contains the description of evitaDB constraints that help you to control the price for sale selection and 
+This chapter contains the description of evitaDB constraints that help you to control the price for sale selection and
 to filter products by price.
 
 ## Quick guide to filtering by price
@@ -30,7 +30,7 @@ To correctly identify an appropriate selling price, you must specify all three c
 
 1. [`priceInCurrency`](#price-in-currency) - the currency of the price for sale
 2. [`priceValidIn`](#price-valid-in) - the date and time at which the price for the sale must be valid
-3. [`priceInPriceLists`](#price-in-price-lists) - the set of price lists for which the customer is eligible, sorted 
+3. [`priceInPriceLists`](#price-in-price-lists) - the set of price lists for which the customer is eligible, sorted
    from most preferred to least preferred.
 
 <Note type="warning">
@@ -39,8 +39,8 @@ Only a single occurrence of any of these three constraints is allowed in the fil
 is no way to switch context between different parts of the filter and build queries such as *find a product whose price
 is either in "CZK" or "EUR" currency at this or that time* using this constraint.
 
-While it's technically possible to implement support for these tasks in evitaDB, they represent edge cases and there 
-were more important scenarios to handle. Multiple combinations of these constraints will effectively stop finding 
+While it's technically possible to implement support for these tasks in evitaDB, they represent edge cases and there
+were more important scenarios to handle. Multiple combinations of these constraints will effectively stop finding
 a correct selling price and would only allow returning matching entities without a selling price.
 
 </Note>
@@ -55,35 +55,35 @@ a correct selling price and would only allow returning matching entities without
 
 The result set contains only products that have a valid price for sale in EUR currency:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[The result of listing products with valid EUR price](/documentation/user/en/query/filtering/examples/price/price.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of listing products with valid EUR price](/documentation/user/en/query/filtering/examples/price/price.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of listing products with valid EUR price](/documentation/user/en/query/filtering/examples/price/price.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 </Note>
 
 ### Price for sale selection in a nutshell
 
 <Note type="warning">
 
-If you find any statements in this chapter unclear, please read the [price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md), where you will find more examples and step-by-step 
+If you find any statements in this chapter unclear, please read the [price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md), where you will find more examples and step-by-step
 breakdown of the procedure.
 
 </Note>
 
 
-The price for sale selection depends on <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/PriceInnerRecordHandling.cs</SourceClass></LanguageSpecific>
-mode the [entity has set](../../use/data-model.md#entity), but for all of the modes there is a common denominator - 
+The price for sale selection depends on <LS to="e,j,r,g"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/PriceInnerRecordHandling.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/PriceInnerRecordHandling.cs</SourceClass></LS>
+mode the [entity has set](../../use/data-model.md#entity), but for all of the modes there is a common denominator -
 the price for sale is selected from [prices](../../use/data-model.md#prices) marked as `sellable` that conform to
 the selected [currency](#price-in-currency) and [price lists](#price-in-price-lists) and are valid at the specified
 [time](#price-valid-in). The first price that matches all of these criteria in the order of the price lists in the
@@ -94,14 +94,14 @@ For non-default price inner record handling modes, the price is calculated this 
 <dl>
    <dt>FIRST_OCCURRENCE</dt>
    <dd>
-      The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same 
+      The sales price is selected as the lowest sales price calculated separately for blocks of prices with the same
       inner record id. If the [price between](#price-between) constraint is specified, the price is the lowest selling
       price valid for the specified price range.
    </dd>
    <dt>SUM</dt>
    <dd>
-      The sales price is calculated as the sum of the sales prices calculated separately for blocks of prices with 
-      the same inner record ID. If the [price between](#price-between) constraint is specified, the sales price is 
+      The sales price is calculated as the sum of the sales prices calculated separately for blocks of prices with
+      the same inner record ID. If the [price between](#price-between) constraint is specified, the sales price is
       valid only if the total is within the specified price range.
    </dd>
 </dl>
@@ -123,22 +123,22 @@ priceInCurrency(
     </dd>
 </dl>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
-If you are working with evitaDB in Java, you can use [`Currency`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html) 
-instead of the [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) ISO code. 
+If you are working with evitaDB in Java, you can use [`Currency`](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Currency.html)
+instead of the [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) ISO code.
 This is a natural way to work with locale specific data on the platform.
 
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 
 If you are working with evitaDB in C#, you can use custom <SourceClass>EvitaDB.Client/DataTypes/Currency.cs</SourceClass> class
-which was created for compliance with evitaDB Java API. It's a simple wrapper around [string](https://docs.microsoft.com/en-us/dotnet/api/system.string) ISO code, 
+which was created for compliance with evitaDB Java API. It's a simple wrapper around [string](https://docs.microsoft.com/en-us/dotnet/api/system.string) ISO code,
 that may be provided in its raw form without the need to create an instance of the class.
 
-</LanguageSpecific>
+</LS>
 
-The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInCurrency.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInCurrency.cs</SourceClass></LanguageSpecific> constraint
+The <LS to="e,j,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInCurrency.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInCurrency.cs</SourceClass></LS> constraint
 can be used to limit the result set to entities that have a price in the specified currency. Except for the [standard
 use-case](#typical-usage-of-price-constraints) you can also create query with this constraint only:
 
@@ -158,21 +158,21 @@ use-case](#typical-usage-of-price-constraints) you can also create query with th
 
 The result set contains only products that have at least one price in EUR currency:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[The result of listing products with any price in EUR currency](/documentation/user/en/query/filtering/examples/price/price-in-currency.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of listing products with any price in EUR currency](/documentation/user/en/query/filtering/examples/price/price-in-currency.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of listing products with any price in EUR currency](/documentation/user/en/query/filtering/examples/price/price-in-currency.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -187,21 +187,21 @@ priceInPriceLists(
 <dl>
     <dt>argument:string+</dt>
     <dd>
-        A mandatory specification of one or more price list names in order of priority from most preferred to least 
+        A mandatory specification of one or more price list names in order of priority from most preferred to least
         preferred.
     </dd>
 </dl>
 
-The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInPriceLists.cs</SourceClass></LanguageSpecific> constraint
-defines the allowed set(s) of price lists that the entity must have to be included in the result set. The order of 
-the price lists in the argument is important for the final price for sale calculation - see the 
-[price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md). 
-Price list names are represented by plain <LanguageSpecific to="java,evitaql,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://docs.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
-and are case-sensitive. Price lists don't have to be stored in the database as an entity, and if they are, they are not 
-currently associated with the price list code defined in the prices of other entities. The pricing structure is simple 
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceInPriceLists.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceInPriceLists.cs</SourceClass></LS> constraint
+defines the allowed set(s) of price lists that the entity must have to be included in the result set. The order of
+the price lists in the argument is important for the final price for sale calculation - see the
+[price for sale calculation algorithm documentation](/documentation/user/en/deep-dive/price-for-sale-calculation.md).
+Price list names are represented by plain <LS to="j,e,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://docs.microsoft.com/en-us/dotnet/api/system.string)</LS>
+and are case-sensitive. Price lists don't have to be stored in the database as an entity, and if they are, they are not
+currently associated with the price list code defined in the prices of other entities. The pricing structure is simple
 and flat for now (but this may change in the future).
 
-Except for the [standard use-case](#typical-usage-of-price-constraints) you can also create query with this constraint 
+Except for the [standard use-case](#typical-usage-of-price-constraints) you can also create query with this constraint
 only:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -220,21 +220,21 @@ only:
 
 The result set contains only products that have at least one price in one of the VIP price lists mentioned:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[The result of listing products with any price in one of the VIP price lists](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[The result of listing products with any price in one of the VIP price lists](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[The result of listing products with any price in one of the VIP price lists](/documentation/user/en/query/filtering/examples/price/price-in-price-lists.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -250,16 +250,16 @@ priceValidIn(
     <dt>argument:offsetDateTime!</dt>
     <dd>
         A mandatory argument of date and time (with offset) in the format `yyyy-MM-ddTHH:mm:ssXXX`, for example
-        `2007-12-03T10:15:30+01:00`. <LanguageSpecific to="java,evitaql,rest,graphql">In Java language you can use directly [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)</LanguageSpecific><LanguageSpecific to="csharp">In C# language you can use directly [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)</LanguageSpecific>
+        `2007-12-03T10:15:30+01:00`. <LS to="j,e,r,g">In Java language you can use directly [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)</LS><LS to="c">In C# language you can use directly [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)</LS>
     </dd>
 </dl>
 
-The <LanguageSpecific to="java,evitaql,rest,graphql"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass></LanguageSpecific> excludes all
+The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/filter/PriceValidIn.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Filter/PriceValidIn.cs</SourceClass></LS> excludes all
 entities that don't have a valid price for sale at the specified date and time. If the price doesn't have a validity
 property specified, it passes all validity checks.
 
-To demonstrate the effect of validity constraints, let's create a query that lists products in the *Christmas 
-Electronics* category and tries to access prices in their *Christmas Price List*, with a fallback to the *Basic Price 
+To demonstrate the effect of validity constraints, let's create a query that lists products in the *Christmas
+Electronics* category and tries to access prices in their *Christmas Price List*, with a fallback to the *Basic Price
 List*, using a spring holiday date and time as the reference point for the price validity check:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -278,21 +278,21 @@ Now let's update the query to use a date and time in December:
 
 As you can see, you'll get a somewhat different sale price because the Christmas prices have now been applied:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in-correct.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 <Note type="info">
 
@@ -304,21 +304,21 @@ As you can see, you'll get a somewhat different sale price because the Christmas
 
 The prices for the sale in May were different, because the Christmas prices were not valid at that time:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-valid-in.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -341,18 +341,18 @@ priceBetween(
 )
 ```
 
-<LanguageSpecific to="java,evitaql,rest,graphql">
+<LS to="j,e,r,g">
 
 <dl>
     <dt>argument:bigDecimal!</dt>
     <dd>
         A mandatory argument of the price range lower bound. The price range is inclusive, so the price must be greater
-        than or equal to the lower bound. In the Java language you can use directly [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) in plain text format, you must use the string representation of the number. 
+        than or equal to the lower bound. In the Java language you can use directly [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) in plain text format, you must use the string representation of the number.
     </dd>
     <dt>argument:bigDecimal!</dt>
     <dd>
         A mandatory argument of the price range upper bound. The price range is inclusive, so the price must be lesser
-        than or equal to the upper bound. In the Java language you can use directly [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) in plain text format, you must use the string representation of the number. 
+        than or equal to the upper bound. In the Java language you can use directly [BigDecimal](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html) in plain text format, you must use the string representation of the number.
     </dd>
 </dl>
 
@@ -362,20 +362,20 @@ typically set by the user interface to allow the user to filter products by pric
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
 the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 
 <dl>
     <dt>argument:decimal!</dt>
     <dd>
         A mandatory argument of the price range lower bound. The price range is inclusive, so the price must be greater
-        than or equal to the lower bound. In the C# language you can use directly [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) in plain text format, you must use the string representation of the number. 
+        than or equal to the lower bound. In the C# language you can use directly [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) in plain text format, you must use the string representation of the number.
     </dd>
     <dt>argument:decimal!</dt>
     <dd>
         A mandatory argument of the price range upper bound. The price range is inclusive, so the price must be lesser
-        than or equal to the upper bound. In the C# language you can use directly [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) in plain text format, you must use the string representation of the number. 
+        than or equal to the upper bound. In the C# language you can use directly [decimal](https://learn.microsoft.com/en-us/dotnet/api/system.decimal) in plain text format, you must use the string representation of the number.
     </dd>
 </dl>
 
@@ -385,7 +385,7 @@ typically set by the user interface to allow the user to filter products by pric
 the [`userFilter`](behavioral.md#user-filter) constraint container so that it can be properly handled by
 the [facet](../requirements/facet.md) or [histogram](../requirements/histogram.md) computations.
 
-</LanguageSpecific>
+</LS>
 
 To demonstrate the price range constraint, let's create a query that lists products in the *E-readers* category and
 filters only those between `€150` and `€170.5`:
@@ -398,18 +398,18 @@ filters only those between `€150` and `€170.5`:
 
 The range is quite narrow, so the result set contains only a single product:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-between.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 <MDInclude sourceVariable="data.queryProduct.recordPage">[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-between.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 <MDInclude sourceVariable="recordPage">[Compare December prices with May prices](/documentation/user/en/query/filtering/examples/price/price-between.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>

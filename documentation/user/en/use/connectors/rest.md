@@ -10,11 +10,11 @@ author: 'Lukáš Hornych'
 preferredLang: 'rest'
 ---
 
-<LanguageSpecific to="evitaql,java,csharp,graphql">
-This chapter describes the REST protocol for evitaDB and doesn't make sense for other languages. If you're interested 
+<LS to="e,j,c,g">
+This chapter describes the REST protocol for evitaDB and doesn't make sense for other languages. If you're interested
 in the details of the REST implementation, please change your preferred language in the upper right corner.
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 The [REST](https://restfulapi.net/) API with an [OpenAPI schema](https://swagger.io/specification/v3/) in evitaDB has
 been developed to allow users and developers to easily query domain-specific data from evitaDB via universal well-known
 API standard that REST APIs provide.
@@ -132,4 +132,4 @@ which can even generate clients for your programming language.
 You can use any basic HTTP client your programming language supports. If you are looking for more, there are
 code generators that can generate whole typed client in your preferable language from the evitaDB's OpenAPI schemas.
 Official way of doing this is by using the [Swagger Codegen](https://swagger.io/tools/swagger-codegen/).
-</LanguageSpecific>
+</LS>

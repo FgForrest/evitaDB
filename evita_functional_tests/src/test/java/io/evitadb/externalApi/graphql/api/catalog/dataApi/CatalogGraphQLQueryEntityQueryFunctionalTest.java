@@ -3185,10 +3185,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
-		                                    index
+		                                    threshold
 		                                }
 		                                otherBuckets: buckets(requestedCount: 10) {
-		                                    index
+		                                    threshold
 		                                }
 		                            }
 		                        }
@@ -3716,12 +3716,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
 	                                otherBuckets: buckets(requestedCount: 10) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }

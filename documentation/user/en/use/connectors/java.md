@@ -1,20 +1,20 @@
 ---
 title: Java
 perex: |
-  The Java API is the native interface for communicating with evitaDB. It allows you to run evitaDB as an embedded 
-  database or to connect to a remote database server. It is designed to share common interfaces for both scenarios, 
-  allowing you to switch between embedded and remote without changing your code. This is particularly useful during 
-  development or unit testing, when you can use the embedded database and switch to the remote database in production. 
+  The Java API is the native interface for communicating with evitaDB. It allows you to run evitaDB as an embedded
+  database or to connect to a remote database server. It is designed to share common interfaces for both scenarios,
+  allowing you to switch between embedded and remote without changing your code. This is particularly useful during
+  development or unit testing, when you can use the embedded database and switch to the remote database in production.
 date: '26.10.2023'
 author: 'Ing. Jan Novotný'
 preferredLang: 'java'
 ---
 
-<LanguageSpecific to="evitaql,csharp,graphql,rest">
-This chapter describes the Java driver for evitaDB and doesn't make sense for other languages. If you're interested 
+<LS to="e,c,g,r">
+This chapter describes the Java driver for evitaDB and doesn't make sense for other languages. If you're interested
 in the details of the Java driver implementation, please change your preferred language in the upper right corner.
-</LanguageSpecific>
-<LanguageSpecific to="java">
+</LS>
+<LS to="j">
 Starting evitaDB in embedded mode is described in detail in chapter [Run evitaDB](../../get-started/run-evitadb?lang=java).
 Connecting to a remote database instance is described in chapter [Connect to a remote database](../../get-started/query-our-dataset?lang=java).
 The same applies to [query API](../../use/api/query-data?lang=java) and [write API](../../use/api/write-data?lang=java).
@@ -33,7 +33,7 @@ reached you need to call some method on it. The usual scenario would be [opening
 
 <Note type="warning">
 The <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaClient.java</SourceClass>
-keeps a pool of opened resources and should be terminated by a `close()` method when you stop using it.  
+keeps a pool of opened resources and should be terminated by a `close()` method when you stop using it.
 </Note>
 
 ### Configuration
@@ -59,8 +59,8 @@ on the client side:
     <dd>
         <p>**Default: `gRPC client at hostname`**</p>
         <p>
-          This property allows you to distinguish requests from this particular client from requests from other clients. 
-          This information can be used in logs or in the [troubleshooting](../../use/api/troubleshoot.md) process.  
+          This property allows you to distinguish requests from this particular client from requests from other clients.
+          This information can be used in logs or in the [troubleshooting](../../use/api/troubleshoot.md) process.
         </p>
     </dd>
     <dt>host</dt>
@@ -76,25 +76,25 @@ on the client side:
     <dt>systemApiPort</dt>
     <dd>
         <p>**Default: `5557`**</p>
-        <p>Identification of the server port on which the evitaDB system API is running. The system API is used to 
-        automatically set up the client certificate for mTLS or to download the server's self-signed certificate. 
-        See [TLS Configuration and Principles](../../operate/tls.md). The system API is not required if the server uses 
-        a trusted certificate and mTLS is disabled, or the server / client's private/public key pair is distributed 
+        <p>Identification of the server port on which the evitaDB system API is running. The system API is used to
+        automatically set up the client certificate for mTLS or to download the server's self-signed certificate.
+        See [TLS Configuration and Principles](../../operate/tls.md). The system API is not required if the server uses
+        a trusted certificate and mTLS is disabled, or the server / client's private/public key pair is distributed
         "manually" with the client.</p>
     </dd>
     <dt>useGeneratedCertificate</dt>
     <dd>
         <p>**Default: `true`**</p>
-        <p>When set to `true`, the client automatically downloads the root certificate of the server CA from 
-        the `system` endpoint. When set to `false`, the client expects the root certificate to be provided manually 
+        <p>When set to `true`, the client automatically downloads the root certificate of the server CA from
+        the `system` endpoint. When set to `false`, the client expects the root certificate to be provided manually
         via the `rootCaCertificatePath` property.</p>
     </dd>
     <dt>trustCertificate</dt>
     <dd>
         <p>**Default: `false`**</p>
         <p>When set to `true`, the certificate obtained from the `system` endpoint or manually through `certificatePath`
-        is automatically added to the local trust store. If set to `false` and an untrusted (self-signed) certificate is 
-        provided, it will not be trusted by the client and the connection to the server will fail. Using `true` for this 
+        is automatically added to the local trust store. If set to `false` and an untrusted (self-signed) certificate is
+        provided, it will not be trusted by the client and the connection to the server will fail. Using `true` for this
         setting in production is generally not recommended.</p>
     </dd>
     <dt>mtlsEnabled</dt>
@@ -112,41 +112,41 @@ on the client side:
     <dt>rootCaCertificatePath</dt>
     <dd>
         <p>Relative path from `certificateFolderPath` to the root certificate of the server. If the `useGeneratedCertificate`
-        flag is off, it is necessary to set a path to the manually provided certificate, otherwise the verification 
+        flag is off, it is necessary to set a path to the manually provided certificate, otherwise the verification
         process will fail and the connection will not be established.</p>
     </dd>
     <dt>certificateFileName</dt>
     <dd>
-        <p>The relative path from `certificateFolderPath` to the client certificate. Must be configured if mTLS is 
+        <p>The relative path from `certificateFolderPath` to the client certificate. Must be configured if mTLS is
         enabled and `useGeneratedCertificate` is set to `false`.</p>
     </dd>
     <dt>certificateKeyFileName</dt>
     <dd>
-        <p>The relative path from `certificateFolderPath` to the client private key. Must be configured if mTLS is 
+        <p>The relative path from `certificateFolderPath` to the client private key. Must be configured if mTLS is
         enabled and `useGeneratedCertificate` is set to `false`.</p>
     </dd>
     <dt>certificateKeyPassword</dt>
     <dd>
-        <p>The password for the client's private key (if one is set). Must be configured if mTLS is enabled and 
+        <p>The password for the client's private key (if one is set). Must be configured if mTLS is enabled and
         `useGeneratedCertificate` is set to `false`.</p>
     </dd>
     <dt>trustStorePassword</dt>
     <dd>
         <p>**Default: `trustStorePassword`**</p>
-        <p>The password for a trust store used to store server certificates. It is used when `trustCertificate` is set 
+        <p>The password for a trust store used to store server certificates. It is used when `trustCertificate` is set
         to `true`.</p>
     </dd>
     <dt>reflectionLookupBehaviour</dt>
     <dd>
         <p>**Default: `CACHE`**</p>
         <p>The behaviour of <SourceClass>evita_common/src/main/java/io/evitadb/utils/ReflectionLookup.java</SourceClass>
-        class analyzing classes for reflective information. Controls whether the once analyzed reflection information 
+        class analyzing classes for reflective information. Controls whether the once analyzed reflection information
         should be cached or freshly (and costly) retrieved each time asked.</p>
     </dd>
     <dt>waitForClose</dt>
     <dd>
         <p>**Default: `5`**</p>
-        <p>Number of `waitForCloseUnit` client should wait for opened connection to terminate gracefully before killing 
+        <p>Number of `waitForCloseUnit` client should wait for opened connection to terminate gracefully before killing
         them by force.</p>
     </dd>
     <dt>waitForCloseUnit</dt>
@@ -158,7 +158,7 @@ on the client side:
 
 <Note type="warning">
 If `mTLS` is enabled on the server side and `useGeneratedCertificate` is set to `false`, you must provide your
-manually generated certificate in settings `certificatePath` and `certificateKeyPath`, otherwise the verification 
+manually generated certificate in settings `certificatePath` and `certificateKeyPath`, otherwise the verification
 process will fail and the connection will not be established.
 </Note>
 
@@ -168,26 +168,26 @@ Both catalog and entity schemas are used quite often - every retrieved entity ha
 time, the schema is quite complex and doesn't change often. It is therefore beneficial to cache the schema on the client
 and avoid fetching it from the server every time it is needed.
 
-The cache is handled by the <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaEntitySchemaCache.java</SourceClass> 
+The cache is handled by the <SourceClass>evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver/EvitaEntitySchemaCache.java</SourceClass>
 class which handles two schema access scenarios:
 
 #### Accessing last schema versions
 
-The client maintains the last known schema versions for each catalog. This cache is invalidated each time a schema is 
-changed by that particular client, the collection is renamed or deleted, or the client fetches an entity that uses 
+The client maintains the last known schema versions for each catalog. This cache is invalidated each time a schema is
+changed by that particular client, the collection is renamed or deleted, or the client fetches an entity that uses
 a schema version that is newer than the one cached as the last entity schema version.
 
 #### Accessing specific schema versions
 
-The client also maintains a cache of specific schema versions. Each time a client fetches an entity, the entity returned 
-from the server side carries information about the schema version it refers to. The client tries to find the schema of 
+The client also maintains a cache of specific schema versions. Each time a client fetches an entity, the entity returned
+from the server side carries information about the schema version it refers to. The client tries to find the schema of
 that particular version in its cache, and if it is not found, it fetches it from the server and caches it. The cache is
 invalidated once in a while (every minute) and the old schemas that have not been used for a long time (4 hours) are
 removed.
 
 <Note type="info">
 
-The above intervals are not currently configurable because we believe they are optimal for most use cases. If you need 
+The above intervals are not currently configurable because we believe they are optimal for most use cases. If you need
 to change them, please contact us with your specific use case and we will consider adding the configuration option.
 
 </Note>
@@ -201,22 +201,22 @@ The Java API contains only two forms of the data model interfaces:
 2. <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>
    which represents a partial or complete form of the entity with its data
 
-Both are valid and easy-to-use data structures, but neither speaks the language of your business domain. Developers 
+Both are valid and easy-to-use data structures, but neither speaks the language of your business domain. Developers
 generally prefer to work with their own domain objects, and we understand that. Their application would usually wrap
 the evitaDB model classes into their domain objects, which would require tedious manual work.
 
-To make this process easier, we have created a custom contract API that allows you to define your own domain objects 
-and map them to evitaDB entities. Model objects can be used to define entity schemas as well as to read and write 
-entities from and to the database. Custom contracts use [ByteBuddy](https://bytebuddy.net/#/) and [Proxycian](https://github.com/FgForrest/Proxycian) 
-library to create dynamic proxies of your domain objects. There is a small performance overhead associated with this, 
-but it is negligible compared to the time spent on communication with the database. The API is optional and can be used 
+To make this process easier, we have created a custom contract API that allows you to define your own domain objects
+and map them to evitaDB entities. Model objects can be used to define entity schemas as well as to read and write
+entities from and to the database. Custom contracts use [ByteBuddy](https://bytebuddy.net/#/) and [Proxycian](https://github.com/FgForrest/Proxycian)
+library to create dynamic proxies of your domain objects. There is a small performance overhead associated with this,
+but it is negligible compared to the time spent on communication with the database. The API is optional and can be used
 in parallel to the standard API.
 
 ### Runtime requirements
 
-The custom contracts API uses Java proxies under the hood which requires the [Proxycian](https://github.com/FgForrest/Proxycian) 
+The custom contracts API uses Java proxies under the hood which requires the [Proxycian](https://github.com/FgForrest/Proxycian)
 library to be present on classpath at runtime. Because the API is optional, we didn't want to bloat the evitaDB
-JAR with the Proxycian library. However, when developer wants to use the custom contracts API, the Proxycian library 
+JAR with the Proxycian library. However, when developer wants to use the custom contracts API, the Proxycian library
 needs to be added as dependency:
 
 ```xml
@@ -227,7 +227,7 @@ needs to be added as dependency:
 </dependency>
 ```
 
-and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html), 
+and also, if the application uses [Java Modules](https://www.oracle.com/corporate/features/understanding-java-9-modules.html),
 the `--add-modules` parameter needs to be used
 
 ```shell
@@ -274,9 +274,9 @@ Writing data using custom contracts is described in detail in the [write API cha
 
 ### Data modeling recommendations
 
-You can define a single interface for both reading and writing data in evitaDB. However, it is recommended to separate 
-the read and write interfaces and to use different instances of the data objects for these purposes. In other words, 
-to follow similar principles that evitaDB is based on and uses itself. Although this may seem more complex in 
+You can define a single interface for both reading and writing data in evitaDB. However, it is recommended to separate
+the read and write interfaces and to use different instances of the data objects for these purposes. In other words,
+to follow similar principles that evitaDB is based on and uses itself. Although this may seem more complex in
 the beginning, it will pay off in the long run. The reasons behind this idea are:
 
 1. the read instances remain immutable and can be safely shared between threads and cached in shared memory
@@ -294,14 +294,14 @@ You define an interface or class with final fields that are initialized in the c
 
 </SourceCodeTabs>
 
-As you can see, the interface looks exactly like the [example in the Schema API chapter](../../use/api/schema-api.md#declarative-schema-definition) 
-with the only difference that this version extends the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedInstance.java</SourceClass> 
-interface. The declaration signals that `<READ_INTERFACE>` is the `Product` interface and `<WRITE_INTERFACE>` is 
+As you can see, the interface looks exactly like the [example in the Schema API chapter](../../use/api/schema-api.md#declarative-schema-definition)
+with the only difference that this version extends the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedInstance.java</SourceClass>
+interface. The declaration signals that `<READ_INTERFACE>` is the `Product` interface and `<WRITE_INTERFACE>` is
 the `ProductEditor` interface.
 
 <Note type="info">
 
-We expect that the read interface will be used both to read your data and to define the schema structure. It's good 
+We expect that the read interface will be used both to read your data and to define the schema structure. It's good
 practice to keep the schema definition and the data access interface in the same place.
 
 </Note>
@@ -316,7 +316,7 @@ Then you define a separate interface to modify the data:
 
 </SourceCodeTabs>
 
-Note that this interface extends the `Product` interface and adds methods for modifying the data. It also extends 
+Note that this interface extends the `Product` interface and adds methods for modifying the data. It also extends
 the <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/InstanceEditor.java</SourceClass> interface
 and specifies that the `<READ_INTERFACE>` is the `Product` interface.
 
@@ -330,7 +330,7 @@ Now we can use the interfaces described above in the following way:
 
 </SourceCodeTabs>
 
-The sealed/open principle is a bit more complex than the naive approach of using a single interface for both reading and 
-writing data, but it clearly separates the read and write scenarios, allowing you to maintain control over mutations and 
+The sealed/open principle is a bit more complex than the naive approach of using a single interface for both reading and
+writing data, but it clearly separates the read and write scenarios, allowing you to maintain control over mutations and
 their visibility in a multi-threaded environment.
-</LanguageSpecific>
+</LS>

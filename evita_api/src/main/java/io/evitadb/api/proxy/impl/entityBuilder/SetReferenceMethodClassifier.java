@@ -304,10 +304,13 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 		final Object referenceProxy = reference
 			.map(referenceContract -> theState.getOrCreateEntityReferenceProxy((Class<Object>) expectedType, referenceContract))
 			.orElseGet(
-				() -> theState.createEntityReferenceProxy(
-					theState.getEntitySchema(), referenceSchema, (Class<Object>) expectedType, ProxyType.REFERENCE,
-					referencedId
-				)
+				() -> {
+					theState.entityBuilder().setReference(referenceSchema.getName(), referencedId);
+					return theState.createEntityReferenceProxy(
+						theState.getEntitySchema(), referenceSchema, (Class<Object>) expectedType, ProxyType.REFERENCE,
+						referencedId
+					);
+				}
 			);
 		//noinspection unchecked
 		final Consumer<Object> consumer = (Consumer<Object>) args[consumerLocation];
@@ -461,6 +464,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 	) {
 		final EntityBuilder entityBuilder = theState.entityBuilder();
 		final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[referenceIdLocation], int.class);
+		entityBuilder.setReference(referenceSchema.getName(), referencedId);
 		final Object referencedEntityInstance = theState.createEntityReferenceProxy(
 			theState.getEntitySchema(),
 			referenceSchema,
@@ -468,7 +472,6 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			ProxyType.REFERENCE,
 			referencedId
 		);
-		entityBuilder.setReference(referenceSchema.getName(), referencedId);
 		//noinspection unchecked
 		final Consumer<Object> consumer = (Consumer<Object>) args[consumerLocation];
 		consumer.accept(referencedEntityInstance);
@@ -634,6 +637,7 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			final Collection<ReferenceContract> references = theState.entityBuilder()
 				.getReferences(referenceName);
 			if (references.isEmpty()) {
+				theState.entityBuilder().setReference(referenceSchema.getName(), referencedId);
 				return theState.createEntityReferenceProxy(
 					theState.getEntitySchema(), referenceSchema, expectedType, ProxyType.REFERENCE,
 					referencedId
@@ -1738,15 +1742,14 @@ public class SetReferenceMethodClassifier extends DirectMethodClassification<Obj
 			return (proxy, theMethod, args, theState, invokeSuper) -> {
 				final EntityBuilder entityBuilder = theState.entityBuilder();
 				final int referencedId = EvitaDataTypes.toTargetType((Serializable) args[0], int.class);
-				final Object referencedEntityInstance = theState.createEntityReferenceProxy(
+				entityBuilder.setReference(referenceSchema.getName(), referencedId);
+				return theState.createEntityReferenceProxy(
 					theState.getEntitySchema(),
 					referenceSchema,
 					expectedType,
 					ProxyType.REFERENCE,
 					referencedId
 				);
-				entityBuilder.setReference(referenceSchema.getName(), referencedId);
-				return referencedEntityInstance;
 			};
 		}
 	}
