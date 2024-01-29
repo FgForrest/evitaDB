@@ -74,7 +74,6 @@ import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
@@ -705,9 +704,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
 		}
-
-		final Optional<Transaction> transactionRef = Transaction.getTransaction();
-		transactionRef.ifPresent(it -> it.registerMutation(new ModifyEntitySchemaMutation(getEntityType(), schemaMutation)));
 
 		final SealedEntitySchema schemaResult = getSchema();
 		this.catalogAccessor.get().entitySchemaUpdated(schemaResult);

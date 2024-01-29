@@ -130,7 +130,7 @@ public class SortIndex implements SortedRecordsSupplierFactory, TransactionalLay
 	private final Comparator<?> comparator;
 	/**
 	 * Temporary data structure that should be NULL and should exist only when {@link Catalog} is in
-	 * bulk insertion or read only state where transactions are not used.
+	 * bulk insertion or read only state where transaction are not used.
 	 */
 	private SortIndexChanges sortIndexChanges;
 

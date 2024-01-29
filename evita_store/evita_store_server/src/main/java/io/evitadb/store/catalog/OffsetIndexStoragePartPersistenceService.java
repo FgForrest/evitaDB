@@ -58,7 +58,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	 */
 	protected final String name;
 	/**
-	 * Configuration settings related to transactions.
+	 * Configuration settings related to transaction.
 	 */
 	@Nonnull
 	protected final TransactionOptions transactionOptions;

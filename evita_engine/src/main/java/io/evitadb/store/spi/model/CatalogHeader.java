@@ -33,11 +33,11 @@ import io.evitadb.store.service.KeyCompressor;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
+import io.evitadb.store.spi.model.storageParts.StoragePartKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -45,21 +45,28 @@ import java.util.Optional;
 import static java.util.Optional.ofNullable;
 
 /**
- * Catalog header contains crucial information to read data from a single data storage file. The catalog header needs
- * to be stored in {@link CatalogHeader} and maps the data maintained by {@link Catalog} object.
+ * Catalog header contains all information necessary to fully restore catalog state and indexes in memory from
+ * persistent storage. It contains leading information to all entity collections and their indexes in
+ * {@link #collectionFileIndex} and also information about compressed keys in {@link #compressedKeys} necessary for
+ * correct deserialization.
  *
- * TODO JNO - UPDATE DOCUMENTATION
- *
- * @param catalogName contains name of the catalog that originates in {@link CatalogSchema#getName()}
+ * @param storageProtocolVersion         contains the version of the storage protocol that is incremented with each
+ *                                       backward incompatible change
+ * @param walFileReference               contains the reference to the current WAL file related to this catalog and last
+ *                                       processed transaction
+ * @param collectionFileIndex            contains the mapping of entity type to {@link CollectionFileReference} that
+ *                                       contains the information about the entity collection file
+ * @param compressedKeys                 contains mapping of certain parts of {@link StoragePartKey} to an integer id
+ *                                       that is used for compression of the original storage key
+ * @param catalogName                    contains name of the catalog that originates in {@link CatalogSchema#getName()}
+ * @param catalogState                   contains the state of the catalog that originates in {@link Catalog#getCatalogState()}
  * @param lastEntityCollectionPrimaryKey contains the last assigned {@link EntityCollection#getEntityTypePrimaryKey()}
- *
- * @see PersistentStorageHeader
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @see PersistentStorageHeader
  */
 public record CatalogHeader(
 	int storageProtocolVersion,
 	long version,
-	/* TODO JNO - tady bude odkaz do WAL logu, na místo poslední kompletně zpracované transakce */
 	@Nullable WalFileReference walFileReference,
 	@Nonnull Map<String, CollectionFileReference> collectionFileIndex,
 	@Nonnull Map<Integer, Object> compressedKeys,
@@ -96,12 +103,16 @@ public record CatalogHeader(
 	/**
 	 * Returns list of all known entity types registered in this header.
 	 */
+	@Nonnull
 	public Collection<CollectionFileReference> getEntityTypeFileIndexes() {
 		return collectionFileIndex.values();
 	}
 
 	/**
-	 * Returns {@link EntityCollection} file {@link CollectionFileReference} for specified `entityType` if it's known to this header.
+	 * Returns {@link EntityCollection} file {@link CollectionFileReference} for specified `entityType` if it's known
+	 * to this header.
+	 *
+	 * @throws CollectionNotFoundException if `entityType` is not known to this header
 	 */
 	@Nonnull
 	public Optional<CollectionFileReference> getEntityTypeFileIndexIfExists(@Nonnull String entityType) throws CollectionNotFoundException {
@@ -109,28 +120,7 @@ public record CatalogHeader(
 	}
 
 	/**
-	 * Returns {@link EntityCollection} file {@link CollectionFileReference} for specified `entityType` if it's known to this header.
-	 *
-	 * @throws CollectionNotFoundException if the `entityType` is not known to this header.
-	 */
-	@Nonnull
-	public CollectionFileReference getEntityTypeFileIndex(@Nonnull String entityType) throws CollectionNotFoundException {
-		return getEntityTypeFileIndexIfExists(entityType)
-			.orElseThrow(() -> new CollectionNotFoundException(entityType));
-	}
-
-	/**
-	 * Returns {@link EntityCollection} file path for specified `entityType` if it's known to this header.
-	 *
-	 * @throws CollectionNotFoundException if the `entityType` is not known to this header.
-	 */
-	@Nonnull
-	public Path getEntityTypeFilePath(@Nonnull String entityType, @Nonnull Path catalogFolder) throws CollectionNotFoundException {
-		return getEntityTypeFileIndex(entityType).toFilePath(catalogFolder);
-	}
-
-	/**
-	 * Returns true if catalog supports transactions.
+	 * Returns true if catalog supports transaction.
 	 */
 	public boolean supportsTransaction() {
 		return catalogState == CatalogState.ALIVE;

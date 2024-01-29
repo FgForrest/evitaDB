@@ -30,7 +30,6 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
-import io.evitadb.api.TransactionContract;
 import io.evitadb.api.TransactionContract.CommitBehaviour;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
@@ -1311,29 +1310,6 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @return
-	 */
-	@Nonnull
-	public Optional<TransactionContract> getTransaction() {
-		// TODO JNO - implement me
-		return Optional.empty();
-	}
-
-	/**
-	 * Returns the EntitySchemaContract for the given entityType.
-	 *
-	 * @param entityType the type of entity
-	 * @return an Optional containing the EntitySchemaContract if it exists,
-	 * otherwise an empty Optional
-	 */
-	@Nonnull
-	private Optional<EntitySchemaContract> getEntitySchemaContract(String entityType) {
-		return this.getEntitySchema(entityType)
-			.map(EntitySchemaContract.class::cast);
-	}
-
-	/**
 	 * Delegates call to internal {@link #proxyFactory#createEntityProxy(Class, SealedEntity, Map)}.
 	 *
 	 * @param contract     contract of the entity to be created
@@ -1745,7 +1721,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			throw new TransactionNotSupportedException("Transaction cannot be opened in read only session!");
 		}
 		if (getCatalogState() == CatalogState.WARMING_UP) {
-			throw new TransactionNotSupportedException("Catalog " + getCatalogName() + " doesn't support transactions yet. Call `goLiveAndClose()` method first!");
+			throw new TransactionNotSupportedException("Catalog " + getCatalogName() + " doesn't support transaction yet. Call `goLiveAndClose()` method first!");
 		}
 
 		final GrpcTransactionResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->

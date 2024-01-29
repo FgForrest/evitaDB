@@ -71,7 +71,7 @@ public final class Transaction implements TransactionContract {
 	 */
 	@Getter private final TransactionalMemory transactionalMemory;
 	/**
-	 * This class provides methods for handling transactions = registering mutations and interpreting commit / rollback
+	 * This class provides methods for handling transaction = registering mutations and interpreting commit / rollback
 	 * actions.
 	 */
 	private final TransactionHandler transactionHandler;

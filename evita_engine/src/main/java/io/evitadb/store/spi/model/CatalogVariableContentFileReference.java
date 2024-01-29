@@ -30,7 +30,9 @@ import java.io.Serializable;
 import java.nio.file.Path;
 
 /**
- * TODO JNO - document me
+ * Interface defines shared methods for referencing files with records with variable length. Such files require
+ * a header to be stored in the file allowing to read the records in the file. The header is stored in the file
+ * among other records and the reference needs to provide its location in order to be able to read it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -45,13 +47,27 @@ public interface CatalogVariableContentFileReference extends Serializable {
 	@Nonnull
 	Path toFilePath(@Nonnull Path catalogFolder);
 
+	/**
+	 * Returns the numeric index of the file that is increased with each major operation with the file (vacuuming,
+	 * renaming, rotating).
+	 *
+	 * @return the index of the file
+	 */
 	int fileIndex();
 
+	/**
+	 * Returns the location of the header in the file.
+	 * @return the location of the header in the file
+	 */
 	@Nonnull
 	FileLocation fileLocation();
 
 	/**
-	 * TODO JNO - document me
+	 * Increments the file index and returns a reference to the incremented value.
+	 * This method is typically used after major operations with the file, such as vacuuming,
+	 * renaming, or rotating.
+	 *
+	 * @return a reference to the incremented file index
 	 */
 	@Nonnull
 	CatalogVariableContentFileReference incrementAndGet();

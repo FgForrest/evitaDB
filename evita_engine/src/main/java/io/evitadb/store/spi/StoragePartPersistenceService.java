@@ -42,8 +42,11 @@ import java.util.stream.Stream;
 public interface StoragePartPersistenceService extends Closeable {
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Creates a transactional service for StoragePartPersistenceService.
+	 * This method creates a transactional service using the provided transactionId.
+	 *
+	 * @param transactionId The UUID representing the transaction.
+	 * @return The created StoragePartPersistenceService as a transactional service.
 	 */
 	@Nonnull
 	StoragePartPersistenceService createTransactionalService(@Nonnull UUID transactionId);

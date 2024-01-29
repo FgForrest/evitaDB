@@ -26,6 +26,7 @@ package io.evitadb.store.spi.model.reference;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.model.CatalogVariableContentFileReference;
+import io.evitadb.store.spi.model.EntityCollectionHeader;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -33,7 +34,13 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 
 /**
- * TODO JNO - document me
+ * Represents a reference to a file that contains the data for particular entity collection.
+ *
+ * @param entityType           The entity type.
+ * @param entityTypePrimaryKey The entity type primary key.
+ * @param fileIndex            The file index that is incremented for each new file during vacuuming and renaming
+ *                             operations
+ * @param fileLocation         Location of the {@link EntityCollectionHeader} in the file
  */
 public record CollectionFileReference(
 	@Nonnull String entityType,

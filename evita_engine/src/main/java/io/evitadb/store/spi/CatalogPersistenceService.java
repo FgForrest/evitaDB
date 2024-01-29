@@ -112,13 +112,6 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	}
 
 	/**
-	 * Returns path to directory where the catalog files are persisted.
-	 * @return path to directory where the catalog files are persisted
-	 */
-	@Nonnull
-	Path getCatalogStoragePath();
-
-	/**
 	 * Retrieves the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}.
 	 *
 	 * @return the {@link CatalogStoragePartPersistenceService} associated with this {@link CatalogPersistenceService}
@@ -231,7 +224,11 @@ public non-sealed interface CatalogPersistenceService extends PersistenceService
 	void deleteEntityCollection(@Nonnull String entityType);
 
 	/**
-	 * TODO JNO - document me
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the catalog to the given version.
+	 *
+	 * @param catalogVersion version of the catalog to start the stream with
+	 * @return a stream containing committed mutations
 	 */
 	@Nonnull
 	Stream<Mutation> getCommittedMutationStream(long catalogVersion);

@@ -48,7 +48,7 @@ public enum GrpcCommitBehaviour
    * is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
    * (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
    * slower than {&#64;link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
-   * may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
+   * may decide to fsync changes from multiple transaction at once, so the transaction may wait longer than
    * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
    * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
    * This behaviour is default.
@@ -89,7 +89,7 @@ public enum GrpcCommitBehaviour
    * is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
    * (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
    * slower than {&#64;link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
-   * may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
+   * may decide to fsync changes from multiple transaction at once, so the transaction may wait longer than
    * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
    * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
    * This behaviour is default.

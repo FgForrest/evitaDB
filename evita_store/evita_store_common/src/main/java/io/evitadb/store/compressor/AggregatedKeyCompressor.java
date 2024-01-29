@@ -28,14 +28,18 @@ import io.evitadb.store.service.KeyCompressor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serial;
 import java.util.Map;
 
 /**
- * TODO JNO - document me
+ * The AggregatedKeyCompressor class implements the KeyCompressor interface and represents a compressor that combines
+ * multiple compressors into one. It allows for the translation of complex keys into integer values, reducing the size
+ * of serialized data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class AggregatedKeyCompressor implements KeyCompressor {
+	@Serial private static final long serialVersionUID = -7472620175417905920L;
 	@Nonnull private final KeyCompressor[] compressors;
 
 	public AggregatedKeyCompressor(@Nonnull KeyCompressor... compressors) {

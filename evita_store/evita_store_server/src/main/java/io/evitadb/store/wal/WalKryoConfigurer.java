@@ -111,7 +111,7 @@ import java.util.function.Consumer;
  */
 public class WalKryoConfigurer implements Consumer<Kryo> {
 	public static final WalKryoConfigurer INSTANCE = new WalKryoConfigurer();
-	private static final int WAL_BASE = 300;
+	private static final int WAL_BASE = 400;
 
 	@Override
 	public void accept(@Nonnull Kryo kryo) {
@@ -216,7 +216,7 @@ public class WalKryoConfigurer implements Consumer<Kryo> {
 
 		kryo.register(TransactionMutation.class, new SerialVersionBasedSerializer<>(new TransactionMutationSerializer(), TransactionMutation.class), index++);
 
-		Assert.isPremiseValid(index < 400, "Index count overflow.");
+		Assert.isPremiseValid(index < 500, "Index count overflow.");
 	}
 
 }

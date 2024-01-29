@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
  *
  * Storage keys represents a way how to postpone persistence of frequently modified data structures such as
  * {@link io.evitadb.index.EntityIndex EntityIndexes} so that multiple entities can alter them in a single or multiple
- * serially executed transactions and persist them at the end so that I/O is minimized.
+ * serially executed transaction and persist them at the end so that I/O is minimized.
  *
  * @param originalKey    The original key must uniquely identify the record among all other records both of the same type. You need to be able
  *                       to fully compute {@link StoragePart#getStoragePartPK()} based on information stored in this key. The key

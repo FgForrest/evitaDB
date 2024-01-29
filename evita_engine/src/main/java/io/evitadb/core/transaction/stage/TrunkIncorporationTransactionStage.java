@@ -45,8 +45,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This stage of transaction processing reads the changes recorded in the WAL and applies them to the last snapshot
- * of the catalog. This task tries to execute the transactions greedily within the given timeout, so it may process
- * multiple transactions for each arrived task. It's because the merging of the diff changes in a transactional
+ * of the catalog. This task tries to execute the transaction greedily within the given timeout, so it may process
+ * multiple transaction for each arrived task. It's because the merging of the diff changes in a transactional
  * memory layer is an expensive operation and we want to minimize the number of such operations.
  *
  * Upon already performed task arrival, the task is immediately marked as processed and the processing is skipped.
@@ -63,7 +63,7 @@ public final class TrunkIncorporationTransactionStage
 	 */
 	private final AtomicReference<Catalog> liveCatalog;
 	/**
-	 * The timeout in nanoseconds determining the maximum time the task is allowed to consume multiple transactions.
+	 * The timeout in nanoseconds determining the maximum time the task is allowed to consume multiple transaction.
 	 * It might be exceeded if the single transaction processing takes too long, but if the single transaction is very
 	 * fast it tries to process next one until the timeout is exceeded.
 	 */
@@ -78,7 +78,7 @@ public final class TrunkIncorporationTransactionStage
 	 */
 	private Catalog catalog;
 	/**
-	 * Contains the ID of the last finalized transaction. This is used to skip already processed transactions.
+	 * Contains the ID of the last finalized transaction. This is used to skip already processed transaction.
 	 */
 	private UUID lastFinalizedTransactionId;
 	/**

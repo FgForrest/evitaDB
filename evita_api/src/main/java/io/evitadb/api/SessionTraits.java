@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ public record SessionTraits(
 	}
 
 	/**
-	 * When TRUE all opened transactions will be rolled back on close, even though the session is
+	 * When TRUE all opened transaction will be rolled back on close, even though the session is
 	 * read-write no change would really occur.
 	 */
 	public boolean isDryRun() {
@@ -91,7 +91,7 @@ public record SessionTraits(
 	public enum SessionFlags {
 
 		/**
-		 * When flag is used all opened transactions will be rolled back on close, even though the session is
+		 * When flag is used all opened transaction will be rolled back on close, even though the session is
 		 * read-write no change would really occur.
 		 */
 		DRY_RUN,

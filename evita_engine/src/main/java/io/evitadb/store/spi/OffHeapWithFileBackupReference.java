@@ -33,14 +33,24 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * TODO JNO - document me
+ * Represents an off-heap data reference with file backup. It contains either a path to the WAL file on disk or
+ * a reference to a byte buffer.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public final class OffHeapWithFileBackupReference {
-
-	private final Path filePath;
-	private final ByteBuffer buffer;
+	/**
+	 * Path to the WAL file on disk (if the data did not fit into the off-heap buffer or there was no empty buffer
+	 * available at the time).
+	 */
+	@Nullable private final Path filePath;
+	/**
+	 * Reference to the off-heap buffer (if the data fit into the off-heap buffer).
+	 */
+	@Nullable private final ByteBuffer buffer;
+	/**
+	 * The length of the data (correctly set both for data in buffer and data in file).
+	 */
 	@Getter private final int contentLength;
 
 	private OffHeapWithFileBackupReference(@Nullable Path filePath, @Nullable ByteBuffer buffer, int contentLength) {
@@ -49,21 +59,45 @@ public final class OffHeapWithFileBackupReference {
 		this.contentLength = contentLength;
 	}
 
+	/**
+	 * Creates an OffHeapWithFileBackupReference object with the provided file path and content length.
+	 *
+	 * @param filePath       The path to the WAL file on disk.
+	 * @param contentLength  The length of the data.
+	 * @return An OffHeapWithFileBackupReference object.
+	 */
 	@Nonnull
 	public static OffHeapWithFileBackupReference withFilePath(@Nonnull Path filePath, int contentLength) {
 		return new OffHeapWithFileBackupReference(Objects.requireNonNull(filePath), null, contentLength);
 	}
 
+	/**
+	 * Creates an OffHeapWithFileBackupReference object with the provided ByteBuffer and buffer peak.
+	 *
+	 * @param buffer The ByteBuffer containing the data.
+	 * @param bufferPeak The peak value of the buffer.
+	 * @return An OffHeapWithFileBackupReference object.
+	 */
 	@Nonnull
 	public static OffHeapWithFileBackupReference withByteBuffer(@Nonnull ByteBuffer buffer, int bufferPeak) {
 		return new OffHeapWithFileBackupReference(null, Objects.requireNonNull(buffer), bufferPeak);
 	}
 
+	/**
+	 * Retrieves the file path associated with the OffHeapWithFileBackupReference object.
+	 *
+	 * @return An Optional containing the file path, or an empty Optional if the file path is null.
+	 */
 	@Nonnull
 	public Optional<Path> getFilePath() {
 		return Optional.ofNullable(filePath);
 	}
 
+	/**
+	 * Retrieves the ByteBuffer object associated with the OffHeapWithFileBackupReference object.
+	 *
+	 * @return An Optional containing the ByteBuffer object, or an empty Optional if the ByteBuffer is null.
+	 */
 	@Nonnull
 	public Optional<ByteBuffer> getBuffer() {
 		return Optional.ofNullable(buffer);

@@ -112,11 +112,11 @@ import static java.util.Optional.ofNullable;
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
  * to have session per request, in batch processing it's recommended to keep session per "record page" or "transaction".
- * There may be multiple {@link Transaction transactions} during single session instance life but there is no support
+ * There may be multiple {@link Transaction transaction} during single session instance life but there is no support
  * for transactional overlap - there may be at most single transaction open in single session.
  *
- * EvitaSession transactions behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
- * transactions. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
+ * EvitaSession transaction behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
+ * transaction. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
  *
  * Don't forget to {@link #close()} when your work with Evita is finished.
@@ -637,18 +637,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public SealedEntitySchema updateAndFetchEntitySchema(@Nonnull ModifyEntitySchemaMutation schemaMutation) throws SchemaAlteringException {
 		assertActive();
 		return executeInTransactionIfPossible(session -> {
-			final String entityType = schemaMutation.getEntityType();
-			final EntityCollectionContract entityCollection = getCatalog().getOrCreateCollectionForEntity(entityType, session);
-			final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
-			if (ArrayUtils.isEmpty(schemaMutation.getSchemaMutations())) {
-				return currentEntitySchema;
-			}
-			final SealedCatalogSchema catalogSchema = getCatalogSchema();
-			// validate the new schema version before any changes are applied
-			currentEntitySchema.withMutations(schemaMutation)
-				.toInstance()
-				.validate(catalogSchema);
-			return entityCollection.updateSchema(catalogSchema, schemaMutation);
+			getCatalog().updateSchema(schemaMutation);
+			return getEntitySchemaOrThrow(schemaMutation.getEntityType());
 		});
 	}
 
@@ -1095,9 +1085,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	/**
 	 * Method will exchange reference to the current catalog. This method is called everytime the catalog contents are
 	 * modified (committed) so that the changes can be safely visible and usable in all other active sessions. The new
-	 * contract must not affect the reference held in currently open {@link Transaction} - since the transactions are
+	 * contract must not affect the reference held in currently open {@link Transaction} - since the transaction are
 	 * guaranteed to have SNAPSHOT isolation. But newly opened transaction in the session will see the changes from
-	 * other concurrent transactions.
+	 * other concurrent transaction.
 	 */
 	void updateCatalogReference(@Nonnull CatalogContract catalog) {
 		Assert.isPremiseValid(
@@ -1287,7 +1277,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private void assertTransactionIsNotOpened() {
 		if (transactionAccessor.get() != null) {
-			throw new UnexpectedTransactionStateException("Transaction has been already opened. Evita doesn't support nested transactions!");
+			throw new UnexpectedTransactionStateException("Transaction has been already opened. Evita doesn't support nested transaction!");
 		}
 	}
 
@@ -1300,7 +1290,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			throw new TransactionNotSupportedException("Transaction cannot be opened in read only session!");
 		}
 		if (!getCatalog().supportsTransaction()) {
-			throw new TransactionNotSupportedException("Catalog " + getCatalog().getName() + " doesn't support transactions yet. Call `goLiveAndClose()` method first!");
+			throw new TransactionNotSupportedException("Catalog " + getCatalog().getName() + " doesn't support transaction yet. Call `goLiveAndClose()` method first!");
 		}
 		final Transaction tx = createTransaction(commitBehaviour);
 		transactionAccessor.getAndUpdate(transaction -> {

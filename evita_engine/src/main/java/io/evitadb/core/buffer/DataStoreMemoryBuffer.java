@@ -94,7 +94,7 @@ public class DataStoreMemoryBuffer<IK extends IndexKey, I extends Index<IK>, DSC
 	 * are written only in the transactional layer and persisted at moment when transaction is committed. When
 	 * transaction is not opened the changes are not immediately written to the persistent storage but trapped in shared
 	 * memory and will be written when buffer is flushed. This is usually the case when entity index is just being
-	 * created for the first time and the transactions were not yet enabled on it.
+	 * created for the first time and the transaction were not yet enabled on it.
 	 */
 	public I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		final DataStoreChanges<IK, I> layer = getTransactionalMemoryLayer(transactionalMemoryDataSource);

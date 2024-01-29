@@ -26,6 +26,7 @@ package io.evitadb.store.wal;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
+import io.evitadb.store.compressor.ReadOnlyKeyCompressor;
 import io.evitadb.store.entity.EntityStoragePartConfigurer;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,8 +67,9 @@ class TransactionalStoragePartPersistenceServiceTest {
 
 	@BeforeEach
 	public void setUp() {
-		offHeapMemoryManager = new OffHeapMemoryManager(2048, 1);
-		delegateService = mock(StoragePartPersistenceService.class);
+		this.offHeapMemoryManager = new OffHeapMemoryManager(2048, 1);
+		this.delegateService = mock(StoragePartPersistenceService.class);
+		when(this.delegateService.getReadOnlyKeyCompressor()).thenReturn(new ReadOnlyKeyCompressor(Map.of()));
 		final StorageOptions storageOptions = StorageOptions.builder().build();
 		final TransactionOptions transactionOptions = TransactionOptions.builder().build();
 		final ObservableOutputKeeper observableOutputKeeper = mock(ObservableOutputKeeper.class);

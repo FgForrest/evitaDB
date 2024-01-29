@@ -42,6 +42,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static io.evitadb.utils.BitUtils.isBitSet;
+import static io.evitadb.utils.BitUtils.setBit;
+
 /**
  * This class represents wrapper for any binary content, that needs to be stored / was already stored in file storage.
  * When this instance of this data wrapper exists it means data are present in the data store.
@@ -62,8 +65,6 @@ public record StorageRecord<T>(
 ) {
 	/**
 	 * CRC not covered head 5B: length(int), control (byte)
-	 *
-	 * jej i při čtení započítat do CRC výpočtu i když jakoby ani čtený není, protože je na začátku záznamu
 	 */
 	public static final int CRC_NOT_COVERED_HEAD = 4 + 1;
 	/**
@@ -80,8 +81,6 @@ public record StorageRecord<T>(
 	public static final byte CONTINUATION_BIT = 2;
 	/**
 	 * Third bit of control byte marks that record has CRC32 calculated.
-	 *
-	 * TODO JNO - implement
 	 */
 	public static final byte CRC32_BIT = 3;
 
@@ -90,26 +89,6 @@ public record StorageRecord<T>(
 	 */
 	public static int getOverheadSize() {
 		return OVERHEAD_SIZE;
-	}
-
-	/**
-	 * Sets bit at specified position to 1 in an arbitrary byte value. Only bit at specified index is changed, other
-	 * bits stay the same.
-	 */
-	public static byte setBit(byte encoded, byte index, boolean bit) {
-		byte bits = (byte) ((byte) 1 << index);
-		if (bit) {
-			return (byte) (encoded | bits);
-		} else {
-			return (byte) (encoded & (~bits));
-		}
-	}
-
-	/**
-	 * Reads bit at specified position and returns TRUE if bit is set to 1.
-	 */
-	public static boolean isBitSet(byte encoded, byte index) {
-		return ((encoded & 0xff) & (1 << index)) != 0;
 	}
 
 	/**
@@ -206,7 +185,15 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Reads a storage record from the input stream.
+	 *
+	 * @param input         The input stream to read from.
+	 * @param location      The file location of the record.
+	 * @param control       The control byte of the record.
+	 * @param assertion     An optional assertion to be performed on the file location.
+	 * @param payloadReader A supplier for reading the payload of the record.
+	 * @param <T>           The type of the payload.
+	 * @return The storage record read from the input stream.
 	 */
 	@Nonnull
 	private static <T> StorageRecord<T> doReadStorageRecord(
@@ -270,16 +257,17 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Writes a record to the specified output stream with the given transaction id and payload writer.
 	 *
-	 * @param output
-	 * @param transactionId
-	 * @param closesTransaction
-	 * @param payloadWriter
-	 * @return
-	 * @param <T>
-	 * @param <OS>
+	 * @param output            The output stream to write the record to.
+	 * @param transactionId     The transaction id of the record.
+	 * @param closesTransaction A flag indicating whether the record closes the transaction.
+	 * @param payloadWriter     The payload writer function that writes the payload to the output stream.
+	 * @param <T>               The type of the payload.
+	 * @param <OS>              The type of the output stream.
+	 * @return A {@link PayloadWithFileLocation} object containing the payload and file location of the written record.
 	 */
+	@Nonnull
 	private static <T, OS extends OutputStream> PayloadWithFileLocation<T> writeRecord(
 		@Nonnull ObservableOutput<OS> output,
 		long transactionId,
@@ -303,16 +291,18 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * TODO JNO - document me
-	 * @param output
-	 * @param transactionId
-	 * @param closesTransaction
-	 * @param kryo
-	 * @param payload
-	 * @return
-	 * @param <T>
-	 * @param <OS>
+	 * Writes a record to the specified output stream with the given transaction id and payload.
+	 *
+	 * @param output            The output stream to write the record to.
+	 * @param transactionId     The transaction id of the record.
+	 * @param closesTransaction A flag indicating whether the record closes the transaction.
+	 * @param kryo              The Kryo instance used for serialization.
+	 * @param payload           The payload object to be written.
+	 * @param <T>               The type of the payload.
+	 * @param <OS>              The type of the output stream.
+	 * @return The file location object specifying the position and length of the written record in the file.
 	 */
+	@Nonnull
 	private static <T, OS extends OutputStream> FileLocation writeRecord(
 		@Nonnull ObservableOutput<OS> output,
 		long transactionId,
@@ -394,15 +384,49 @@ public record StorageRecord<T>(
 		return result;
 	}
 
-	private record PayloadWithFileLocation<T>(T payload, FileLocation fileLocation) {
+	/**
+	 * Represents a payload with its corresponding file location information.
+	 *
+	 * @param payload      The payload.
+	 * @param fileLocation The file location.
+	 * @param <T>          The type of the payload.
+	 */
+	private record PayloadWithFileLocation<T>(
+		@Nonnull T payload,
+		@Nonnull FileLocation fileLocation
+	) {
 	}
 
+	/**
+	 * The ReadingContext class represents the context of reading a record from the input stream.
+	 * It stores information such as the start position, record length, control byte, and flags indicating if
+	 * the record closes a transaction or is a continuation record.
+	 */
+	@Getter
 	private static class ReadingContext {
-		@Getter private final long startPosition;
-		@Getter private int recordLength;
-		@Getter private byte controlByte;
-		@Getter private boolean closesTransaction;
-		@Getter private boolean continuationRecord;
+		/**
+		 * Represents the start position of a record in the input stream.
+		 * The start position indicates the byte offset from the beginning of the stream where the record starts.
+		 */
+		private final long startPosition;
+		/**
+		 * The recordLength variable represents the length of a record in the ReadingContext class.
+		 * It stores the number of bytes that make up the record.
+		 */
+		private int recordLength;
+		/**
+		 * The controlByte variable represents the control byte of a record in the ReadingContext class.
+		 * It stores information about the record, such as transaction closing, continuation, etc.
+		 */
+		private byte controlByte;
+		/**
+		 * The closesTransaction variable represents a flag indicating whether a record is the last record of a transaction.
+		 **/
+		private boolean closesTransaction;
+		/**
+		 * The continuationRecord flag indicates that the payload continues in the next record.
+		 */
+		private boolean continuationRecord;
 
 		public ReadingContext(long startPosition, int recordLength, byte control) {
 			this.startPosition = startPosition;
@@ -422,9 +446,11 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @param previousPointer
-	 * @param fileLocation
+	 * This class represents a pointer to a specific location within a file. The record is used to chain the file
+	 * locations of continuous records and compute overall file location (size) of the continuous records.
+	 *
+	 * @param previousPointer The previous pointer.
+	 * @param fileLocation    The file location.
 	 */
 	private record FileLocationPointer(
 		@Nullable FileLocationPointer previousPointer,
@@ -432,10 +458,21 @@ public record StorageRecord<T>(
 	) {
 		public static final FileLocationPointer INITIAL = new FileLocationPointer(null, null);
 
+		/**
+		 * Checks if the file location pointer is empty.
+		 *
+		 * @return {@code true} if the file location pointer is empty, {@code false} otherwise.
+		 */
 		public boolean isEmpty() {
 			return this.fileLocation == null;
 		}
 
+		/**
+		 * Computes the overall file location by traversing the file location pointers and accumulating the record lengths.
+		 *
+		 * @param lastRecordLocation The file location of the last record.
+		 * @return The overall file location.
+		 */
 		@Nonnull
 		public FileLocation computeOverallFileLocation(@Nonnull FileLocation lastRecordLocation) {
 			if (isEmpty()) {
@@ -456,7 +493,12 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * BufferOverflowReadHandler is used to handle situation when the payload didn't fit into the buffer and needs
+	 * to be read and joined from multiple records.
+	 *
+	 * @param context       the reading context
+	 * @param transactionId the transaction id of the record
+	 * @param <IS>          the type of the InputStream
 	 */
 	private record BufferOverflowReadHandler<IS extends InputStream>(
 		ReadingContext context,
@@ -476,7 +518,11 @@ public record StorageRecord<T>(
 
 			Assert.isPremiseValid(
 				transactionId == continuingTransactionId,
-				() -> new CorruptedRecordException("Transaction id differs in continuous record (" + transactionId + " vs. " + continuingTransactionId + "). This is not expected!", transactionId, continuingTransactionId)
+				() -> new CorruptedRecordException(
+					"Transaction id differs in continuous record (" +
+						transactionId + " vs. " + continuingTransactionId +
+						"). This is not expected!", transactionId, continuingTransactionId
+				)
 			);
 			context.updateWithNextRecord(continuingRecordLength, continuingControl);
 		}
@@ -484,7 +530,10 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * OnBufferOverflowHandler is used to handle situation when the payload can't fit into the buffer and needs
+	 * to be written into multiple records.
+	 *
+	 * @param <OO> the type of the ObservableOutput used in the record
 	 */
 	private record OnBufferOverflowHandler<OO extends ObservableOutput<?>>(
 		AtomicReference<FileLocationPointer> recordLocations,

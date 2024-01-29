@@ -24,6 +24,7 @@
 package io.evitadb.store.catalog;
 
 import com.esotericsoftware.kryo.Kryo;
+import io.evitadb.api.TransactionContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.store.offsetIndex.io.WriteOnlyOffHeapWithFileBackupHandle;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
@@ -35,15 +36,34 @@ import javax.annotation.Nonnull;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * The DefaultIsolatedWalService class is a default implementation of the IsolatedWalPersistenceService interface.
+ * It provides methods for writing mutations to the Write-Ahead Log (WAL), retrieving metadata about the mutations,
+ * obtaining a reference to the WAL data, and closing the service.
+ *
+ * There is always single instance per {@link TransactionContract} instance identified by same {@link UUID}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public class DefaultIsolatedWalService implements IsolatedWalPersistenceService {
+	/**
+	 * The transactionId is the unique identifier for the transaction.
+	 */
 	@Nonnull @Getter private final UUID transactionId;
+	/**
+	 * The writeKryo is the Kryo instance used for serializing WAL records = mutations.
+	 */
 	@Nonnull private final Kryo writeKryo;
+	/**
+	 * The writeHandle is the handle to the WAL file.
+	 */
 	@Nonnull private final WriteOnlyOffHeapWithFileBackupHandle writeHandle;
+	/**
+	 * The mutationCount is the number of mutations written to this isolated WAL instance.
+	 */
 	@Getter private int mutationCount;
+	/**
+	 * The mutationSizeInBytes is the total size of the mutations written to this isolated WAL instance.
+	 */
 	@Getter private long mutationSizeInBytes;
 
 	public DefaultIsolatedWalService(

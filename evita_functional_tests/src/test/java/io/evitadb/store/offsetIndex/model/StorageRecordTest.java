@@ -57,10 +57,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static io.evitadb.store.offsetIndex.model.StorageRecord.isBitSet;
-import static io.evitadb.store.offsetIndex.model.StorageRecord.setBit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -89,58 +86,6 @@ class StorageRecordTest {
 		tempFile = null;
 	}
 
-	@Test
-	void shouldWriteAndReadSpecificByte() {
-		byte control = 0;
-		final byte encoded = setBit(control, (byte) 0, true);
-		assertTrue(isBitSet(encoded, (byte) 0));
-		assertFalse(isBitSet(encoded, (byte) 1));
-		assertFalse(isBitSet(encoded, (byte) 2));
-		assertFalse(isBitSet(encoded, (byte) 3));
-		assertFalse(isBitSet(encoded, (byte) 4));
-		assertFalse(isBitSet(encoded, (byte) 5));
-		assertFalse(isBitSet(encoded, (byte) 6));
-	}
-
-	@Test
-	void shouldWriteAndReadSpecificByteInTheMiddle() {
-		byte control = 0;
-		final byte encoded = setBit(control, (byte) 5, true);
-		assertFalse(isBitSet(encoded, (byte) 0));
-		assertFalse(isBitSet(encoded, (byte) 1));
-		assertFalse(isBitSet(encoded, (byte) 2));
-		assertFalse(isBitSet(encoded, (byte) 3));
-		assertFalse(isBitSet(encoded, (byte) 4));
-		assertTrue(isBitSet(encoded, (byte) 5));
-		assertFalse(isBitSet(encoded, (byte) 6));
-	}
-
-	@Test
-	void shouldWriteAndReadSpecificByteConsequently() {
-		byte control = 0;
-		final byte encoded =
-			setBit(
-				setBit(
-					setBit(control, (byte) 7, true),
-					(byte) 5, true
-				),
-				(byte) 2, true
-			);
-		assertFalse(isBitSet(encoded, (byte) 0));
-		assertFalse(isBitSet(encoded, (byte) 1));
-		assertTrue(isBitSet(encoded, (byte) 2));
-		assertFalse(isBitSet(encoded, (byte) 3));
-		assertFalse(isBitSet(encoded, (byte) 4));
-		assertTrue(isBitSet(encoded, (byte) 5));
-		assertFalse(isBitSet(encoded, (byte) 6));
-
-		assertFalse(
-			isBitSet(
-				setBit(encoded, (byte) 2, false), (byte) 2
-			)
-		);
-	}
-
 	@DisplayName("Single record should be written and read intact")
 	@Test
 	void shouldWriteAndReadRecord() throws IOException {
@@ -166,6 +111,26 @@ class StorageRecordTest {
 	void shouldWriteAndReadRecordWithCrc32Check() throws IOException {
 		final StorageRecord<ByteChunk> record;
 		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0).computeCRC32()) {
+			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
+		}
+
+		try (final ObservableInput<?> input = new ObservableInput<>(new FileInputStream(tempFile), 8_192).computeCRC32()) {
+			final StorageRecord<ByteChunk> loadedRecord = StorageRecord.read(
+				kryo, input,
+				fl -> {
+					assertEquals(record.fileLocation(), fl);
+					return ByteChunk.class;
+				}
+			);
+			assertEquals(record, loadedRecord);
+		}
+	}
+
+	@DisplayName("Should be able to read record written without CRC32 even if reader is configured to check CRC32")
+	@Test
+	void shouldWriteRecordWithoutCrc32CheckAndReadAvoidingCrc32EvenIfRequested() throws IOException {
+		final StorageRecord<ByteChunk> record;
+		try (final ObservableOutput<?> output = new ObservableOutput<>(new FileOutputStream(tempFile), 16_384, 0)) {
 			record = new StorageRecord<>(kryo, output, 1L, false, generateBytes(256));
 		}
 

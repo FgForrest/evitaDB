@@ -244,7 +244,7 @@ public class EvitaServer {
 			evitaServerConfig.name(),
 			evitaServerConfig.server(),
 			evitaServerConfig.storage(),
-			evitaServerConfig.transactions(),
+			evitaServerConfig.transaction(),
 			evitaServerConfig.cache()
 		);
 		this.apiOptions = evitaServerConfig.api();

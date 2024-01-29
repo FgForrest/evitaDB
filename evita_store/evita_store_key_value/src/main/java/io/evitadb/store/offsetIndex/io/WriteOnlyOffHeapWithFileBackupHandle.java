@@ -201,8 +201,13 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 
 
 	/**
-	 * TODO JNO - document me
-	 * @return
+	 * Returns an OffHeapWithFileBackupReference object that represents the data written by this WriteOnlyOffHeapWithFileBackupHandle.
+	 * If there is data stored in the off-heap memory, it creates an OffHeapWithFileBackupReference object with
+	 * a ByteBuffer and the length of the data. If there is no data stored in the off-heap memory but there is data
+	 * stored in a file, it creates an OffHeapWithFileBackupReference object with a file path and the length of the
+	 * data.
+	 *
+	 * @return An OffHeapWithFileBackupReference object representing the data.
 	 */
 	@Nonnull
 	public OffHeapWithFileBackupReference toReadOffHeapWithFileBackupReference() {

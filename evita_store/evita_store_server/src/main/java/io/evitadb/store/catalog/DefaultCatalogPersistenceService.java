@@ -151,7 +151,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
-	 * TODO JNO - document me
+	 * The off-heap memory manager instance that is used for allocating off-heap memory regions for storing data.
 	 */
 	private final OffHeapMemoryManager offHeapMemoryManager;
 	/**
@@ -180,7 +180,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	private final StorageOptions storageOptions;
 	/**
-	 * Contains information about transactions configuration options.
+	 * Contains information about transaction configuration options.
 	 */
 	@Nonnull
 	private final TransactionOptions transactionOptions;
@@ -192,18 +192,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	private final ConcurrentHashMap<CollectionFileReference, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServices;
 	/**
-	 * TODO JNO - document me
+	 * This variable is used to handle write operations in the Bootstrap class and synchronize the access to it.
 	 */
 	@Nonnull
 	private final WriteOnlyHandle bootstrapWriteHandle;
 	/**
-	 * TODO JNO - document me
+	 * Contains the instance of {@link CatalogBootstrap} that contains the last bootstrap record that is currently used.
 	 */
 	private final CatalogBootstrap bootstrapUsed;
-	/**
-	 * TODO JNO - DOCUMENT ME
-	 */
-	@Nullable private final CatalogWriteAheadLog catalogWal;
 	/**
 	 * Pool contains instances of {@link SerializationService} that are used for serializing mutations in WAL.
 	 */
@@ -213,6 +209,10 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			return KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		}
 	};
+	/**
+	 * Contains the instance of {@link CatalogWriteAheadLog} that is used for writing mutations into shared WAL.
+	 */
+	@Nullable private CatalogWriteAheadLog catalogWal;
 
 	/**
 	 * Check whether target directory exists and whether it is really directory.
@@ -251,7 +251,16 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Retrieves the last catalog bootstrap for a given catalog. If the last bootstrap record was not fully written,
+	 * the previous one is returned instead. The correctness is verified by fixed length of the bootstrap record and
+	 * CRC32C checksum of the record.
+	 *
+	 * @param catalogStoragePath The path to the catalog storage directory.
+	 * @param catalogName        The name of the catalog.
+	 * @param storageOptions     The storage options for reading the bootstrap file.
+	 * @return The last catalog bootstrap.
+	 * @throws UnexpectedIOException If there is an error opening the catalog bootstrap file.
+	 * @throws BootstrapFileNotFound If the catalog bootstrap file is not found.
 	 */
 	@Nonnull
 	private static CatalogBootstrap getLastCatalogBootstrap(
@@ -304,7 +313,13 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	}
 
 	/**
-	 * TODO JNO - document me
+	 * Verifies that the catalog name (derived from catalog directory) matches the catalog schema stored in the catalog
+	 * file.
+	 *
+	 * @param catalogInstance               the catalog contract instance
+	 * @param catalogName                   the catalog name to verify
+	 * @param catalogStoragePath            the path to the catalog storage directory
+	 * @param storagePartPersistenceService the storage part persistence service
 	 */
 	private static void verifyCatalogNameMatches(
 		@Nonnull CatalogContract catalogInstance,
@@ -326,8 +341,21 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 	}
 
+	/**
+	 * Retrieves the instance of shared WAL service for a given catalog if the catalog is in transactional mode.
+	 *
+	 * BEWARE: work with {@link CatalogWriteAheadLog} is not thread safe and must be synchronized!
+	 *
+	 * @param catalogName        The name of the catalog.
+	 * @param catalogStoragePath The path to the storage location of the catalog.
+	 * @param catalogHeader      The catalog header object.
+	 * @param catalogKryoPool    The Kryo pool for serializing objects.
+	 * @param storageOptions     The storage options for the catalog.
+	 * @return The CatalogWriteAheadLog object for the given catalog, and creates new if it doesn't exists and catalog
+	 * is in transactional mode, it returns NULL if catalog is in warm-up mode
+	 */
 	@Nullable
-	private static CatalogWriteAheadLog getWalFileChannel(
+	private static CatalogWriteAheadLog getCatalogWriteAheadLog(
 		@Nonnull String catalogName,
 		@Nonnull Path catalogStoragePath,
 		@Nonnull CatalogHeader catalogHeader,
@@ -375,7 +403,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull String catalogName,
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions
-		) {
+	) {
 		this.storageOptions = storageOptions;
 		this.transactionOptions = transactionOptions;
 		this.offHeapMemoryManager = new OffHeapMemoryManager(
@@ -419,11 +447,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			} else {
 				this.bootstrapUsed = lastCatalogBootstrap;
 			}
-
-			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
-			this.catalogWal = getWalFileChannel(
-				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
-			);
 		} finally {
 			this.observableOutputKeeper.free();
 		}
@@ -452,7 +475,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.bootstrapWriteHandle = new WriteOnlyFileHandle(
 			this.catalogStoragePath.resolve(getCatalogBootstrapFileName(catalogName)),
-			observableOutputKeeper
+			this.observableOutputKeeper
 		);
 
 		final String catalogFileName = getCatalogDataStoreFileName(catalogName, this.bootstrapUsed.catalogFileIndex());
@@ -464,17 +487,14 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 			storageOptions,
 			transactionOptions,
 			this.bootstrapUsed,
-			recordTypeRegistry,
-			offHeapMemoryManager, observableOutputKeeper,
+			this.recordTypeRegistry,
+			this.offHeapMemoryManager,
+			this.observableOutputKeeper,
 			VERSIONED_KRYO_FACTORY
 		);
 		verifyCatalogNameMatches(catalogInstance, catalogName, catalogStoragePath, this.catalogStoragePartPersistenceService);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			this.catalogStoragePartPersistenceService.getCatalogHeader().getEntityTypeFileIndexes().size()
-		);
-		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
-		this.catalogWal = getWalFileChannel(
-			catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
 		);
 	}
 
@@ -514,10 +534,6 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		this.entityCollectionPersistenceServices = CollectionUtils.createConcurrentHashMap(
 			this.catalogStoragePartPersistenceService.getCatalogHeader().getEntityTypeFileIndexes().size()
-		);
-		final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
-		this.catalogWal = getWalFileChannel(
-			catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
 		);
 	}
 
@@ -697,7 +713,12 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		@Nonnull TransactionMutation transactionMutation,
 		@Nonnull OffHeapWithFileBackupReference walReference
 	) {
-		Assert.isPremiseValid(this.catalogWal != null, "Cannot append WAL to catalog that doesn't have WAL!");
+		if (this.catalogWal == null) {
+			final CatalogHeader catalogHeader = this.catalogStoragePartPersistenceService.getCatalogHeader();
+			this.catalogWal = getCatalogWriteAheadLog(
+				catalogName, this.catalogStoragePath, catalogHeader, catalogKryoPool, storageOptions
+			);
+		}
 		Assert.isPremiseValid(
 			walReference.getBuffer().isPresent() || walReference.getFilePath().isPresent(),
 			"Unexpected WAL reference - neither off-heap buffer nor file reference present!"
@@ -908,7 +929,11 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	@Nonnull
 	@Override
 	public Stream<Mutation> getCommittedMutationStream(long catalogVersion) {
-		return this.catalogWal.getCommittedMutationStream(catalogVersion);
+		if (this.catalogWal == null) {
+			return Stream.empty();
+		} else {
+			return this.catalogWal.getCommittedMutationStream(catalogVersion);
+		}
 	}
 
 	@Override

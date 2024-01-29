@@ -86,11 +86,11 @@ import static io.evitadb.api.query.QueryConstraints.require;
 /**
  * Session are created by the clients to envelope a "piece of work" with evitaDB. In web environment it's a good idea
  * to have session per request, in batch processing it's recommended to keep session per "record page" or "transaction".
- * There may be multiple {@link TransactionContract transactions} during single session instance life but there is no support
+ * There may be multiple {@link TransactionContract transaction} during single session instance life but there is no support
  * for transactional overlap - there may be at most single transaction open in single session.
  *
- * EvitaSession transactions behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
- * transactions. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
+ * EvitaSession transaction behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
+ * transaction. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
  *
  * Don't forget to {@link #close()} when your work with Evita is finished.
@@ -544,13 +544,13 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 		throws UnexpectedResultException, InstanceTerminatedException;
 
 	/**
-	 * If {@link CatalogContract} supports transactions (see {@link CatalogContract#supportsTransaction()}) method
+	 * If {@link CatalogContract} supports transaction (see {@link CatalogContract#supportsTransaction()}) method
 	 * executes application `logic` in current session and commits the transaction at the end. Transaction is
 	 * automatically roll-backed when exception is thrown from the `logic` scope. Changes made by the updating logic are
 	 * visible only within update function. Other threads outside the logic function work with non-changed data until
 	 * transaction is committed to the index.
 	 *
-	 * When catalog doesn't support transactions application `logic` is immediately applied to the index data and logic
+	 * When catalog doesn't support transaction application `logic` is immediately applied to the index data and logic
 	 * operates in a <a href="https://en.wikipedia.org/wiki/Isolation_(database_systems)#Read_uncommitted">read
 	 * uncommitted</a> mode. Application `logic` can only append new entities in non-transactional mode.
 	 *
@@ -560,13 +560,13 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	<T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) throws TransactionException;
 
 	/**
-	 * If {@link CatalogContract} supports transactions (see {@link CatalogContract#supportsTransaction()}) method
+	 * If {@link CatalogContract} supports transaction (see {@link CatalogContract#supportsTransaction()}) method
 	 * executes application `logic` in current session and commits the transaction at the end. Transaction is
 	 * automatically roll-backed when exception is thrown from the `logic` scope. Changes made by the updating logic are
 	 * visible only within update function. Other threads outside the logic function work with non-changed data until
 	 * transaction is committed to the index.
 	 *
-	 * When catalog doesn't support transactions application `logic` is immediately applied to the index data and logic
+	 * When catalog doesn't support transaction application `logic` is immediately applied to the index data and logic
 	 * operates in a <a href="https://en.wikipedia.org/wiki/Isolation_(database_systems)#Read_uncommitted">read
 	 * uncommitted</a> mode. Application `logic` can only append new entities in non-transactional mode.
 	 *

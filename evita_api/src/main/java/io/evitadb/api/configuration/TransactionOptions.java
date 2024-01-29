@@ -33,7 +33,7 @@ import java.nio.file.Paths;
 import java.util.Optional;
 
 /**
- * Configuration options related to transactions.
+ * Configuration options related to transaction.
  *
  * @param transactionWorkDirectory              Directory on local disk where Evita creates temporary folders and files
  *                                              for transactional transaction. By default, temporary directory is used
@@ -49,14 +49,14 @@ import java.util.Optional;
  *                                              that the buffer will be full and will have to be copied to the disk.
  * @param walFileSizeBytes                      Size of the Write-Ahead Log (WAL) file in bytes before it is rotated.
  * @param walFileCountKept                      Number of WAL files to keep.
- * @param maxQueueSize                          Size of the catalog queue for parallel transactions. If there are more
- *                                              transactions than the number of free threads in the pool, the transactions
+ * @param maxQueueSize                          Size of the catalog queue for parallel transaction. If there are more
+ *                                              transaction than the number of free threads in the pool, the transaction
  *                                              are queued. If the queue is full, the transaction is rejected.
- * @param flushFrequency                        The frequency of flushing the transactional data to the disk when they
+ * @param flushFrequencyInMillis                        The frequency of flushing the transactional data to the disk when they
  *                                              are sequentially processed. If database process the (small) transaction
- *                                              very quickly, it may decide to process next transactions before flushing
+ *                                              very quickly, it may decide to process next transaction before flushing
  *                                              changes to the disk. If the client waits for {@link CommitBehaviour#WAIT_FOR_INDEX_PROPAGATION}
- *                                              he may wait entire {@link #flushFrequency} milliseconds before he gets
+ *                                              he may wait entire {@link #flushFrequencyInMillis} milliseconds before he gets
  *                                              the response.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
@@ -68,9 +68,9 @@ public record TransactionOptions(
 	long walFileSizeBytes,
 	int walFileCountKept,
 	int maxQueueSize,
-	long flushFrequency
+	long flushFrequencyInMillis
 ) {
-	public static final Path DEFAULT_TX_DIRECTORY = Paths.get("").resolve("transactions");
+	public static final Path DEFAULT_TX_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir"), "evita/transaction");
 	public static final long DEFAULT_TRANSACTION_MEMORY_BUFFER_LIMIT_SIZE = 16_777_216;
 	public static final int DEFAULT_TRANSACTION_MEMORY_REGION_COUNT = 256;
 	public static final int DEFAULT_WAL_SIZE_BYTES = 16_777_216;
@@ -83,7 +83,7 @@ public record TransactionOptions(
 	 */
 	public static TransactionOptions temporary() {
 		return new TransactionOptions(
-			Path.of(System.getProperty("java.io.tmpdir"), "evita/transactions"),
+			DEFAULT_TX_DIRECTORY,
 			1_048_576,
 			32,
 			8_388_608,
@@ -126,7 +126,7 @@ public record TransactionOptions(
 		long walFileSizeBytes,
 		int walFileCountKept,
 		int maxQueueSize,
-		long flushFrequency
+		long flushFrequencyInMillis
 	) {
 		this.transactionWorkDirectory = Optional.ofNullable(transactionWorkDirectory).orElse(DEFAULT_TX_DIRECTORY);
 		this.transactionMemoryBufferLimitSizeBytes = transactionMemoryBufferLimitSizeBytes;
@@ -134,7 +134,7 @@ public record TransactionOptions(
 		this.walFileSizeBytes = walFileSizeBytes;
 		this.walFileCountKept = walFileCountKept;
 		this.maxQueueSize = maxQueueSize;
-		this.flushFrequency = flushFrequency;
+		this.flushFrequencyInMillis = flushFrequencyInMillis;
 	}
 
 	/**
@@ -160,7 +160,7 @@ public record TransactionOptions(
 			this.walFileSizeBytes = TransactionOptions.walFileSizeBytes;
 			this.walFileCountKept = TransactionOptions.walFileCountKept;
 			this.maxQueueSize = TransactionOptions.maxQueueSize;
-			this.flushFrequency = TransactionOptions.flushFrequency;
+			this.flushFrequency = TransactionOptions.flushFrequencyInMillis;
 		}
 
 		@Nonnull

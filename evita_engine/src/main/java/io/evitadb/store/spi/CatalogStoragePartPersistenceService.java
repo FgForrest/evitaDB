@@ -24,6 +24,7 @@
 package io.evitadb.store.spi;
 
 import io.evitadb.api.CatalogState;
+import io.evitadb.core.Catalog;
 import io.evitadb.store.spi.model.CatalogHeader;
 import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.reference.WalFileReference;
@@ -33,15 +34,34 @@ import javax.annotation.Nullable;
 import java.util.Map;
 
 /**
- * TODO JNO - document me
+ * A sub-interface of StoragePartPersistenceService that represents the persistence service extension for catalog.
+ * This interface provides methods for reading and writing catalog headers.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface CatalogStoragePartPersistenceService extends StoragePartPersistenceService {
 
+	/**
+	 * Retrieves the catalog header, which contains crucial information to read data from a single data storage file.
+	 * The catalog header is represented by the {@link CatalogHeader} class and maps the data maintained
+	 * by the {@link Catalog} object.
+	 *
+	 * @return The catalog header object.
+	 */
 	@Nonnull
 	CatalogHeader getCatalogHeader();
 
+	/**
+	 * Writes the catalog header with the specified information to the catalog.
+	 *
+	 * @param storageProtocolVersion              The storage protocol version.
+	 * @param catalogVersion                      The catalog version.
+	 * @param walFileLocation                     The WAL file location, may be null.
+	 * @param collectionFileReferenceIndex        The collection file reference index, must not be null.
+	 * @param catalogName                         The catalog name, must not be null.
+	 * @param catalogState                        The catalog state, must not be null.
+	 * @param lastEntityCollectionPrimaryKey      The last entity collection primary key.
+	 */
 	void writeCatalogHeader(
 		int storageProtocolVersion,
 		long catalogVersion,

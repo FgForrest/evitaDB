@@ -52,7 +52,7 @@ public record EvitaConfiguration(
 	@Nonnull String name,
 	@Nonnull ServerOptions server,
 	@Nonnull StorageOptions storage,
-	@Nonnull TransactionOptions transactions,
+	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache
 ) {
 	public static final String DEFAULT_SERVER_NAME = "evitaDB";
@@ -75,7 +75,7 @@ public record EvitaConfiguration(
 		@Nonnull String name,
 		@Nonnull ServerOptions server,
 		@Nonnull StorageOptions storage,
-		@Nonnull TransactionOptions transactions,
+		@Nonnull TransactionOptions transaction,
 		@Nonnull CacheOptions cache
 	) {
 		try {
@@ -102,7 +102,7 @@ public record EvitaConfiguration(
 			ClassifierUtils.validateClassifierFormat(ClassifierType.SERVER_NAME, name);
 			this.server = server;
 			this.storage = storage;
-			this.transactions = transactions;
+			this.transaction = transaction;
 			this.cache = cache;
 		} catch (IOException ex) {
 			throw new EvitaInternalError("Unable to access storage directory creation time!", ex);
@@ -127,7 +127,7 @@ public record EvitaConfiguration(
 		private String name = DEFAULT_SERVER_NAME;
 		private ServerOptions server = new ServerOptions();
 		private StorageOptions storage = new StorageOptions();
-		private TransactionOptions transactions = new TransactionOptions();
+		private TransactionOptions transaction = new TransactionOptions();
 		private CacheOptions cache = new CacheOptions();
 
 		Builder() {
@@ -136,7 +136,7 @@ public record EvitaConfiguration(
 		Builder(@Nonnull EvitaConfiguration configuration) {
 			this.server = configuration.server;
 			this.storage = configuration.storage;
-			this.transactions = configuration.transactions;
+			this.transaction = configuration.transaction;
 			this.cache = configuration.cache;
 		}
 
@@ -159,8 +159,8 @@ public record EvitaConfiguration(
 		}
 
 		@Nonnull
-		public EvitaConfiguration.Builder transactions(@Nonnull TransactionOptions transactions) {
-			this.transactions = transactions;
+		public EvitaConfiguration.Builder transaction(@Nonnull TransactionOptions transaction) {
+			this.transaction = transaction;
 			return this;
 		}
 
@@ -172,7 +172,7 @@ public record EvitaConfiguration(
 
 		public EvitaConfiguration build() {
 			return new EvitaConfiguration(
-				name, server, storage, transactions, cache
+				name, server, storage, transaction, cache
 			);
 		}
 

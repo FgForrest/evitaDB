@@ -32,7 +32,11 @@ import javax.annotation.Nullable;
 import java.nio.file.Path;
 
 /**
- * TODO JNO - document me
+ * A class representing a reference to a WAL (Write-Ahead Log) file.
+ *
+ * @param catalogName    The name of the catalog.
+ * @param fileIndex      The index of the WAL file incremented each time the WAL file is rotated.
+ * @param fileLocation   The location of the last processed transaction of the WAL file.
  */
 public record WalFileReference(
 	@Nonnull String catalogName,
@@ -53,4 +57,5 @@ public record WalFileReference(
 	public WalFileReference incrementAndGet() {
 		return new WalFileReference(catalogName, fileIndex + 1, null);
 	}
+
 }

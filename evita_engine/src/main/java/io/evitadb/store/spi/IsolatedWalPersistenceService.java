@@ -23,6 +23,7 @@
 
 package io.evitadb.store.spi;
 
+import io.evitadb.api.TransactionContract;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 
 import javax.annotation.Nonnull;
@@ -30,40 +31,55 @@ import java.io.Closeable;
 import java.util.UUID;
 
 /**
- * TODO JNO - document me
+ * The {@code IsolatedWalPersistenceService} interface represents a service for persisting mutations using Write-Ahead
+ * Logging (WAL).  It provides methods for writing mutations to the WAL, retrieving metadata about the WAL, and
+ * obtaining a reference to the WAL data. It bears the name "isolated" because it is intended to store WAL records
+ * for multiple parallel transactions at the same time. Instance of this service are created and held by the
+ * {@link TransactionContract} implementation but need to write to a separate WAL files.
+ *
+ * The service also implements the {@code Closeable} interface to allow for proper resource cleanup.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface IsolatedWalPersistenceService extends Closeable {
 
 	/**
-	 * TODO JNO - document me
+	 * Retrieves the {@link TransactionContract#getTransactionId()} associated with this service.
+	 *
+	 * @return the transaction ID
 	 */
 	@Nonnull
 	UUID getTransactionId();
 
 	/**
-	 * TODO JNO - document me
+	 * Retrieves the number of mutations stored in the IsolatedWalPersistenceService.
+	 *
+	 * @return the count of mutations
 	 */
 	int getMutationCount();
 
 	/**
-	 * TODO JNO - document me
+	 * Retrieves the size of the mutations stored in the IsolatedWalPersistenceService in bytes.
+	 *
+	 * @return the size of the mutations in bytes
 	 */
 	long getMutationSizeInBytes();
 
 	/**
-	 * TODO JNO - document me
+	 * Writes a mutation to the IsolatedWalPersistenceService connected to the particular catalog version.
+	 *
 	 * @param catalogVersion we expect the catalog version might conflict - because we're writing WAL before
 	 *                       transaction commit but at least it will somehow describe the version of the catalog
 	 *                       the transaction is based on
-	 * @param mutation
+	 * @param mutation the mutation to write
 	 */
 	void write(long catalogVersion, @Nonnull Mutation mutation);
 
 	/**
-	 * TODO JNO - document me
-	*/
+	 * Returns the reference to the Write-Ahead Log (WAL) data.
+	 *
+	 * @return the reference to the WAL data
+	 */
 	@Nonnull
 	OffHeapWithFileBackupReference getWalReference();
 

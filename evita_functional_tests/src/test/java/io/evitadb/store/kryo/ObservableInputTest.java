@@ -25,7 +25,9 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.store.model.FileLocation;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -201,10 +203,11 @@ class ObservableInputTest {
 
 		crc32C.reset();
 		crc32C.update(bytes, 1, bytes.length - 1);
-		crc32C.update(bytes[0]);
+		final byte controlByte = BitUtils.setBit(bytes[0], StorageRecord.CRC32_BIT, true);
+		crc32C.update(controlByte);
 		final long startPosition = controlOutput.total();
 		controlOutput.writeInt(length + OVERHEAD_SIZE);
-		controlOutput.writeByte(bytes[0]);
+		controlOutput.writeByte(controlByte);
 		controlOutput.writeBytes(bytes, 1, bytes.length - 1);
 		controlOutput.writeLong(crc32C.getValue());
 		controlOutput.flush();

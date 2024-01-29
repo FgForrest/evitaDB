@@ -92,7 +92,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	@Nonnull private final CompletableFuture<Long> transactionFinalizationFuture;
 	/**
 	 * Represents a reference to the IsolatedWalPersistenceService, which is responsible for storing
-	 * and retrieving data using Write-Ahead Logging (WAL) in isolation from other transactions.
+	 * and retrieving data using Write-Ahead Logging (WAL) in isolation from other transaction.
 	 * The service is instantiated on demand when the first mutation is registered.
 	 *
 	 * @see IsolatedWalPersistenceService
@@ -154,7 +154,11 @@ public class TransactionWalFinalizer implements TransactionHandler {
 				this.walPersistenceService.close();
 				this.walPersistenceService = null;
 			}
-			this.transactionFinalizationFuture.completeExceptionally(cause);
+			if (cause != null) {
+				this.transactionFinalizationFuture.completeExceptionally(cause);
+			} else {
+				this.transactionFinalizationFuture.cancel(true);
+			}
 		}
 	}
 

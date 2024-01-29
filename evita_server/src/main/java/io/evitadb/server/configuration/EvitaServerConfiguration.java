@@ -39,7 +39,7 @@ import javax.annotation.Nonnull;
  * @param name         refers to {@link EvitaConfiguration#name()}
  * @param server       refers to {@link EvitaConfiguration#server()}
  * @param storage      refers to {@link EvitaConfiguration#storage()}
- * @param transactions refers to {@link EvitaConfiguration#transactions()}
+ * @param transaction refers to {@link EvitaConfiguration#transaction()}
  * @param cache        refers to {@link EvitaConfiguration#cache()}
  * @param api          contains configuration for API endpoints
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
@@ -48,7 +48,7 @@ public record EvitaServerConfiguration(
 	@Nonnull String name,
 	@Nonnull ServerOptions server,
 	@Nonnull StorageOptions storage,
-	@Nonnull TransactionOptions transactions,
+	@Nonnull TransactionOptions transaction,
 	@Nonnull CacheOptions cache,
 	@Nonnull ApiOptions api
 ) {

@@ -92,7 +92,7 @@ public interface CatalogContract {
 	long getVersion();
 
 	/**
-	 * Returns true if catalog supports transactions.
+	 * Returns true if catalog supports transaction.
 	 */
 	boolean supportsTransaction();
 

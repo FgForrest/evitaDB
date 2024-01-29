@@ -77,6 +77,7 @@ import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.PortManager;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -107,6 +108,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 class EvitaTest implements EvitaTestSupport {
 	public static final String ATTRIBUTE_NAME = "name";
 	public static final String ATTRIBUTE_URL = "url";
@@ -1199,6 +1201,8 @@ class EvitaTest implements EvitaTestSupport {
 				} catch (InterruptedException e) {
 					fail(e.getMessage());
 				}
+
+				log.info("Committing changes.");
 			}
 		);
 

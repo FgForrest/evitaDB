@@ -306,10 +306,12 @@ public class AssertionUtils {
 	}
 
 	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @param <S>
-	 * @param <X>
-	 * @param <T>
+	 * TestTransactionHandlerWithMultipleValues handles the transaction commit / rollback actions in the tests.
+	 * It simply creates instance of the tested item in case of commit and provides access to it in `committed` field.
+	 *
+	 * @param <S> the type of the state
+	 * @param <X> the type of the transactional layer producer
+	 * @param <T> a subtype of {@link TransactionalLayerProducer}
 	 */
 	private static class TestTransactionHandler<S, X, T extends TransactionalLayerProducer<X, S>> implements TransactionHandler {
 		private final T tested;
@@ -327,6 +329,7 @@ public class AssertionUtils {
 		@Override
 		public void commit(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 			this.committed = transactionalLayer.getStateCopyWithCommittedChanges(tested);
+			transactionalLayer.verifyLayerWasFullySwept();
 		}
 
 		@Override
@@ -336,10 +339,13 @@ public class AssertionUtils {
 	}
 
 	/**
-	 * TODO JNO - DOCUMENT ME
-	 * @param <S>
-	 * @param <X>
-	 * @param <T>
+	 * TestTransactionHandlerWithMultipleValues handles the transaction commit / rollback actions in the tests.
+	 * It simply iterates over the list of tested items and creates new instances of them in case of commit.
+	 * New versions of those items are provided in `committed` field.
+	 *
+	 * @param <S> the type of state
+	 * @param <X> the type of difference piece
+	 * @param <T> a transactional layer producer that extends TransactionalLayerProducer<X, S>
 	 */
 	private static class TestTransactionHandlerWithMultipleValues<S, X, T extends TransactionalLayerProducer<X, S>> implements TransactionHandler {
 		private final List<T> tested;
@@ -360,6 +366,7 @@ public class AssertionUtils {
 			for (T testedItem : tested) {
 				this.committed.add(transactionalLayer.getStateCopyWithCommittedChanges(testedItem));
 			}
+			transactionalLayer.verifyLayerWasFullySwept();
 		}
 
 		@Override

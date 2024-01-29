@@ -179,7 +179,7 @@ public class DefaultEntityCollectionPersistenceService implements EntityCollecti
 	@Nonnull
 	private final StorageOptions storageOptions;
 	/**
-	 * Contains information about transactions configuration options.
+	 * Contains information about transaction configuration options.
 	 */
 	@Nonnull
 	private final TransactionOptions transactionOptions;

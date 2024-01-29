@@ -28,8 +28,10 @@ import com.esotericsoftware.kryo.io.Input;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.KryoSerializationException;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.AbstractRandomAccessInputStream;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -94,11 +96,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 	private boolean overflowing;
 	/**
 	 * Internal flag that is set to true only when {@link #markPayloadStart(int)} method was called and method
-	 * {@link #markEnd()} was not yet called. When this flag is true we read payload.
+	 * {@link #markEnd(byte)}  was not yet called. When this flag is true we read payload.
 	 */
 	private boolean readingPayload;
 	/**
-	 * Internal flag that is set to true only when {@link #markEnd()} method is running - which means that space
+	 * Internal flag that is set to true only when {@link #markEnd(byte)}  method is running - which means that space
 	 * for the tail no longer needs to be kept in reserve.
 	 */
 	private boolean readingTail;
@@ -437,13 +439,13 @@ public class ObservableInput<T extends InputStream> extends Input {
 				// compute the final part of the payload that hasn't been added to accumulated length and CRC32 checksum
 				final int payloadLength = super.position - this.payloadStartPosition;
 				final int totalLength = super.position - this.startPosition;
-				if (crc32C == null) {
+				if (crc32C == null || !BitUtils.isBitSet(controlByte, StorageRecord.CRC32_BIT)) {
 					// skip CRC32 checksum - it will not be verified
 					super.skip(8);
 				} else {
 					// update CRC32 checksum with the final payload part
 					crc32C.update(super.buffer, this.payloadStartPosition, payloadLength);
-					crc32C.update(controlByte);
+					crc32C.update(BitUtils.setBit(controlByte, StorageRecord.CRC32_BIT, true));
 					// verify checksum
 					final long computedChecksum = crc32C.getValue();
 					final long loadedChecksum = readLong();

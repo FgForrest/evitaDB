@@ -74,7 +74,7 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	public void handleNext(@Nonnull ConflictResolutionTransactionTask task) {
-		// identify conflicts with other transactions
+		// identify conflicts with other transaction
 		// TODO JNO - implement me
 		// assign new catalog version
 		push(

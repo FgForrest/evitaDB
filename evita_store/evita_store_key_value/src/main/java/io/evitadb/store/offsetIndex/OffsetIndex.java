@@ -48,6 +48,7 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.service.KeyCompressor;
+import io.evitadb.utils.BitUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -608,7 +609,7 @@ public class OffsetIndex {
 
 									startPosition += recordLength;
 									prevTransactionId = catalogVersion;
-									transactionCleared = StorageRecord.isBitSet(control, StorageRecord.TRANSACTION_CLOSING_BIT);
+									transactionCleared = BitUtils.isBitSet(control, StorageRecord.TRANSACTION_CLOSING_BIT);
 									if (transactionCleared && catalogVersion > 0L) {
 										firstTransaction = false;
 									}

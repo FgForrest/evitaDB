@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ public enum GrpcCatalogState
    * Initial state of the Evita catalog.
    * This state has several limitations but also advantages.
    * This state requires single threaded access - this means only single thread can read/write data to the catalog
-   * in this state. No transactions are allowed in this state and there are no guarantees on consistency of the catalog
+   * in this state. No transaction are allowed in this state and there are no guarantees on consistency of the catalog
    * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
    * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
    * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,
@@ -70,7 +70,7 @@ public enum GrpcCatalogState
    * Initial state of the Evita catalog.
    * This state has several limitations but also advantages.
    * This state requires single threaded access - this means only single thread can read/write data to the catalog
-   * in this state. No transactions are allowed in this state and there are no guarantees on consistency of the catalog
+   * in this state. No transaction are allowed in this state and there are no guarantees on consistency of the catalog
    * if any of the WRITE operations fails. If any error is encountered while writing to the catalog in this state it is
    * strongly recommended discarding entire catalog contents and starts filling it from the scratch.
    * Writing to the catalog in this phase is much faster than with transactional access. Operations are executed in bulk,

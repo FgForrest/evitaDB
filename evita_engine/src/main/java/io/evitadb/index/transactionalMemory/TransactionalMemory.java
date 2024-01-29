@@ -60,8 +60,8 @@ import java.util.function.Function;
  * must be consumed by registered {@link TransactionalLayerMaintainerFinalizer#commit(TransactionalLayerMaintainer)} so
  * that no changes end in the void.
  *
- * Transactional memory is bound to current thread. Single thread may open multiple simultaneous transactions, but accessible
- * is only the last one created. Changes made in one transaction are not visible in other transactions (currently).
+ * Transactional memory is bound to current thread. Single thread may open multiple simultaneous transaction, but accessible
+ * is only the last one created. Changes made in one transaction are not visible in other transaction (currently).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2017
  */

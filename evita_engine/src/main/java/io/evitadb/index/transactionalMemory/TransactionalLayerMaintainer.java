@@ -56,7 +56,7 @@ public class TransactionalLayerMaintainer {
 	@Nonnull private final TransactionalLayerMaintainerFinalizer finalizer;
 	/**
 	 * This field may refer to the upper transaction. Currently, it's not used but it's the preferred way of implementing
-	 * nested transactions if they're going to be supported in the future.
+	 * nested transaction if they're going to be supported in the future.
 	 */
 	private final TransactionalLayerMaintainer parent;
 	/**

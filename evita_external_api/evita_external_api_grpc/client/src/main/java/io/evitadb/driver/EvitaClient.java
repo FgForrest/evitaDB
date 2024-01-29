@@ -50,6 +50,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaServiceGrpc.EvitaServiceBlocki
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingTopLevelCatalogSchemaMutationConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutationConverter;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
@@ -424,6 +425,45 @@ public class EvitaClient implements EvitaContract {
 			session.executeWithClientId(
 				configuration.clientId(),
 				() -> queryLogic.accept(session)
+			);
+		}
+	}
+
+	@Override
+	public <T> T updateCatalog(
+		@Nonnull String catalogName,
+		@Nonnull Function<EvitaSessionContract, T> updater,
+		@Nonnull CommitBehaviour commitBehaviour,
+		@Nullable SessionFlags... flags
+	) {
+		assertActive();
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
+			return session.executeWithClientId(
+				configuration.clientId(),
+				() -> session.execute(updater)
+			);
+		}
+	}
+
+	@Override
+	public void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nonnull CommitBehaviour commitBehaviour, @Nullable SessionFlags... flags) {
+		assertActive();
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		try (final EvitaSessionContract session = this.createSession(commitBehaviour, traits)) {
+			session.executeWithClientId(
+				configuration.clientId(),
+				() -> session.execute(updater)
 			);
 		}
 	}

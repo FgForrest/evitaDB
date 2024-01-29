@@ -240,7 +240,7 @@ public final class Evita implements EvitaContract {
 					catalog = new Catalog(
 						catalogName, directory, cacheSupervisor,
 						configuration.storage(),
-						configuration.transactions(),
+						configuration.transaction(),
 						reflectionLookup,
 						executor,
 						this::replaceCatalogReference
@@ -613,7 +613,7 @@ public final class Evita implements EvitaContract {
 						catalogSchema,
 						cacheSupervisor,
 						configuration.storage(),
-						configuration.transactions(),
+						configuration.transaction(),
 						reflectionLookup,
 						executor,
 						this::replaceCatalogReference

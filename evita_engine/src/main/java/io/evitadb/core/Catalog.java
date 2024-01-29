@@ -220,7 +220,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	private final StorageOptions storageOptions;
 	/**
-	 * Reference to the current {@link EvitaConfiguration#transactions()} settings.
+	 * Reference to the current {@link EvitaConfiguration#transaction()} settings.
 	 */
 	private final TransactionOptions transactionOptions;
 	/**
@@ -251,7 +251,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 *
 	 * - conflict resolution (and catalog version sequence number assignment)
 	 * - WAL appending (writing {@link IsolatedWalPersistenceService} to the shared catalog WAL)
-	 * - trunk incorporation (applying transactions from shared WAL in order to the shared catalog view)
+	 * - trunk incorporation (applying transaction from shared WAL in order to the shared catalog view)
 	 * - catalog snapshot propagation (propagating new catalog version to the "live view" of the evitaDB engine)
 	 *
 	 * @param catalogName               the name of the catalog
@@ -272,7 +272,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final SubmissionPublisher<ConflictResolutionTransactionTask> txPublisher = new SubmissionPublisher<>(executorService, transactionOptions.maxQueueSize());
 		final ConflictResolutionTransactionStage stage1 = new ConflictResolutionTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog);
 		final WalAppendingTransactionStage stage2 = new WalAppendingTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog);
-		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequency());
+		final TrunkIncorporationTransactionStage stage3 = new TrunkIncorporationTransactionStage(executorService, transactionOptions.maxQueueSize(), catalog, transactionOptions.flushFrequencyInMillis());
 		final CatalogSnapshotPropagationTransactionStage stage4 = new CatalogSnapshotPropagationTransactionStage(catalogName, newCatalogVersionConsumer);
 
 		txPublisher.subscribe(stage1);
@@ -481,7 +481,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 						Function.identity()
 					)
 				),
-			EntityCollection.class, Function.identity()
+			EntityCollection.class,
+			Function.identity()
 		);
 		this.entitySchemaIndex = new TransactionalMap<>(
 			entityCollections.values()
@@ -502,22 +503,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		return schema.get();
 	}
 
-	@Override
-	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
-		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
-			// apply schema mutation to the catalog
-			updateSchema(schemaMutation);
-		} else if (mutation instanceof EntityMutation entityMutation) {
-			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
-				.applyMutation(entityMutation);
-		} else {
-			throw new InvalidMutationException(
-				"Unexpected mutation type: " + mutation.getClass().getName(),
-				"Unexpected mutation type."
-			);
-		}
-	}
-
 	@Nonnull
 	@Override
 	public CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
@@ -526,13 +511,21 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final Optional<Transaction> transactionRef = Transaction.getTransaction();
 		ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 		CatalogSchemaContract updatedSchema = currentSchema;
+		// TODO JNO - Implicitní createEntitySchema mutace, pokud přijde modify na neexistující entitu
 		for (CatalogSchemaMutation theMutation : schemaMutation) {
 			transactionRef.ifPresent(it -> it.registerMutation(theMutation));
 			// if the mutation implements entity schema mutation apply it on the appropriate schema
 			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 				final String entityType = modifyEntitySchemaMutation.getEntityType();
-				final EntityCollection entityCollection = getCollectionForEntityOrThrowException(entityType);
-				entityCollection.updateSchema(updatedSchema, modifyEntitySchemaMutation.getSchemaMutations());
+				final EntityCollectionContract entityCollection = getCollectionForEntityOrThrowException(entityType);
+				final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
+				if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
+					// validate the new schema version before any changes are applied
+					currentEntitySchema.withMutations(modifyEntitySchemaMutation)
+						.toInstance()
+						.validate(updatedSchema);
+					entityCollection.updateSchema(updatedSchema, modifyEntitySchemaMutation.getSchemaMutations());
+				}
 			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
 				final EntityCollection collectionToRemove = entityCollections.remove(removeEntitySchemaMutation.getName());
 				if (transactionRef.isEmpty()) {
@@ -654,6 +647,22 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			queryPlan = QueryPlanner.planQuery(queryContext);
 		}
 		return queryPlan.execute();
+	}
+
+	@Override
+	public void applyMutation(@Nonnull Mutation mutation) throws InvalidMutationException {
+		if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
+			// apply schema mutation to the catalog
+			updateSchema(schemaMutation);
+		} else if (mutation instanceof EntityMutation entityMutation) {
+			getCollectionForEntityOrThrowException(entityMutation.getEntityType())
+				.applyMutation(entityMutation);
+		} else {
+			throw new InvalidMutationException(
+				"Unexpected mutation type: " + mutation.getClass().getName(),
+				"Unexpected mutation type."
+			);
+		}
 	}
 
 	@Nonnull
@@ -804,20 +813,9 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				new Catalog(
 					1,
 					CatalogState.ALIVE,
-					catalogIndex,
-					entityCollections,
-					ServiceLoader.load(CatalogPersistenceServiceFactory.class)
-						.findFirst()
-						.map(
-							it -> it.load(
-								this,
-								this.getSchema().getName(),
-								persistenceService.getCatalogStoragePath(),
-								storageOptions,
-								transactionOptions
-							)
-						)
-						.orElseThrow(StorageImplementationNotFoundException::new),
+					this.catalogIndex,
+					this.entityCollections,
+					this.persistenceService,
 					this
 				)
 			);
@@ -1144,39 +1142,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 
 	/**
-	 * Method allows to immediately flush all information held in memory to the persistent storage.
-	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
-	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
-	 * in BULK / non-transactional mode.
-	 */
-	void flush() {
-		// if we're going live start with TRUE (force flush), otherwise start with false
-		boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
-		Assert.isPremiseValid(
-			getCatalogState() == CatalogState.WARMING_UP,
-			"Cannot flush catalog that is in transactional mode. Any changes could occur only in transactions!"
-		);
-		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
-		for (EntityCollection entityCollection : entityCollections.values()) {
-			final long lastSeenVersion = entityCollection.getVersion();
-			entityHeaders.add(entityCollection.flush());
-			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
-		}
-
-		if (changeOccurred) {
-			this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
-			this.persistenceService.storeHeader(
-				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
-				// version is not incremented here - we're still 0L version
-				this.versionId.get(),
-				this.entityTypeSequence.get(),
-				entityHeaders
-			);
-			this.lastPersistedSchemaVersion = this.schema.get().version();
-		}
-	}
-
-	/**
 	 * Increases number of read and write sessions that are currently talking with this catalog.
 	 *
 	 * This method is part of the internal API.
@@ -1196,6 +1161,39 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	public void decreaseWriterCount() {
 		if (writerCount.decrementAndGet() == 0) {
 			persistenceService.release();
+		}
+	}
+
+	/**
+	 * Method allows to immediately flush all information held in memory to the persistent storage.
+	 * This method might do nothing particular in transaction ({@link CatalogState#ALIVE}) mode.
+	 * Method stores {@link EntityCollectionHeader} in case there were any changes in the file offset index executed
+	 * in BULK / non-transactional mode.
+	 */
+	void flush() {
+		// if we're going live start with TRUE (force flush), otherwise start with false
+		boolean changeOccurred = goingLive.get() || schema.get().version() != lastPersistedSchemaVersion;
+		Assert.isPremiseValid(
+			getCatalogState() == CatalogState.WARMING_UP,
+			"Cannot flush catalog that is in transactional mode. Any changes could occur only in transaction!"
+		);
+		final List<EntityCollectionHeader> entityHeaders = new ArrayList<>(this.entityCollections.size());
+		for (EntityCollection entityCollection : entityCollections.values()) {
+			final long lastSeenVersion = entityCollection.getVersion();
+			entityHeaders.add(entityCollection.flush());
+			changeOccurred = changeOccurred || entityCollection.getVersion() != lastSeenVersion;
+		}
+
+		if (changeOccurred) {
+			this.persistenceService.flushTrappedUpdates(this.dataStoreBuffer.getTrappedIndexChanges());
+			this.persistenceService.storeHeader(
+				this.goingLive.get() ? CatalogState.ALIVE : getCatalogState(),
+				// version is not incremented here - we're still 0L version
+				this.versionId.get(),
+				this.entityTypeSequence.get(),
+				entityHeaders
+			);
+			this.lastPersistedSchemaVersion = this.schema.get().version();
 		}
 	}
 

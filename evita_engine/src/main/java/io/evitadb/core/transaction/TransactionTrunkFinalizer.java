@@ -34,9 +34,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * This implementation is used to incorporate multiple transactions into the trunk of the catalog. Commits are ignored
- * so that multiple "transactions" can be incorporated in a single "turn". The final commit that may contain at least
- * one full transaction or may also contain multiple shorter full transactions is done by calling
+ * This implementation is used to incorporate multiple transaction into the trunk of the catalog. Commits are ignored
+ * so that multiple "transaction" can be incorporated in a single "turn". The final commit that may contain at least
+ * one full transaction or may also contain multiple shorter full transaction is done by calling
  * {@link #commitCatalogChanges(long)} which makes also additional uses of this instance impossible.
  *
  * This class is not thread-safe.
@@ -74,7 +74,7 @@ public class TransactionTrunkFinalizer implements TransactionHandler {
 		} else {
 			Assert.isPremiseValid(
 				this.lastTransactionLayer == transactionalLayer,
-				"Transaction layer must be the same for all transactions in the trunk!");
+				"Transaction layer must be the same for all transaction in the trunk!");
 		}
 	}
 

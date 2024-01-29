@@ -25,6 +25,8 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -171,11 +173,12 @@ class ObservableOutputTest {
 	private void writeRandomRecord(ObservableOutput<?> output, Output controlOutput, int length) {
 		final byte[] bytes = generateBytes(length);
 
+		final byte controlByte = BitUtils.setBit((byte) 0, StorageRecord.CRC32_BIT, true);
 		crc32C.reset();
 		crc32C.update(bytes);
-		crc32C.update((byte) 0);
+		crc32C.update(controlByte);
 		controlOutput.writeInt(length + OVERHEAD_SIZE);
-		controlOutput.writeByte(0);
+		controlOutput.writeByte(controlByte);
 		controlOutput.writeBytes(bytes);
 		controlOutput.writeLong(crc32C.getValue());
 		controlOutput.flush();
