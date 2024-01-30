@@ -47,9 +47,9 @@ evitaDB data types are limited to following list:
 - [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html),
     formatted as `2021-01-01T00:00:00`
 - [LocalDate](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDate.html),
-    formatted as `00:00:00`
-- [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html),
     formatted as `2021-01-01`
+- [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html),
+    formatted as `00:00:00`
 - [DateTimeRange](#datetimerange),
     formatted as `[2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]`
 - [BigDecimalNumberRange](#numberrange),
