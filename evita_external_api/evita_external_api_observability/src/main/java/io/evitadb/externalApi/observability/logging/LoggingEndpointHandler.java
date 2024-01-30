@@ -24,12 +24,13 @@
 package io.evitadb.externalApi.observability.logging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.exception.ExternalApiInvalidUsageException;
 import io.evitadb.externalApi.http.EndpointHandler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.observability.ObservabilityManager;
+import io.evitadb.externalApi.observability.exception.ObservabilityInternalError;
+import io.evitadb.externalApi.observability.exception.ObservabilityInvalidUsageException;
 import io.evitadb.utils.Assert;
 import io.undertow.server.HttpServerExchange;
 
@@ -72,21 +73,21 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 	@Override
 	protected <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message) {
 		//noinspection unchecked
-		return (T) new ExternalApiInternalError(message);
+		return (T) new ObservabilityInternalError(message);
 	}
 
 	@Nonnull
 	@Override
 	protected <T extends ExternalApiInternalError> T createInternalError(@Nonnull String message, @Nonnull Throwable cause) {
 		//noinspection unchecked
-		return (T) new ExternalApiInternalError(message, cause);
+		return (T) new ObservabilityInternalError(message, cause);
 	}
 
 	@Nonnull
 	@Override
 	protected <T extends ExternalApiInvalidUsageException> T createInvalidUsageException(@Nonnull String message) {
 		//noinspection unchecked
-		return (T) new ExternalApiInvalidUsageException(message);
+		return (T) new ObservabilityInvalidUsageException(message);
 	}
 
 	/**
@@ -112,7 +113,7 @@ public abstract class LoggingEndpointHandler extends EndpointHandler<LoggingEndp
 		try {
 			manager.getObjectMapper().writeValue(outputStream, result);
 		} catch (IOException e) {
-			throw new EvitaInternalError(
+			throw new ObservabilityInternalError(
 				"Could not serialize Java object response to JSON: " + e.getMessage(),
 				"Could not provide response data.", e
 			);

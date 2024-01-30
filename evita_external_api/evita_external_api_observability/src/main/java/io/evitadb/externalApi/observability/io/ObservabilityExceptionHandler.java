@@ -26,12 +26,12 @@ package io.evitadb.externalApi.observability.io;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.exception.EvitaError;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.exception.HttpExchangeException;
 import io.evitadb.externalApi.http.ExternalApiExceptionHandler;
 import io.evitadb.externalApi.http.MimeTypes;
 import io.evitadb.externalApi.http.ErrorDto;
 import io.evitadb.externalApi.observability.ObservabilityProvider;
+import io.evitadb.externalApi.observability.exception.ObservabilityInvalidUsageException;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 import io.undertow.util.StatusCodes;
@@ -65,7 +65,7 @@ public class ObservabilityExceptionHandler extends ExternalApiExceptionHandler {
 	protected void renderError(@Nonnull io.evitadb.exception.EvitaError evitaError, @Nonnull HttpServerExchange exchange) {
 		if (evitaError instanceof final HttpExchangeException httpExchangeException) {
 			setResponse(exchange, httpExchangeException.getStatusCode(), httpExchangeException);
-		} else if (evitaError instanceof EvitaInvalidUsageException) {
+		} else if (evitaError instanceof ObservabilityInvalidUsageException) {
 			setResponse(exchange, StatusCodes.BAD_REQUEST, evitaError);
 		} else {
 			setResponse(exchange, StatusCodes.INTERNAL_SERVER_ERROR, evitaError);

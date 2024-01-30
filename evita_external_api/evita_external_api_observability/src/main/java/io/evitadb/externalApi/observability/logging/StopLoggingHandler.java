@@ -30,7 +30,6 @@ import io.evitadb.externalApi.observability.ObservabilityManager;
 import io.undertow.util.Methods;
 
 import javax.annotation.Nonnull;
-import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -48,11 +47,7 @@ public class StopLoggingHandler extends LoggingEndpointHandler {
 	@Nonnull
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
-		try {
-			return new SuccessEndpointResponse(manager.stop());
-		} catch (IOException e) {
-			return new NotFoundEndpointResponse();
-		}
+		return new SuccessEndpointResponse(manager.stop());
 	}
 
 	@Nonnull

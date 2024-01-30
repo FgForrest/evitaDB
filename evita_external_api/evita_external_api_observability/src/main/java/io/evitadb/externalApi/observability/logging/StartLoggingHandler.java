@@ -39,7 +39,7 @@ import java.util.Set;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class StartLoggingHandler extends LoggingEndpointHandler {
-	public StartLoggingHandler(ObservabilityManager manager) {
+	public StartLoggingHandler(@Nonnull ObservabilityManager manager) {
 		super(manager);
 	}
 
@@ -47,11 +47,7 @@ public class StartLoggingHandler extends LoggingEndpointHandler {
 	@Override
 	protected EndpointResponse doHandleRequest(@Nonnull LoggingEndpointExchange exchange) {
 		final String[] allowedEvents = parseRequestBody(exchange, String[].class);
-		try {
-			manager.start(allowedEvents);
-		} catch (Exception e) {
-			return new NotFoundEndpointResponse();
-		}
+		manager.start(allowedEvents);
 		return new SuccessEndpointResponse();
 	}
 

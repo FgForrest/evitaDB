@@ -32,11 +32,13 @@ import io.evitadb.externalApi.configuration.ApiOptions;
 import io.evitadb.externalApi.http.CorsFilter;
 import io.evitadb.externalApi.http.PathNormalizingHandler;
 import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.evitadb.externalApi.observability.exception.JfRException;
 import io.evitadb.externalApi.observability.io.ObservabilityExceptionHandler;
 import io.evitadb.externalApi.observability.logging.StartLoggingHandler;
 import io.evitadb.externalApi.observability.logging.StopLoggingHandler;
 import io.evitadb.externalApi.observability.metric.MetricHandler;
 import io.evitadb.externalApi.observability.metric.provider.CustomEventProvider;
+import io.evitadb.externalApi.observability.metric.provider.RegisteredCustomEventProvider;
 import io.evitadb.utils.Assert;
 import io.prometheus.metrics.exporter.servlet.jakarta.PrometheusMetricsServlet;
 import io.undertow.Handlers;
@@ -66,13 +68,44 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * This class is used as an orchestrator for all observability-related tasks. It is responsible for starting and stopping
+ * JFR recording, registering Prometheus scraping servlet and registering resource handler for JFR recording file.
+ * It also registers endpoints for controlling JFR recording. It iterates over all specified events and registers them
+ * within {@link FlightRecorder} for JFR recordings and Prometheus metrics. It supports wildcards specifications, so
+ * it is possible to register all custom events from a package at once. It only requires to be inheritor of {@link CustomMetricsExecutionEvent}
+ * and to be registered in the {@link RegisteredCustomEventProvider}.
+ *
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
+ */
 public class ObservabilityManager {
+	/**
+	 * JFR recording instance.
+	 */
 	private final Recording recording;
+	/**
+	 * Directory where JFR recording file is stored.
+	 */
 	private static final Path RECORDING_FILE_DIRECTORY_PATH = Path.of(System.getProperty("java.io.tmpdir"), "evita-recording");
+	/**
+	 * Name of the JFR recording file.
+	 */
 	private static final String DUMP_FILE_NAME = "recording.jfr";
+	/**
+	 * Router for observability endpoints.
+	 */
 	private final PathHandler observabilityRouter = Handlers.path();
+	/**
+	 * Observability API config.
+	 */
 	private final ObservabilityConfig config;
+	/**
+	 * API options part of the config.
+	 */
 	private final ApiOptions apiOptions;
+	/**
+	 * Evita instance.
+	 */
 	private final Evita evita;
 	/**
 	 * Common object mapper for endpoints
@@ -92,7 +125,7 @@ public class ObservabilityManager {
 	/**
 	 * Starts JFR recording that logs all specified events.
 	 */
-	public boolean start(@Nonnull String[] allowedEvents) throws Exception {
+	public void start(@Nonnull String[] allowedEvents) throws JfRException {
 		registerJfrEvents(allowedEvents);
 		final List<EventType> eventTypes = FlightRecorder.getFlightRecorder().getEventTypes();
 		for (String event : allowedEvents) {
@@ -108,23 +141,30 @@ public class ObservabilityManager {
 			}
 		}
 		recording.start();
-		return true;
 	}
 
 	/**
 	 * Stops currently running JFR recording and stores recorded content to a file.
 	 */
 	@Nonnull
-	public String stop() throws IOException {
+	public String stop() throws JfRException {
 		if (recording.getState() != RecordingState.RUNNING) {
-			return "There is no currently running recording.";
+			throw new JfRException("Recording is not running.");
 		}
-		recording.dump(Path.of(String.valueOf(RECORDING_FILE_DIRECTORY_PATH), DUMP_FILE_NAME));
-		recording.stop();
-		final Optional<String> fileUrl = Arrays.stream(config.getBaseUrls(apiOptions.exposedOn()))
-			.map(it -> it + DUMP_FILE_NAME)
-			.findFirst();
-		return fileUrl.orElse("No recording URL found.");
+		try {
+			recording.dump(Path.of(String.valueOf(RECORDING_FILE_DIRECTORY_PATH), DUMP_FILE_NAME));
+			recording.stop();
+			final Optional<String> filePath = Arrays.stream(config.getBaseUrls(apiOptions.exposedOn()))
+				.map(it -> it + DUMP_FILE_NAME)
+				.findFirst();
+			if (filePath.isEmpty()) {
+				throw new JfRException("Unable to get URL for recording file.");
+			} else {
+				return filePath.get();
+			}
+		} catch (IOException e) {
+			throw new JfRException("Unable to dump recording.", e);
+		}
 	}
 
 	/**
@@ -163,6 +203,9 @@ public class ObservabilityManager {
 		}
 	}
 
+	/**
+	 * Gets {@link HttpHandler} for observability endpoints.
+	 */
 	@Nonnull
 	public HttpHandler getObservabilityRouter() {
 		return new PathNormalizingHandler(observabilityRouter);
