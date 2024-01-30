@@ -2715,7 +2715,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2795,7 +2794,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2881,7 +2879,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2960,7 +2957,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -2977,7 +2973,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -3051,7 +3046,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -3064,7 +3058,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                overallCount
 		                                buckets(requestedCount: 20, behavior: STANDARD) {
 		                                    __typename
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                    requested
@@ -3114,7 +3107,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets {
-		                                    index
 		                                    threshold
 		                                    occurrences
 		                                }
@@ -3193,10 +3185,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
-		                                    index
+		                                    threshold
 		                                }
 		                                otherBuckets: buckets(requestedCount: 10) {
-		                                    index
+		                                    threshold
 		                                }
 		                            }
 		                        }
@@ -3236,10 +3228,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 		                                max
 		                                overallCount
 		                                buckets(requestedCount: 10) {
-		                                    index
+		                                    threshold
 		                                }
 		                                otherBuckets: buckets(requestedCount: 20) {
-		                                    index
+		                                    threshold
 		                                }
 		                            }
 		                        }
@@ -3307,7 +3299,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3384,7 +3375,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20, behavior: OPTIMIZED) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3469,7 +3459,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3545,7 +3534,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3558,7 +3546,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                overallCount
 	                                buckets(requestedCount: 20, behavior: STANDARD) {
 	                                    __typename
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3608,7 +3595,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                    requested
@@ -3686,12 +3672,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets(requestedCount: 10) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
 	                                otherBuckets: buckets(requestedCount: 20) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
@@ -3732,12 +3716,10 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 	                                max
 	                                overallCount
 	                                buckets(requestedCount: 10, behavior: OPTIMIZED) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
 	                                otherBuckets: buckets(requestedCount: 10) {
-	                                    index
 	                                    threshold
 	                                    occurrences
 	                                }
@@ -5489,7 +5471,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(histogram.getBuckets())
 				.map(bucket -> map()
 					.e(TYPENAME_FIELD, BucketDescriptor.THIS.name())
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())
@@ -5514,7 +5495,6 @@ public class CatalogGraphQLQueryEntityQueryFunctionalTest extends CatalogGraphQL
 			.e(HistogramDescriptor.BUCKETS.name(), Arrays.stream(priceHistogram.getBuckets())
 				.map(bucket -> map()
 					.e(TYPENAME_FIELD, BucketDescriptor.THIS.name())
-					.e(BucketDescriptor.INDEX.name(), bucket.index())
 					.e(BucketDescriptor.THRESHOLD.name(), bucket.threshold().toString())
 					.e(BucketDescriptor.OCCURRENCES.name(), bucket.occurrences())
 					.e(BucketDescriptor.REQUESTED.name(), bucket.requested())

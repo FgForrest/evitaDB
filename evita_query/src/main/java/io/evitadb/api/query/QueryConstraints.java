@@ -690,7 +690,19 @@ public interface QueryConstraints {
 		if (priceList == null) {
 			return null;
 		}
-		return new PriceInPriceLists(priceList);
+		// if the array is empty - it was deliberate action which needs to produce empty result of the query
+		if (priceList.length == 0) {
+			return new PriceInPriceLists(priceList);
+		}
+		final String[] normalizeNames = Arrays.stream(priceList).filter(Objects::nonNull).filter(it -> !it.isBlank()).toArray(String[]::new);
+		// the array was not empty, but contains only null values - this may not be deliberate action - for example
+		// the initalization was like `priceInPriceLists(nullVariable)` and this should exclude the constraint
+		if (normalizeNames.length == 0) {
+			return null;
+		}
+		// otherwise propagate only non-null values
+		return normalizeNames.length == priceList.length ?
+			new PriceInPriceLists(priceList) : new PriceInPriceLists(normalizeNames);
 	}
 
 	/**
@@ -1537,15 +1549,19 @@ public interface QueryConstraints {
 	@SuppressWarnings("unchecked")
 	@Nullable
 	static <T extends Serializable> AttributeInSet attributeInSet(@Nullable String attributeName, @Nullable T... set) {
-		if (attributeName == null || ArrayUtils.isEmpty(set)) {
+		// if the array is empty - it was deliberate action which needs to produce empty result of the query
+		if (attributeName == null || set == null) {
 			return null;
 		}
 		final List<T> args = Arrays.stream(set).filter(Objects::nonNull).toList();
-		if (args.isEmpty()) {
-			return null;
-		} else if (args.size() == set.length) {
+		if (args.size() == set.length) {
 			return new AttributeInSet(attributeName, set);
+		} else if (args.isEmpty()) {
+			// the array was not empty, but contains only null values - this may not be deliberate action - for example
+			// the initalization was like `attributeInSet("attrName", nullVariable)` and this should exclude the constraint
+			return null;
 		} else {
+			// otherwise propagate only non-null values
 			final T[] limitedSet = (T[]) Array.newInstance(set.getClass().getComponentType(), args.size());
 			for (int i = 0; i < args.size(); i++) {
 				limitedSet[i] = args.get(i);
@@ -1807,7 +1823,19 @@ public interface QueryConstraints {
 		if (primaryKey == null) {
 			return null;
 		}
-		return new EntityPrimaryKeyInSet(primaryKey);
+		// if the array is empty - it was deliberate action which needs to produce empty result of the query
+		if (primaryKey.length == 0) {
+			return new EntityPrimaryKeyInSet(primaryKey);
+		}
+		final Integer[] normalizedPks = Arrays.stream(primaryKey).filter(Objects::nonNull).toArray(Integer[]::new);
+		// the array was not empty, but contains only null values - this may not be deliberate action - for example
+		// the initalization was like `entityPrimaryKeyInSet(nullVariable)` and this should exclude the constraint
+		if (normalizedPks.length == 0) {
+			return null;
+		}
+		// otherwise propagate only non-null values
+		return normalizedPks.length == primaryKey.length ?
+			new EntityPrimaryKeyInSet(primaryKey) : new EntityPrimaryKeyInSet(normalizedPks);
 	}
 
 	/**

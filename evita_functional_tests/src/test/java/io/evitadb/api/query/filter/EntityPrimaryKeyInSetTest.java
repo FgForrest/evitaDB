@@ -42,8 +42,27 @@ class EntityPrimaryKeyInSetTest {
 	}
 
 	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
+		final EntityPrimaryKeyInSet entityPrimaryKeyInSet = entityPrimaryKeyInSet(1, null, 7);
+		assertArrayEquals(new int[] {1, 7}, entityPrimaryKeyInSet.getPrimaryKeys());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+		final Integer nullInteger = null;
+		final EntityPrimaryKeyInSet entityPrimaryKeyInSet = entityPrimaryKeyInSet(nullInteger);
+		assertNull(entityPrimaryKeyInSet);
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
+		final EntityPrimaryKeyInSet entityPrimaryKeyInSet = entityPrimaryKeyInSet(new Integer[0]);
+		assertArrayEquals(new int[0], entityPrimaryKeyInSet.getPrimaryKeys());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new EntityPrimaryKeyInSet().isApplicable());
+		assertTrue(new EntityPrimaryKeyInSet().isApplicable());
 		assertTrue(entityPrimaryKeyInSet(1).isApplicable());
 		assertTrue(entityPrimaryKeyInSet(1, 5, 7).isApplicable());
 	}

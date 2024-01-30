@@ -1,0 +1,18 @@
+query(
+  collection("Product"),
+  filterBy(
+    priceValidInNow(),
+    priceInPriceLists("basic"),
+    priceInCurrency("EUR"),
+    userFilter(
+      priceBetween(100, 2000),
+      attributeBetween(
+        "battery-capacity", 2000, 6000
+      )
+    )
+  ),
+  require(
+    priceHistogram(30),
+    attributeHistogram(30, "battery-capacity")
+  )
+)

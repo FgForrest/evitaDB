@@ -1,8 +1,8 @@
 ---
 title: Ordering references / by reference attribute
 perex: |
-  You can sort entities by attributes on references, and you can also sort fetched referenced entities by their 
-  attributes or by attributes of references that point to them. Although these are fundamentally different scenarios, 
+  You can sort entities by attributes on references, and you can also sort fetched referenced entities by their
+  attributes or by attributes of references that point to them. Although these are fundamentally different scenarios,
   both are described in this section.
 date: '25.6.2023'
 author: 'Ing. Jan Novotný'
@@ -37,9 +37,9 @@ referenceProperty(
 ##### The `referenceProperty` is implicit in requirement `referenceContent`
 </NoteTitle>
 
-In the `orderBy` clause within the [`referenceContent`](../requirements/fetching.md#reference-content) requirement, 
-the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints 
-in `referenceContent` automatically refer to the reference attributes, unless the [`entityProperty`](#entity-property) 
+In the `orderBy` clause within the [`referenceContent`](../requirements/fetching.md#reference-content) requirement,
+the `referenceProperty` constraint is implicit and must not be repeated. All attribute order constraints
+in `referenceContent` automatically refer to the reference attributes, unless the [`entityProperty`](#entity-property)
 container is used there.
 
 </Note>
@@ -63,29 +63,29 @@ following query:
 ##### List of products in "sale" ordered by predecessor chain
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of products in "sale" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of products in "sale" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of products in "sale" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
-The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a group 
-entity). The response will only return the products that have a reference to the "sale" group, all of which contain the 
-`orderInGroup` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned 
+The example is based on a simple one-to-zero-or-one reference (a product can have at most one reference to a group
+entity). The response will only return the products that have a reference to the "sale" group, all of which contain the
+`orderInGroup` attribute (since it's marked as a non-nullable attribute). Because the example is so simple, the returned
 result can be anticipated.
 
 ### Behaviour of zero or one to many references ordering
@@ -97,11 +97,11 @@ We decided to allow it and bind it with the following rules:
 
 #### Non-hierarchical entity
 
-If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only 
+If the referenced entity is **non-hierarchical**, and the returned entity references multiple entities, only
 the reference with the lowest primary key of the referenced entity, while also having the order property set, will be
 used for ordering.
 
-Let's extend our previous example so that it returns products that refer not only to the group "sale", but also to the 
+Let's extend our previous example so that it returns products that refer not only to the group "sale", but also to the
 group "new":
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -116,23 +116,23 @@ group "new":
 ##### List of products in groups "sale" or "new" ordered by predecessor chain
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List of products in groups "sale" or "new" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List of products in groups "sale" or "new" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List of products in groups "sale" or "new" ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-multiple.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 The result will contain first products referring to a "new" group which has the lowest primary key, and then products
 referring to a "sale" group. The order of products within each group will be determined by the `orderInGroup` attribute.
@@ -141,16 +141,16 @@ referring to a "sale" group. The order of products within each group will be det
 
 #### Hierarchical entity
 
-If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used 
-for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered 
+If the referenced entity is **hierarchical** and the returned entity references multiple entities, the reference used
+for ordering is the one that contains the order property and is the closest hierarchy node to the root of the filtered
 hierarchy node.
 
-It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time 
-order them by a property `orderInCategory` set on the reference to the category, the first products will be those 
-directly related to the category, ordered by `orderInCategory`, followed by the products of the first child category, 
+It sounds complicated, but it's really quite simple. If you list products of a certain category and at the same time
+order them by a property `orderInCategory` set on the reference to the category, the first products will be those
+directly related to the category, ordered by `orderInCategory`, followed by the products of the first child category,
 and so on, maintaining the depth-first order of the category tree.
 
-This behaviour is best illustrated by a following example. Let's list products in the *Accessories* category ordered 
+This behaviour is best illustrated by a following example. Let's list products in the *Accessories* category ordered
 by the `orderInCategory` attribute on the reference to the category:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -165,28 +165,28 @@ by the `orderInCategory` attribute on the reference to the category:
 ##### List products in "Accessories" category ordered by predecessor chain
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude>[List products in "Accessories" category ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.evitaql.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[List products in "Accessories" category ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[List products in "Accessories" category ordered by predecessor chain](/documentation/user/en/query/ordering/examples/reference/reference-attribute-natural-hierarchy.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-The result will first contain products directly related to the *Accessories* category, ordered by `orderInCategory` in 
-ascending order, then products *Christmas electronics* (which is the first child of the *Accessories* category with 
-the least primary key), then *Smart wearable* (which has no directly related products), then *Bands* (which is the first 
-child of the *Smart wearable* category), and so on. The order follows the order of the categories in the following 
+The result will first contain products directly related to the *Accessories* category, ordered by `orderInCategory` in
+ascending order, then products *Christmas electronics* (which is the first child of the *Accessories* category with
+the least primary key), then *Smart wearable* (which has no directly related products), then *Bands* (which is the first
+child of the *Smart wearable* category), and so on. The order follows the order of the categories in the following
 image:
 
 ![dynamic-tree.png](../requirements/assets/dynamic-tree.png)
@@ -220,11 +220,11 @@ entityProperty(
     </dd>
 </dl>
 
-The `entityProperty` ordering constraint can only be used within the [`referenceContent`](../requirements/fetching.md#reference-content) 
-requirement. It allows to change the context of the reference ordering from attributes of the reference itself to 
+The `entityProperty` ordering constraint can only be used within the [`referenceContent`](../requirements/fetching.md#reference-content)
+requirement. It allows to change the context of the reference ordering from attributes of the reference itself to
 attributes of the entity the reference points to.
 
-In other words, if the `Product` entity has multiple references to `ParameterValue` entities, you can sort those 
+In other words, if the `Product` entity has multiple references to `ParameterValue` entities, you can sort those
 references by, for example, the `order` or `name` attribute of the `ParameterValue` entity. Let's see an example:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -239,23 +239,23 @@ references by, for example, the `order` or `name` attribute of the `ParameterVal
 ##### Get product with parameter values ordered by their name
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 
 <MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their name](/documentation/user/en/query/ordering/examples/reference/entity-property.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Get product with parameters ordered by their name](/documentation/user/en/query/ordering/examples/reference/entity-property.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Get product with parameters ordered by their name](/documentation/user/en/query/ordering/examples/reference/entity-property.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>
 
@@ -275,12 +275,12 @@ entityGroupProperty(
     </dd>
 </dl>
 
-The `entityGroupProperty` ordering constraint can only be used within the [`referenceContent`](../requirements/fetching.md#reference-content) requirement. It 
-allows the context of the reference ordering to be changed from attributes of the reference itself to attributes of 
+The `entityGroupProperty` ordering constraint can only be used within the [`referenceContent`](../requirements/fetching.md#reference-content) requirement. It
+allows the context of the reference ordering to be changed from attributes of the reference itself to attributes of
 the group entity within which the reference is aggregated.
 
-In other words, if the `Product` entity has multiple references to `ParameterValue` entities that are grouped by their 
-assignment to the `Parameter` entity, you can sort those references primarily by the `name` attribute of the grouping 
+In other words, if the `Product` entity has multiple references to `ParameterValue` entities that are grouped by their
+assignment to the `Parameter` entity, you can sort those references primarily by the `name` attribute of the grouping
 entity, and secondarily by the `name` attribute of the referenced entity. Let's look at an example:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
@@ -296,22 +296,22 @@ entity, and secondarily by the `name` attribute of the referenced entity. Let's 
 ##### Get product with parameters ordered by their priority
 </NoteTitle>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 <MDInclude sourceVariable="recordData.0">[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.evitaql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 <MDInclude>[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.graphql.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="rest">
+<LS to="r">
 
 <MDInclude>[Get product with parameters ordered by their group name and name](/documentation/user/en/query/ordering/examples/reference/entity-group-property.rest.json.md)</MDInclude>
 
-</LanguageSpecific>
+</LS>
 
 </Note>

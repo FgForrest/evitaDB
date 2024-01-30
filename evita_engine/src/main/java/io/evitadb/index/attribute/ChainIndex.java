@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookup;
@@ -391,7 +392,9 @@ public class ChainIndex implements SortedRecordsSupplierFactory, TransactionalLa
 	@Nonnull
 	private OptionalInt removeSuccessorElement(int primaryKey, int chainHeadPk) {
 		// if the primary key is successor of its chain
-		final TransactionalUnorderedIntArray chain = this.chains.get(chainHeadPk);
+		final TransactionalUnorderedIntArray chain = ofNullable(this.chains.get(chainHeadPk))
+			.orElseThrow(() -> new EvitaInvalidUsageException("Chain with head `" + chainHeadPk + "` is not present in the index!"));
+
 		final int index = chain.indexOf(primaryKey);
 		// sanity check - the primary key must be present in the chain according to the state information
 		Assert.isPremiseValid(

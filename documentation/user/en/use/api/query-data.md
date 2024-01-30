@@ -9,7 +9,7 @@ proofreading: 'done'
 preferredLang: 'java'
 ---
 
-The [query in evitaDB](../query/basics.md) is represented by a tree of nested "constraints" divided into four <LanguageSpecific to="graphql">_logical_</LanguageSpecific> parts:
+The [query in evitaDB](../query/basics.md) is represented by a tree of nested "constraints" divided into four <LS to="g">_logical_</LS> parts:
 
 <dl>
     <dt>`collection`</dt>
@@ -24,24 +24,24 @@ The [query in evitaDB](../query/basics.md) is represented by a tree of nested "c
     performed on them</dd>
 </dl>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 The *evitaQL* (evitaDB Query Language) entry point is represented by
-<LanguageSpecific to="evitaql,java"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass></LanguageSpecific> class, and looks like this
+<LS to="e,j"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Query.cs</SourceClass></LS> class, and looks like this
 a [Lisp flavored language](https://en.wikipedia.org/wiki/Lisp_(programming_language)). It always starts with
 the name of the constraint, followed by a set of arguments in parentheses. You can even use other functions
 in those arguments. An example of such a query might look like this:
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 The *evitaQL* (evitaDB Query Language) is represented by JSON object of nested constraints. Each nested property
 always starts with name of the constraint followed by a set of arguments as property value. You can even use other
 constraints in those arguments. An example of such a query might look like this:
 
-</LanguageSpecific>
+</LS>
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" langSpecificTabOnly>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [EvitaQL example](/documentation/user/en/use/api/example/evita-query-example.java)
 </SourceCodeTabs>
@@ -56,14 +56,14 @@ constraints in those arguments. An example of such a query might look like this:
 > *calculated with an impact analysis of how the result would look if the user selected some other parameters in*
 > *addition to the two selected ones.*
 
-<LanguageSpecific to="evitaql">
+<LS to="e">
 
 evitaQL is represented by a simple
 [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) which is parsed to
 an abstract syntax tree consisting of constraints
 (<SourceClass>evita_query/src/main/java/io/evitadb/api/query/Constraint.java</SourceClass>) encapsulated in
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> object.
-</LanguageSpecific>
+</LS>
 
 We have designed the *evitaQL* string representation to look similar to a query defined directly in the *Java* language.
 We also try to preserve the "look & feel" of the original evitaQL in different languages / APIs like REST, GraphQL or C#
@@ -73,7 +73,7 @@ evitaQL is used in the gRPC protocol and can optionally be used for the embedded
 in [evitaDB console](/documentation/blog/en/09-our-new-web-client-evitalab). The GraphQL and REST Web API use a similar format, but adapted to
 the protocol conventions (so that we can take advantage of the Open API / GQL schema).
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 ## Defining queries in Java code
 
@@ -90,7 +90,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Java query example](/documentation/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
@@ -99,7 +99,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Java dirty query example](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
@@ -145,7 +145,7 @@ represented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
 interface.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.java)
 </SourceCodeTabs>
@@ -163,7 +163,7 @@ When such a require constraint is used, data will be fetched *greedily* during t
 will then contain entities in the form of
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/SealedEntity.java</SourceClass>.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.java)
 </SourceCodeTabs>
@@ -179,7 +179,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.java)
 </SourceCodeTabs>
@@ -200,7 +200,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
 </SourceCodeTabs>
@@ -488,9 +488,9 @@ invalidation. You'd have to query only the entity references that contain versio
 that are not in the cache with a separate request. So instead of one network request, you have to make two. The benefit
 of the local cache is therefore somewhat questionable.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 
 ## Defining queries in C# code
 
@@ -505,7 +505,7 @@ This is an example of how the query is composed and how evitaDB is called.
 The example imports previously mentioned interface
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass> statically.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [C# query example](/documentation/user/en/use/api/example/csharp-query-example.cs)
 </SourceCodeTabs>
@@ -514,7 +514,7 @@ The example imports previously mentioned interface
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [C# dirty query example](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
 </SourceCodeTabs>
@@ -537,7 +537,7 @@ represented by the
 <SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass>
 interface.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.cs)
 </SourceCodeTabs>
@@ -555,7 +555,7 @@ When such a `require` constraint is used, data will be fetched *greedily* during
 will then contain entities in the form of
 <SourceClass>EvitaDB.Client/Models/Data/ISealedEntity.cs</SourceClass>.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java">
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/fetching-example.cs)
 </SourceCodeTabs>
@@ -571,7 +571,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.cs)
 </SourceCodeTabs>
@@ -592,7 +592,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs requires="/documentation/user/en/get-started/example/connect-demo-server.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
 </SourceCodeTabs>
@@ -622,8 +622,8 @@ give you better latency. The problem is related to cache invalidation. You'd hav
 that contain version information and fetch the entities that are not in the cache with a separate request.
 So instead of one network request, you have to make two. The benefit of the local cache is therefore somewhat questionable.
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 
 ## Defining queries in GraphQL API
 
@@ -726,8 +726,8 @@ one query.
 [GraphQL full query example](/documentation/user/en/use/api/example/graphql-full-query-example.graphql)
 </SourceCodeTabs>
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 
 ## Defining queries in REST API
 
@@ -806,4 +806,4 @@ one query.
 [REST full query example](/documentation/user/en/use/api/example/rest-full-query-example.rest)
 </SourceCodeTabs>
 
-</LanguageSpecific>
+</LS>

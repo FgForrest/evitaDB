@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
  */
 
 package io.evitadb.utils;
+
+import io.evitadb.exception.InvalidEvitaVersionException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -87,21 +89,28 @@ public class VersionUtils {
 		 *
 		 * @param version the string version in the format "major.minor.patch"
 		 */
-		private SemVer(@Nonnull String... version) {
-			this(
-				Integer.parseInt(version[0]),
-				Integer.parseInt(version[1]),
-				version.length > 2 ? version[2] : null
-			);
-		}
+		public static SemVer fromString(@Nonnull String version) {
+			if (version.equals("?")) {
+				throw new InvalidEvitaVersionException(
+					"Invalid version string: `" + version + "`.",
+					"Invalid version string: `" + version + "`."
+				);
+			}
 
-		/**
-		 * Constructs a SemVer object from a string version.
-		 *
-		 * @param version the string version in the format "major.minor.patch"
-		 */
-		public SemVer(@Nonnull String version) {
-			this(version.replace("-SNAPSHOT", "").split("\\."));
+			final String[] versionParts = version.replace("-SNAPSHOT", "").split("\\.");
+			try {
+				return new SemVer(
+					Integer.parseInt(versionParts[0]),
+					Integer.parseInt(versionParts[1]),
+					versionParts.length > 2 ? versionParts[2] : null
+				);
+			} catch (NumberFormatException e) {
+				throw new InvalidEvitaVersionException(
+					"Invalid version string: `" + version + "`.",
+					"Invalid version string: `" + version + "`.",
+					e
+				);
+			}
 		}
 
 		@Override

@@ -233,7 +233,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 	 */
 	private long lastCall;
 
-	private static <S extends Serializable> void assertRequestMakesSense(@Nonnull Query query, @Nonnull Class<S> expectedType) {
+	private static <S extends Serializable> Query assertRequestMakesSenseAndEntityTypeIsPresent(@Nonnull Query query, @Nonnull Class<S> expectedType, @Nonnull ReflectionLookup reflectionLookup) {
 		if (EntityContract.class.isAssignableFrom(expectedType) &&
 			(query.getRequire() == null ||
 				FinderVisitor.findConstraints(query.getRequire(), EntityFetch.class::isInstance, SeparateEntityContentRequireContainer.class::isInstance).isEmpty())) {
@@ -242,6 +242,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 					"in the requirements. This would imply that only entity references " +
 					"will be returned by the server!"
 			);
+		}
+		if (query.getCollection() == null) {
+			final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
+				.orElseGet(() -> ofNullable(query.getCollection())
+					.map(io.evitadb.api.query.head.Collection::getEntityType)
+					.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
+			return Query.query(
+				collection(entityTypeByExpectedType),
+				query.getFilterBy(),
+				query.getOrderBy(),
+				query.getRequire()
+			).normalizeQuery();
+		} else {
+			return query.normalizeQuery();
 		}
 	}
 
@@ -454,17 +468,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public <S extends Serializable, T extends EvitaResponse<S>> T query(@Nonnull Query query, @Nonnull Class<S> expectedType) throws UnexpectedResultException, InstanceTerminatedException {
 		assertActive();
-		assertRequestMakesSense(query, expectedType);
-		final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
-			.orElseGet(() -> ofNullable(query.getCollection())
-				.map(io.evitadb.api.query.head.Collection::getEntityType)
-				.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
-
-		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
+		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
+		final StringWithParameters stringWithParameters = finalQuery.toStringWithParameterExtraction();
 		final GrpcQueryResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.query(
 				GrpcQueryRequest.newBuilder()
-					.setCollection(entityTypeByExpectedType)
 					.setQuery(stringWithParameters.query())
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
@@ -482,11 +490,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 			//noinspection unchecked
 			return (T) new EvitaEntityReferenceResponse(
-				query, recordPage,
+				finalQuery, recordPage,
 				getEvitaResponseExtraResults(
 					grpcResponse,
 					new EvitaRequest(
-						query,
+						finalQuery,
 						OffsetDateTime.now(),
 						EntityReference.class,
 						null,
@@ -495,6 +503,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 				)
 			);
 		} else {
+			final String expectedEntityType = ofNullable(finalQuery.getCollection())
+				.map(io.evitadb.api.query.head.Collection::getEntityType)
+				.orElse(null);
+
 			final DataChunk<S> recordPage;
 			if (grpcResponse.getRecordPage().getBinaryEntitiesList().isEmpty()) {
 				// convert to Sealed entities
@@ -503,10 +515,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 					grpcRecordPage -> EntityConverter.toEntities(
 						grpcRecordPage.getSealedEntitiesList(),
 						new EvitaRequest(
-							query,
+							finalQuery,
 							OffsetDateTime.now(),
 							expectedType,
-							entityTypeByExpectedType,
+							expectedEntityType,
 							this::createEntityProxy
 						),
 						(entityType, schemaVersion) -> schemaCache.getEntitySchemaOrThrow(
@@ -530,14 +542,14 @@ public class EvitaClientSession implements EvitaSessionContract {
 
 			//noinspection unchecked
 			return (T) new EvitaEntityResponse<>(
-				query, recordPage,
+				finalQuery, recordPage,
 				getEvitaResponseExtraResults(
 					grpcResponse,
 					new EvitaRequest(
-						query,
+						finalQuery,
 						OffsetDateTime.now(),
 						expectedType,
-						entityTypeByExpectedType,
+						expectedEntityType,
 						this::createEntityProxy
 					)
 				)
@@ -1386,17 +1398,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull EvitaRequest evitaRequest
 	) {
 		assertActive();
-		assertRequestMakesSense(query, expectedType);
-		final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
-			.orElseGet(() -> ofNullable(query.getCollection())
-				.map(io.evitadb.api.query.head.Collection::getEntityType)
-				.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
-
-		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
+		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
+		final StringWithParameters stringWithParameters = finalQuery.toStringWithParameterExtraction();
 		final GrpcQueryListResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.queryList(
 				GrpcQueryRequest.newBuilder()
-					.setCollection(entityTypeByExpectedType)
 					.setQuery(stringWithParameters.query())
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()
@@ -1500,17 +1506,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull EvitaRequest evitaRequest
 	) {
 		assertActive();
-		assertRequestMakesSense(query, expectedType);
-		final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
-			.orElseGet(() -> ofNullable(query.getCollection())
-				.map(io.evitadb.api.query.head.Collection::getEntityType)
-				.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
-
-		final StringWithParameters stringWithParameters = query.normalizeQuery().toStringWithParameterExtraction();
+		final Query finalQuery = assertRequestMakesSenseAndEntityTypeIsPresent(query, expectedType, reflectionLookup);
+		final StringWithParameters stringWithParameters = finalQuery.toStringWithParameterExtraction();
 		final GrpcQueryOneResponse grpcResponse = executeWithEvitaSessionService(evitaSessionService ->
 			evitaSessionService.queryOne(
 				GrpcQueryRequest.newBuilder()
-					.setCollection(entityTypeByExpectedType)
 					.setQuery(stringWithParameters.query())
 					.addAllPositionalQueryParams(
 						stringWithParameters.parameters()

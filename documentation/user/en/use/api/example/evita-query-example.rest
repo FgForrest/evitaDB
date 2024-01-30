@@ -29,6 +29,9 @@ POST /rest/evita/Product/query
 	  "statisticsDepth": "IMPACT"
 	},
 	"priceType": "WITH_TAX",
-	"priceHistogram": 30
+	"priceHistogram": {
+      "requestedBucketCount" : 30,
+      "behavior" : "STANDARD"
+	}
   }
 }

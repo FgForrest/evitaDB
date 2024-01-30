@@ -1,0 +1,20 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "accessories"),
+            having(
+                or(
+                    attributeIsNull("validity"),
+                    attributeInRangeNow("validity")
+                )
+            )
+        )
+    ),
+    require(
+        entityFetch(
+            attributeContent("code")
+        )
+    )
+)

@@ -42,9 +42,28 @@ class AttributeInSetTest {
 	}
 
 	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
+		final AttributeInSet attributeInSet = attributeInSet("refs", 1, null, 5);
+		assertArrayEquals(new Comparable<?>[] {1, 5}, attributeInSet.getAttributeValues());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+		final Integer nullInteger = null;
+		final AttributeInSet attributeInSet = attributeInSet("refs", nullInteger);
+		assertNull(attributeInSet);
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
+		final AttributeInSet attributeInSet = attributeInSet("refs", new Integer[0]);
+		assertArrayEquals(new Comparable<?>[0], attributeInSet.getAttributeValues());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
 		assertFalse(new AttributeInSet(null).isApplicable());
-		assertFalse(new AttributeInSet("refs").isApplicable());
+		assertTrue(new AttributeInSet("refs").isApplicable());
 		assertTrue(attributeInSet("refs", 1).isApplicable());
 		assertTrue(attributeInSet("refs", 1, 2).isApplicable());
 	}

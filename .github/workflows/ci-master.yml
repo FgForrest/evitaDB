@@ -41,11 +41,11 @@ jobs:
 
     - name: Resolve new release version
       id: release_version
-      uses: codacy/git-version@2.7.1
+      uses: lukashornych/semantic-calendar-version@v1.1.3
       with:
         prefix: 'v'
-        minor-identifier: 'feat'
-        major-identifier: '(breaking)' # this should be placed somewhere in the commit message like "feat: (breaking) some message"
+        year_switch_mode: 'OnMinor'
+        minor-identifier: '/feat(?:\\([^)]+\\))?:/'
 
     - name: Setup Java JDK
       uses: actions/setup-java@v3  # setup JDK 17 for building

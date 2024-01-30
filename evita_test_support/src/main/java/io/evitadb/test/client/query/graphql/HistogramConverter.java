@@ -65,7 +65,6 @@ public abstract class HistogramConverter extends RequireConverter {
 			.addObjectField(
 				HistogramDescriptor.BUCKETS,
 				bucketsBuilder -> bucketsBuilder
-					.addPrimitiveField(BucketDescriptor.INDEX)
 					.addPrimitiveField(BucketDescriptor.THRESHOLD)
 					.addPrimitiveField(BucketDescriptor.OCCURRENCES)
 					.addPrimitiveField(BucketDescriptor.REQUESTED),

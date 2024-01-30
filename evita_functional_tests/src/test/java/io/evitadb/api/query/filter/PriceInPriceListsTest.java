@@ -42,8 +42,27 @@ class PriceInPriceListsTest {
 	}
 
 	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullInArray() {
+		final PriceInPriceLists priceInPriceLists = priceInPriceLists("basic", null, "reference");
+		assertArrayEquals(new String[] {"basic", "reference"}, priceInPriceLists.getPriceLists());
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedForNullVariable() {
+		final String nullString = null;
+		final PriceInPriceLists priceInPriceLists = priceInPriceLists(nullString);
+		assertNull(priceInPriceLists);
+	}
+
+	@Test
+	void shouldCreateViaFactoryClassWorkAsExpectedNullValueInArray() {
+		final PriceInPriceLists priceInPriceLists = priceInPriceLists(new String[0]);
+		assertArrayEquals(new String[0], priceInPriceLists.getPriceLists());
+	}
+
+	@Test
 	void shouldRecognizeApplicability() {
-		assertFalse(new PriceInPriceLists(new String[0]).isApplicable());
+		assertTrue(new PriceInPriceLists(new String[0]).isApplicable());
 		assertTrue(priceInPriceLists("A").isApplicable());
 		assertTrue(priceInPriceLists("A", "B").isApplicable());
 	}

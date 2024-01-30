@@ -10,16 +10,16 @@ proofreading: 'done'
 preferredLang: 'evitaql'
 ---
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 The evitaDB query language consists of a nested set of functions representing individual "constraints".
 Each constraint (function) has its name and set of arguments enclosed in brackets `constraintName(arguments)`,
 argument can be a plain value of supported [data type](../use/data-types.md) or another constraint.
 Arguments and constraints are separated by a comma
-`argument1, argument2`. Strings are enclosed in <LanguageSpecific to="evitaql">`'this is string'` or </LanguageSpecific>`"this is string"`.
+`argument1, argument2`. Strings are enclosed in <LS to="e">`'this is string'` or </LS>`"this is string"`.
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 The evitaDB query language consists of a nested JSON objects and primitives representing individual "constraints".
 Each constraint (represented either by nested object or simple primitive value) has its name specified by the property key
@@ -37,13 +37,13 @@ and its support arguments:
 
 There also may be different combinations of these.
 
-</LanguageSpecific>
+</LS>
 
 This language is expected to be used by human operators, at the code level the query is represented by
 a query object tree, which can be constructed directly without any intermediate string language form (as
 opposed to the SQL language, which is strictly string typed).
 
-Query has these four <LanguageSpecific to="graphql">_logical_</LanguageSpecific> parts:
+Query has these four <LS to="g">_logical_</LS> parts:
 
 - **[header](#header):** defines the queried entity collection (it's mandatory unless the filter contains
   constraints targeting globally unique attributes)
@@ -57,12 +57,12 @@ Query has these four <LanguageSpecific to="graphql">_logical_</LanguageSpecific>
 
 ## Grammar
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 The grammar of a query is as follows:
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 The grammar of a full query is as follows:
-</LanguageSpecific>
+</LS>
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -76,7 +76,7 @@ Or more complex one:
 [Example of grammar of a complex query](/documentation/user/en/query/examples/complexGrammar.evitaql)
 </SourceCodeTabs>
 
-<LanguageSpecific to="graphql">
+<LS to="g">
 
 Where the _header_ part (queried collection) is part of the GraphQL query name itself, and the _filter_, _order_, and _require_
 parts are defined using GraphQL arguments of that GraphQL query.
@@ -89,17 +89,17 @@ what the domain evitaDB schema allows you to fetch.
 There are other simpler variations of the GraphQL query grammar described [here](../use/api/query-data.md#defining-queries-in-graphql-api)
 in more detail, but the underlying logic is always the same.
 
-</LanguageSpecific>
-<LanguageSpecific to="rest">
+</LS>
+<LS to="r">
 Where the _header_ part (queried collection) is part a URL path, and the _filter_, _order_, and _require_ parts are defined
 as properties of the input JSON object.
 
 There are other simpler variations of the REST query grammar described [here](../use/api/query-data.md#defining-queries-in-rest-api)
 in more detail, but the underlying logic is always the same.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 Any part of the query is optional. Only the `collection` part is usually mandatory, but there is an exception to this rule.
 If the `filterBy` part contains a constraint that targets a globally unique attribute, the `collection` part can be omitted
@@ -108,31 +108,31 @@ However, there can be at most one part of each `collection`, `filterBy`, `orderB
 Any part can be swapped (the order is not important). I.e. the following query is still a valid query and represents
 the simplest query possible:
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 Almost any part of the query is optional. Only the `collection` is usually mandatory, but there is an exception to this rule.
-You always need to use specific <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="rest">REST endpoint</LanguageSpecific>
+You always need to use specific <LS to="g">GraphQL query</LS><LS to="r">REST endpoint</LS>
 where the name of the collection is already defined, however, you can
-use generic <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="rest">REST endpoint</LanguageSpecific>
+use generic <LS to="g">GraphQL query</LS><LS to="r">REST endpoint</LS>
 (although, it is very limited due to the nature of the generated schema)
 and use a constraint that targets a globally unique attribute. In this case, the `collection`
 part can be omitted because evitaDB can pick the implicit collection of that globally unique attribute automatically.
-<LanguageSpecific to="graphql">Other parts defined using arguments are optional, but due to the nature of the GraphQL, you have to define at least
-one output field.</LanguageSpecific>
-<LanguageSpecific to="rest">Other parts defined using properties of input JSON object are optional.</LanguageSpecific>
+<LS to="g">Other parts defined using arguments are optional, but due to the nature of the GraphQL, you have to define at least
+one output field.</LS>
+<LS to="r">Other parts defined using properties of input JSON object are optional.</LS>
 However, there can be at most one part of each _header_, _filter_, _order_, and _require_ in the query.
 
-Another specific in the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific>
+Another specific in the <LS to="g">GraphQL</LS><LS to="r">REST</LS>
 query grammar is that the constraint names usually contains classifiers of targeted data (e.g. name of attribute).
 This is important difference from other APIs, and it's because this way the
-<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific>
+<LS to="g">GraphQL</LS><LS to="r">REST</LS>
 schema for constraint property value can be specific to the constraint and targeted data and an IDE can provide
 proper auto-completion and validation of the constraint arguments.
 
 I.e. the following query is still a valid query and represents the simplest query possible:
 
-</LanguageSpecific>
+</LS>
 
 <SourceCodeTabs langSpecificTabOnly>
 
@@ -140,14 +140,14 @@ I.e. the following query is still a valid query and represents the simplest quer
 </SourceCodeTabs>
 
 ... or even this one (although it is recommended to keep the order for better readability:
-<LanguageSpecific to="evitaql,java,csharp">`collection`</LanguageSpecific>, `filterBy`, `orderBy`, `require`):
+<LS to="e,j,c">`collection`</LS>, `filterBy`, `orderBy`, `require`):
 
 <SourceCodeTabs langSpecificTabOnly>
 
 [Example random order of query parts](/documentation/user/en/query/examples/randomOrderQuery.evitaql)
 </SourceCodeTabs>
 
-<LanguageSpecific to="graphql,rest">
+<LS to="g,r">
 <Note type="info">
 
 <NoteTitle toggles="true">
@@ -155,11 +155,11 @@ I.e. the following query is still a valid query and represents the simplest quer
 ##### Want to read more about how the grammar was designed?
 </NoteTitle>
 
-You can read more about the specifics of the <LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific>
+You can read more about the specifics of the <LS to="g">GraphQL</LS><LS to="r">REST</LS>
 query grammar [here](/documentation/blog/en/02-designing-evita-query-language-for-graphql-api.md).
 
 </Note>
-</LanguageSpecific>
+</LS>
 
 ### Syntax format
 
@@ -188,18 +188,18 @@ constraintName(
   </dd>
 </dl>
 
-<LanguageSpecific to="graphql,rest">
+<LS to="g,r">
 
 <Note type="warning">
 
 This syntax format is currently specific to the base evitaQL language and doesn't reflect the differences in the
-<LanguageSpecific to="graphql">GraphQL</LanguageSpecific><LanguageSpecific to="rest">REST</LanguageSpecific> API.
+<LS to="g">GraphQL</LS><LS to="r">REST</LS> API.
 However, you can still benefit from this syntax as the naming and accepted arguments are the same (only in slightly different format).
-<LanguageSpecific to="graphql">The more specific GraphQL constraints/queries do have specific documentation however.</LanguageSpecific>
+<LS to="g">The more specific GraphQL constraints/queries do have specific documentation however.</LS>
 
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 #### Variadic arguments
 
@@ -223,12 +223,12 @@ character:
 <dl>
   <dt>`argument:string+`</dt>
   <dd>
-    argument at this position accepts an array of <LanguageSpecific to="evitaql,java,rest,graphql">[Strings](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[strings](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
+    argument at this position accepts an array of <LS to="e,j,r,g">[Strings](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[strings](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS>
     that has to have at least one item
   </dd>
   <dt>`argument:int*`</dt>
   <dd>
-    argument at this position accepts an array of <LanguageSpecific to="evitaql,java,rest,graphql">[ints](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific><LanguageSpecific to="csharp">[ints](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
+    argument at this position accepts an array of <LS to="e,j,r,g">[ints](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[ints](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>
     and may have zero or multiple items
   </dd>
   <dt>`filterConstraint:any*`</dt>
@@ -253,12 +253,12 @@ Mandatory argument is denoted by `!` (exclamation) sign or in case of variadic a
 <dl>
   <dt>`argument:string`</dt>
   <dd>
-    argument at this position accepts a <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
+    argument at this position accepts a <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS>
     value, that may be null
   </dd>
   <dt>`argument:int!`</dt>
   <dd>
-    argument at this position accepts an <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific><LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
+    argument at this position accepts an <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>
     value that is mandatory and must be provided
   </dd>
 </dl>
@@ -306,7 +306,7 @@ To make constraints more understandable, we have created a set of internal rules
 
 1. the name of the entity should be in a form (tense) that matches the English query phrase: *query collection ..., and filter entities by ..., and order result by ..., and require ...*
     - the query should be understandable to someone who is not familiar with evitaDB's syntax and internal mechanisms.
-2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` - followed <LanguageSpecific to="graphql,rest">usually by classifier of targeted data, which is followed</LanguageSpecific> by a word that captures the essence of the constraint.
+2. The constraint name starts with the part of the entity it targets - i.e., `entity`, `attribute`, `reference` - followed <LS to="g,r">usually by classifier of targeted data, which is followed</LS> by a word that captures the essence of the constraint.
 3. If the constraint only makes sense in the context of some parent constraint, it must not be usable anywhere else, and might relax rule #2 (since the context will be apparent from the parent constraint).
 
 ## Generic query rules
@@ -323,11 +323,11 @@ the automatic conversion.
 If the constraint targets an attribute that is of array type, the constraint automatically matches an entity in case
 **any** of the attribute array items satisfies it.
 
-For example let's have a <LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific>
+For example let's have a <LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS>
 array attribute named `oneDayDeliveryCountries` with the following values: `GB`, `FR`, `CZ`. The filtering constraint
-[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: <LanguageSpecific to="evitaql,java,csharp">`attributeEquals("oneDayDeliveryCountries", "GB")`</LanguageSpecific>
-<LanguageSpecific to="graphql">`attributeOneDayDeliveryCountriesEquals: "GB"`</LanguageSpecific>
-<LanguageSpecific to="rest">`"attributeOneDayDeliveryCountriesEquals": "GB"`</LanguageSpecific>
+[`attributeEquals`](filtering/comparable.md#attribute-equals) worded as follows: <LS to="e,j,c">`attributeEquals("oneDayDeliveryCountries", "GB")`</LS>
+<LS to="g">`attributeOneDayDeliveryCountriesEquals: "GB"`</LS>
+<LS to="r">`"attributeOneDayDeliveryCountriesEquals": "GB"`</LS>
 will match the entity, because the *GB* is one of the array values.
 
 Let's look at a more complicated, but more useful example. Let's have a [`DateTimeRange`](../use/data-types.md#datetimerange)
@@ -340,23 +340,23 @@ array attribute called `validity` that contains multiple time periods when the e
 ```
 
 In short, the entity is only valid in January, June, and December 2023. If we want to know if it's possible to access
-(e.g. buy a product) in May using the constraint <LanguageSpecific to="evitaql,java,csharp">`attributeInRange("validity", "2023-05-05T00:00:00+01:00")`</LanguageSpecific>
-<LanguageSpecific to="graphql">`attributeValidityInRange: "2023-05-05T00:00:00+01:00"`</LanguageSpecific>
-<LanguageSpecific to="rest">`"attributeValidityInRange": "2023-05-05T00:00:00+01:00"`</LanguageSpecific>, the result
+(e.g. buy a product) in May using the constraint <LS to="e,j,c">`attributeInRange("validity", "2023-05-05T00:00:00+01:00")`</LS>
+<LS to="g">`attributeValidityInRange: "2023-05-05T00:00:00+01:00"`</LS>
+<LS to="r">`"attributeValidityInRange": "2023-05-05T00:00:00+01:00"`</LS>, the result
 will be empty because none of the `validity` array ranges matches that date and time. Of course, if we ask for an entity
 that is valid in June using
-<LanguageSpecific to="evitaql,java,csharp">`attributeInRange("validity", "2023-06-05T00:00:00+01:00")`</LanguageSpecific>
-<LanguageSpecific to="graphql">`attributeValidityInRange: "2023-06-05T00:00:00+01:00"`</LanguageSpecific>
-<LanguageSpecific to="rest">`"attributeValidityInRange": "2023-06-05T00:00:00+01:00"`</LanguageSpecific>, the entity will be returned
+<LS to="e,j,c">`attributeInRange("validity", "2023-06-05T00:00:00+01:00")`</LS>
+<LS to="g">`attributeValidityInRange: "2023-06-05T00:00:00+01:00"`</LS>
+<LS to="r">`"attributeValidityInRange": "2023-06-05T00:00:00+01:00"`</LS>, the entity will be returned
 because there is a single date/time range in the array that satisfies this constraint.
 
 ## Header
 
-<LanguageSpecific to="evitaql,java,csharp">Only a `collection` constraint is allowed in this part of the query.</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">Only a collection definition is allowed and is defined as part of <LanguageSpecific to="graphql">a GraphQL query name</LanguageSpecific><LanguageSpecific to="rest">an endpoint URL</LanguageSpecific>.</LanguageSpecific>
+<LS to="e,j,c">Only a `collection` constraint is allowed in this part of the query.</LS>
+<LS to="g,r">Only a collection definition is allowed and is defined as part of <LS to="g">a GraphQL query name</LS><LS to="r">an endpoint URL</LS>.</LS>
 It defines the entity type that the query will
 target. It can be omitted
-<LanguageSpecific to="graphql,rest">when using generic <LanguageSpecific to="graphql">GraphQL query</LanguageSpecific><LanguageSpecific to="rest">endpoint</LanguageSpecific></LanguageSpecific>
+<LS to="g,r">when using generic <LS to="g">GraphQL query</LS><LS to="r">endpoint</LS></LS>
 if the [filterBy](#filter-by) contains a constraint that targets a globally unique attribute.
 This is useful for one of the most important e-commerce scenarios, where the requested URI needs to match one of the
 existing entities (see the [routing](../solve/routing.md) chapter for a detailed guide).
@@ -383,7 +383,7 @@ Constant constraints directly specify the entity primary keys that are expected 
 ### Localization constraints
 
 Localization constraints allow you to narrow down the [localized attributes](../use/data-model.md#localized-attributes)
-to a single <LanguageSpecific to="evitaql,java,rest,graphql">[locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LanguageSpecific><LanguageSpecific to="csharp">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LanguageSpecific>, which is used
+to a single <LS to="e,j,r,g">[locale](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Locale.html)</LS><LS to="c">[locale](https://learn.microsoft.com/en-us/dotnet/api/system.globalization.cultureinfo)</LS>, which is used
 to pick the correct values for comparison in other filter constraints that target those attributes:
 
 - [entity locale equals](filtering/locale.md#entity-locale-equals)
@@ -405,7 +405,7 @@ the resulting output to only include values that satisfy the constraint.
 ### String constraints
 
 String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
-<LanguageSpecific to="evitaql,java,rest,graphql">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LanguageSpecific><LanguageSpecific to="csharp">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LanguageSpecific> attribute datatype and
+<LS to="e,j,r,g">[String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html)</LS><LS to="c">[string](https://learn.microsoft.com/en-us/dotnet/api/system.string)</LS> attribute datatype and
 allow operations specific to it:
 
 - [attribute contains](filtering/string.md#attribute-contains)
@@ -415,7 +415,7 @@ allow operations specific to it:
 ### Range constraints
 
 String constraints are similar to [Comparable](#comparable-constraints), but operate only on the
-<LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass></LanguageSpecific><LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass></LanguageSpecific> attribute datatype and
+<LS to="e,j,r,g"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass></LS><LS to="e,j,r,g"><SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass></LS> attribute datatype and
 allow operations specific to it:
 
 - [attribute in range](filtering/range.md#attribute-in-range)
@@ -486,21 +486,21 @@ Currently, these requirements are available to you:
 Paging requirements control how large and which subset of the large filtered entity set is actually returned in
 the output.
 
-<LanguageSpecific to="evitaql,java,rest,csharp">
+<LS to="e,j,r,c">
 - [page](requirements/paging.md#page)
 - [strip](requirements/paging.md#strip)
-</LanguageSpecific>
-<LanguageSpecific to="graphql">
+</LS>
+<LS to="g">
 - [`list` queries](requirements/paging.md#pagination-of-list-queries)
 - [`query` queries - `recordPage`](requirements/paging.md#page-recordpage)
 - [`query` queries - `recordStrip`](requirements/paging.md#page-recordstrip)
-</LanguageSpecific>
+</LS>
 
 ### Fetching (completeness)
 
-Fetching requirements control the completeness of the returned entities. <LanguageSpecific to="evitaql,java,rest,csharp">By default, only a
-<LanguageSpecific to="evitaql,java,rest"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass></LanguageSpecific><LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass></LanguageSpecific>
-is returned in query response.</LanguageSpecific> In order an entity body is returned, some of the following requirements needs to be part
+Fetching requirements control the completeness of the returned entities. <LS to="e,j,r,c">By default, only a
+<LS to="e,j,r"><SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure/EntityReference.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Models/Data/Structure/EntityReference.cs</SourceClass></LS>
+is returned in query response.</LS> In order an entity body is returned, some of the following requirements needs to be part
 of it:
 
 - [entity fetch](requirements/fetching.md#entity-fetch)
@@ -510,9 +510,9 @@ of it:
 - [price content](requirements/fetching.md#price-content)
 - [reference content](requirements/fetching.md#reference-content)
 - [hierarchy content](requirements/fetching.md#hierarchy-content)
-<LanguageSpecific to="evitaql,java,rest,csharp">
+<LS to="e,j,r,c">
 - [data in locale](requirements/fetching.md#data-in-locales)
-</LanguageSpecific>
+</LS>
 
 ### Hierarchy
 
@@ -540,9 +540,9 @@ the summary could include a calculation of how many entities will be left when t
 the filter:
 
 - [facet summary](requirements/facet.md#facet-summary)
-<LanguageSpecific to="evitaql,java,rest,csharp">
+<LS to="e,j,r,c">
 - [facet summary of reference](requirements/facet.md#facet-summary-of-reference)
-</LanguageSpecific>
+</LS>
 - [facet conjunction](requirements/facet.md#facet-groups-conjunction)
 - [facet disjunction](requirements/facet.md#facet-groups-disjunction)
 - [facet negation](requirements/facet.md#facet-groups-negation)

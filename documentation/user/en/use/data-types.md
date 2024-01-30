@@ -22,7 +22,7 @@ There are two categories of data types:
 
 ## Simple data types
 
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 
 evitaDB data types are limited to following list:
 
@@ -47,9 +47,9 @@ evitaDB data types are limited to following list:
 - [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html),
     formatted as `2021-01-01T00:00:00`
 - [LocalDate](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDate.html),
-    formatted as `00:00:00`
-- [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html),
     formatted as `2021-01-01`
+- [LocalTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalTime.html),
+    formatted as `00:00:00`
 - [DateTimeRange](#datetimerange),
     formatted as `[2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]`
 - [BigDecimalNumberRange](#numberrange),
@@ -71,8 +71,8 @@ evitaDB data types are limited to following list:
 - [Predecessor](#predecessor),
     formatted as `789`
 
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 
 evitaDB data types are limited to following list:
 
@@ -121,8 +121,8 @@ evitaDB data types are limited to following list:
 - [Predecessor](#predecessor),
   formatted as `789`
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 The data types are based on the Java data types because that's how they are stored under the hood. The only difference
 is how they are formatted. evitaDB data types are limited to following list:
@@ -172,9 +172,9 @@ is how they are formatted. evitaDB data types are limited to following list:
 - [Predecessor](#predecessor),
   formatted as `789`
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java,graphql,rest,csharp">
+<LS to="j,g,r,c">
 
 An array of a simple type is still a simple data type. All simple types can be wrapped in an array. You cannot mix
 arrays and non-array types in a single *attribute* / *associated data* schema. Once an *attribute* or *associated
@@ -188,9 +188,9 @@ decisions are on your side, so think carefully which data type you choose and wh
 so that it requires a memory index.
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 <Note type="info">
 Application logic connected with evitaDB data types is located in
@@ -198,9 +198,9 @@ Application logic connected with evitaDB data types is located in
 class.
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 
 <Note type="info">
 Application logic connected with evitaDB data types is located in
@@ -208,20 +208,20 @@ Application logic connected with evitaDB data types is located in
 class.
 </Note>
 
-</LanguageSpecific>
+</LS>
 
 ### String
 
-<LanguageSpecific to="java,evitaql,graphql,rest">
+<LS to="j,e,g,r">
 The [string type](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) is internally encoded with the character set [UTF-8](https://en.wikipedia.org/wiki/UTF-8). evitaDB
 query language and other I/O methods of evitaDB implicitly use this encoding.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 The [string type](https://learn.microsoft.com/en-us/dotnet/api/system.string) is internally encoded with the character set [UTF-8](https://en.wikipedia.org/wiki/UTF-8). evitaDB
 query language and other I/O methods of evitaDB implicitly use this encoding.
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql,rest">
+<LS to="g,r">
 
 ### Long
 
@@ -239,11 +239,11 @@ are not precise enough for financial calculations. This is the same reason why B
 Even though the JSON format has its ways to ensure correct precision to some degree, we cannot guarantee that the client programming language
 parsing the number will use the correct data type that preserves the precision.
 
-</LanguageSpecific>
+</LS>
 
 ### Dates and times
 
-<LanguageSpecific to="java,evitaql,graphql,rest">
+<LS to="j,e,g,r">
 Although evitaDB supports *local* variants of the date time like
 [LocalDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/LocalDateTime.html), it's always
 converted to [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
@@ -251,29 +251,29 @@ using the evitaDB server system default timezone. You can control the default Ja
 [several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
 directly with the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html)
 on the client side and be explicit about the offset from the first day.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 Although evitaDB supports *local* variants of the date time like
 [DateTime](https://learn.microsoft.com/en-us/dotnet/api/system.datetime), it's always
 using the evitaDB server system default timezone. You can control the default Java timezone in
 [several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
 directly with the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)
 on the client side and be explicit about the offset from the first day.
-</LanguageSpecific>
+</LS>
 
 <Note type="question">
 
-<LanguageSpecific to="java,evitaql,graphql,rest">
+<LS to="j,e,g,r">
 <NoteTitle toggles="true">
 ##### Why do we internally use OffsetDateTime for time information?
 </NoteTitle>
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 <NoteTitle toggles="true">
 ##### Why do we internally use DateTimeOffset for time information?
 </NoteTitle>
-</LanguageSpecific>
+</LS>
 
 Offset/time zone handling varies from database to database. We wanted to avoid setting the timezone in session or
 database configuration properties, as this mechanism is error-prone and impractical. Saving/loading date times with
@@ -285,75 +285,75 @@ enough for our case - it identifies a globally valid time that is known at the t
 
 ### DateTimeRange
 
-<LanguageSpecific to="java,evitaql,graphql,rest">
+<LS to="j,e,g,r">
 The DateTimeRange represents a specific implementation of the
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass> defining from and to boundaries
 by the [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) data
 types. The offset date times are written in the ISO format.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 The DateTimeRange represents a specific implementation of the
 <SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass> defining from and to boundaries
 by the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset) data
 types. The offset date times are written in the ISO format.
-</LanguageSpecific>
+</LS>
 
 **Range is written as:**
 
 - when both boundaries are specified:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ```plain
 [2021-01-01T00:00:00+01:00,2022-01-01T00:00:00+01:00]
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 ```json
 ["2021-01-01T00:00:00+01:00","2022-01-01T00:00:00+01:00"]
 ```
 
-</LanguageSpecific>
+</LS>
 
 - when a left boundary (since) is specified:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ```plain
 [2021-01-01T00:00:00+01:00,]
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 ```json
 ["2021-01-01T00:00:00+01:00",null]
 ```
 
-</LanguageSpecific>
+</LS>
 
 - when a right boundary (until) is specified:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ```plain
 [,2022-01-01T00:00:00+01:00]
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 ```json
 [null,"2022-01-01T00:00:00+01:00"]
 ```
 
-</LanguageSpecific>
+</LS>
 
 ### NumberRange
 
-<LanguageSpecific to="java,evitaql,graphql,rest">
+<LS to="j,e,g,r">
 The NumberRange represents a specific implementation of the
 <SourceClass>evita_common/src/main/java/io/evitadb/dataType/Range.java</SourceClass>
 defining from and to boundaries by the [Number](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Number.html)
@@ -361,8 +361,8 @@ data types. The supported number types are: Byte, Short, Integer, Long and BigDe
 
 Both boundaries of the number range must be of the same type - you cannot mix for example BigDecimal as lower bound
 and Byte as upper bound.
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 The NumberRange represents a specific implementation of the
 <SourceClass>EvitaDB.Client/DataTypes/Range.cs</SourceClass>
 defining from and to boundaries by any of the supported
@@ -370,64 +370,64 @@ data type. The supported number types are: byte, short, int, long and decimal.
 
 Both boundaries of the number range must be of the same type - you cannot mix for example decimal as lower bound
 and byte as upper bound.
-</LanguageSpecific>
+</LS>
 
 **Range is written as:**
 
 - when both boundaries are specified:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ```plain
 [1,3.256]
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 ```json
 ["1","3.256"]
 ```
-</LanguageSpecific>
+</LS>
 
 - when a left boundary (since) is specified:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ```plain
 [1,]
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 ```json
 ["1",null]
 ```
 
-</LanguageSpecific>
+</LS>
 
 - when a right boundary (until) is specified:
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 ```plain
 [,3.256]
 ```
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 ```json
 [null,"3.256"]
 ```
 
-</LanguageSpecific>
+</LS>
 
 ### Predecessor
 
-The <LanguageSpecific to="evitaql,java,rest,graphql"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Predecessor.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass></LanguageSpecific> is a special data type
+The <LS to="e,j,r,g"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/Predecessor.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/Predecessor.cs</SourceClass></LS> is a special data type
 used to define a single oriented linked list of entities of the same type. It represents a pointer to a previous entity
 in the list. The head element is a special case and is represented by the constant `Predecessor#HEAD`. The predecessor
 attribute can only be used in the [attributes](data-model.md#attributes-unique-filterable-sortable-localised) of an
@@ -460,7 +460,7 @@ concluded that the linked list is the least of all evils:
 
 - It doesn't require mass updates of surrounding entities or occasional "reshuffling".
 - it doesn't force the client logic to be complicated (and it plays well with the UI drag'n'drop repositioning flow)
-- it is very data efficient - it only requires a single <LanguageSpecific to="evitaql,java,rest,graphql">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LanguageSpecific><LanguageSpecific to="csharp">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LanguageSpecific>
+- it is very data efficient - it only requires a single <LS to="e,j,r,g">[int](https://docs.oracle.com/javase/tutorial/java/nutsandbolts/datatypes.html)</LS><LS to="c">[int](https://learn.microsoft.com/en-us/dotnet/api/system.int32)</LS>
   (4B) per single item in the list
 
 </Note>
@@ -496,18 +496,18 @@ consistent for all other transactions.
 
 ## Complex data types
 
-<LanguageSpecific to="evitaql,java,csharp">
+<LS to="e,j,c">
 
 The complex types are types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple
 evitaDB types). Complex types are stored in a
-<LanguageSpecific to="evitaql,java"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass></LanguageSpecific>
-<LanguageSpecific to="csharp"><SourceClass>EvitaDB.Client/DataTypes/ComplexDataObject.cs</SourceClass></LanguageSpecific> data structure that is
+<LS to="e,j"><SourceClass>evita_common/src/main/java/io/evitadb/dataType/ComplexDataObject.java</SourceClass></LS>
+<LS to="c"><SourceClass>EvitaDB.Client/DataTypes/ComplexDataObject.cs</SourceClass></LS> data structure that is
 intentionally similar to the JSON data structure so that it can be easily converted to JSON format and can also accept
 and store any valid JSON document.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="graphql,rest">
+<LS to="g,r">
 
 The complex types are all types that don't qualify as [simple evitaDB types](#simple-data-types) (or an array of simple
 evitaDB types). Complex types are written as JSON objects to allow any object structure with easy serialization and deserialization.
@@ -516,9 +516,9 @@ supported by plain JSON. This means that you can store e.g. date time as a strin
 [simple data types](#simple-data-types), but internally, it will be stored as a plain string (because we don't have
 any information about the concrete data type), and it is up to you to do a manual conversion on the client side.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 The complex type in Java is a class that implements the serializable interface and does not belong to a `java` package
 or is not directly supported by the [simple data types](#simple-data-types)(i.e. `java.lang.URL` is forbidden to be
@@ -526,8 +526,8 @@ stored in evitaDB, even if it is serializable and belongs to a `java` package, b
 the [simple data types](#simple-data-types)). The complex types are intended for the client POJO
 classes to carry larger data or to associate simple logic with the data.
 
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 
 The complex type in C# is a record that does not belong among `built-in` C# types,
 and it is not directly supported by the [simple data types](#simple-data-types)(i.e. `System.Uri` is forbidden to be
@@ -535,9 +535,9 @@ stored in evitaDB, even if it is serializable by design (implements ISerializabl
 `built-in` types, because it is not directly supported by the [simple data types](#simple-data-types)).
 The complex types are intended for the client POCO classes to carry larger data or to associate simple logic with the data.
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="evitaql,java">
+<LS to="e,j">
 
 <Note type="info">
 Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
@@ -553,8 +553,8 @@ Associated data may even contain array of complex objects. Such data will be aut
 - generic [Maps](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Map.html)
 - any array of [simple evitaDB types](#simple-data-types) or [complex types](#complex-data-types)
 
-</LanguageSpecific>
-<LanguageSpecific to="csharp">
+</LS>
+<LS to="c">
 
 <Note type="info">
 Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
@@ -570,17 +570,17 @@ Associated data may even contain array of complex objects. Such data will be aut
 - generic [Dictionaries](https://learn.microsoft.com/cs-cz/dotnet/api/system.collections.idictionary)
 - any array of [simple evitaDB types](#simple-data-types) or [complex types](#complex-data-types)
 
-</LanguageSpecific>
-<LanguageSpecific to="graphql,rest">
+</LS>
+<LS to="g,r">
 
 <Note type="info">
 Associated data may even contain array of complex objects. Such data will be automatically converted to an array of
 `ComplexDataObject` types - i.e. `ComplexDataObjectArray`.
 </Note>
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="csharp">
+<LS to="c">
 
 ### Serialization
 
@@ -624,9 +624,9 @@ The deserialization process may fail with two exceptions:
 - [InvalidCastException](https://learn.microsoft.com/en-us/dotnet/api/System.InvalidCastException)
   is raised when any of the serialized data was not deserialized due to a lack of a mutator method on the class it's being converted to
 
-</LanguageSpecific>
+</LS>
 
-<LanguageSpecific to="java">
+<LS to="j">
 
 ### Serialization
 
@@ -830,4 +830,4 @@ public class ProductStockAvailability implements Serializable {
 ```
 </Note>
 
-</LanguageSpecific>
+</LS>
