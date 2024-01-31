@@ -905,7 +905,9 @@ public class ExistingEntityBuilder implements EntityBuilder {
 	 * @return true if the reference is present in the base entity, false otherwise
 	 */
 	public boolean isPresentInBaseEntity(@Nonnull ReferenceContract reference) {
-		return this.baseEntity.getReference(reference.getReferenceKey()).isPresent();
+		return this.baseEntity.getReference(reference.getReferenceKey())
+			.map(Droppable::exists)
+			.orElse(false);
 	}
 
 	@Nullable
