@@ -84,7 +84,6 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
     private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
         restHandlingContext.getClientContext().executeWithinBlock(
             "REST",
-            serverExchange.getSourceAddress(),
             serverExchange,
             () -> super.handleRequest(serverExchange)
         );

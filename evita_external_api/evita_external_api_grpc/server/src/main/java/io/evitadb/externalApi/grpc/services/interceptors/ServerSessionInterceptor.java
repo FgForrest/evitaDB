@@ -34,7 +34,6 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.UUIDUtil;
 import io.grpc.Context;
 import io.grpc.Contexts;
-import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
@@ -44,11 +43,11 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Optional;
 import java.util.Set;
 
-import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.*;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.CATALOG_NAME_HEADER;
+import static io.evitadb.externalApi.grpc.constants.GrpcHeaders.SESSION_ID_HEADER;
 
 /**
  * This class is used to intercept calls to gRPC services by setting a session to
@@ -116,7 +115,6 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 			serverCall.close(status, metadata);
 			return new ServerCall.Listener<>() {};
 		}
-		final SocketAddress clientAddress = serverCall.getAttributes().get(Grpc.TRANSPORT_ATTR_REMOTE_ADDR);
 
 		Context context = Context.current();
 
@@ -125,7 +123,12 @@ public class ServerSessionInterceptor implements ServerInterceptor {
 		}
 
 		final Context finalContext = context;
-		return ExternalApiTracingContextProvider.getContext().executeWithinBlock("gRPC", clientAddress, metadata, () -> Contexts.interceptCall(finalContext, serverCall, metadata, serverCallHandler));
+		return ExternalApiTracingContextProvider.getContext()
+			.executeWithinBlock(
+				"gRPC",
+				metadata,
+				() -> Contexts.interceptCall(finalContext, serverCall, metadata, serverCallHandler)
+			);
 	}
 
 	@Nonnull

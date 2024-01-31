@@ -30,7 +30,6 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
-import io.evitadb.api.trace.TracingContext;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -56,7 +55,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public interface EvitaContract extends AutoCloseable, TracingContext {
+public interface EvitaContract extends AutoCloseable {
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.

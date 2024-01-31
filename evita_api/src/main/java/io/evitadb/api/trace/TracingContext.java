@@ -40,6 +40,7 @@ public interface TracingContext {
 	 * traced and properly executed.
 	 */
 	default void executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+		runnable.run();
 	}
 
 	/**
@@ -47,7 +48,7 @@ public interface TracingContext {
 	 * traced and properly executed.
 	 */
 	default <T> T executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
-		return null;
+		return lambda.get();
 	}
 
 	/**

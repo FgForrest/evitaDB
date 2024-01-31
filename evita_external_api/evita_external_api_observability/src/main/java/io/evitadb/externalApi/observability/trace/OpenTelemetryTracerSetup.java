@@ -44,7 +44,7 @@ import java.time.Duration;
 
 /**
  * This class is responsible for setting up the OpenTelemetry instance, the tracer and a propagator context.
- * It is used by the {@link JsonApiClientContext} and {@link GrpcClientContext} to create a tracing context.
+ * It is used by the {@link JsonApiTracingContext} and {@link GrpcTracingContext} to create a tracing context.
  * Traces are exported to the configured endpoint that is set in the {@link ObservabilityConfig}. This config should be
  * set before working with the OpenTelemetry via {@link #setOpenTelemetryConfig(ObservabilityConfig)}.
  *

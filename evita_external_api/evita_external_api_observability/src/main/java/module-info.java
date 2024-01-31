@@ -24,7 +24,7 @@
 import io.evitadb.api.trace.TracingContext;
 import io.evitadb.externalApi.http.ExternalApiProviderRegistrar;
 import io.evitadb.externalApi.observability.ObservabilityProviderRegistrar;
-import io.evitadb.externalApi.observability.trace.DelegateExternalApiClientContext;
+import io.evitadb.externalApi.observability.trace.DelegateExternalApiTracingContext;
 import io.evitadb.externalApi.observability.trace.ObservabilityTracingContext;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -39,7 +39,7 @@ module evita.external.api.observability {
 	uses ExternalApiTracingContext;
 
 	provides TracingContext with ObservabilityTracingContext;
-	provides ExternalApiTracingContext with DelegateExternalApiClientContext;
+	provides ExternalApiTracingContext with DelegateExternalApiTracingContext;
 	provides ExternalApiProviderRegistrar with ObservabilityProviderRegistrar;
 
 	opens io.evitadb.externalApi.observability.configuration to com.fasterxml.jackson.databind;

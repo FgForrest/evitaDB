@@ -34,43 +34,42 @@ import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Delegates tracing call either to {@link JsonApiClientContext} or {@link GrpcClientContext}. The decision of which to
+ * Delegates tracing call either to {@link JsonApiTracingContext} or {@link GrpcTracingContext}. The decision of which to
  * choose is based on the passed `context` type.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class DelegateExternalApiClientContext implements ExternalApiTracingContext<Object> {
-	private final JsonApiClientContext jsonApiClientContext;
-	private final GrpcClientContext grpcApiClientContext;
+public class DelegateExternalApiTracingContext implements ExternalApiTracingContext<Object> {
+	private final JsonApiTracingContext jsonApiTracingContext;
+	private final GrpcTracingContext grpcApiTracingContext;
 	private static final String INVALID_CONTEXT_OBJECT_ERROR_MESSAGE = "Invalid object type sent as a External API tracing context!";
 
-	public DelegateExternalApiClientContext() {
+	public DelegateExternalApiTracingContext() {
 		final TracingContext context = TracingContextProvider.getContext();
-		jsonApiClientContext = new JsonApiClientContext(context);
-		grpcApiClientContext = new GrpcClientContext(context);
+		jsonApiTracingContext = new JsonApiTracingContext(context);
+		grpcApiTracingContext = new GrpcTracingContext(context);
 	}
 	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
 		if (context instanceof HttpServerExchange httpServerExchange) {
-			jsonApiClientContext.executeWithinBlock(protocolName, sourceAddress, httpServerExchange, attributes, runnable);
+			jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, attributes, runnable);
 		} else if (context instanceof Metadata metadata) {
-			grpcApiClientContext.executeWithinBlock(protocolName, sourceAddress, metadata, attributes, runnable);
+			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, attributes, runnable);
 		} else {
 			throw new EvitaInternalError(INVALID_CONTEXT_OBJECT_ERROR_MESSAGE);
 		}
 	}
 
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
 		if (context instanceof HttpServerExchange httpServerExchange) {
-			return jsonApiClientContext.executeWithinBlock(protocolName, sourceAddress, httpServerExchange, attributes, lambda);
+			return jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, attributes, lambda);
 		} else if (context instanceof Metadata metadata) {
-			return grpcApiClientContext.executeWithinBlock(protocolName, sourceAddress, metadata, attributes, lambda);
+			return grpcApiTracingContext.executeWithinBlock(protocolName, metadata, attributes, lambda);
 		} else {
 			throw new EvitaInvalidUsageException(INVALID_CONTEXT_OBJECT_ERROR_MESSAGE);
 		}
@@ -78,9 +77,9 @@ public class DelegateExternalApiClientContext implements ExternalApiTracingConte
 
 	@Override
 	public <T> T getServerInterceptor(Class<T> type) {
-		if (type.equals(ServerInterceptor.class) && grpcApiClientContext != null) {
+		if (type.equals(ServerInterceptor.class) && grpcApiTracingContext != null) {
 			//noinspection unchecked
-			return (T) grpcApiClientContext.getServerInterceptor();
+			return (T) grpcApiTracingContext.getServerInterceptor();
 		}
 		return null;
 	}

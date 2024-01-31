@@ -27,7 +27,6 @@ import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -46,7 +45,7 @@ public interface ExternalApiTracingContext<C> {
 	/**
 	 * Format of the client ID used by the server.
 	 */
-	String SERVER_CLIENT_ID_FORMAT = "%s|%s|%s";
+	String SERVER_CLIENT_ID_FORMAT = "%s|%s";
 	/**
 	 * Default client ID used when the client does not send any.
 	 */
@@ -75,7 +74,8 @@ public interface ExternalApiTracingContext<C> {
 	 * network address as well for the proper client identification formatting. Passed context is used as a decider for
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
-	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull C context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+		runnable.run();
 	}
 
 	/**
@@ -84,8 +84,8 @@ public interface ExternalApiTracingContext<C> {
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
 	@Nullable
-	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull C context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
-		return null;
+	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+		return lambda.get();
 	}
 
 	/**
@@ -93,8 +93,8 @@ public interface ExternalApiTracingContext<C> {
 	 * network address as well for the proper client identification formatting. Passed context is used as a decider for
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
-	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull C context, @Nonnull Runnable runnable) {
-		executeWithinBlock(protocolName, sourceAddress, context, null, runnable);
+	default void executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Runnable runnable) {
+		executeWithinBlock(protocolName, context, null, runnable);
 	}
 
 	/**
@@ -103,8 +103,8 @@ public interface ExternalApiTracingContext<C> {
 	 * the target implementation to use, whether the request originates from a JSON based API or a gRPC one.
 	 */
 	@Nullable
-	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull C context, @Nonnull Supplier<T> lambda) {
-		return executeWithinBlock(protocolName, sourceAddress, context, null, lambda);
+	default <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull C context, @Nonnull Supplier<T> lambda) {
+		return executeWithinBlock(protocolName, context, null, lambda);
 	}
 
 	/**
@@ -130,16 +130,14 @@ public interface ExternalApiTracingContext<C> {
 	/**
 	 * Converts client-sent ID to internal client ID.
 	 *
-	 * @param clientAddress      network address of the client
 	 * @param clientIdFromClient client-sent client ID
 	 * @return more detailed client ID for internal use
 	 */
 	@Nonnull
-	default String convertClientId(@Nonnull String protocolName, @Nonnull SocketAddress clientAddress, @Nullable String clientIdFromClient) {
+	default String convertClientId(@Nonnull String protocolName, @Nullable String clientIdFromClient) {
 		return String.format(
 			SERVER_CLIENT_ID_FORMAT,
 			protocolName,
-			clientAddress,
 			Optional.ofNullable(clientIdFromClient).map(this::sanitizeId).orElse(DEFAULT_CLIENT_ID)
 		);
 	}

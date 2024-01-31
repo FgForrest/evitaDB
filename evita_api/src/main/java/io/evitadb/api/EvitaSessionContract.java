@@ -64,7 +64,6 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
-import io.evitadb.api.trace.TracingContext;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -99,7 +98,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, TracingContext, AutoCloseable {
+public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, AutoCloseable {
 
 	/**
 	 * Returns Evita instance this session is connected to.

@@ -34,7 +34,6 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -43,18 +42,18 @@ import java.util.function.Supplier;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
-public class GrpcClientContext implements ExternalApiTracingContext<Metadata> {
+public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 	private static final String CLIENT_ID_HEADER = "clientId";
 
 	private final TracingContext tracingContext;
 
-	public GrpcClientContext(@Nonnull TracingContext tracingContext) {
+	public GrpcTracingContext(@Nonnull TracingContext tracingContext) {
 		this.tracingContext = tracingContext;
 	}
 
 	@Override
-	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
-		try (Scope ignored = extractContextFromHeaders(protocolName, context, sourceAddress).makeCurrent()) {
+	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			tracingContext.executeWithinBlock(
 				protocolName,
 				attributes,
@@ -64,8 +63,8 @@ public class GrpcClientContext implements ExternalApiTracingContext<Metadata> {
 	}
 
 	@Override
-	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull SocketAddress sourceAddress, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
-		try (Scope ignored = extractContextFromHeaders(protocolName, context, sourceAddress).makeCurrent()) {
+	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return tracingContext.executeWithinBlock(
 				protocolName,
 				attributes,
@@ -84,12 +83,12 @@ public class GrpcClientContext implements ExternalApiTracingContext<Metadata> {
 	 * the extracted traceId, the clientId is also extracted and injected into the received context.
 	 */
 	@Nonnull
-	private Context extractContextFromHeaders(@Nonnull String protocolName, @Nonnull Metadata metadata, @Nonnull SocketAddress socketAddress) {
+	private Context extractContextFromHeaders(@Nonnull String protocolName, @Nonnull Metadata metadata) {
 		final Context context = OpenTelemetryTracerSetup.getOpenTelemetry()
 			.getPropagators()
 			.getTextMapPropagator()
 			.extract(Context.current(), metadata, CONTEXT_GETTER);
-		final String clientId = convertClientId(protocolName, socketAddress, CONTEXT_GETTER.get(metadata, CLIENT_ID_HEADER));
+		final String clientId = convertClientId(protocolName, CONTEXT_GETTER.get(metadata, CLIENT_ID_HEADER));
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
 	}
 

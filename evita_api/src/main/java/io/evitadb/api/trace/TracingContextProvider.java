@@ -25,6 +25,7 @@ package io.evitadb.api.trace;
 
 import io.evitadb.exception.EvitaInternalError;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
@@ -41,6 +42,7 @@ public class TracingContextProvider {
 	 * Fetches and caches the {@link TracingContext} implementation. After the first call, the cached instance
 	 * is always returned.
 	 */
+	@Nonnull
 	public static TracingContext getContext() {
 		if (context == null) {
 			context = loadContext();
@@ -48,6 +50,16 @@ public class TracingContextProvider {
 		return context;
 	}
 
+	/**
+	 * Loads the {@link TracingContext} implementation using {@link ServiceLoader}.
+	 * If there is only one implementation found, it returns that instance.
+	 * If there are multiple implementations found, it throws an {@link EvitaInternalError}.
+	 * If no implementations are found, it creates and returns a new instance of {@link DefaultTracingContext}.
+	 *
+	 * @return the loaded {@link TracingContext} implementation
+	 * @throws EvitaInternalError if there are multiple registered implementations of {@link TracingContext}
+	 */
+	@Nonnull
 	private static TracingContext loadContext() {
 		final List<TracingContext> collectedContexts = ServiceLoader.load(TracingContext.class)
 			.stream()

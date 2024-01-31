@@ -49,7 +49,6 @@ import io.evitadb.externalApi.http.SuccessEndpointResponse;
 import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.undertow.server.HttpServerExchange;
-import io.undertow.util.HeaderMap;
 import io.undertow.util.Methods;
 import io.undertow.util.StatusCodes;
 import lombok.extern.slf4j.Slf4j;
@@ -120,7 +119,6 @@ public class GraphQLHandler extends EndpointHandler<GraphQLEndpointExchange> {
         final GraphQLRequest graphQLRequest = parseRequestBody(exchange, GraphQLRequest.class);
         final GraphQLResponse<?> graphQLResponse = clientContext.executeWithinBlock(
             "GraphQL",
-            exchange.serverExchange().getSourceAddress(),
             exchange.serverExchange(),
             () -> executeRequest(graphQLRequest)
         );

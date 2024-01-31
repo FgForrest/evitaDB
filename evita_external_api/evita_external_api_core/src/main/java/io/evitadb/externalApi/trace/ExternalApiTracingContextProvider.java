@@ -27,6 +27,7 @@ import io.evitadb.api.trace.TracingContext;
 import io.evitadb.externalApi.exception.ExternalApiInternalError;
 import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 
+import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.ServiceLoader;
 import java.util.ServiceLoader.Provider;
@@ -43,6 +44,7 @@ public class ExternalApiTracingContextProvider {
 	 * Fetches and caches the {@link TracingContext} implementation. After the first call, the cached instance
 	 * is always returned.
 	 */
+	@Nonnull
 	public static ExternalApiTracingContext<Object> getContext() {
 		if (context == null) {
 			//noinspection unchecked
@@ -51,6 +53,16 @@ public class ExternalApiTracingContextProvider {
 		return context;
 	}
 
+	/**
+	 * Loads the implementation of the ExternalApiTracingContext interface using the ServiceLoader mechanism.
+	 * If there is only one implementation found, it returns that implementation. If there are multiple implementations
+	 * found, it throws an ExternalApiInternalError. If no implementation is found, it returns an instance of
+	 * DefaultExternalApiTracingContext.
+	 *
+	 * @return the loaded ExternalApiTracingContext implementation
+	 * @throws ExternalApiInternalError if multiple implementations of ExternalApiTracingContext are found
+	 */
+	@Nonnull
 	private static ExternalApiTracingContext<?> loadContext() {
 		//noinspection rawtypes
 		final List<ExternalApiTracingContext> collectedContexts = ServiceLoader.load(ExternalApiTracingContext.class)

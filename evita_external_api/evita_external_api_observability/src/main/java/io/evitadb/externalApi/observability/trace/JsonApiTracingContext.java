@@ -34,7 +34,6 @@ import io.undertow.util.HttpString;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.net.SocketAddress;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -44,16 +43,15 @@ import java.util.stream.Collectors;
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class JsonApiClientContext implements ExternalApiTracingContext<HttpServerExchange> {
+public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServerExchange> {
 	private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
 
 	private final TracingContext tracingContext;
-	public JsonApiClientContext(@Nonnull TracingContext tracingContext) {
+	public JsonApiTracingContext(@Nonnull TracingContext tracingContext) {
 		this.tracingContext = tracingContext;
 	}
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName,
-								   @Nonnull SocketAddress sourceAddress,
 								   @Nonnull HttpServerExchange exchange,
 								   @Nullable Map<String, Object> attributes,
 	                               @Nonnull Runnable lambda) {
@@ -68,7 +66,6 @@ public class JsonApiClientContext implements ExternalApiTracingContext<HttpServe
 
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName,
-	                                @Nonnull SocketAddress sourceAddress,
 								    @Nonnull HttpServerExchange exchange,
 								    @Nullable Map<String, Object> attributes,
 	                                @Nonnull Supplier<T> lambda) {
@@ -94,7 +91,6 @@ public class JsonApiClientContext implements ExternalApiTracingContext<HttpServe
 			.extract(Context.current(), headers, CONTEXT_GETTER);
 		final String clientId = convertClientId(
 			protocolName,
-			exchange.getSourceAddress(),
 			headers.getFirst(CLIENT_ID_HEADER)
 		);
 		return context.with(OpenTelemetryTracerSetup.CONTEXT_KEY, clientId);
