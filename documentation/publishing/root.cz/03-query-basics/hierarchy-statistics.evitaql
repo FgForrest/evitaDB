@@ -1,0 +1,17 @@
+query(
+    collection("Product"),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "megaMenuWithCounts",
+                entityFetch(attributeContent("code")),
+                stopAt(level(2)),
+                statistics(
+                    CHILDREN_COUNT,
+                    QUERIED_ENTITY_COUNT
+                )
+            )
+        )
+    )
+)

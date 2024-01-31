@@ -1,0 +1,37 @@
+query(
+  collection("Product"),
+  filterBy(
+    entityPrimaryKeyInSet(103885)
+  ),
+  require(
+    entityFetch(
+      referenceContentWithAttributes(
+        "parameterValues",
+        filterBy(
+          entityHaving(
+            referenceHaving(
+              "parameter",
+              entityHaving(
+                attributeContains("code", "r")
+              )
+            )
+          )
+        ),
+        orderBy(
+          entityProperty(
+            attributeNatural("code", DESC)
+          )
+        ),
+        entityFetch(
+          attributeContent("code"),
+          referenceContentWithAttributes(
+            "parameter",
+            entityFetch(
+              attributeContent("code")
+            )
+          )
+        )
+      )
+    )
+  )
+)

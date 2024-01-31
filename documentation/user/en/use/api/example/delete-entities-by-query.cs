@@ -5,8 +5,7 @@ evita.UpdateCatalog(
 				Collection("Brand"),
 				FilterBy(
 					And(
-						AttributeStartsWith("name", "A"),
-						EntityLocaleEquals(new CultureInfo("en"))
+						AttributeStartsWith("name", "A")
 					)
 				),
 				Require(

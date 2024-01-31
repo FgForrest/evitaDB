@@ -1,0 +1,17 @@
+query(
+    collection("Product"),
+    filterBy(
+        attributeEquals("productType", "SET"),
+        priceInPriceLists("management-price", "employee-basic-price", "basic"),
+        priceInCurrency("EUR"),
+        userFilter(
+           priceBetween(100.0, 125.0)
+        )
+    ),
+    require(
+      entityFetch(
+        attributeContent("code"),
+        priceContentRespectingFilter()
+      )
+    )
+)

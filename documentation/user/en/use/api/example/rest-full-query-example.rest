@@ -31,6 +31,9 @@ POST /rest/evita/Product/query
     "facetSummary": {
       "statisticsDepth": "COUNTS"
     },
-    "priceHistogram": 30
+    "priceHistogram": {
+      "requestedBucketCount" : 30,
+      "behavior" : "STANDARD"
+	}
   }
 }
