@@ -27,6 +27,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.evitadb.documentation.Environment;
 import io.evitadb.exception.EvitaInternalError;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -58,11 +59,8 @@ import java.util.zip.ZipInputStream;
  * temporary folder and provides a method for executing C# code and fetching its results. The results are returned as a
  * string messages from which the actual results are parsed.
  */
+@Slf4j
 public class CShell {
-    /**
-     * URL of the latest version of C# query validator executable.
-     */
-    private static final String VALIDATOR_ZIP_URL = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator"+(isWindows() ? "-win" : "")+".zip");
     /**
      * Path to the C# query validator folder locates in a system temp folder.
      */
@@ -152,14 +150,16 @@ public class CShell {
         }
         final Path zipPath = Paths.get(VALIDATOR_TEMP_FOLDER_PATH.toString(), "Validator.zip");
 
-        try (InputStream in = new URL(VALIDATOR_ZIP_URL).openStream()) {
+        final String zipUrl = new GithubLatestAssetUrlFetcher().fetchAssetUrl("Validator" + (isWindows() ? "-win" : "") + ".zip");
+        log.info("Downloading C# query validator from {} to {}", zipUrl, zipPath);
+        try (InputStream in = new URL(zipUrl).openStream()) {
             Files.copy(in, Paths.get(zipPath.toUri()), StandardCopyOption.REPLACE_EXISTING);
             unzip(zipPath.toString(), VALIDATOR_TEMP_FOLDER_PATH.toString());
             if (!isWindows()) {
                 setExecutablePermission();
             }
         } catch (IOException ex) {
-            throw new EvitaInternalError("Failed to download C# query validator.");
+            throw new EvitaInternalError("Failed to download C# query validator.", ex);
         }
     }
 
@@ -204,7 +204,7 @@ public class CShell {
             zis.close();
             fis.close();
         } catch (IOException e) {
-            throw new EvitaInternalError("Failed to unzip C# query validator executable.");
+            throw new EvitaInternalError("Failed to unzip C# query validator executable.", e);
         }
     }
 

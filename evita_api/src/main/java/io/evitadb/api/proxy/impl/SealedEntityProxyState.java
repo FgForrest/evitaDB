@@ -188,10 +188,18 @@ public class SealedEntityProxyState
 		int primaryKey
 	) throws EntityClassInvalidException {
 		final Supplier<ProxyWithUpsertCallback> instanceSupplier = () -> {
-			final EntityContract entity = entityBuilderIfPresent()
+			final Optional<EntityBuilder> entityBuilderRef = entityBuilderIfPresent();
+			final EntityContract entity = entityBuilderRef
 				.map(EntityContract.class::cast)
 				.orElseGet(this::entity);
 			return entity.getReference(referenceSchema.getName(), primaryKey)
+				.filter(
+					ref -> entityBuilderRef
+						.filter(ExistingEntityBuilder.class::isInstance)
+						.map(ExistingEntityBuilder.class::cast)
+						.map(eb -> eb.isPresentInBaseEntity(ref))
+						.orElse(true)
+				)
 				.map(
 					existingReference -> new ProxyWithUpsertCallback(
 						ProxycianFactory.createEntityReferenceProxy(
