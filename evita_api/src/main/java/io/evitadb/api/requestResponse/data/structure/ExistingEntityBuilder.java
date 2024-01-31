@@ -898,6 +898,16 @@ public class ExistingEntityBuilder implements EntityBuilder {
 			.orElse(baseEntity);
 	}
 
+	/**
+	 * Checks if the given reference is present in the base entity.
+	 *
+	 * @param reference the reference to check
+	 * @return true if the reference is present in the base entity, false otherwise
+	 */
+	public boolean isPresentInBaseEntity(@Nonnull ReferenceContract reference) {
+		return this.baseEntity.getReference(reference.getReferenceKey()).isPresent();
+	}
+
 	@Nullable
 	private ReferenceContract evaluateReferenceMutations(@Nullable ReferenceContract reference, @Nonnull List<ReferenceMutation<?>> mutations) {
 		ReferenceContract mutatedReference = reference;
