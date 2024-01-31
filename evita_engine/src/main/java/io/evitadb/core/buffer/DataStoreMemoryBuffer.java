@@ -24,10 +24,10 @@
 package io.evitadb.core.buffer;
 
 import io.evitadb.core.EntityCollection;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexKey;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
 import io.evitadb.store.exception.CompressionKeyUnknownException;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.store.service.KeyCompressor;

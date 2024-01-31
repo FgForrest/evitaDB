@@ -25,6 +25,7 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.ConcurrentInitializationException;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -96,7 +97,7 @@ final class SessionRegistry {
 				if (activeSession.isTransactionOpen()) {
 					activeSession.setRollbackOnly();
 				}
-				activeSession.close();
+				activeSession.closeNow(CommitBehavior.WAIT_FOR_WAL_PERSISTENCE);
 				log.info("There is still active session {} - terminating.", activeSession.getId());
 			}
 			sessionIt.remove();
@@ -146,7 +147,7 @@ final class SessionRegistry {
 			.stream()
 			.map(EvitaSessionTuple::plainSession)
 			// except those with active transaction which are protected by SNAPSHOT isolation
-			.filter(it -> !it.isTransactionOpen())
+			.filter(it -> it.isActive() && !it.isTransactionOpen())
 			.forEach(it -> it.updateCatalogReference(catalog));
 	}
 

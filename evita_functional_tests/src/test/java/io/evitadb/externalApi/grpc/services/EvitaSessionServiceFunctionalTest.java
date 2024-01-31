@@ -1652,7 +1652,11 @@ class EvitaSessionServiceFunctionalTest {
 		final EvitaSessionServiceGrpc.EvitaSessionServiceBlockingStub evitaSessionBlockingStub = EvitaSessionServiceGrpc.newBlockingStub(channel);
 		SessionInitializer.setSession(channel, GrpcSessionType.READ_ONLY);
 
-		final Executable executable = () -> evitaSessionBlockingStub.close(Empty.newBuilder().build());
+		final Executable executable = () -> evitaSessionBlockingStub.close(
+			GrpcCloseRequest.newBuilder()
+				.setCommitBehaviour(GrpcCommitBehavior.WAIT_FOR_INDEX_PROPAGATION)
+				.build()
+		);
 
 		assertDoesNotThrow(executable);
 

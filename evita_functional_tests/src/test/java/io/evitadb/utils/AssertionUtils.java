@@ -30,8 +30,8 @@ import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Transaction;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.TransactionHandler;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

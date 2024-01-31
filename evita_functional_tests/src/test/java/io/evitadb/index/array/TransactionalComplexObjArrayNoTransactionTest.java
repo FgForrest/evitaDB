@@ -23,8 +23,8 @@
 
 package io.evitadb.index.array;
 
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import org.junit.jupiter.api.Test;

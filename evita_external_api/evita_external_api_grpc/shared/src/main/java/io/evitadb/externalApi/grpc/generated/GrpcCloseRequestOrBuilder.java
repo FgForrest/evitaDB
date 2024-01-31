@@ -26,27 +26,26 @@
 
 package io.evitadb.externalApi.grpc.generated;
 
-public interface GrpcGoLiveAndCloseResponseOrBuilder extends
-    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)
+public interface GrpcCloseRequestOrBuilder extends
+    // @@protoc_insertion_point(interface_extends:io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)
     com.google.protobuf.MessageOrBuilder {
 
   /**
    * <pre>
-   * True, if the catalog was switched to ALIVE state.
+   * Contains the requested commit behaviour
    * </pre>
    *
-   * <code>bool success = 1;</code>
-   * @return The success.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+   * @return The enum numeric value on the wire for commitBehaviour.
    */
-  boolean getSuccess();
-
+  int getCommitBehaviourValue();
   /**
    * <pre>
-   * Contains next catalog version
+   * Contains the requested commit behaviour
    * </pre>
    *
-   * <code>int64 catalogVersion = 2;</code>
-   * @return The catalogVersion.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+   * @return The commitBehaviour.
    */
-  long getCatalogVersion();
+  io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour();
 }

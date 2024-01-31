@@ -143,16 +143,15 @@ on the client side:
         class analyzing classes for reflective information. Controls whether the once analyzed reflection information
         should be cached or freshly (and costly) retrieved each time asked.</p>
     </dd>
-    <dt>waitForClose</dt>
+    <dt>timeout</dt>
     <dd>
         <p>**Default: `5`**</p>
-        <p>Number of `waitForCloseUnit` client should wait for opened connection to terminate gracefully before killing
-        them by force.</p>
+        <p>Number of `timeout` the client should wait for server response before throwing an exception</p>
     </dd>
-    <dt>waitForCloseUnit</dt>
+    <dt>timeoutUnit</dt>
     <dd>
         <p>**Default: `TimeUnit.SECONDS`**</p>
-        <p>It specifies the time unit for `waitForClose` property.</p>
+        <p>It specifies the time unit for `timeout` property.</p>
     </dd>
 </dl>
 

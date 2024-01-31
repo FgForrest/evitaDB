@@ -24,10 +24,10 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.TransactionContract;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.Catalog;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.store.spi.IsolatedWalPersistenceService;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -61,9 +61,9 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	/**
 	 * Contains commit behaviour for this transaction.
 	 *
-	 * @see CommitBehaviour
+	 * @see CommitBehavior
 	 */
-	@Getter private final CommitBehaviour commitBehaviour;
+	@Getter private final CommitBehavior commitBehaviour;
 	/**
 	 * Contains reference to the {@link Catalog} which represents the SNAPSHOT version this transaction
 	 * builds on.
@@ -85,7 +85,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	@Nonnull private final Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory;
 	/**
 	 * A CompletableFuture representing that needs to be "completed" when the transaction reaches the stage
-	 * requested by the {@link CommitBehaviour} of this transaction.
+	 * requested by the {@link CommitBehavior} of this transaction.
 	 *
 	 * @see CompletableFuture
 	 */
@@ -102,7 +102,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 	public TransactionWalFinalizer(
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull Function<UUID, IsolatedWalPersistenceService> walPersistenceServiceFactory,
 		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
@@ -157,7 +157,7 @@ public class TransactionWalFinalizer implements TransactionHandler {
 			if (cause != null) {
 				this.transactionFinalizationFuture.completeExceptionally(cause);
 			} else {
-				this.transactionFinalizationFuture.cancel(true);
+				this.transactionFinalizationFuture.complete(catalog.getVersion());
 			}
 		}
 	}

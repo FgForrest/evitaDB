@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -32,14 +32,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Exception is thrown when the client is ordered to be shut down, but there are still active and working connections
- * that fail to terminate within specified {@link EvitaClientConfiguration#waitForClose() interval}.
+ * that fail to terminate within specified {@link EvitaClientConfiguration#timeout() interval}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EvitaClientNotTerminatedInTimeException extends EvitaInvalidUsageException {
+public class EvitaClientTimedOutException extends EvitaInvalidUsageException {
 	@Serial private static final long serialVersionUID = 2851586704630027921L;
 
-	public EvitaClientNotTerminatedInTimeException(long waitOnClose, @Nonnull TimeUnit unit) {
-		super("Evita client hasn't finished in " + waitOnClose + " " + unit.name().toLowerCase() + "!");
+	public EvitaClientTimedOutException(long timeout, @Nonnull TimeUnit unit) {
+		super("Evita client call hasn't finished in " + timeout + " " + unit.name().toLowerCase() + "!");
 	}
 }

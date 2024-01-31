@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.TrunkIncorporationTransactionTask;
@@ -88,7 +88,7 @@ public final class WalAppendingTransactionStage
 				task.catalogVersion(),
 				task.transactionId(),
 				task.commitBehaviour(),
-				task.commitBehaviour() != CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE ? task.future() : null
+				task.commitBehaviour() != CommitBehavior.WAIT_FOR_WAL_PERSISTENCE ? task.future() : null
 			)
 		);
 	}
@@ -117,7 +117,7 @@ public final class WalAppendingTransactionStage
 		int mutationCount,
 		long walSizeInBytes,
 		@Nonnull OffHeapWithFileBackupReference walReference,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable CompletableFuture<Long> future
 	) implements TransactionTask {
 	}

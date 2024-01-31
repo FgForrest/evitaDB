@@ -26,12 +26,12 @@ package io.evitadb.spike.mock;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.price.priceIndex.PriceIdContainerFormula;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceIndex;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.index.price.model.priceRecord.PriceRecord;
 import io.evitadb.index.price.model.priceRecord.PriceRecordContract;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
 import io.evitadb.store.model.StoragePart;
 import io.evitadb.utils.ArrayUtils;
 

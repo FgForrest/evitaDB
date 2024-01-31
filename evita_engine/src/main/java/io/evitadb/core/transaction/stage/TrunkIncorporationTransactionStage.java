@@ -23,7 +23,8 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.transaction.TransactionMutation;
 import io.evitadb.core.Catalog;
@@ -37,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Serial;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -166,7 +168,12 @@ public final class TrunkIncorporationTransactionStage
 									final Mutation mutation = mutationIterator.next();
 									log.debug("Processing mutation: {}", mutation);
 									mutationCount++;
-									catalog.applyMutation(mutation);
+									catalog.applyMutation(
+										mutation instanceof EntityUpsertMutation ?
+											new VerifiedEntityUpsertMutation((EntityUpsertMutation) mutation)
+											:
+											mutation
+									);
 								}
 								// we should have processed all the mutations by now and the mutation count should match
 								Assert.isPremiseValid(
@@ -256,7 +263,7 @@ public final class TrunkIncorporationTransactionStage
 		@Nonnull String catalogName,
 		long catalogVersion,
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable CompletableFuture<Long> future
 	) implements TransactionTask {
 	}
@@ -268,7 +275,7 @@ public final class TrunkIncorporationTransactionStage
 	public record UpdatedCatalogTransactionTask(
 		@Nonnull Catalog catalog,
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable CompletableFuture<Long> future
 	) implements TransactionTask {
 
@@ -281,6 +288,24 @@ public final class TrunkIncorporationTransactionStage
 		@Override
 		public long catalogVersion() {
 			return catalog.getVersion();
+		}
+	}
+
+	/**
+	 * Represents a verified entity upsert mutation. This is used to mark the entity upsert mutation as verified
+	 * and thus it can be propagated to the "live view" of the evitaDB engine without primary key assignment
+	 * verifications.
+	 */
+	public class VerifiedEntityUpsertMutation extends EntityUpsertMutation {
+		@Serial private static final long serialVersionUID = -5775248516292883577L;
+
+		public VerifiedEntityUpsertMutation(@Nonnull EntityUpsertMutation entityUpsertMutation) {
+			super(
+				entityUpsertMutation.getEntityType(),
+				entityUpsertMutation.getEntityPrimaryKey(),
+				entityUpsertMutation.expects(),
+				entityUpsertMutation.getLocalMutations()
+			);
 		}
 	}
 

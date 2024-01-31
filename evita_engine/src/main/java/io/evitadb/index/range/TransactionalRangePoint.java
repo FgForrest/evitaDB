@@ -23,13 +23,13 @@
 
 package io.evitadb.index.range;
 
+import io.evitadb.core.transaction.memory.TransactionalCreatorMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerCreator;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.array.TransactionalObject;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.transactionalMemory.TransactionalCreatorMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerCreator;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.VoidTransactionMemoryProducer;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 

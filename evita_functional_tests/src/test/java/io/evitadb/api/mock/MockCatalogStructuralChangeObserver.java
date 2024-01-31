@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,99 +24,105 @@
 package io.evitadb.api.mock;
 
 import io.evitadb.api.CatalogStructuralChangeObserver;
+import io.evitadb.api.CatalogStructuralChangeObserverWithEvitaContractCallback;
+import io.evitadb.api.EvitaContract;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This observer allows to test {@link CatalogStructuralChangeObserver} behaviour.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class MockCatalogStructuralChangeObserver implements CatalogStructuralChangeObserver {
-	private final static ThreadLocal<Map<String, Integer>> CATALOG_CREATED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<String, Integer>> CATALOG_DELETED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<String, Integer>> CATALOG_SCHEMA_UPDATED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_CREATED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_DELETED = new ThreadLocal<>();
-	private final static ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_SCHEMA_UPDATED = new ThreadLocal<>();
+@RequiredArgsConstructor
+public class MockCatalogStructuralChangeObserver implements CatalogStructuralChangeObserverWithEvitaContractCallback {
+	private final static Map<String, Map<String, Integer>> CATALOG_CREATED = new ConcurrentHashMap<>();
+	private final static Map<String, Map<String, Integer>> CATALOG_DELETED = new ConcurrentHashMap<>();
+	private final static Map<String, Map<String, Integer>> CATALOG_SCHEMA_UPDATED = new ConcurrentHashMap<>();
+	private final static Map<String, Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_CREATED = new ConcurrentHashMap<>();
+	private final static Map<String, Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_DELETED = new ConcurrentHashMap<>();
+	private final static Map<String, Map<EntityCollectionCatalogRecord, Integer>> ENTITY_COLLECTION_SCHEMA_UPDATED = new ConcurrentHashMap<>();
+	private String evitaInstanceId;
 
-	public static void reset() {
-		CATALOG_CREATED.remove();
-		CATALOG_DELETED.remove();
-		CATALOG_SCHEMA_UPDATED.remove();
-		ENTITY_COLLECTION_CREATED.remove();
-		ENTITY_COLLECTION_DELETED.remove();
-		ENTITY_COLLECTION_SCHEMA_UPDATED.remove();
+	public static void reset(@Nonnull String evitaInstanceId) {
+		CATALOG_CREATED.remove(evitaInstanceId);
+		CATALOG_DELETED.remove(evitaInstanceId);
+		CATALOG_SCHEMA_UPDATED.remove(evitaInstanceId);
+		ENTITY_COLLECTION_CREATED.remove(evitaInstanceId);
+		ENTITY_COLLECTION_DELETED.remove(evitaInstanceId);
+		ENTITY_COLLECTION_SCHEMA_UPDATED.remove(evitaInstanceId);
 	}
 
-	public static int getOrInitializeCollectionMonitor(@Nonnull String catalogName) {
-		return getOrInitializeCatalogMonitor(CATALOG_CREATED)
+	public static int getOrInitializeCollectionMonitor(@Nonnull String evitaInstanceId, @Nonnull String catalogName) {
+		return getOrInitializeCatalogMonitor(evitaInstanceId, CATALOG_CREATED)
 			.getOrDefault(catalogName, 0);
 	}
 
-	public static int getCatalogDeleted(@Nonnull String catalogName) {
-		return getOrInitializeCatalogMonitor(CATALOG_DELETED)
+	public static int getCatalogDeleted(@Nonnull String evitaInstanceId, @Nonnull String catalogName) {
+		return getOrInitializeCatalogMonitor(evitaInstanceId, CATALOG_DELETED)
 			.getOrDefault(catalogName, 0);
 	}
 
-	public static int getCatalogSchemaUpdated(@Nonnull String catalogName) {
-		return getOrInitializeCatalogMonitor(CATALOG_SCHEMA_UPDATED)
+	public static int getCatalogSchemaUpdated(@Nonnull String evitaInstanceId, @Nonnull String catalogName) {
+		return getOrInitializeCatalogMonitor(evitaInstanceId, CATALOG_SCHEMA_UPDATED)
 			.getOrDefault(catalogName, 0);
 	}
 
-	public static int getEntityCollectionCreated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return getOrInitializeCollectionMonitor(ENTITY_COLLECTION_CREATED)
+	public static int getEntityCollectionCreated(@Nonnull String evitaInstanceId, @Nonnull String catalogName, @Nonnull String entityType) {
+		return getOrInitializeCollectionMonitor(evitaInstanceId, ENTITY_COLLECTION_CREATED)
 			.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	public static int getEntityCollectionDeleted(@Nonnull String catalogName, @Nonnull String entityType) {
-		return getOrInitializeCollectionMonitor(ENTITY_COLLECTION_DELETED)
+	public static int getEntityCollectionDeleted(@Nonnull String evitaInstanceId, @Nonnull String catalogName, @Nonnull String entityType) {
+		return getOrInitializeCollectionMonitor(evitaInstanceId, ENTITY_COLLECTION_DELETED)
 			.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
-	public static int getEntityCollectionSchemaUpdated(@Nonnull String catalogName, @Nonnull String entityType) {
-		return getOrInitializeCollectionMonitor(ENTITY_COLLECTION_SCHEMA_UPDATED)
+	public static int getEntityCollectionSchemaUpdated(@Nonnull String evitaInstanceId, @Nonnull String catalogName, @Nonnull String entityType) {
+		return getOrInitializeCollectionMonitor(evitaInstanceId, ENTITY_COLLECTION_SCHEMA_UPDATED)
 			.getOrDefault(new EntityCollectionCatalogRecord(catalogName, entityType), 0);
 	}
 
 	@Nonnull
-	private static Map<String, Integer> getOrInitializeCatalogMonitor(ThreadLocal<Map<String, Integer>> threadLocal) {
-		return Optional.ofNullable(threadLocal.get())
-			.orElseGet(() -> {
-				final HashMap<String, Integer> theMap = new HashMap<>();
-				threadLocal.set(theMap);
-				return theMap;
-			});
+	private static Map<String, Integer> getOrInitializeCatalogMonitor(@Nonnull String evitaInstanceId, @Nonnull Map<String, Map<String, Integer>> centralIndex) {
+		return centralIndex.computeIfAbsent(
+			evitaInstanceId,
+			eid -> new HashMap<>(8)
+		);
 	}
 
 	@Nonnull
-	private static Map<EntityCollectionCatalogRecord, Integer> getOrInitializeCollectionMonitor(ThreadLocal<Map<EntityCollectionCatalogRecord, Integer>> threadLocal) {
-		return Optional.ofNullable(threadLocal.get())
-			.orElseGet(() -> {
-				final HashMap<EntityCollectionCatalogRecord, Integer> theMap = new HashMap<>();
-				threadLocal.set(theMap);
-				return theMap;
-			});
+	private static Map<EntityCollectionCatalogRecord, Integer> getOrInitializeCollectionMonitor(@Nonnull String evitaInstanceId, @Nonnull Map<String, Map<EntityCollectionCatalogRecord, Integer>> centralIndex) {
+		return centralIndex.computeIfAbsent(
+			evitaInstanceId,
+			eid -> new HashMap<>(8)
+		);
+	}
+
+	@Override
+	public void onInit(@Nonnull EvitaContract evita) {
+		this.evitaInstanceId = evita.getSystemStatus().instanceId();
 	}
 
 	@Override
 	public void onCatalogCreate(@Nonnull String catalogName) {
-		getOrInitializeCatalogMonitor(CATALOG_CREATED)
+		getOrInitializeCatalogMonitor(evitaInstanceId, CATALOG_CREATED)
 			.compute(catalogName, (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 	}
 
 	@Override
 	public void onCatalogDelete(@Nonnull String catalogName) {
-		getOrInitializeCatalogMonitor(CATALOG_DELETED)
+		getOrInitializeCatalogMonitor(evitaInstanceId, CATALOG_DELETED)
 			.compute(catalogName, (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 	}
 
 	@Override
 	public void onEntityCollectionCreate(@Nonnull String catalogName, @Nonnull String entityType) {
-		getOrInitializeCollectionMonitor(ENTITY_COLLECTION_CREATED)
+		getOrInitializeCollectionMonitor(evitaInstanceId, ENTITY_COLLECTION_CREATED)
 			.compute(
 				new EntityCollectionCatalogRecord(catalogName, entityType),
 				(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
@@ -125,7 +131,7 @@ public class MockCatalogStructuralChangeObserver implements CatalogStructuralCha
 
 	@Override
 	public void onEntityCollectionDelete(@Nonnull String catalogName, @Nonnull String entityType) {
-		getOrInitializeCollectionMonitor(ENTITY_COLLECTION_DELETED)
+		getOrInitializeCollectionMonitor(evitaInstanceId, ENTITY_COLLECTION_DELETED)
 			.compute(
 				new EntityCollectionCatalogRecord(catalogName, entityType),
 				(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1
@@ -134,13 +140,13 @@ public class MockCatalogStructuralChangeObserver implements CatalogStructuralCha
 
 	@Override
 	public void onCatalogSchemaUpdate(@Nonnull String catalogName) {
-		getOrInitializeCatalogMonitor(CATALOG_SCHEMA_UPDATED)
+		getOrInitializeCatalogMonitor(evitaInstanceId, CATALOG_SCHEMA_UPDATED)
 			.compute(catalogName, (theCatalogName, counter) -> counter == null ? 1 : counter + 1);
 	}
 
 	@Override
 	public void onEntitySchemaUpdate(@Nonnull String catalogName, @Nonnull String entityType) {
-		getOrInitializeCollectionMonitor(ENTITY_COLLECTION_SCHEMA_UPDATED)
+		getOrInitializeCollectionMonitor(evitaInstanceId, ENTITY_COLLECTION_SCHEMA_UPDATED)
 			.compute(
 				new EntityCollectionCatalogRecord(catalogName, entityType),
 				(entityCollectionRecord, counter) -> counter == null ? 1 : counter + 1

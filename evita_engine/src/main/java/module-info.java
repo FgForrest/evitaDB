@@ -33,6 +33,7 @@ module evita.engine {
 	exports io.evitadb.core.cache;
 	exports io.evitadb.core.cache.payload;
 	exports io.evitadb.core.buffer;
+	exports io.evitadb.core.query;
 	exports io.evitadb.core.query.response;
 	exports io.evitadb.core.query.algebra.price.filteredPriceRecords;
 	exports io.evitadb.core.query.algebra.price.termination;
@@ -40,6 +41,7 @@ module evita.engine {
 	exports io.evitadb.core.query.extraResult.translator.histogram.cache;
 	exports io.evitadb.core.sequence;
 	exports io.evitadb.core.transaction;
+	exports io.evitadb.core.transaction.memory;
 	exports io.evitadb.index;
 	exports io.evitadb.index.bool;
 	exports io.evitadb.index.cardinality;
@@ -56,14 +58,12 @@ module evita.engine {
 	exports io.evitadb.index.relation;
 	exports io.evitadb.index.facet;
 	exports io.evitadb.index.price.model.priceRecord;
-	exports io.evitadb.index.transactionalMemory;
 	exports io.evitadb.store.spi;
 	exports io.evitadb.store.spi.model;
 	exports io.evitadb.store.spi.model.storageParts;
 	exports io.evitadb.store.spi.model.reference;
 	exports io.evitadb.store.spi.model.storageParts.index;
 	exports io.evitadb.store.spi.exception;
-	exports io.evitadb.core.query;
 
 	uses CatalogStructuralChangeObserver;
 	uses CatalogPersistenceServiceFactory;

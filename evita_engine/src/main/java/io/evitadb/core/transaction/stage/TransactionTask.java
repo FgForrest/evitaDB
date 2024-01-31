@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,8 +72,7 @@ public interface TransactionTask {
 	 * @return The commit behavior of the transaction task
 	 */
 	@Nonnull
-
-	CommitBehaviour commitBehaviour();
+	CommitBehavior commitBehaviour();
 
 	/**
 	 * Retrieves the future associated with this transaction task. The future represents the completion of the task

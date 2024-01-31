@@ -25,7 +25,7 @@ package io.evitadb.core;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
@@ -37,7 +37,6 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -47,15 +46,6 @@ import java.util.concurrent.CompletableFuture;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public interface EvitaInternalSessionContract extends EvitaSessionContract {
-
-	/**
-	 * Opens a new transaction. This method returns a UUID
-	 * that represents the identification of the opened transaction.
-	 *
-	 * @return The UUID of the opened transaction.
-	 */
-	@Nonnull
-	UUID openTransaction();
 
 	/**
 	 * Method executes query on {@link CatalogContract} data and returns zero or exactly one entity result. Method
@@ -112,7 +102,7 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract {
 
 	/**
 	 * Retrieves the CompletableFuture representing the finalization of the transaction that conforms to
-	 * requested {@link CommitBehaviour} bound to the current transaction.
+	 * requested {@link CommitBehavior} bound to the current transaction.
 	 *
 	 * @return An Optional that contains a CompletableFuture of type Long if the transaction finalization
 	 *         is in progress, or an empty Optional if no transaction is currently in progress (session is read-only

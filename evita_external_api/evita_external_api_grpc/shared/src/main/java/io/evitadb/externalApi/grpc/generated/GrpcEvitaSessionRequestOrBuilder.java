@@ -55,7 +55,7 @@ public interface GrpcEvitaSessionRequestOrBuilder extends
    * Commit behaviour
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 2;</code>
    * @return The enum numeric value on the wire for commitBehaviour.
    */
   int getCommitBehaviourValue();
@@ -64,10 +64,10 @@ public interface GrpcEvitaSessionRequestOrBuilder extends
    * Commit behaviour
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 2;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 2;</code>
    * @return The commitBehaviour.
    */
-  io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour getCommitBehaviour();
+  io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour();
 
   /**
    * <pre>

@@ -24,7 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
@@ -731,35 +731,35 @@ public class EvitaEnumConverter {
 	}
 
 	/**
-	 * Converts the given CommitBehaviour to GrpcCommitBehaviour.
+	 * Converts the given CommitBehavior to GrpcCommitBehaviour.
 	 *
-	 * @param commitBehaviour the CommitBehaviour to convert
+	 * @param commitBehavior the CommitBehavior to convert
 	 * @return the corresponding GrpcCommitBehaviour
 	 */
 	@Nonnull
-	public static GrpcCommitBehaviour toGrpcCommitBehaviour(@Nonnull CommitBehaviour commitBehaviour) {
-		return switch (commitBehaviour) {
-			case NO_WAIT -> GrpcCommitBehaviour.NO_WAIT;
-			case WAIT_FOR_LOG_PERSISTENCE -> GrpcCommitBehaviour.WAIT_FOR_LOG_PERSISTENCE;
-			case WAIT_FOR_INDEX_PROPAGATION -> GrpcCommitBehaviour.WAIT_FOR_LOG_PERSISTENCE;
+	public static GrpcCommitBehavior toGrpcCommitBehavior(@Nonnull CommitBehavior commitBehavior) {
+		return switch (commitBehavior) {
+			case WAIT_FOR_CONFLICT_RESOLUTION -> GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION;
+			case WAIT_FOR_WAL_PERSISTENCE -> GrpcCommitBehavior.WAIT_FOR_LOG_PERSISTENCE;
+			case WAIT_FOR_INDEX_PROPAGATION -> GrpcCommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
 		};
 	}
 
 	/**
-	 * Converts a GrpcCommitBehaviour to a CommitBehaviour.
+	 * Converts a GrpcCommitBehaviour to a CommitBehavior.
 	 *
-	 * @param commitBehaviour The GrpcCommitBehaviour to convert.
-	 * @return The converted CommitBehaviour.
+	 * @param commitBehaviour The GrpcCommitBehavior to convert.
+	 * @return The converted CommitBehavior.
 	 * @throws EvitaInternalError if the given commitBehaviour is unrecognized.
 	 */
 	@Nonnull
-	public static CommitBehaviour toCommitBehaviour(@Nonnull GrpcCommitBehaviour commitBehaviour) {
+	public static CommitBehavior toCommitBehavior(@Nonnull GrpcCommitBehavior commitBehaviour) {
 		return switch (commitBehaviour) {
-			case NO_WAIT -> CommitBehaviour.NO_WAIT;
-			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehaviour.WAIT_FOR_LOG_PERSISTENCE;
-			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehaviour.WAIT_FOR_INDEX_PROPAGATION;
+			case WAIT_FOR_CONFLICT_RESOLUTION -> CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION;
+			case WAIT_FOR_LOG_PERSISTENCE -> CommitBehavior.WAIT_FOR_WAL_PERSISTENCE;
+			case WAIT_FOR_INDEX_PROPAGATION -> CommitBehavior.WAIT_FOR_INDEX_PROPAGATION;
 			default ->
-				throw new EvitaInternalError("Unrecognized remote commit behaviour: " + commitBehaviour);
+				throw new EvitaInternalError("Unrecognized remote commit behavior: " + commitBehaviour);
 		};
 	}
 }

@@ -23,7 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage.ConflictResolutionTransactionTask;
 import io.evitadb.core.transaction.stage.WalAppendingTransactionStage.WalAppendingTransactionTask;
@@ -74,6 +74,10 @@ public final class ConflictResolutionTransactionStage
 
 	@Override
 	public void handleNext(@Nonnull ConflictResolutionTransactionTask task) {
+		Assert.isPremiseValid(
+			task.future() != null,
+			"Future is unexpectedly null on first stage!"
+		);
 		// identify conflicts with other transaction
 		// TODO JNO - implement me
 		// assign new catalog version
@@ -87,7 +91,7 @@ public final class ConflictResolutionTransactionStage
 				task.walSizeInBytes(),
 				task.walReference(),
 				task.commitBehaviour(),
-				task.commitBehaviour() != CommitBehaviour.NO_WAIT ? task.future() : null
+				task.commitBehaviour() != CommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION ? task.future() : null
 			)
 		);
 	}
@@ -122,9 +126,16 @@ public final class ConflictResolutionTransactionStage
 		int mutationCount,
 		long walSizeInBytes,
 		@Nonnull OffHeapWithFileBackupReference walReference,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull CompletableFuture<Long> future
 	) implements TransactionTask {
+
+		public ConflictResolutionTransactionTask {
+			Assert.isPremiseValid(
+				future != null,
+				"Future is unexpectedly null!"
+			);
+		}
 
 		@Override
 		public long catalogVersion() {

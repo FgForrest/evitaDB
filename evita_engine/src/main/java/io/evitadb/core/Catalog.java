@@ -28,7 +28,7 @@ import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
@@ -73,6 +73,9 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.stage.AbstractTransactionStage;
 import io.evitadb.core.transaction.stage.CatalogSnapshotPropagationTransactionStage;
 import io.evitadb.core.transaction.stage.ConflictResolutionTransactionStage;
@@ -88,9 +91,6 @@ import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.reference.TransactionalReference;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.entity.model.schema.CatalogSchemaStoragePart;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogPersistenceServiceFactory;
@@ -104,6 +104,7 @@ import io.evitadb.store.spi.model.reference.CollectionFileReference;
 import io.evitadb.store.spi.model.storageParts.accessor.CatalogReadOnlyEntityStorageContainerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ReflectionLookup;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -470,30 +471,18 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.dataStoreBuffer = new DataStoreMemoryBuffer<>(versionId, this, storagePartPersistenceService);
 		// we need to switch references working with catalog (inter index relations) to new catalog
 		// the collections are not yet used anywhere - we're still safe here
-		entityCollections.values().forEach(it -> it.updateReferenceToCatalog(this));
-		this.entityCollections = new TransactionalMap<>(entityCollections, EntityCollection.class, Function.identity());
-		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(
-			entityCollections.values()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						EntityCollection::getEntityTypePrimaryKey,
-						Function.identity()
-					)
-				),
-			EntityCollection.class,
-			Function.identity()
-		);
-		this.entitySchemaIndex = new TransactionalMap<>(
-			entityCollections.values()
-				.stream()
-				.collect(
-					Collectors.toMap(
-						EntityCollection::getEntityType,
-						EntityCollection::getSchema
-					)
-				)
-		);
+		final Map<String, EntityCollection> newEntityCollections = CollectionUtils.createHashMap(entityCollections.size());
+		final Map<Integer, EntityCollection> newEntityCollectionsIndex = CollectionUtils.createHashMap(entityCollections.size());
+		final Map<String, EntitySchemaContract> newEntitySchemaIndex = CollectionUtils.createHashMap(entityCollections.size());
+		for (EntityCollection entityCollection : entityCollections.values()) {
+			entityCollection.updateReferenceToCatalog(this);
+			newEntityCollections.put(entityCollection.getEntityType(), entityCollection);
+			newEntityCollectionsIndex.put(entityCollection.getEntityTypePrimaryKey(), entityCollection);
+			newEntitySchemaIndex.put(entityCollection.getEntityType(), entityCollection.getSchema());
+		}
+		this.entityCollections = new TransactionalMap<>(newEntityCollections, EntityCollection.class, Function.identity());
+		this.entityCollectionsByPrimaryKey = new TransactionalMap<>(newEntityCollectionsIndex, EntityCollection.class, Function.identity());
+		this.entitySchemaIndex = new TransactionalMap<>(newEntitySchemaIndex);
 		this.lastPersistedSchemaVersion = this.schema.get().version();
 	}
 
@@ -511,13 +500,13 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		final Optional<Transaction> transactionRef = Transaction.getTransaction();
 		ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 		CatalogSchemaContract updatedSchema = currentSchema;
-		// TODO JNO - Implicitní createEntitySchema mutace, pokud přijde modify na neexistující entitu
 		for (CatalogSchemaMutation theMutation : schemaMutation) {
 			transactionRef.ifPresent(it -> it.registerMutation(theMutation));
 			// if the mutation implements entity schema mutation apply it on the appropriate schema
 			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
 				final String entityType = modifyEntitySchemaMutation.getEntityType();
-				final EntityCollectionContract entityCollection = getCollectionForEntityOrThrowException(entityType);
+				// if the collection doesn't exist yet - create new one
+				final EntityCollectionContract entityCollection = getOrCreateCollectionForEntityInternal(entityType);
 				final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
 				if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
 					// validate the new schema version before any changes are applied
@@ -699,18 +688,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Override
 	@Nonnull
 	public EntityCollection getOrCreateCollectionForEntity(@Nonnull String entityType, @Nonnull EvitaSessionContract session) {
-		return ofNullable(entityCollections.get(entityType))
-			.orElseGet(() -> {
-				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
-					throw new InvalidSchemaMutationException(
-						"The entity collection `" + entityType + "` doesn't exist and would be automatically created," +
-							" providing that catalog schema allows `" + CatalogEvolutionMode.ADDING_ENTITY_TYPES + "`" +
-							" evolution mode."
-					);
-				}
-				updateSchema(new CreateEntitySchemaMutation(entityType));
-				return Objects.requireNonNull(entityCollections.get(entityType));
-			});
+		return getOrCreateCollectionForEntityInternal(entityType);
 	}
 
 	@Override
@@ -919,10 +897,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		);
 	}
 
-	/*
-		TransactionalLayerProducer implementation
-	 */
-
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
@@ -932,6 +906,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		this.entityCollectionsByPrimaryKey.removeLayer(transactionalLayer);
 		this.entitySchemaIndex.removeLayer(transactionalLayer);
 	}
+
+	/*
+		TransactionalLayerProducer implementation
+	 */
 
 	@Nonnull
 	@Override
@@ -1024,7 +1002,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	 */
 	public void commitWal(
 		@Nonnull UUID transactionId,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull IsolatedWalPersistenceService walPersistenceService,
 		@Nonnull CompletableFuture<Long> transactionFinalizationFuture
 	) {
@@ -1137,10 +1115,6 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		}
 	}
 
-	/*
-		PROTECTED METHODS
-	 */
-
 	/**
 	 * Increases number of read and write sessions that are currently talking with this catalog.
 	 *
@@ -1163,6 +1137,10 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 			persistenceService.release();
 		}
 	}
+
+	/*
+		PROTECTED METHODS
+	 */
 
 	/**
 	 * Method allows to immediately flush all information held in memory to the persistent storage.
@@ -1200,6 +1178,30 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	/*
 		PRIVATE METHODS
 	 */
+
+	/**
+	 * Retrieves an existing EntityCollection for the given entity type or creates a new one if it doesn't exist.
+	 *
+	 * @param entityType The type of the entity for which to retrieve or create an EntityCollection.
+	 * @return The EntityCollection associated with the given entity type.
+	 * @throws InvalidSchemaMutationException Thrown if the entity collection doesn't exist and cannot be automatically
+	 * created based on the catalog schema.
+	 */
+	@Nonnull
+	private EntityCollection getOrCreateCollectionForEntityInternal(@Nonnull String entityType) {
+		return ofNullable(entityCollections.get(entityType))
+			.orElseGet(() -> {
+				if (!getSchema().getCatalogEvolutionMode().contains(CatalogEvolutionMode.ADDING_ENTITY_TYPES)) {
+					throw new InvalidSchemaMutationException(
+						"The entity collection `" + entityType + "` doesn't exist and would be automatically created," +
+							" providing that catalog schema allows `" + CatalogEvolutionMode.ADDING_ENTITY_TYPES + "`" +
+							" evolution mode."
+					);
+				}
+				updateSchema(new CreateEntitySchemaMutation(entityType));
+				return Objects.requireNonNull(entityCollections.get(entityType));
+			});
+	}
 
 	/**
 	 * Method creates {@link QueryContext} that is used for read operations.

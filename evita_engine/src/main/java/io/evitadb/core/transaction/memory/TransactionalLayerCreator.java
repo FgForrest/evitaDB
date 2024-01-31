@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.transactionalMemory;
+package io.evitadb.core.transaction.memory;
 
 import javax.annotation.Nonnull;
 

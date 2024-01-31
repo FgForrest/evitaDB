@@ -24,7 +24,7 @@
 package io.evitadb.api;
 
 import io.evitadb.api.SessionTraits.SessionFlags;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
@@ -40,23 +40,20 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * Evita is a specialized database with easy-to-use API for e-commerce systems. Purpose of this research is creating fast
- * and scalable engine that handles all complex tasks that e-commerce systems has to deal with on daily basis. Evita should
+ * Evita is a specialized database with easy-to-use API for e-commerce systems. Purpose of this research is creating a fast
+ * and scalable engine that handles all complex tasks that e-commerce systems has to deal with on a daily basis. Evita should
  * operate as a fast secondary lookup / search index used by application frontends. We aim for order of magnitude better
  * latency (10x faster or better) for common e-commerce tasks than other solutions based on SQL or NoSQL databases on the
  * same hardware specification. Evita should not be used for storing and handling primary data, and we don't aim for ACID
  * properties nor data corruption guarantees. Evita "index" must be treated as something that could be dropped any time and
  * built up from scratch easily again.
  *
- * This interface represents main entrance to the evitaDB contents.
+ * This interface represents the main entrance to the evitaDB contents.
  * Evita contract is thread safe.
- *
- * TODO JNO - add query async alternatives
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -66,7 +63,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.
 	 *
-	 * Don't forget to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
+	 * Remember to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
 	 * EvitaSession is not thread safe!
 	 *
 	 * @param catalogName - unique name of the catalog, refers to {@link CatalogContract#getName()}
@@ -82,7 +79,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	/**
 	 * Creates {@link EvitaSessionContract} for querying and altering the database.
 	 *
-	 * Don't forget to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
+	 * Remember to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
 	 * EvitaSession is not thread safe!
 	 *
 	 * @param catalogName - unique name of the catalog, refers to {@link CatalogContract#getName()}
@@ -99,7 +96,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 * Creates {@link EvitaSessionContract} for querying the database. This is the most versatile method for initializing a new
 	 * session allowing to pass all configurable options in `traits` argument.
 	 *
-	 * Don't forget to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
+	 * Remember to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
 	 * EvitaSession is not thread safe!
 	 *
 	 * @return new instance of EvitaSession
@@ -107,21 +104,21 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 */
 	@Nonnull
 	default EvitaSessionContract createSession(@Nonnull SessionTraits traits) {
-		return createSession(CommitBehaviour.defaultBehaviour(), traits);
+		return createSession(CommitBehavior.defaultBehaviour(), traits);
 	}
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database. This is the most versatile method for initializing a new
 	 * session allowing to pass all configurable options in `traits` argument.
 	 *
-	 * Don't forget to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
+	 * Remember to {@link #close()} or {@link #terminateSession(EvitaSessionContract)} when your work with Evita is finished.
 	 * EvitaSession is not thread safe!
 	 *
 	 * @return new instance of EvitaSession
 	 * @see #close()
 	 */
 	@Nonnull
-	EvitaSessionContract createSession(@Nullable CommitBehaviour commitBehaviour, @Nonnull SessionTraits traits);
+	EvitaSessionContract createSession(@Nullable CommitBehavior commitBehaviour, @Nonnull SessionTraits traits);
 
 	/**
 	 * Method returns active session by its unique id or NULL if such session is not found.
@@ -226,7 +223,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 * @param flags       optional flags that can be passed to the session and affect its behavior
 	 */
 	default <T> T updateCatalog(@Nonnull String catalogName, @Nonnull Function<EvitaSessionContract, T> updater, @Nullable SessionFlags... flags) {
-		return updateCatalog(catalogName, updater, CommitBehaviour.defaultBehaviour(), flags);
+		return updateCatalog(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
 	}
 
 	/**
@@ -235,7 +232,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 * @see #updateCatalog(String, Function, SessionFlags[])
 	 */
 	default void updateCatalog(@Nonnull String catalogName, @Nonnull Consumer<EvitaSessionContract> updater, @Nullable SessionFlags... flags) {
-		updateCatalog(catalogName, updater, CommitBehaviour.defaultBehaviour(), flags);
+		updateCatalog(catalogName, updater, CommitBehavior.defaultBehaviour(), flags);
 	}
 
 	/**
@@ -246,7 +243,7 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	 *
 	 * This method blocks indefinitely until the transaction reaches the processing stage defined by
 	 * the `commitBehaviour` argument. If you want to have waiting under the control, use
-	 * {@link #updateCatalogAsync(String, Function, CommitBehaviour, SessionFlags...)} alternative.
+	 * {@link #updateCatalogAsync(String, Function, CommitBehavior, SessionFlags...)} alternative.
 	 *
 	 * @param catalogName     name of the catalog
 	 * @param updater         application logic that reads and writes data
@@ -257,21 +254,10 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	default <T> T updateCatalog(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	) {
-		try {
-			return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).get();
-		} catch (ExecutionException e) {
-			if (e.getCause() instanceof TransactionException transactionException) {
-				throw transactionException;
-			} else {
-				throw new TransactionException("Unexpected exception occurred while executing transaction!", e);
-			}
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new TransactionException("Thread interrupted exception occurred while executing transaction!", e);
-		}
+		return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
 	}
 
 	/**
@@ -292,53 +278,41 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 	<T> CompletableFuture<T> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Function<EvitaSessionContract, T> updater,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	);
 
 	/**
 	 * Overloaded method {@link #updateCatalog(String, Function, SessionFlags[])} that returns no result. This method
 	 * blocks indefinitely until the transaction reaches the processing stage defined by the `commitBehaviour` argument.
-	 * If you want to have waiting under the control, use {@link #updateCatalogAsync(String, Consumer, CommitBehaviour, SessionFlags...)}
+	 * If you want to have waiting under the control, use {@link #updateCatalogAsync(String, Consumer, CommitBehavior, SessionFlags...)}
 	 * alternative.
 	 *
-	 * @see #updateCatalog(String, Function, CommitBehaviour, SessionFlags[])
+	 * @see #updateCatalog(String, Function, CommitBehavior, SessionFlags[])
 	 */
 	default void updateCatalog(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	) {
-		try {
-			final CompletableFuture<Long> future = updateCatalogAsync(catalogName, updater, commitBehaviour, flags);
-			future.get();
-		} catch (ExecutionException e) {
-			if (e.getCause() instanceof TransactionException transactionException) {
-				throw transactionException;
-			} else {
-				throw new TransactionException("Unexpected exception occurred while executing transaction!", e.getCause());
-			}
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new TransactionException("Thread interrupted exception occurred while executing transaction!", e);
-		}
+		updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
 	}
 
 	/**
-	 * Overloaded method {@link #updateCatalogAsync(String, Function, CommitBehaviour, SessionFlags...)} that returns
+	 * Overloaded method {@link #updateCatalogAsync(String, Function, CommitBehavior, SessionFlags...)} that returns
 	 * future that is completed when the transaction reaches the processing stage defined by the `commitBehaviour`
 	 * argument.
 	 *
 	 * @return future that is completed when the transaction reaches the processing stage defined by the `commitBehaviour`
 	 * argument. Long represents catalog version where the transaction changes will be visible.
 	 * @throws TransactionException when transaction fails
-	 * @see #updateCatalog(String, Function, CommitBehaviour, SessionFlags[])
+	 * @see #updateCatalog(String, Function, CommitBehavior, SessionFlags[])
 	 */
 	CompletableFuture<Long> updateCatalogAsync(
 		@Nonnull String catalogName,
 		@Nonnull Consumer<EvitaSessionContract> updater,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	)
 		throws TransactionException;

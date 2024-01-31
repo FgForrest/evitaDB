@@ -28,28 +28,29 @@ package io.evitadb.externalApi.grpc.generated;
 
 /**
  * <pre>
- * Response for GoLiveAndClose request that switches the catalog to ALIVE state and closes the session.
+ * Response for Close request that commits or rollbacks the changes in the session.
  * </pre>
  *
- * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse}
+ * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseRequest}
  */
-public final class GrpcGoLiveAndCloseResponse extends
+public final class GrpcCloseRequest extends
     com.google.protobuf.GeneratedMessageV3 implements
-    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)
-    GrpcGoLiveAndCloseResponseOrBuilder {
+    // @@protoc_insertion_point(message_implements:io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)
+    GrpcCloseRequestOrBuilder {
 private static final long serialVersionUID = 0L;
-  // Use GrpcGoLiveAndCloseResponse.newBuilder() to construct.
-  private GrpcGoLiveAndCloseResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+  // Use GrpcCloseRequest.newBuilder() to construct.
+  private GrpcCloseRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
     super(builder);
   }
-  private GrpcGoLiveAndCloseResponse() {
+  private GrpcCloseRequest() {
+    commitBehaviour_ = 0;
   }
 
   @java.lang.Override
   @SuppressWarnings({"unused"})
   protected java.lang.Object newInstance(
       UnusedPrivateParameter unused) {
-    return new GrpcGoLiveAndCloseResponse();
+    return new GrpcCloseRequest();
   }
 
   @java.lang.Override
@@ -57,7 +58,7 @@ private static final long serialVersionUID = 0L;
   getUnknownFields() {
     return this.unknownFields;
   }
-  private GrpcGoLiveAndCloseResponse(
+  private GrpcCloseRequest(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
@@ -76,13 +77,9 @@ private static final long serialVersionUID = 0L;
             done = true;
             break;
           case 8: {
+            int rawValue = input.readEnum();
 
-            success_ = input.readBool();
-            break;
-          }
-          case 16: {
-
-            catalogVersion_ = input.readInt64();
+            commitBehaviour_ = rawValue;
             break;
           }
           default: {
@@ -106,45 +103,42 @@ private static final long serialVersionUID = 0L;
   }
   public static final com.google.protobuf.Descriptors.Descriptor
       getDescriptor() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGoLiveAndCloseResponse_descriptor;
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCloseRequest_descriptor;
   }
 
   @java.lang.Override
   protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internalGetFieldAccessorTable() {
-    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGoLiveAndCloseResponse_fieldAccessorTable
+    return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCloseRequest_fieldAccessorTable
         .ensureFieldAccessorsInitialized(
-            io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.class, io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.Builder.class);
+            io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.class, io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.Builder.class);
   }
 
-  public static final int SUCCESS_FIELD_NUMBER = 1;
-  private boolean success_;
+  public static final int COMMITBEHAVIOUR_FIELD_NUMBER = 1;
+  private int commitBehaviour_;
   /**
    * <pre>
-   * True, if the catalog was switched to ALIVE state.
+   * Contains the requested commit behaviour
    * </pre>
    *
-   * <code>bool success = 1;</code>
-   * @return The success.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+   * @return The enum numeric value on the wire for commitBehaviour.
    */
-  @java.lang.Override
-  public boolean getSuccess() {
-    return success_;
+  @java.lang.Override public int getCommitBehaviourValue() {
+    return commitBehaviour_;
   }
-
-  public static final int CATALOGVERSION_FIELD_NUMBER = 2;
-  private long catalogVersion_;
   /**
    * <pre>
-   * Contains next catalog version
+   * Contains the requested commit behaviour
    * </pre>
    *
-   * <code>int64 catalogVersion = 2;</code>
-   * @return The catalogVersion.
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+   * @return The commitBehaviour.
    */
-  @java.lang.Override
-  public long getCatalogVersion() {
-    return catalogVersion_;
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour() {
+    @SuppressWarnings("deprecation")
+    io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehaviour_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
   }
 
   private byte memoizedIsInitialized = -1;
@@ -161,11 +155,8 @@ private static final long serialVersionUID = 0L;
   @java.lang.Override
   public void writeTo(com.google.protobuf.CodedOutputStream output)
                       throws java.io.IOException {
-    if (success_ != false) {
-      output.writeBool(1, success_);
-    }
-    if (catalogVersion_ != 0L) {
-      output.writeInt64(2, catalogVersion_);
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
+      output.writeEnum(1, commitBehaviour_);
     }
     unknownFields.writeTo(output);
   }
@@ -176,13 +167,9 @@ private static final long serialVersionUID = 0L;
     if (size != -1) return size;
 
     size = 0;
-    if (success_ != false) {
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
-        .computeBoolSize(1, success_);
-    }
-    if (catalogVersion_ != 0L) {
-      size += com.google.protobuf.CodedOutputStream
-        .computeInt64Size(2, catalogVersion_);
+        .computeEnumSize(1, commitBehaviour_);
     }
     size += unknownFields.getSerializedSize();
     memoizedSize = size;
@@ -194,15 +181,12 @@ private static final long serialVersionUID = 0L;
     if (obj == this) {
      return true;
     }
-    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)) {
+    if (!(obj instanceof io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)) {
       return super.equals(obj);
     }
-    io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse other = (io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse) obj;
+    io.evitadb.externalApi.grpc.generated.GrpcCloseRequest other = (io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) obj;
 
-    if (getSuccess()
-        != other.getSuccess()) return false;
-    if (getCatalogVersion()
-        != other.getCatalogVersion()) return false;
+    if (commitBehaviour_ != other.commitBehaviour_) return false;
     if (!unknownFields.equals(other.unknownFields)) return false;
     return true;
   }
@@ -214,80 +198,76 @@ private static final long serialVersionUID = 0L;
     }
     int hash = 41;
     hash = (19 * hash) + getDescriptor().hashCode();
-    hash = (37 * hash) + SUCCESS_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
-        getSuccess());
-    hash = (37 * hash) + CATALOGVERSION_FIELD_NUMBER;
-    hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
-        getCatalogVersion());
+    hash = (37 * hash) + COMMITBEHAVIOUR_FIELD_NUMBER;
+    hash = (53 * hash) + commitBehaviour_;
     hash = (29 * hash) + unknownFields.hashCode();
     memoizedHashCode = hash;
     return hash;
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       java.nio.ByteBuffer data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       java.nio.ByteBuffer data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       com.google.protobuf.ByteString data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       com.google.protobuf.ByteString data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(byte[] data)
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(byte[] data)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       byte[] data,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws com.google.protobuf.InvalidProtocolBufferException {
     return PARSER.parseFrom(data, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseDelimitedFrom(java.io.InputStream input)
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseDelimitedFrom(java.io.InputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseDelimitedFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseDelimitedFrom(
       java.io.InputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       com.google.protobuf.CodedInputStream input)
       throws java.io.IOException {
     return com.google.protobuf.GeneratedMessageV3
         .parseWithIOException(PARSER, input);
   }
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parseFrom(
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parseFrom(
       com.google.protobuf.CodedInputStream input,
       com.google.protobuf.ExtensionRegistryLite extensionRegistry)
       throws java.io.IOException {
@@ -300,7 +280,7 @@ private static final long serialVersionUID = 0L;
   public static Builder newBuilder() {
     return DEFAULT_INSTANCE.toBuilder();
   }
-  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse prototype) {
+  public static Builder newBuilder(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest prototype) {
     return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
   }
   @java.lang.Override
@@ -317,29 +297,29 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Response for GoLiveAndClose request that switches the catalog to ALIVE state and closes the session.
+   * Response for Close request that commits or rollbacks the changes in the session.
    * </pre>
    *
-   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse}
+   * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCloseRequest}
    */
   public static final class Builder extends
       com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
-      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)
-      io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponseOrBuilder {
+      // @@protoc_insertion_point(builder_implements:io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)
+      io.evitadb.externalApi.grpc.generated.GrpcCloseRequestOrBuilder {
     public static final com.google.protobuf.Descriptors.Descriptor
         getDescriptor() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGoLiveAndCloseResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCloseRequest_descriptor;
     }
 
     @java.lang.Override
     protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
         internalGetFieldAccessorTable() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGoLiveAndCloseResponse_fieldAccessorTable
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCloseRequest_fieldAccessorTable
           .ensureFieldAccessorsInitialized(
-              io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.class, io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.Builder.class);
+              io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.class, io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.Builder.class);
     }
 
-    // Construct using io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.newBuilder()
+    // Construct using io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.newBuilder()
     private Builder() {
       maybeForceBuilderInitialization();
     }
@@ -357,9 +337,7 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public Builder clear() {
       super.clear();
-      success_ = false;
-
-      catalogVersion_ = 0L;
+      commitBehaviour_ = 0;
 
       return this;
     }
@@ -367,17 +345,17 @@ private static final long serialVersionUID = 0L;
     @java.lang.Override
     public com.google.protobuf.Descriptors.Descriptor
         getDescriptorForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcGoLiveAndCloseResponse_descriptor;
+      return io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionAPI.internal_static_io_evitadb_externalApi_grpc_generated_GrpcCloseRequest_descriptor;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse getDefaultInstanceForType() {
-      return io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.getDefaultInstance();
+    public io.evitadb.externalApi.grpc.generated.GrpcCloseRequest getDefaultInstanceForType() {
+      return io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.getDefaultInstance();
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse build() {
-      io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse result = buildPartial();
+    public io.evitadb.externalApi.grpc.generated.GrpcCloseRequest build() {
+      io.evitadb.externalApi.grpc.generated.GrpcCloseRequest result = buildPartial();
       if (!result.isInitialized()) {
         throw newUninitializedMessageException(result);
       }
@@ -385,10 +363,9 @@ private static final long serialVersionUID = 0L;
     }
 
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse buildPartial() {
-      io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse result = new io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse(this);
-      result.success_ = success_;
-      result.catalogVersion_ = catalogVersion_;
+    public io.evitadb.externalApi.grpc.generated.GrpcCloseRequest buildPartial() {
+      io.evitadb.externalApi.grpc.generated.GrpcCloseRequest result = new io.evitadb.externalApi.grpc.generated.GrpcCloseRequest(this);
+      result.commitBehaviour_ = commitBehaviour_;
       onBuilt();
       return result;
     }
@@ -427,21 +404,18 @@ private static final long serialVersionUID = 0L;
     }
     @java.lang.Override
     public Builder mergeFrom(com.google.protobuf.Message other) {
-      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse) {
-        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)other);
+      if (other instanceof io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) {
+        return mergeFrom((io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)other);
       } else {
         super.mergeFrom(other);
         return this;
       }
     }
 
-    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse other) {
-      if (other == io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse.getDefaultInstance()) return this;
-      if (other.getSuccess() != false) {
-        setSuccess(other.getSuccess());
-      }
-      if (other.getCatalogVersion() != 0L) {
-        setCatalogVersion(other.getCatalogVersion());
+    public Builder mergeFrom(io.evitadb.externalApi.grpc.generated.GrpcCloseRequest other) {
+      if (other == io.evitadb.externalApi.grpc.generated.GrpcCloseRequest.getDefaultInstance()) return this;
+      if (other.commitBehaviour_ != 0) {
+        setCommitBehaviourValue(other.getCommitBehaviourValue());
       }
       this.mergeUnknownFields(other.unknownFields);
       onChanged();
@@ -458,11 +432,11 @@ private static final long serialVersionUID = 0L;
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws java.io.IOException {
-      io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse parsedMessage = null;
+      io.evitadb.externalApi.grpc.generated.GrpcCloseRequest parsedMessage = null;
       try {
         parsedMessage = PARSER.parsePartialFrom(input, extensionRegistry);
       } catch (com.google.protobuf.InvalidProtocolBufferException e) {
-        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse) e.getUnfinishedMessage();
+        parsedMessage = (io.evitadb.externalApi.grpc.generated.GrpcCloseRequest) e.getUnfinishedMessage();
         throw e.unwrapIOException();
       } finally {
         if (parsedMessage != null) {
@@ -472,88 +446,76 @@ private static final long serialVersionUID = 0L;
       return this;
     }
 
-    private boolean success_ ;
+    private int commitBehaviour_ = 0;
     /**
      * <pre>
-     * True, if the catalog was switched to ALIVE state.
+     * Contains the requested commit behaviour
      * </pre>
      *
-     * <code>bool success = 1;</code>
-     * @return The success.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+     * @return The enum numeric value on the wire for commitBehaviour.
+     */
+    @java.lang.Override public int getCommitBehaviourValue() {
+      return commitBehaviour_;
+    }
+    /**
+     * <pre>
+     * Contains the requested commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+     * @param value The enum numeric value on the wire for commitBehaviour to set.
+     * @return This builder for chaining.
+     */
+    public Builder setCommitBehaviourValue(int value) {
+      
+      commitBehaviour_ = value;
+      onChanged();
+      return this;
+    }
+    /**
+     * <pre>
+     * Contains the requested commit behaviour
+     * </pre>
+     *
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+     * @return The commitBehaviour.
      */
     @java.lang.Override
-    public boolean getSuccess() {
-      return success_;
+    public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour() {
+      @SuppressWarnings("deprecation")
+      io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehaviour_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
     }
     /**
      * <pre>
-     * True, if the catalog was switched to ALIVE state.
+     * Contains the requested commit behaviour
      * </pre>
      *
-     * <code>bool success = 1;</code>
-     * @param value The success to set.
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
+     * @param value The commitBehaviour to set.
      * @return This builder for chaining.
      */
-    public Builder setSuccess(boolean value) {
+    public Builder setCommitBehaviour(io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior value) {
+      if (value == null) {
+        throw new NullPointerException();
+      }
       
-      success_ = value;
+      commitBehaviour_ = value.getNumber();
       onChanged();
       return this;
     }
     /**
      * <pre>
-     * True, if the catalog was switched to ALIVE state.
+     * Contains the requested commit behaviour
      * </pre>
      *
-     * <code>bool success = 1;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 1;</code>
      * @return This builder for chaining.
      */
-    public Builder clearSuccess() {
+    public Builder clearCommitBehaviour() {
       
-      success_ = false;
-      onChanged();
-      return this;
-    }
-
-    private long catalogVersion_ ;
-    /**
-     * <pre>
-     * Contains next catalog version
-     * </pre>
-     *
-     * <code>int64 catalogVersion = 2;</code>
-     * @return The catalogVersion.
-     */
-    @java.lang.Override
-    public long getCatalogVersion() {
-      return catalogVersion_;
-    }
-    /**
-     * <pre>
-     * Contains next catalog version
-     * </pre>
-     *
-     * <code>int64 catalogVersion = 2;</code>
-     * @param value The catalogVersion to set.
-     * @return This builder for chaining.
-     */
-    public Builder setCatalogVersion(long value) {
-      
-      catalogVersion_ = value;
-      onChanged();
-      return this;
-    }
-    /**
-     * <pre>
-     * Contains next catalog version
-     * </pre>
-     *
-     * <code>int64 catalogVersion = 2;</code>
-     * @return This builder for chaining.
-     */
-    public Builder clearCatalogVersion() {
-      
-      catalogVersion_ = 0L;
+      commitBehaviour_ = 0;
       onChanged();
       return this;
     }
@@ -570,41 +532,41 @@ private static final long serialVersionUID = 0L;
     }
 
 
-    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)
+    // @@protoc_insertion_point(builder_scope:io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)
   }
 
-  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse)
-  private static final io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse DEFAULT_INSTANCE;
+  // @@protoc_insertion_point(class_scope:io.evitadb.externalApi.grpc.generated.GrpcCloseRequest)
+  private static final io.evitadb.externalApi.grpc.generated.GrpcCloseRequest DEFAULT_INSTANCE;
   static {
-    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse();
+    DEFAULT_INSTANCE = new io.evitadb.externalApi.grpc.generated.GrpcCloseRequest();
   }
 
-  public static io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse getDefaultInstance() {
+  public static io.evitadb.externalApi.grpc.generated.GrpcCloseRequest getDefaultInstance() {
     return DEFAULT_INSTANCE;
   }
 
-  private static final com.google.protobuf.Parser<GrpcGoLiveAndCloseResponse>
-      PARSER = new com.google.protobuf.AbstractParser<GrpcGoLiveAndCloseResponse>() {
+  private static final com.google.protobuf.Parser<GrpcCloseRequest>
+      PARSER = new com.google.protobuf.AbstractParser<GrpcCloseRequest>() {
     @java.lang.Override
-    public GrpcGoLiveAndCloseResponse parsePartialFrom(
+    public GrpcCloseRequest parsePartialFrom(
         com.google.protobuf.CodedInputStream input,
         com.google.protobuf.ExtensionRegistryLite extensionRegistry)
         throws com.google.protobuf.InvalidProtocolBufferException {
-      return new GrpcGoLiveAndCloseResponse(input, extensionRegistry);
+      return new GrpcCloseRequest(input, extensionRegistry);
     }
   };
 
-  public static com.google.protobuf.Parser<GrpcGoLiveAndCloseResponse> parser() {
+  public static com.google.protobuf.Parser<GrpcCloseRequest> parser() {
     return PARSER;
   }
 
   @java.lang.Override
-  public com.google.protobuf.Parser<GrpcGoLiveAndCloseResponse> getParserForType() {
+  public com.google.protobuf.Parser<GrpcCloseRequest> getParserForType() {
     return PARSER;
   }
 
   @java.lang.Override
-  public io.evitadb.externalApi.grpc.generated.GrpcGoLiveAndCloseResponse getDefaultInstanceForType() {
+  public io.evitadb.externalApi.grpc.generated.GrpcCloseRequest getDefaultInstanceForType() {
     return DEFAULT_INSTANCE;
   }
 

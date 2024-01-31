@@ -31,11 +31,12 @@ import io.evitadb.api.EvitaSessionTerminationCallback;
 import io.evitadb.api.SchemaPostProcessor;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.CollectionNotFoundException;
 import io.evitadb.api.exception.EntityClassInvalidException;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.SchemaAlteringException;
+import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionNotSupportedException;
 import io.evitadb.api.exception.UnexpectedResultCountException;
 import io.evitadb.api.exception.UnexpectedResultException;
@@ -96,9 +97,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -115,11 +116,11 @@ import static java.util.Optional.ofNullable;
  * There may be multiple {@link Transaction transaction} during single session instance life but there is no support
  * for transactional overlap - there may be at most single transaction open in single session.
  *
- * EvitaSession transaction behave like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
+ * EvitaSession transaction behaves like <a href="https://en.wikipedia.org/wiki/Snapshot_isolation">Snapshot</a>
  * transaction. When no transaction is explicitly opened - each query to Evita behaves as one small transaction. Data
  * updates are not allowed without explicitly opened transaction.
  *
- * Don't forget to {@link #close()} when your work with Evita is finished.
+ * Remember to {@link #close()} when your work with Evita is finished.
  * EvitaSession contract is NOT thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
@@ -139,21 +140,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	private final UUID id = UUIDUtil.randomUUID();
 	/**
-	 * Contains commit behaviour for this transaction.
+	 * Contains commit behavior for this transaction.
 	 *
-	 * @see CommitBehaviour
+	 * @see CommitBehavior
 	 */
-	@Getter private final CommitBehaviour commitBehaviour;
+	@Getter private final CommitBehavior commitBehaviour;
 	/**
 	 * Contains information passed at the time session was created that defines its behaviour
 	 */
 	private final SessionTraits sessionTraits;
 	/**
-	 * Reference, that allows to access transaction object.
+	 * Reference, which allows to access a transaction object.
 	 */
 	private final AtomicReference<Transaction> transactionAccessor = new AtomicReference<>();
 	/**
-	 * Callback that will be called when session is closed.
+	 * Callback that will be called when the session is closed.
 	 */
 	private final EvitaSessionTerminationCallback terminationCallback;
 	/**
@@ -170,21 +171,22 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Getter private final ProxyFactory proxyFactory;
 	/**
 	 * CompletableFuture representing the finalization of the transaction that conforms to requested
-	 * {@link CommitBehaviour} bound to the current transaction. May be null if the session is read-only and
+	 * {@link CommitBehavior} bound to the current transaction. May be null if the session is read-only and
 	 * no transaction is in progress.
 	 */
 	@Nullable private final CompletableFuture<Long> transactionFinalizationFuture;
 	/**
-	 * Flag that is se to TRUE when Evita. is ready to serve application calls.
-	 * Aim of this flag is to refuse any calls after {@link #close()} method has been called.
+	 * Future that is instantiated when the session is closed.
+	 * When initialized, subsequent calls of the close method will return the same future.
+	 * When the future is non-null any calls after {@link #close()} method has been called.
 	 */
-	private boolean active = true;
+	private CompletableFuture<Long> closedFuture;
 	/**
 	 * Timestamp of the last session activity (call).
 	 */
 	private long lastCall = System.currentTimeMillis();
 	/**
-	 * Contains number of nested session calls.
+	 * Contains a number of nested session calls.
 	 */
 	private int nestLevel;
 
@@ -246,7 +248,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		@Nonnull Catalog catalog,
 		@Nonnull ReflectionLookup reflectionLookup,
 		@Nullable EvitaSessionTerminationCallback terminationCallback,
-		@Nonnull CommitBehaviour commitBehaviour,
+		@Nonnull CommitBehavior commitBehaviour,
 		@Nonnull SessionTraits sessionTraits
 	) {
 		this.evita = evita;
@@ -256,8 +258,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		this.commitBehaviour = commitBehaviour;
 		this.sessionTraits = sessionTraits;
 		this.terminationCallback = terminationCallback;
-		this.transactionFinalizationFuture = catalog.supportsTransaction() ?
-			new CompletableFuture<>() : null;
+		if (catalog.supportsTransaction() && sessionTraits.isReadWrite()) {
+			this.transactionFinalizationFuture = new CompletableFuture<>();
+			this.transactionAccessor.set(createAndInitTransaction());
+		} else {
+			this.transactionFinalizationFuture = null;
+		}
 	}
 
 	@Nonnull
@@ -288,7 +294,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Override
 	public boolean isActive() {
-		return active;
+		return closedFuture == null;
 	}
 
 	@Override
@@ -302,11 +308,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return false;
 	}
 
+	@Nonnull
 	@Override
-	public void close() {
-		if (active) {
-			// set itself inactive to avoid future calls
-			active = false;
+	public CompletableFuture<Long> closeNow(@Nonnull CommitBehavior commitBehaviour) {
+		if (this.closedFuture == null) {
+			final CompletableFuture<Long> closeFuture;
 			// flush changes if we're not in transactional mode
 			final CatalogContract theCatalog = catalog.get();
 			if (theCatalog.getCatalogState() == CatalogState.WARMING_UP) {
@@ -318,16 +324,35 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 				if (theCatalog instanceof Catalog theCatalogToFlush) {
 					theCatalogToFlush.flush();
 				}
+				// create immediately completed future
+				closeFuture = new CompletableFuture<>();
+				closeFuture.complete(0L);
 			} else {
-				// close transaction if present
-				ofNullable(transactionAccessor.get())
-					.ifPresent(Transaction::close);
+				if (transactionAccessor.get() != null) {
+					// close transaction if present and initialize close future to transactional one
+					transactionAccessor.get().close();
+					closeFuture = transactionFinalizationFuture;
+				} else {
+					// create immediately completed future
+					closeFuture = new CompletableFuture<>();
+					closeFuture.complete(getCatalogVersion());
+				}
 			}
-
-			// then apply termination callbacks
-			ofNullable(terminationCallback)
-				.ifPresent(it -> it.onTermination(this));
+			// join both futures together and apply termination callback
+			this.closedFuture = closeFuture.whenComplete((aLong, throwable) -> {
+				// then apply termination callbacks
+				ofNullable(terminationCallback)
+					.ifPresent(it -> it.onTermination(this));
+				if (throwable instanceof CancellationException cancellationException) {
+					throw cancellationException;
+				} else if (throwable instanceof TransactionException transactionException) {
+					throw transactionException;
+				} else if (throwable != null) {
+					throw new TransactionException("Unexpected exception occurred while executing transaction!", throwable);
+				}
+			});
 		}
+		return this.closedFuture;
 	}
 
 	@Nonnull
@@ -444,21 +469,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		);
 
 		return query(request);
-	}
-
-	@Override
-	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
-		return executeInTransactionIfPossible(logic);
-	}
-
-	@Override
-	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
-		executeInTransactionIfPossible(
-			evitaSessionContract -> {
-				logic.accept(evitaSessionContract);
-				return null;
-			}
-		);
 	}
 
 	@Nonnull
@@ -1008,15 +1018,6 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 
 	@Nonnull
 	@Override
-	public UUID openTransaction() {
-		assertTransactionIsNotOpened();
-		final Transaction transaction = createAndInitTransaction();
-		this.transactionAccessor.set(transaction);
-		return transaction.getTransactionId();
-	}
-
-	@Nonnull
-	@Override
 	public <S extends Serializable> Optional<S> queryOne(@Nonnull EvitaRequest evitaRequest)
 		throws UnexpectedResultException, UnexpectedResultCountException, InstanceTerminatedException {
 
@@ -1076,6 +1077,11 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		return ofNullable(transactionFinalizationFuture);
 	}
 
+	/**
+	 * Returns an opened transaction wrapped in optional. If no transaction is opened, an empty optional is returned.
+	 *
+	 * @return an Optional containing the opened transaction, if it exists and is not closed; otherwise, an empty Optional.
+	 */
 	@Nonnull
 	public Optional<Transaction> getOpenedTransaction() {
 		return ofNullable(transactionAccessor.get())
@@ -1091,8 +1097,8 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 */
 	void updateCatalogReference(@Nonnull CatalogContract catalog) {
 		Assert.isPremiseValid(
-			!getCatalog().supportsTransaction(),
-			"Catalog is in transactional mode and can't be updated within session!"
+			!isTransactionOpen(),
+			"Session has opened transaction and the catalog reference can't be updated within it. We need to maintain SNAPSHOT isolation!"
 		);
 		this.catalog.set(catalog);
 	}
@@ -1236,7 +1242,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	/**
 	 * Creates new transaction a wraps it into carrier object.
 	 */
-	private Transaction createTransaction(@Nonnull CommitBehaviour commitBehaviour) {
+	private Transaction createTransaction(@Nonnull CommitBehavior commitBehaviour) {
 		Assert.isTrue(!isReadOnly(), "Evita session is read only!");
 		final CatalogContract currentCatalog = getCatalog();
 		if (currentCatalog instanceof Catalog theCatalog) {
@@ -1265,19 +1271,10 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	 * Verifies this instance is still active.
 	 */
 	private void assertActive() {
-		if (active) {
+		if (isActive()) {
 			this.lastCall = System.currentTimeMillis();
 		} else {
 			throw new InstanceTerminatedException("session");
-		}
-	}
-
-	/**
-	 * Verifies this instance is still active.
-	 */
-	private void assertTransactionIsNotOpened() {
-		if (transactionAccessor.get() != null) {
-			throw new UnexpectedTransactionStateException("Transaction has been already opened. Evita doesn't support nested transaction!");
 		}
 	}
 

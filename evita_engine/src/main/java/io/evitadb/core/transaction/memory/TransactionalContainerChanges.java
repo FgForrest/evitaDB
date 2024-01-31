@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.transactionalMemory;
+package io.evitadb.core.transaction.memory;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -32,8 +32,6 @@ import static java.util.Optional.ofNullable;
 
 /**
  * Transactional memory piece that collects created and removed inner transactional objects.
- *
- * TODO JNO  move entire io/evitadb/index/transactionalMemory to package io/evitadb/transaction
  */
 public final class TransactionalContainerChanges<DIFF_PIECE, COPY, PRODUCER extends TransactionalLayerProducer<DIFF_PIECE, COPY>> {
 	private List<PRODUCER> createdItems;

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -151,6 +151,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 			.build();
 
 		AtomicReference<Map<Integer, SealedEntity>> products = new AtomicReference<>();
+		System.out.println("XXX: zčíná inicializace");
 		try (final EvitaClient setupClient = new EvitaClient(evitaClientConfiguration)) {
 			final DataGenerator dataGenerator = new DataGenerator();
 
@@ -295,6 +296,7 @@ class EvitaClientTest implements TestConstants, EvitaTestSupport {
 				}
 			);
 		}
+		System.out.println("XXX: prý skončil");
 
 		return new DataCarrier(
 			"evitaClient", new EvitaClient(evitaClientConfiguration),

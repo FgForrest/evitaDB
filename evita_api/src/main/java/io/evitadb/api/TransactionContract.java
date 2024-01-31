@@ -71,7 +71,7 @@ public interface TransactionContract extends AutoCloseable {
 	/**
 	 * Enum representing the different behaviors a transaction can have when committing changes.
 	 */
-	enum CommitBehaviour {
+	enum CommitBehavior {
 
 		/**
 		 * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
@@ -79,18 +79,18 @@ public interface TransactionContract extends AutoCloseable {
 		 * not guarantee that the changes are persisted on disk and durable. If the server crashes before the changes
 		 * are written to disk, the changes are lost.
 		 */
-		NO_WAIT,
+		WAIT_FOR_CONFLICT_RESOLUTION,
 
 		/**
 		 * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
 		 * is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
 		 * (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
-		 * slower than {@link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
+		 * slower than {@link #WAIT_FOR_CONFLICT_RESOLUTION} but guarantees that the changes are persisted on disk and durable. The server
 		 * may decide to fsync changes from multiple transaction at once, so the transaction may wait longer than
 		 * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
 		 * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
 		 */
-		WAIT_FOR_LOG_PERSISTENCE,
+		WAIT_FOR_WAL_PERSISTENCE,
 
 		/**
 		 * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
@@ -107,7 +107,7 @@ public interface TransactionContract extends AutoCloseable {
 		 * Returns default commit behaviour.
 		 * @return default commit behaviour
 		 */
-		public static CommitBehaviour defaultBehaviour() {
+		public static CommitBehavior defaultBehaviour() {
 			return WAIT_FOR_INDEX_PROPAGATION;
 		}
 

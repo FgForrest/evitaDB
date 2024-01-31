@@ -21,9 +21,9 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.transactionalMemory;
+package io.evitadb.core.transaction.memory;
 
-import io.evitadb.index.transactionalMemory.exception.StaleTransactionMemoryException;
+import io.evitadb.core.exception.StaleTransactionMemoryException;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;

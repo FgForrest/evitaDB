@@ -215,7 +215,7 @@ private static final long serialVersionUID = 0L;
    * Commit behaviour
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
    * @return The enum numeric value on the wire for commitBehaviour.
    */
   @java.lang.Override public int getCommitBehaviourValue() {
@@ -226,13 +226,13 @@ private static final long serialVersionUID = 0L;
    * Commit behaviour
    * </pre>
    *
-   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
    * @return The commitBehaviour.
    */
-  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour getCommitBehaviour() {
+  @java.lang.Override public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour() {
     @SuppressWarnings("deprecation")
-    io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.valueOf(commitBehaviour_);
-    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.UNRECOGNIZED : result;
+    io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehaviour_);
+    return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
   }
 
   public static final int CATALOGSTATE_FIELD_NUMBER = 4;
@@ -282,7 +282,7 @@ private static final long serialVersionUID = 0L;
     if (sessionType_ != io.evitadb.externalApi.grpc.generated.GrpcSessionType.READ_ONLY.getNumber()) {
       output.writeEnum(2, sessionType_);
     }
-    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.NO_WAIT.getNumber()) {
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       output.writeEnum(3, commitBehaviour_);
     }
     if (catalogState_ != io.evitadb.externalApi.grpc.generated.GrpcCatalogState.WARMING_UP.getNumber()) {
@@ -304,7 +304,7 @@ private static final long serialVersionUID = 0L;
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(2, sessionType_);
     }
-    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.NO_WAIT.getNumber()) {
+    if (commitBehaviour_ != io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.WAIT_FOR_CONFLICT_RESOLUTION.getNumber()) {
       size += com.google.protobuf.CodedOutputStream
         .computeEnumSize(3, commitBehaviour_);
     }
@@ -792,7 +792,7 @@ private static final long serialVersionUID = 0L;
      * Commit behaviour
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
      * @return The enum numeric value on the wire for commitBehaviour.
      */
     @java.lang.Override public int getCommitBehaviourValue() {
@@ -803,7 +803,7 @@ private static final long serialVersionUID = 0L;
      * Commit behaviour
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
      * @param value The enum numeric value on the wire for commitBehaviour to set.
      * @return This builder for chaining.
      */
@@ -818,25 +818,25 @@ private static final long serialVersionUID = 0L;
      * Commit behaviour
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
      * @return The commitBehaviour.
      */
     @java.lang.Override
-    public io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour getCommitBehaviour() {
+    public io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior getCommitBehaviour() {
       @SuppressWarnings("deprecation")
-      io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.valueOf(commitBehaviour_);
-      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour.UNRECOGNIZED : result;
+      io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior result = io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.valueOf(commitBehaviour_);
+      return result == null ? io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior.UNRECOGNIZED : result;
     }
     /**
      * <pre>
      * Commit behaviour
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
      * @param value The commitBehaviour to set.
      * @return This builder for chaining.
      */
-    public Builder setCommitBehaviour(io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour value) {
+    public Builder setCommitBehaviour(io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior value) {
       if (value == null) {
         throw new NullPointerException();
       }
@@ -850,7 +850,7 @@ private static final long serialVersionUID = 0L;
      * Commit behaviour
      * </pre>
      *
-     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour commitBehaviour = 3;</code>
+     * <code>.io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior commitBehaviour = 3;</code>
      * @return This builder for chaining.
      */
     public Builder clearCommitBehaviour() {

@@ -23,8 +23,8 @@
 
 package io.evitadb.index.set;
 
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;

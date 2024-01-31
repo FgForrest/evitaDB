@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.stage;
 
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.core.Catalog;
 import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.UpdatedCatalogTransactionTask;
 import io.evitadb.utils.Assert;
@@ -90,7 +91,13 @@ public class CatalogSnapshotPropagationTransactionStage implements Flow.Subscrib
 			);
 			this.newCatalogVersionConsumer.accept(task.catalog());
 			if (task.future() != null) {
+				log.info("Snapshot propagating task for catalog `" + catalogName + "` completed (" + task.catalog().getEntityTypes() + ")!");
 				task.future().complete(task.catalogVersion());
+			} else {
+				Assert.isPremiseValid(
+					task.commitBehaviour() != CommitBehavior.WAIT_FOR_INDEX_PROPAGATION,
+					"Future is unexpectedly null and commit behaviour is WAIT_FOR_INDEX_PROPAGATION!"
+				);
 			}
 		} catch (Throwable ex) {
 			log.error("Error while processing snapshot propagating task for catalog `" + catalogName + "`!", ex);

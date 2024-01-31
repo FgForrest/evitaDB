@@ -85,6 +85,10 @@ import io.evitadb.core.query.ReferencedEntityFetcher;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.sequence.SequenceService;
 import io.evitadb.core.sequence.SequenceType;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
+import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.VerifiedEntityUpsertMutation;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -101,9 +105,6 @@ import io.evitadb.index.price.PriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainer;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
-import io.evitadb.index.transactionalMemory.TransactionalObjectVersion;
 import io.evitadb.store.entity.model.entity.EntityBodyStoragePart;
 import io.evitadb.store.entity.model.schema.EntitySchemaStoragePart;
 import io.evitadb.store.entity.serializer.EntitySchemaContext;
@@ -1296,15 +1297,15 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		// check the existence of the primary key and report error when unexpectedly (not) provided
 		final SealedEntitySchema currentSchema = getSchema();
-		final int entityPrimaryKey = verifyPrimaryKeyAssignment(entityMutation, currentSchema);
+		final EntityMutation entityMutationToUpsert = entityMutation instanceof VerifiedEntityUpsertMutation ?
+			entityMutation : verifyPrimaryKeyAssignment(entityMutation, currentSchema);
 
 		applyMutations(
-			entityPrimaryKey,
-			entityMutation,
+			entityMutationToUpsert,
 			null
 		);
 
-		return entityPrimaryKey;
+		return entityMutationToUpsert.getEntityPrimaryKey();
 	}
 
 	/**
@@ -1314,7 +1315,8 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 * @return primary key assigned in the mutation
 	 * @throws InvalidMutationException when the expectations are not met
 	 */
-	private int verifyPrimaryKeyAssignment(
+	@Nonnull
+	private EntityMutation verifyPrimaryKeyAssignment(
 		@Nonnull EntityMutation entityMutation,
 		@Nonnull SealedEntitySchema currentSchema
 	) throws InvalidMutationException {
@@ -1349,7 +1351,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 				)
 			);
 		}
-		return entityMutation.getEntityPrimaryKey();
+		return entityMutation;
 	}
 
 	/**
@@ -1361,7 +1363,6 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 		final EntityRemoveMutation entityMutation = new EntityRemoveMutation(getEntityType(), entityToRemovePrimaryKey);
 
 		applyMutations(
-			entityToRemovePrimaryKey,
 			entityMutation,
 			entityToRemove
 		);
@@ -1371,12 +1372,10 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	 * Method applies all `localMutations` on entity with passed `entityPrimaryKey`.
 	 * TODO JNO - if exception occurs - we should revert the already applied changes in indexes!
 	 *
-	 * @param entityPrimaryKey the primary key of the affected entity
 	 * @param entityMutation   entity mutation to apply
 	 * @param entity           the entity to apply mutation on (needed only for entity removal)
 	 */
 	private void applyMutations(
-		int entityPrimaryKey,
 		@Nonnull EntityMutation entityMutation,
 		@Nullable Entity entity
 	) {
@@ -1388,7 +1387,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		final ContainerizedLocalMutationExecutor changeCollector = new ContainerizedLocalMutationExecutor(
 			dataStoreBuffer,
-			entityPrimaryKey,
+			entityMutation.getEntityPrimaryKey(),
 			entityMutation.expects(),
 			this::getInternalSchema,
 			otherEntitySchemaAccessor,
@@ -1398,7 +1397,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
 			changeCollector,
-			entityPrimaryKey,
+			entityMutation.getEntityPrimaryKey(),
 			this.entityIndexCreator,
 			this.getCatalog().getCatalogIndexMaintainer(),
 			this::getInternalSchema,
@@ -1419,7 +1418,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 
 		if (entityRemoveMutation != null) {
 			// remove the entity itself from the indexes
-			entityIndexUpdater.removeEntity(entityPrimaryKey);
+			entityIndexUpdater.removeEntity(entityMutation.getEntityPrimaryKey());
 		}
 
 		// register the mutation to the write ahead log

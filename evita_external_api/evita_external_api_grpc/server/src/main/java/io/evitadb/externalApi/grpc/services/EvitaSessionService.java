@@ -26,7 +26,6 @@ package io.evitadb.externalApi.grpc.services;
 import com.google.protobuf.Empty;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.exception.UnexpectedTransactionStateException;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
@@ -68,6 +67,7 @@ import io.evitadb.externalApi.grpc.utils.QueryUtil;
 import io.evitadb.utils.ArrayUtils;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -76,9 +76,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toCommitBehavior;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcCatalogState;
 import static io.evitadb.externalApi.grpc.requestResponse.schema.CatalogSchemaConverter.convert;
 import static java.util.Optional.empty;
@@ -90,6 +92,7 @@ import static java.util.Optional.ofNullable;
  * @author Tomáš Pozler, 2022
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Slf4j
 @RequiredArgsConstructor
 public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionServiceImplBase {
 
@@ -202,14 +205,16 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@Override
 	public void deleteCollection(@Nonnull GrpcDeleteCollectionRequest request, @Nonnull StreamObserver<GrpcDeleteCollectionResponse> responseObserver) {
-		handleTransactionCall(session -> {
-			responseObserver.onNext(
-				GrpcDeleteCollectionResponse.newBuilder()
-					.setDeleted(session.deleteCollection(request.getEntityType()))
-					.build()
-			);
-			responseObserver.onCompleted();
-		});
+		executeWithClientContext(
+			session -> {
+				responseObserver.onNext(
+					GrpcDeleteCollectionResponse.newBuilder()
+						.setDeleted(session.deleteCollection(request.getEntityType()))
+						.build()
+				);
+				responseObserver.onCompleted();
+			}
+		);
 	}
 
 	/**
@@ -348,34 +353,36 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 */
 	@Override
 	public void upsertEntity(GrpcUpsertEntityRequest request, StreamObserver<GrpcUpsertEntityResponse> responseObserver) {
-		handleTransactionCall(session -> {
-			final GrpcUpsertEntityResponse.Builder builder = GrpcUpsertEntityResponse.newBuilder();
-			final EntityMutation entityMutation = ENTITY_MUTATION_CONVERTER.convert(request.getEntityMutation());
+		executeWithClientContext(
+			session -> {
+				final GrpcUpsertEntityResponse.Builder builder = GrpcUpsertEntityResponse.newBuilder();
+				final EntityMutation entityMutation = ENTITY_MUTATION_CONVERTER.convert(request.getEntityMutation());
 
-			final String require = request.getRequire();
-			final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
-				new EntityContentRequire[0] :
-				QueryUtil.parseEntityRequiredContents(
-					request.getRequire(),
-					request.getPositionalQueryParamsList(),
-					request.getNamedQueryParamsMap(),
-					responseObserver
-				);
+				final String require = request.getRequire();
+				final EntityContentRequire[] entityContentRequires = require.isEmpty() ?
+					new EntityContentRequire[0] :
+					QueryUtil.parseEntityRequiredContents(
+						request.getRequire(),
+						request.getPositionalQueryParamsList(),
+						request.getNamedQueryParamsMap(),
+						responseObserver
+					);
 
-			if (ArrayUtils.isEmpty(entityContentRequires)) {
-				final EntityReference entityReference = session.upsertEntity(entityMutation);
-				builder.setEntityReference(GrpcEntityReference.newBuilder()
-					.setEntityType(entityReference.getType())
-					.setPrimaryKey(entityReference.getPrimaryKey())
-					.build()
-				);
-			} else {
-				final SealedEntity updatedEntity = session.upsertAndFetchEntity(entityMutation, entityContentRequires);
-				builder.setEntity(EntityConverter.toGrpcSealedEntity(updatedEntity));
+				if (ArrayUtils.isEmpty(entityContentRequires)) {
+					final EntityReference entityReference = session.upsertEntity(entityMutation);
+					builder.setEntityReference(GrpcEntityReference.newBuilder()
+						.setEntityType(entityReference.getType())
+						.setPrimaryKey(entityReference.getPrimaryKey())
+						.build()
+					);
+				} else {
+					final SealedEntity updatedEntity = session.upsertAndFetchEntity(entityMutation, entityContentRequires);
+					builder.setEntity(EntityConverter.toGrpcSealedEntity(updatedEntity));
+				}
+				responseObserver.onNext(builder.build());
+				responseObserver.onCompleted();
 			}
-			responseObserver.onNext(builder.build());
-			responseObserver.onCompleted();
-		});
+		);
 	}
 
 	/**
@@ -760,19 +767,28 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 	 * @param responseObserver observer on which errors might be thrown and result returned
 	 */
 	@Override
-	public void close(@Nonnull Empty request, @Nonnull StreamObserver<Empty> responseObserver) {
+	public void close(GrpcCloseRequest request, StreamObserver<GrpcCloseResponse> responseObserver) {
 		executeWithClientContext(session -> {
 			if (session != null) {
-				session.close();
+				final CompletableFuture<Long> future = session.closeNow(toCommitBehavior(request.getCommitBehaviour()));
+				future.whenComplete((version, throwable) -> {
+					if (throwable != null) {
+						responseObserver.onError(throwable);
+					} else {
+						responseObserver.onNext(GrpcCloseResponse.newBuilder().setCatalogVersion(version).build());
+					}
+					responseObserver.onCompleted();
+				});
+			} else {
+				responseObserver.onCompleted();
 			}
-			responseObserver.onNext(Empty.getDefaultInstance());
-			responseObserver.onCompleted();
 		});
 	}
 
 	/**
-	 * Returns is of an opened transaction on the current session. Each changes performed since will be visible only for
-	 * the current session until {@link #closeTransaction(GrpcCloseTransactionRequest, StreamObserver)}  is called.
+	 * Returns ID of an opened transaction in the current session.
+	 * All the changes performed since will be visible only for the current session
+	 * until {@link #close(GrpcCloseRequest, StreamObserver)} is called.
 	 *
 	 * @param request          empty request
 	 * @param responseObserver observer on which errors might be thrown and result returned
@@ -792,23 +808,6 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 					.build()
 			);
 			responseObserver.onCompleted();
-		});
-	}
-
-	/**
-	 * Logic sent to this method could be executed in two ways. It can be executed right away if transaction has already benn opened, changes would be written
-	 * to the database only after manual call of {@link #closeTransaction(GrpcCloseTransactionRequest, StreamObserver)} . The second way executes {@link EvitaSessionContract#execute(Consumer)} which will wrap the call
-	 * in adhoc created transaction - the changes would be written to the database immediately.
-	 *
-	 * @param logic   logic to be performed
-	 */
-	private void handleTransactionCall(@Nonnull Consumer<EvitaSessionContract> logic) {
-		executeWithClientContext((session) -> {
-			try {
-				session.execute(logic);
-			} catch (UnexpectedTransactionStateException ex) {
-				logic.accept(session);
-			}
 		});
 	}
 

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,27 +21,23 @@
  *   limitations under the License.
  */
 
-package io.evitadb.index.transactionalMemory;
+package io.evitadb.driver.exception;
+
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
-import java.util.Collection;
-import java.util.function.Consumer;
+import java.io.Serial;
 
 /**
- * Implementations of this interface declare that they have inner fields which are of type {@link TransactionalLayerCreator}
- * and provide access to them.
+ * Exception is thrown when the client receives non evitaDB related error from the server call.
  *
- * Interface is used in {@link TransactionalMemory#suppressTransactionalMemoryLayerFor(Object, Consumer)} to suppress
- * access to the transactional memory of those objects temporarily.
- *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public interface TransactionalCreatorMaintainer {
+public class EvitaClientServerCallException extends EvitaInvalidUsageException {
+	@Serial private static final long serialVersionUID = 2123467333596878926L;
 
-	/**
-	 * Returns collection of all {@link TransactionalLayerCreator} that this object maintains.
-	 */
-	@Nonnull
-	Collection<TransactionalLayerCreator<?>> getMaintainedTransactionalCreators();
+	public EvitaClientServerCallException(@Nonnull String publicMessage, @Nonnull Throwable cause) {
+		super(publicMessage, cause);
+	}
 
 }

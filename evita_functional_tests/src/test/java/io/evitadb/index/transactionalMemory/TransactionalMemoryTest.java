@@ -23,8 +23,9 @@
 
 package io.evitadb.index.transactionalMemory;
 
+import io.evitadb.core.exception.StaleTransactionMemoryException;
+import io.evitadb.core.transaction.memory.TransactionalMemory;
 import io.evitadb.index.map.TransactionalMap;
-import io.evitadb.index.transactionalMemory.exception.StaleTransactionMemoryException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

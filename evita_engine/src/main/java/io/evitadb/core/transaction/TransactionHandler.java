@@ -24,7 +24,7 @@
 package io.evitadb.core.transaction;
 
 import io.evitadb.api.requestResponse.mutation.Mutation;
-import io.evitadb.index.transactionalMemory.TransactionalLayerMaintainerFinalizer;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainerFinalizer;
 
 import javax.annotation.Nonnull;
 

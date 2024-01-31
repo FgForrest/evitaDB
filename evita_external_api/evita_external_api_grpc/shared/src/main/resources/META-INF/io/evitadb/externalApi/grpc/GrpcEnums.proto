@@ -473,13 +473,13 @@ enum GrpcEntityExistence {
   MUST_EXIST = 2;
 }
 
-enum GrpcCommitBehaviour {
+enum GrpcCommitBehavior {
 
   // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
   // is found the transaction is marked as completed and commit is finished. This behaviour is fastest, but does
   // not guarantee that the changes are persisted on disk and durable. If the server crashes before the changes
   // are written to disk, the changes are lost.
-  NO_WAIT = 0;
+  WAIT_FOR_CONFLICT_RESOLUTION = 0;
 
   // Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
   // is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk

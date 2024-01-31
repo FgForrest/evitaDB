@@ -23,7 +23,7 @@
 
 package io.evitadb.api.configuration;
 
-import io.evitadb.api.TransactionContract.CommitBehaviour;
+import io.evitadb.api.TransactionContract.CommitBehavior;
 import lombok.ToString;
 
 import javax.annotation.Nonnull;
@@ -55,7 +55,7 @@ import java.util.Optional;
  * @param flushFrequencyInMillis                        The frequency of flushing the transactional data to the disk when they
  *                                              are sequentially processed. If database process the (small) transaction
  *                                              very quickly, it may decide to process next transaction before flushing
- *                                              changes to the disk. If the client waits for {@link CommitBehaviour#WAIT_FOR_INDEX_PROPAGATION}
+ *                                              changes to the disk. If the client waits for {@link CommitBehavior#WAIT_FOR_INDEX_PROPAGATION}
  *                                              he may wait entire {@link #flushFrequencyInMillis} milliseconds before he gets
  *                                              the response.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024

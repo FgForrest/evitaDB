@@ -865,7 +865,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 		);
 		Assert.isPremiseValid(
 			entityPersistenceService != null,
-			"Entity collection persistence service  for `" + entityType + "` not found in catalog `" + catalogName + "`!"
+			"Entity collection persistence service for `" + entityType + "` not found in catalog `" + catalogName + "`!"
 		);
 
 		try {

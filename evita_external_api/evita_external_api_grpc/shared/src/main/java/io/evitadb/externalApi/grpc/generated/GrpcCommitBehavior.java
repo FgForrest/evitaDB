@@ -27,9 +27,9 @@
 package io.evitadb.externalApi.grpc.generated;
 
 /**
- * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour}
+ * Protobuf enum {@code io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior}
  */
-public enum GrpcCommitBehaviour
+public enum GrpcCommitBehavior
     implements com.google.protobuf.ProtocolMessageEnum {
   /**
    * <pre>
@@ -39,16 +39,16 @@ public enum GrpcCommitBehaviour
    * are written to disk, the changes are lost.
    * </pre>
    *
-   * <code>NO_WAIT = 0;</code>
+   * <code>WAIT_FOR_CONFLICT_RESOLUTION = 0;</code>
    */
-  NO_WAIT(0),
+  WAIT_FOR_CONFLICT_RESOLUTION(0),
   /**
    * <pre>
    * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
    * is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
    * (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
    * slower than {&#64;link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
-   * may decide to fsync changes from multiple transaction at once, so the transaction may wait longer than
+   * may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
    * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
    * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
    * This behaviour is default.
@@ -80,16 +80,16 @@ public enum GrpcCommitBehaviour
    * are written to disk, the changes are lost.
    * </pre>
    *
-   * <code>NO_WAIT = 0;</code>
+   * <code>WAIT_FOR_CONFLICT_RESOLUTION = 0;</code>
    */
-  public static final int NO_WAIT_VALUE = 0;
+  public static final int WAIT_FOR_CONFLICT_RESOLUTION_VALUE = 0;
   /**
    * <pre>
    * Changes performed in the transaction are passed to evitaDB server, checked for conflicts and if no conflict
    * is found, they are written to Write Ahead Log (WAL) and transaction waits until the WAL is persisted on disk
    * (fsynced). After that the transaction is marked as completed and commit is finished. This behaviour is
    * slower than {&#64;link #NO_WAIT} but guarantees that the changes are persisted on disk and durable. The server
-   * may decide to fsync changes from multiple transaction at once, so the transaction may wait longer than
+   * may decide to fsync changes from multiple transactions at once, so the transaction may wait longer than
    * necessary. This behaviour still does not guarantee that the changes will be visible immediately after
    * the commit - because they still need to be propagated to indexes in order new data can be found by queries.
    * This behaviour is default.
@@ -126,7 +126,7 @@ public enum GrpcCommitBehaviour
    * @deprecated Use {@link #forNumber(int)} instead.
    */
   @java.lang.Deprecated
-  public static GrpcCommitBehaviour valueOf(int value) {
+  public static GrpcCommitBehavior valueOf(int value) {
     return forNumber(value);
   }
 
@@ -134,24 +134,24 @@ public enum GrpcCommitBehaviour
    * @param value The numeric wire value of the corresponding enum entry.
    * @return The enum associated with the given numeric wire value.
    */
-  public static GrpcCommitBehaviour forNumber(int value) {
+  public static GrpcCommitBehavior forNumber(int value) {
     switch (value) {
-      case 0: return NO_WAIT;
+      case 0: return WAIT_FOR_CONFLICT_RESOLUTION;
       case 1: return WAIT_FOR_LOG_PERSISTENCE;
       case 2: return WAIT_FOR_INDEX_PROPAGATION;
       default: return null;
     }
   }
 
-  public static com.google.protobuf.Internal.EnumLiteMap<GrpcCommitBehaviour>
+  public static com.google.protobuf.Internal.EnumLiteMap<GrpcCommitBehavior>
       internalGetValueMap() {
     return internalValueMap;
   }
   private static final com.google.protobuf.Internal.EnumLiteMap<
-      GrpcCommitBehaviour> internalValueMap =
-        new com.google.protobuf.Internal.EnumLiteMap<GrpcCommitBehaviour>() {
-          public GrpcCommitBehaviour findValueByNumber(int number) {
-            return GrpcCommitBehaviour.forNumber(number);
+      GrpcCommitBehavior> internalValueMap =
+        new com.google.protobuf.Internal.EnumLiteMap<GrpcCommitBehavior>() {
+          public GrpcCommitBehavior findValueByNumber(int number) {
+            return GrpcCommitBehavior.forNumber(number);
           }
         };
 
@@ -172,9 +172,9 @@ public enum GrpcCommitBehaviour
     return io.evitadb.externalApi.grpc.generated.GrpcEnums.getDescriptor().getEnumTypes().get(22);
   }
 
-  private static final GrpcCommitBehaviour[] VALUES = values();
+  private static final GrpcCommitBehavior[] VALUES = values();
 
-  public static GrpcCommitBehaviour valueOf(
+  public static GrpcCommitBehavior valueOf(
       com.google.protobuf.Descriptors.EnumValueDescriptor desc) {
     if (desc.getType() != getDescriptor()) {
       throw new java.lang.IllegalArgumentException(
@@ -188,10 +188,10 @@ public enum GrpcCommitBehaviour
 
   private final int value;
 
-  private GrpcCommitBehaviour(int value) {
+  private GrpcCommitBehavior(int value) {
     this.value = value;
   }
 
-  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcCommitBehaviour)
+  // @@protoc_insertion_point(enum_scope:io.evitadb.externalApi.grpc.generated.GrpcCommitBehavior)
 }
 

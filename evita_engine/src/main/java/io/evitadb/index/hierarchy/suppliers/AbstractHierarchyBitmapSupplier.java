@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ package io.evitadb.index.hierarchy.suppliers;
 
 import io.evitadb.core.query.algebra.deferred.BitmapSupplier;
 import io.evitadb.core.query.response.TransactionalDataRelatedStructure;
+import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.index.hierarchy.HierarchyIndex;
-import io.evitadb.index.transactionalMemory.TransactionalLayerProducer;
 import lombok.RequiredArgsConstructor;
 import net.openhft.hashing.LongHashFunction;
 

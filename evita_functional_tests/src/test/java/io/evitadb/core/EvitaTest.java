@@ -119,6 +119,7 @@ class EvitaTest implements EvitaTestSupport {
 	private static final String PRICE_LIST_BASIC = "basic";
 	private static final String PRICE_LIST_VIP = "vip";
 	private Evita evita;
+	private String evitaInstanceId;
 
 	@BeforeEach
 	void setUp() {
@@ -127,6 +128,7 @@ class EvitaTest implements EvitaTestSupport {
 			getEvitaConfiguration()
 		);
 		evita.defineCatalog(TEST_CATALOG);
+		evitaInstanceId = evita.getSystemStatus().instanceId();
 	}
 
 	@AfterEach
@@ -676,15 +678,15 @@ class EvitaTest implements EvitaTestSupport {
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		MockCatalogStructuralChangeObserver.reset();
+		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.renameCollection(Entities.PRODUCT, Entities.STORE);
 			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, Entities.STORE));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -722,14 +724,14 @@ class EvitaTest implements EvitaTestSupport {
 			.toFile();
 		assertTrue(theCollectionFile.exists());
 
-		MockCatalogStructuralChangeObserver.reset();
+		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(evitaInstanceId, TEST_CATALOG, Entities.CATEGORY));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -748,15 +750,15 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		MockCatalogStructuralChangeObserver.reset();
+		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.renameCollection(Entities.PRODUCT, Entities.STORE);
 			assertEquals(Entities.STORE, session.getEntitySchemaOrThrow(Entities.STORE).getName());
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(TEST_CATALOG, Entities.STORE));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionCreated(evitaInstanceId, TEST_CATALOG, Entities.STORE));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));
@@ -774,14 +776,14 @@ class EvitaTest implements EvitaTestSupport {
 			session.goLiveAndClose();
 		});
 
-		MockCatalogStructuralChangeObserver.reset();
+		MockCatalogStructuralChangeObserver.reset(evitaInstanceId);
 
 		evita.updateCatalog(TEST_CATALOG, session -> {
 			session.replaceCollection(Entities.CATEGORY, Entities.PRODUCT);
 		});
 
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(TEST_CATALOG, Entities.CATEGORY));
-		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(TEST_CATALOG, Entities.PRODUCT));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionSchemaUpdated(evitaInstanceId, TEST_CATALOG, Entities.CATEGORY));
+		assertEquals(1, MockCatalogStructuralChangeObserver.getEntityCollectionDeleted(evitaInstanceId, TEST_CATALOG, Entities.PRODUCT));
 
 		evita.queryCatalog(TEST_CATALOG, session -> {
 			assertThrows(CollectionNotFoundException.class, () -> session.getEntityCollectionSize(Entities.PRODUCT));

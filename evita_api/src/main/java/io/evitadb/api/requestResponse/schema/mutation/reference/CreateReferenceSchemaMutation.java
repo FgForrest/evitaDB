@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 	@Getter @Nonnull private final String name;
 	@Getter @Nullable private final String description;
 	@Getter @Nullable private final String deprecationNotice;
-	@Getter @Nullable private final Cardinality cardinality;
+	@Getter @Nonnull private final Cardinality cardinality;
 	@Getter @Nonnull private final String referencedEntityType;
 	@Getter private final boolean referencedEntityTypeManaged;
 	@Getter @Nullable private final String referencedGroupType;
@@ -98,7 +98,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		this.name = name;
 		this.description = description;
 		this.deprecationNotice = deprecationNotice;
-		this.cardinality = cardinality;
+		this.cardinality = cardinality == null ? Cardinality.ZERO_OR_MORE : cardinality;
 		this.referencedEntityType = referencedEntityType;
 		this.referencedEntityTypeManaged = referencedEntityTypeManaged;
 		this.referencedGroupType = referencedGroupType;
@@ -181,7 +181,7 @@ public class CreateReferenceSchemaMutation implements ReferenceSchemaMutation, C
 		return ReferenceSchema._internalBuild(
 			name, description, deprecationNotice,
 			referencedEntityType, referencedEntityTypeManaged,
-			Optional.ofNullable(cardinality).orElse(Cardinality.ZERO_OR_MORE),
+			cardinality,
 			referencedGroupType, referencedGroupTypeManaged,
 			indexed, faceted,
 			Collections.emptyMap(),
