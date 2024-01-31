@@ -430,6 +430,7 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/* TODO JNO - write tests both for server side and client side */
 	@Override
 	public <T> CompletableFuture<T> updateCatalogAsync(
 		@Nonnull String catalogName,
@@ -465,6 +466,7 @@ public final class Evita implements EvitaContract {
 		}
 	}
 
+	/* TODO JNO - write tests both for server side and client side */
 	@Override
 	public CompletableFuture<Long> updateCatalogAsync(
 		@Nonnull String catalogName,

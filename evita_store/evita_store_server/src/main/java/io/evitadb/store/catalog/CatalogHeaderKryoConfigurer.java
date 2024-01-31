@@ -48,8 +48,6 @@ import java.util.function.Consumer;
 /**
  * This {@link Consumer} implementation takes default Kryo instance and registers additional serializers that are
  * required to (de)serialize {@link CatalogHeader}.
- *
- * TODO JNO - zrevidovat
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {

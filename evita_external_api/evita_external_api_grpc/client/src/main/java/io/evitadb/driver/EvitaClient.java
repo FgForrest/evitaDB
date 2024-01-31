@@ -481,6 +481,7 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
+	/* TODO JNO - write tests both for server side and client side */
 	@Override
 	public <T> CompletableFuture<T> updateCatalogAsync(
 		@Nonnull String catalogName,
@@ -489,8 +490,34 @@ public class EvitaClient implements EvitaContract {
 		@Nullable SessionFlags... flags
 	) {
 		assertActive();
-		// TODO TPZ - implement
-		throw new UnsupportedOperationException("Not implemented yet!");
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		final EvitaSessionContract session = this.createSession(commitBehaviour, traits);
+		final CompletableFuture<Long> closeFuture;
+		final T resultValue;
+		try {
+			resultValue = session.executeWithClientId(
+				configuration.clientId(),
+				() -> updater.apply(session)
+			);
+		} finally {
+			closeFuture = session.closeNow(commitBehaviour);
+		}
+
+		// join the transaction future and return
+		final CompletableFuture<T> result = new CompletableFuture<>();
+		closeFuture.whenComplete((txId, ex) -> {
+			if (ex != null) {
+				result.completeExceptionally(ex);
+			} else {
+				result.complete(resultValue);
+			}
+		});
+		return result;
 	}
 
 	@Override
@@ -510,6 +537,7 @@ public class EvitaClient implements EvitaContract {
 		}
 	}
 
+	/* TODO JNO - write tests both for server side and client side */
 	@Override
 	public CompletableFuture<Long> updateCatalogAsync(
 		@Nonnull String catalogName,
@@ -518,8 +546,24 @@ public class EvitaClient implements EvitaContract {
 		@Nullable SessionFlags... flags
 	) throws TransactionException {
 		assertActive();
-		// TODO JNO - implement
-		throw new UnsupportedOperationException("Not implemented yet!");
+		final SessionTraits traits = new SessionTraits(
+			catalogName,
+			flags == null ?
+				new SessionFlags[]{SessionFlags.READ_WRITE} :
+				ArrayUtils.insertRecordIntoArray(SessionFlags.READ_WRITE, flags, flags.length)
+		);
+		final EvitaSessionContract session = this.createSession(commitBehaviour, traits);
+		final CompletableFuture<Long> closeFuture;
+		try {
+			session.executeWithClientId(
+				configuration.clientId(),
+				() -> updater.accept(session)
+			);
+		} finally {
+			closeFuture = session.closeNow(commitBehaviour);
+		}
+
+		return closeFuture;
 	}
 
 	@Nonnull

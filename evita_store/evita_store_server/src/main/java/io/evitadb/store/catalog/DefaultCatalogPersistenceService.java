@@ -70,7 +70,6 @@ import io.evitadb.store.offsetIndex.model.OffsetIndexRecordTypeRegistry;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.schema.SchemaKryoConfigurer;
 import io.evitadb.store.service.KryoFactory;
-import io.evitadb.store.service.SerializationService;
 import io.evitadb.store.service.SharedClassesConfigurer;
 import io.evitadb.store.spi.CatalogPersistenceService;
 import io.evitadb.store.spi.CatalogStoragePartPersistenceService;
@@ -201,7 +200,7 @@ public class DefaultCatalogPersistenceService implements CatalogPersistenceServi
 	 */
 	private final CatalogBootstrap bootstrapUsed;
 	/**
-	 * Pool contains instances of {@link SerializationService} that are used for serializing mutations in WAL.
+	 * Pool contains instances of {@link Kryo} that are used for serializing mutations in WAL.
 	 */
 	private final Pool<Kryo> catalogKryoPool = new Pool<>(false, false, 16) {
 		@Override

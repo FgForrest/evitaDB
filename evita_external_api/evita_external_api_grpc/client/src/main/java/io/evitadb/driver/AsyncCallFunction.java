@@ -28,12 +28,24 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
 /**
- * TODO JNO - document me
+ * Represents a function that can be called asynchronously.
+ *
+ * @param <S> the type of the input to the function
+ * @param <T> the type of the result of the function
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface AsyncCallFunction<S, T> {
 
+	/**
+	 * Applies the function to the given service stub asynchronously.
+	 *
+	 * @param serviceStub the service stub to apply the function on
+	 * @return the result of applying the function to the service stub
+	 * @throws InterruptedException if the execution is interrupted while waiting for the result
+	 * @throws ExecutionException if the execution encounters an exception
+	 * @throws TimeoutException if the execution times out
+	 */
 	T apply(@Nonnull S serviceStub) throws InterruptedException, ExecutionException, TimeoutException;
 
 }
