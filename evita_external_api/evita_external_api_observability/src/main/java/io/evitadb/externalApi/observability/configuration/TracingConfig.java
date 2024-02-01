@@ -21,31 +21,39 @@
  *   limitations under the License.
  */
 
-package io.evitadb.driver.trace;
+package io.evitadb.externalApi.observability.configuration;
 
-import io.grpc.ClientInterceptor;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Getter;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Client contexts interface that defines all necessary resources for proper tracing.
+ * Tracing endpoint configuration.
  *
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public interface ClientTracingContext {
+public class TracingConfig {
 	/**
-	 * Marker default method that should in its implementation provide an implementation of a gRPC ClientInterceptor.
+	 * Tracing endpoint. Should look like this: `http://localhost:4317/v1/traces`
 	 */
-	@Nullable
-	default ClientInterceptor getClientInterceptor() {
-		return null;
+
+	@Getter private final String endpoint;
+	/**
+	 * Protocol used for tracing - options are: HTTP,GRPC. Default is GRPC.
+	 */
+	@Getter private final String protocol;
+
+	public TracingConfig() {
+		this.endpoint = null;
+		this.protocol = null;
 	}
 
-	/**
-	 * Marker default method that should in its implementation set the tracing endpoint URL and protocol.
-	 */
-	default void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nonnull String tracingEndpointProtocol) {
-		// do nothing
+	@JsonCreator
+	public TracingConfig(@Nullable @JsonProperty("endpoint") String endpoint,
+	                     @Nullable @JsonProperty("protocol") String protocol) {
+		this.endpoint = endpoint;
+		this.protocol = protocol;
 	}
 }

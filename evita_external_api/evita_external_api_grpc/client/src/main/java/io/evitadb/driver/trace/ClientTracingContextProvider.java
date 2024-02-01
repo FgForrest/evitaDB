@@ -35,17 +35,11 @@ import java.util.ServiceLoader.Provider;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ClientTracingContextProvider {
-	private static ClientTracingContext context;
-
 	/**
-	 * Fetches and caches the {@link ClientTracingContext} implementation. After the first call, the cached instance
-	 * is always returned.
+	 * Fetches and caches the {@link ClientTracingContext} implementation.
 	 */
 	public static ClientTracingContext getContext() {
-		if (context == null) {
-			context = loadContext();
-		}
-		return context;
+		return loadContext();
 	}
 
 	private static ClientTracingContext loadContext() {

@@ -34,8 +34,8 @@
         "requested": true
       }
     ],
-    "min": "15.90",
-    "overallCount": 3911
+    "overallCount": 3911,
+    "min": "15.90"
   }
 }
 ```

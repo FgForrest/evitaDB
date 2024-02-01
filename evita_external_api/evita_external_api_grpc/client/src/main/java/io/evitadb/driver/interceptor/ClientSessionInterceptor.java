@@ -23,8 +23,7 @@
 
 package io.evitadb.driver.interceptor;
 
-import io.evitadb.driver.trace.ClientTracingContext;
-import io.evitadb.driver.trace.ClientTracingContextProvider;
+import io.evitadb.driver.config.EvitaClientConfiguration;
 import io.evitadb.externalApi.grpc.constants.GrpcHeaders;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -46,10 +45,14 @@ import java.util.Objects;
  * @author Tomáš Pozler, 2022
  */
 public class ClientSessionInterceptor implements ClientInterceptor {
-	private final ClientTracingContext clientContext;
+	private final EvitaClientConfiguration configuration;
+
+	public ClientSessionInterceptor(@Nonnull EvitaClientConfiguration configuration) {
+		this.configuration = configuration;
+	}
 
 	public ClientSessionInterceptor() {
-		this.clientContext = ClientTracingContextProvider.getContext();
+		this.configuration = null;
 	}
 
 	/**
@@ -72,10 +75,8 @@ public class ClientSessionInterceptor implements ClientInterceptor {
 					metadata.put(Metadata.Key.of(GrpcHeaders.SESSION_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), SessionIdHolder.getSessionId());
 					metadata.put(Metadata.Key.of(GrpcHeaders.CATALOG_NAME_HEADER, Metadata.ASCII_STRING_MARSHALLER), Objects.requireNonNull(SessionIdHolder.getCatalogName()));
 				}
-				if (clientContext != null) {
-					// TODO tpz: fetch client id
-					/*final Optional<String> clientId = clientContext.getClientId();
-					clientId.ifPresent(s -> metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), s));*/
+				if (configuration != null) {
+					metadata.put(Metadata.Key.of(GrpcHeaders.CLIENT_ID_HEADER, Metadata.ASCII_STRING_MARSHALLER), configuration.clientId());
 				}
 				super.start(listener, metadata);
 			}

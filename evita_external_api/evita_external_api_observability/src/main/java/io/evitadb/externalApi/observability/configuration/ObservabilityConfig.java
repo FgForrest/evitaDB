@@ -50,7 +50,6 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	 */
 	public static final int DEFAULT_OBSERVABILITY_PORT = 5557;
 	private static final String BASE_OBSERVABILITY_PATH = "observability";
-	private static final String BASE_OBSERVABILITY_TRACING_URL = "http://localhost:4318/v1/traces";
 	private static final Pattern ORIGIN_PATTERN = Pattern.compile("([a-z]+)://([\\w.]+)(:(\\d+))?");
 
 	/**
@@ -59,7 +58,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	 */
 	@Getter private final String prefix;
 	@Getter private final String[] allowedOrigins;
-	@Getter private final String tracingEndpoint;
+	@Getter private final TracingConfig tracing;
 
 	@Getter @Nullable private final List<String> allowedEvents;
 
@@ -67,7 +66,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 		super(true, "0.0.0.0:" + DEFAULT_OBSERVABILITY_PORT, null, false);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.allowedOrigins = null;
-		this.tracingEndpoint = BASE_OBSERVABILITY_TRACING_URL;
+		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
 
@@ -75,7 +74,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 		super(true, host, null, false);
 		this.prefix = BASE_OBSERVABILITY_PATH;
 		this.allowedOrigins = null;
-		this.tracingEndpoint = BASE_OBSERVABILITY_TRACING_URL;
+		this.tracing = new TracingConfig();
 		this.allowedEvents = null;
 	}
 
@@ -86,7 +85,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 	                           @Nullable @JsonProperty("tlsEnabled") Boolean tlsEnabled,
 	                           @Nullable @JsonProperty("prefix") String prefix,
 	                           @Nullable @JsonProperty("allowedOrigins") String allowedOrigins,
-							   @Nullable @JsonProperty("tracingEndpoint") String tracingEndpoint,
+							   @Nullable @JsonProperty("tracing") TracingConfig tracing,
 	                           @Nullable @JsonProperty("allowedEvents") List<String> allowedEvents) {
 		super(enabled, host, exposedHost, tlsEnabled);
 		this.prefix = Optional.ofNullable(prefix).orElse(BASE_OBSERVABILITY_PATH);
@@ -100,7 +99,7 @@ public class ObservabilityConfig extends AbstractApiConfiguration implements Api
 				})
 				.toArray(String[]::new);
 		}
-		this.tracingEndpoint = Optional.ofNullable(tracingEndpoint).orElse(BASE_OBSERVABILITY_TRACING_URL);
+		this.tracing = Optional.ofNullable(tracing).orElse(new TracingConfig());
 		this.allowedEvents = allowedEvents;
 	}
 }

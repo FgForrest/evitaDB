@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,8 @@ package io.evitadb.externalApi.graphql.api.builder;
 
 import graphql.schema.*;
 import graphql.schema.GraphQLSchema.Builder;
+import io.evitadb.api.trace.TracingContext;
+import io.evitadb.api.trace.TracingContextProvider;
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
@@ -51,11 +53,19 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
-@RequiredArgsConstructor
 public class GraphQLSchemaBuildingContext {
 
     @Nonnull private final GraphQLConfig config;
     @Getter @Nonnull private final Evita evita;
+
+    @Getter
+    private final TracingContext tracingContext;
+
+    public GraphQLSchemaBuildingContext(@Nonnull GraphQLConfig config, @Nonnull Evita evita) {
+        this.config = config;
+        this.evita = evita;
+        this.tracingContext = TracingContextProvider.getContext();;
+    }
 
     @Nonnull
     private final List<GraphQLFieldDefinition> queryFields = new LinkedList<>();

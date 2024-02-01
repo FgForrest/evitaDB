@@ -27,7 +27,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.CoreConstants;
 import ch.qos.logback.core.LayoutBase;
 import ch.qos.logback.core.util.CachingDateFormatter;
-import io.evitadb.externalApi.utils.ExternalApiTracingContext;
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.utils.StringUtils;
 
 import javax.annotation.Nonnull;
@@ -78,7 +78,7 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append(",");
 
-		final String clientId = event.getMDCPropertyMap().get(ExternalApiTracingContext.MDC_CLIENT_ID_PROPERTY);
+		final String clientId = event.getMDCPropertyMap().get(TracingContext.MDC_CLIENT_ID_PROPERTY);
 		buf.append("\"client_id\":");
 		if (clientId == null) {
 			buf.append("null");
@@ -90,7 +90,7 @@ public class AppLogJsonLayout extends LayoutBase<ILoggingEvent> {
 
 		buf.append(",");
 
-		final String traceId = event.getMDCPropertyMap().get(ExternalApiTracingContext.MDC_TRACE_ID_PROPERTY);
+		final String traceId = event.getMDCPropertyMap().get(TracingContext.MDC_TRACE_ID_PROPERTY);
 		buf.append("\"trace_id\":");
 		if (traceId == null) {
 			buf.append("null");

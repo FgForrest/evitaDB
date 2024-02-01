@@ -46,8 +46,6 @@ import java.util.function.Supplier;
 public class DelegateExternalApiTracingContext implements ExternalApiTracingContext<Object> {
 	private final JsonApiTracingContext jsonApiTracingContext;
 	private final GrpcTracingContext grpcApiTracingContext;
-	private static final String INVALID_CONTEXT_OBJECT_ERROR_MESSAGE = "Invalid object type sent as a External API tracing context!";
-
 	public DelegateExternalApiTracingContext() {
 		final TracingContext context = TracingContextProvider.getContext();
 		jsonApiTracingContext = new JsonApiTracingContext(context);
@@ -55,13 +53,10 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 	}
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Object context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
-		if (context instanceof HttpServerExchange httpServerExchange) {
-			jsonApiTracingContext.executeWithinBlock(protocolName, httpServerExchange, attributes, runnable);
-		} else if (context instanceof Metadata metadata) {
-			grpcApiTracingContext.executeWithinBlock(protocolName, metadata, attributes, runnable);
-		} else {
-			throw new EvitaInternalError(INVALID_CONTEXT_OBJECT_ERROR_MESSAGE);
-		}
+		executeWithinBlock(protocolName, context, attributes, () -> {
+			runnable.run();
+			return null;
+		});
 	}
 
 	@Override
@@ -71,7 +66,7 @@ public class DelegateExternalApiTracingContext implements ExternalApiTracingCont
 		} else if (context instanceof Metadata metadata) {
 			return grpcApiTracingContext.executeWithinBlock(protocolName, metadata, attributes, lambda);
 		} else {
-			throw new EvitaInvalidUsageException(INVALID_CONTEXT_OBJECT_ERROR_MESSAGE);
+			throw new EvitaInvalidUsageException("Invalid object type sent as a External API tracing context!");
 		}
 	}
 

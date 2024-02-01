@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -530,7 +530,7 @@ public class EntityObjectBuilder {
 				new BigDecimalDataFetcher(
 					new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema)
 				),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			);
 		} else {
@@ -539,7 +539,7 @@ public class EntityObjectBuilder {
 			);
 			associatedDataFieldDataFetcher = new ReadDataFetcher(
 				new AssociatedDataValueDataFetcher<>(cdoObjectMapper, associatedDataSchema),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			);
 		}

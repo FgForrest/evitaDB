@@ -40,7 +40,9 @@ import io.evitadb.driver.exception.EvitaClientNotTerminatedInTimeException;
 import io.evitadb.driver.exception.IncompatibleClientException;
 import io.evitadb.driver.interceptor.ClientSessionInterceptor;
 import io.evitadb.driver.pooling.ChannelPool;
+import io.evitadb.driver.trace.ClientTracingContext;
 import io.evitadb.driver.trace.ClientTracingContextProvider;
+import io.evitadb.driver.trace.DefaultClientTracingContext;
 import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.InvalidEvitaVersionException;
@@ -165,10 +167,23 @@ public class EvitaClient implements EvitaContract {
 			.sslContext(clientCertificateManager.buildClientSslContext())
 			.executor(Executors.newCachedThreadPool())
 			.defaultLoadBalancingPolicy("round_robin")
-			.intercept(new ClientSessionInterceptor());
+			.intercept(new ClientSessionInterceptor(configuration));
 
-		final ClientInterceptor clientInterceptor = ClientTracingContextProvider.getContext().getClientInterceptor();
-		if (clientInterceptor != null) {
+		final ClientTracingContext context = ClientTracingContextProvider.getContext();
+		final String tracingEndpointUrl = configuration.traceEndpointUrl();
+		if (tracingEndpointUrl != null && context instanceof DefaultClientTracingContext) {
+			throw new EvitaInvalidUsageException(
+				"Tracing endpoint URL is set, but tracing context is not configured!"
+			);
+		}
+		if (tracingEndpointUrl == null && !(context instanceof DefaultClientTracingContext)) {
+			throw new EvitaInvalidUsageException(
+				"When tracing context is configured, tracing endpoint URL must be set!"
+			);
+		}
+		if (tracingEndpointUrl != null) {
+			context.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, configuration.traceEndpointProtocol());
+			final ClientInterceptor clientInterceptor = context.getClientInterceptor();
 			nettyChannelBuilder = nettyChannelBuilder.intercept(clientInterceptor);
 		}
 

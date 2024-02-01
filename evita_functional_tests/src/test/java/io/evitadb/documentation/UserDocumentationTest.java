@@ -403,9 +403,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 				.filter(path -> path.toString().endsWith(".md"))
 				.map(it -> {
 					final List<DynamicTest> tests = this.createTests(
-						Environment.DEMO_SERVER,
+						Environment.LOCALHOST,
 						it,
-						new ExampleFilter[]{
+						new ExampleFilter[] {
 							ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
 							ExampleFilter.REST,
@@ -438,8 +438,8 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	@Disabled
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
-			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
+			Environment.LOCALHOST,
+			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
 			ExampleFilter.values()
 		).stream();
 	}
@@ -458,7 +458,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 			Environment.DEMO_SERVER,
 			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
 			ExampleFilter.values(),
-			CreateSnippets.MARKDOWN, /*CreateSnippets.JAVA,*/ CreateSnippets.GRAPHQL, CreateSnippets.REST/*, CreateSnippets.CSHARP*/
+			CreateSnippets.MARKDOWN, CreateSnippets.JAVA, CreateSnippets.GRAPHQL, CreateSnippets.REST, CreateSnippets.CSHARP
 		).stream();
 	}
 

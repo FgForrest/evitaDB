@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -217,7 +217,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			catalogField,
 			new ReadDataFetcher(
 				new CatalogDataFetcher(evita),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -229,7 +229,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			SystemRootDescriptor.CATALOGS.to(staticEndpointBuilderTransformer).build(),
 			new ReadDataFetcher(
 				new CatalogsDataFetcher(evita),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);

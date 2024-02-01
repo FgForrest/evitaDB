@@ -27,6 +27,8 @@ import io.evitadb.driver.trace.ClientTracingContext;
 import io.grpc.ClientInterceptor;
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
 
+import javax.annotation.Nonnull;
+
 /**
  * Implementation of {@link ClientTracingContext} for the driver. It depends on a gRPC library and as such, it returns
  * all necessary gRPC related objects.
@@ -37,5 +39,10 @@ public class DriverTracingContext implements ClientTracingContext {
 	@Override
 	public ClientInterceptor getClientInterceptor() {
 		return GrpcTelemetry.create(OpenTelemetryClientTracerSetup.getOpenTelemetry()).newClientInterceptor();
+	}
+
+	@Override
+	public void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nonnull String tracingEndpointProtocol) {
+		OpenTelemetryClientTracerSetup.setTracingEndpointUrlAndProtocol(tracingEndpointUrl, tracingEndpointProtocol);
 	}
 }

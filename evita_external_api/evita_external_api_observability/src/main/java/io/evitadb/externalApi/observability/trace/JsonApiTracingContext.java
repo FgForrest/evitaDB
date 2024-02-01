@@ -55,13 +55,10 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 								   @Nonnull HttpServerExchange exchange,
 								   @Nullable Map<String, Object> attributes,
 	                               @Nonnull Runnable lambda) {
-		try (Scope ignored = extractContextFromHeaders(protocolName, exchange).makeCurrent()) {
-			tracingContext.executeWithinBlock(
-				protocolName,
-				attributes,
-				lambda
-			);
-		}
+		executeWithinBlock(protocolName, exchange, attributes, () -> {
+			lambda.run();
+			return null;
+		});
 	}
 
 	@Override
@@ -69,6 +66,9 @@ public class JsonApiTracingContext implements ExternalApiTracingContext<HttpServ
 								    @Nonnull HttpServerExchange exchange,
 								    @Nullable Map<String, Object> attributes,
 	                                @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, exchange).makeCurrent()) {
 			return tracingContext.executeWithinBlock(
 				protocolName,

@@ -50,14 +50,6 @@ public interface ExternalApiTracingContext<C> {
 	 * Default client ID used when the client does not send any.
 	 */
 	String DEFAULT_CLIENT_ID = "unknown";
-	/**
-	 * Name of property representing the client identifier in the {@link MDC}.
-	 */
-	String MDC_CLIENT_ID_PROPERTY = "clientId";
-	/**
-	 * Name of property representing the trace identifier in the {@link MDC}.
-	 */
-	String MDC_TRACE_ID_PROPERTY = "traceId";
 
 	/**
 	 * Name of the ContextKey used by tracing library.
@@ -140,16 +132,5 @@ public interface ExternalApiTracingContext<C> {
 			protocolName,
 			Optional.ofNullable(clientIdFromClient).map(this::sanitizeId).orElse(DEFAULT_CLIENT_ID)
 		);
-	}
-
-	/**
-	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
-	 */
-	static void initMdc(@Nonnull String clientId, @Nonnull String traceId) {
-		MDC.remove(MDC_CLIENT_ID_PROPERTY);
-		MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
-
-		MDC.remove(MDC_TRACE_ID_PROPERTY);
-		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
 	}
 }

@@ -23,6 +23,8 @@
 
 package io.evitadb.api.trace;
 
+import org.slf4j.MDC;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
@@ -35,6 +37,14 @@ import java.util.function.Supplier;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public interface TracingContext {
+	/**
+	 * Name of property representing the client identifier in the {@link MDC}.
+	 */
+	String MDC_CLIENT_ID_PROPERTY = "clientId";
+	/**
+	 * Name of property representing the trace identifier in the {@link MDC}.
+	 */
+	String MDC_TRACE_ID_PROPERTY = "traceId";
 	/**
 	 * Sets the passed task name and attributes to the trace. Within its creation, the lambda with passed logic will be
 	 * traced and properly executed.

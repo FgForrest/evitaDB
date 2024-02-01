@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -191,7 +191,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			entitySchemaField,
 			new ReadDataFetcher(
 				new EntitySchemaDataFetcher(entitySchema.getName()),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -527,7 +527,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
 			new ReadDataFetcher(
 				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -536,7 +536,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
 			new ReadDataFetcher(
 				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -626,7 +626,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			ReferenceSchemaDescriptor.ENTITY_TYPE_NAME_VARIANTS,
 			new ReadDataFetcher(
 				new ReferenceSchemaEntityTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);
@@ -635,7 +635,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 			ReferenceSchemaDescriptor.GROUP_TYPE_NAME_VARIANTS,
 			new ReadDataFetcher(
 				new ReferenceSchemaGroupTypeNameVariantsDataFetcher(),
-				buildingContext.getEvita(),
+				buildingContext.getTracingContext(),
 				buildingContext.getEvitaExecutor().orElse(null)
 			)
 		);

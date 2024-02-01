@@ -64,8 +64,6 @@ import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.SchemaMutatio
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutationConverter;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
 import io.evitadb.externalApi.grpc.utils.QueryUtil;
-import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
-import io.evitadb.externalApi.utils.ExternalApiTracingContext;
 import io.evitadb.utils.ArrayUtils;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -91,22 +89,12 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor
 public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionServiceImplBase {
-
 	private static final SchemaMutationConverter<LocalCatalogSchemaMutation, GrpcLocalCatalogSchemaMutation> CATALOG_SCHEMA_MUTATION_CONVERTER =
 		new DelegatingLocalCatalogSchemaMutationConverter();
 	private static final SchemaMutationConverter<ModifyEntitySchemaMutation, GrpcModifyEntitySchemaMutation> ENTITY_SCHEMA_MUTATION_CONVERTER =
 		new ModifyEntitySchemaMutationConverter();
 	private static final EntityMutationConverter<EntityMutation, GrpcEntityMutation> ENTITY_MUTATION_CONVERTER =
 		new DelegatingEntityMutationConverter();
-
-	/**
-	 * API client context.
-	 */
-	@Nonnull private final ExternalApiTracingContext<Object> clientContext;
-
-	public EvitaSessionService() {
-		this.clientContext = ExternalApiTracingContextProvider.getContext();
-	}
 
 	/**
 	 * Produces the {@link CatalogSchema}.

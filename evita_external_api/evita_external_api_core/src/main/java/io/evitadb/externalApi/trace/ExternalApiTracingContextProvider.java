@@ -38,19 +38,13 @@ import java.util.ServiceLoader.Provider;
  * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
 public class ExternalApiTracingContextProvider {
-	private static ExternalApiTracingContext<Object> context;
-
 	/**
-	 * Fetches and caches the {@link TracingContext} implementation. After the first call, the cached instance
-	 * is always returned.
+	 * Fetches the {@link TracingContext} implementation.
 	 */
 	@Nonnull
 	public static ExternalApiTracingContext<Object> getContext() {
-		if (context == null) {
-			//noinspection unchecked
-			context = (ExternalApiTracingContext<Object>) loadContext();
-		}
-		return context;
+		//noinspection unchecked
+		return (ExternalApiTracingContext<Object>) loadContext();
 	}
 
 	/**

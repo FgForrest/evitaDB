@@ -30,6 +30,7 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
+import org.slf4j.MDC;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -49,53 +50,29 @@ import java.util.function.Supplier;
 public class ObservabilityTracingContext implements TracingContext {
 	@Override
 	public void executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
-		// the context will contain `traceId` provided by the client, if the propagation has been orchestrated on his side
-		final Context context = Context.current();
-		// the additional scope is needed to make sure that the span is not closed before the lambda is executed
-		// docs: https://opentelemetry.io/docs/languages/java/instrumentation/#context-propagation
-		final Span span = OpenTelemetryTracerSetup.getTracer()
-			.spanBuilder(taskName)
-			.setSpanKind(SpanKind.SERVER)
-			.startSpan();
-
-		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);
-
-		ExternalApiTracingContext.initMdc(clientId, span.getSpanContext().getTraceId());
-
-		if (attributes != null) {
-			for (Entry<String, Object> attribute : attributes.entrySet()) {
-				span.setAttribute(attribute.getKey(), attribute.getValue().toString());
-			}
-		}
-		span.setAttribute(ExternalApiTracingContext.CLIENT_ID_CONTEXT_KEY_NAME, clientId);
-
-		try (Scope ignored = span.makeCurrent()) {
+		executeWithinBlock(taskName, attributes, () -> {
 			runnable.run();
-			span.setStatus(StatusCode.OK);
-		} catch (Exception e) {
-			span.setStatus(StatusCode.ERROR);
-			span.recordException(e);
-			throw e;
-		}
-		finally {
-			span.end();
-		}
+			return null;
+		});
 	}
 
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String taskName, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
+
 		// the context will contain `traceId` provided by the client, if the propagation has been orchestrated on his side
 		final Context context = Context.current();
 		// the additional scope is needed to make sure that the span is not closed before the lambda is executed
 		// docs: https://opentelemetry.io/docs/languages/java/instrumentation/#context-propagation
+
 		final Span span = OpenTelemetryTracerSetup.getTracer()
 			.spanBuilder(taskName)
 			.setSpanKind(SpanKind.SERVER)
 			.startSpan();
 
 		final String clientId = context.get(OpenTelemetryTracerSetup.CONTEXT_KEY);
-
-		ExternalApiTracingContext.initMdc(clientId, span.getSpanContext().getTraceId());
 
 		if (attributes != null) {
 			for (Entry<String, Object> attribute : attributes.entrySet()) {
@@ -106,6 +83,7 @@ public class ObservabilityTracingContext implements TracingContext {
 		span.setAttribute(ExternalApiTracingContext.CLIENT_ID_CONTEXT_KEY_NAME, clientId);
 
 		try (Scope ignored = span.makeCurrent()) {
+			initMdc(clientId, span.getSpanContext().getTraceId());
 			T result = lambda.get();
 			span.setStatus(StatusCode.OK);
 			return result;
@@ -116,6 +94,23 @@ public class ObservabilityTracingContext implements TracingContext {
 		}
 		finally {
 			span.end();
+			clearMdc();
 		}
+	}
+
+	/**
+	 * Initializes MDC with the given client ID and trace ID. It is used for logging purposes.
+	 */
+	private static void initMdc(@Nonnull String clientId, @Nonnull String traceId) {
+		MDC.remove(MDC_CLIENT_ID_PROPERTY);
+		MDC.put(MDC_CLIENT_ID_PROPERTY, clientId);
+
+		MDC.remove(MDC_TRACE_ID_PROPERTY);
+		MDC.put(MDC_TRACE_ID_PROPERTY, traceId);
+	}
+
+	private static void clearMdc() {
+		MDC.remove(MDC_CLIENT_ID_PROPERTY);
+		MDC.remove(MDC_TRACE_ID_PROPERTY);
 	}
 }

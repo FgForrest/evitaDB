@@ -53,17 +53,17 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 
 	@Override
 	public void executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Runnable runnable) {
-		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
-			tracingContext.executeWithinBlock(
-				protocolName,
-				attributes,
-				runnable
-			);
-		}
+		executeWithinBlock(protocolName, context, attributes, () -> {
+			runnable.run();
+			return null;
+		});
 	}
 
 	@Override
 	public <T> T executeWithinBlock(@Nonnull String protocolName, @Nonnull Metadata context, @Nullable Map<String, Object> attributes, @Nonnull Supplier<T> lambda) {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return lambda.get();
+		}
 		try (Scope ignored = extractContextFromHeaders(protocolName, context).makeCurrent()) {
 			return tracingContext.executeWithinBlock(
 				protocolName,
@@ -73,8 +73,11 @@ public class GrpcTracingContext implements ExternalApiTracingContext<Metadata> {
 		}
 	}
 
-	@Nonnull
+	@Nullable
 	public ServerInterceptor getServerInterceptor() {
+		if (!OpenTelemetryTracerSetup.isTracingEnabled()) {
+			return null;
+		}
 		return GrpcTelemetry.create(OpenTelemetryTracerSetup.getOpenTelemetry()).newServerInterceptor();
 	}
 

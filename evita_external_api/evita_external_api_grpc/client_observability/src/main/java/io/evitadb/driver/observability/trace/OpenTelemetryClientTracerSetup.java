@@ -23,22 +23,22 @@
 
 package io.evitadb.driver.observability.trace;
 
-import io.grpc.ClientInterceptor;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.baggage.propagation.W3CBaggagePropagator;
-import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.context.propagation.TextMapPropagator;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
-import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.semconv.ResourceAttributes;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.Duration;
 
 /**
@@ -52,11 +52,14 @@ public class OpenTelemetryClientTracerSetup {
 	private static final String SERVICE_NAME = "evitaDB-Java-Client";
 
 	private static String TRACING_ENDPOINT_URL;
+	private static String TRACING_ENDPOINT_PROTOCOL;
 	private static OpenTelemetry OPEN_TELEMETRY;
-	private static Tracer TRACER;
+	private static final String SPAN_HTTP_PROTOCOL = "HTTP";
+	private static final String SPAN_GRPC_PROTOCOL = "GRPC";
 
-	public static void setTracingEndpointUrl(@Nonnull String tracingEndpointUrl) {
+	public static void setTracingEndpointUrlAndProtocol(@Nonnull String tracingEndpointUrl, @Nullable String protocol) {
 		TRACING_ENDPOINT_URL = tracingEndpointUrl;
+		TRACING_ENDPOINT_PROTOCOL = protocol;
 	}
 
 	@Nonnull
@@ -64,13 +67,7 @@ public class OpenTelemetryClientTracerSetup {
 		final Resource resource = Resource.getDefault().toBuilder().put(ResourceAttributes.SERVICE_NAME, SERVICE_NAME).build();
 
 		final SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
-			.addSpanProcessor(BatchSpanProcessor.builder(
-					OtlpHttpSpanExporter.builder()
-						.setEndpoint(TRACING_ENDPOINT_URL)
-						.setTimeout(Duration.ofSeconds(10))
-						.build()
-				).build()
-			)
+			.addSpanProcessor(getSpanProcessor())
 			.setResource(resource)
 			.build();
 
@@ -82,15 +79,25 @@ public class OpenTelemetryClientTracerSetup {
 			.buildAndRegisterGlobal();
 	}
 
+	/**
+	 * Creates a span processor based on the configured protocol with a specified endpoint.
+	 */
 	@Nonnull
-	public static Tracer getTracer() {
-		if (OPEN_TELEMETRY == null) {
-			OPEN_TELEMETRY = initializeOpenTelemetry();
+	private static SpanProcessor getSpanProcessor() {
+		if (SPAN_HTTP_PROTOCOL.equalsIgnoreCase(TRACING_ENDPOINT_PROTOCOL)) {
+			return BatchSpanProcessor.builder(
+				OtlpHttpSpanExporter.builder()
+					.setEndpoint(TRACING_ENDPOINT_URL)
+					.setTimeout(Duration.ofSeconds(10))
+					.build()
+			).build();
 		}
-		if (TRACER == null) {
-			TRACER = OPEN_TELEMETRY.getTracer(SERVICE_NAME);
-		}
-		return TRACER;
+		return BatchSpanProcessor.builder(
+			OtlpGrpcSpanExporter.builder()
+				.setEndpoint(TRACING_ENDPOINT_URL)
+				.setTimeout(Duration.ofSeconds(10))
+				.build()
+		).build();
 	}
 
 	@Nonnull
@@ -99,10 +106,5 @@ public class OpenTelemetryClientTracerSetup {
 			OPEN_TELEMETRY = initializeOpenTelemetry();
 		}
 		return OPEN_TELEMETRY;
-	}
-
-	@Nonnull
-	public static ClientInterceptor getClientInterceptor() {
-		return GrpcTelemetry.create(OpenTelemetryClientTracerSetup.getOpenTelemetry()).newClientInterceptor();
 	}
 }
