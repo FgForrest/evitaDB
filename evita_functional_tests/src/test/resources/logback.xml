@@ -24,21 +24,8 @@
 
 <configuration>
 
-	<appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
-		<target>System.err</target>
-		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-			<level>WARN</level>
-		</filter>
-		<encoder>
-			<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} - %msg%n</pattern>
-		</encoder>
-	</appender>
-
 	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
 		<target>System.out</target>
-		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-			<level>DEBUG</level>
-		</filter>
 		<encoder>
 			<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} - %msg%n</pattern>
 		</encoder>
@@ -46,7 +33,6 @@
 
 	<root level="DEBUG">
 		<appender-ref ref="STDOUT" />
-		<appender-ref ref="STDERR" />
 	</root>
 
 </configuration>

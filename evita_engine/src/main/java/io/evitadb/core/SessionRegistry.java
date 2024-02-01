@@ -42,6 +42,7 @@ import java.lang.reflect.Proxy;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -175,7 +176,8 @@ final class SessionRegistry {
 							return method.invoke(evitaSession, args);
 						} catch (InvocationTargetException ex) {
 							// handle the error
-							final Throwable targetException = ex.getTargetException();
+							final Throwable targetException = ex.getTargetException() instanceof CompletionException completionException ?
+								completionException.getCause() : ex.getTargetException();
 							if (targetException instanceof EvitaInvalidUsageException evitaInvalidUsageException) {
 								// just unwrap and rethrow
 								throw evitaInvalidUsageException;

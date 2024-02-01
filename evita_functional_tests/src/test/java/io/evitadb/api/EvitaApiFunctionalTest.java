@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -221,6 +221,40 @@ class EvitaApiFunctionalTest {
 				// store it to the catalog
 				assertThrows(InvalidMutationException.class, () -> session.upsertEntity(detachedBuilder));
 			}
+		);
+	}
+
+	@DisplayName("Entity created outside Evita with incompatible schema should be rejected and propagated outside update call")
+	@Test
+	void shouldRefuseUpsertOfSchemaIncompatibleDetachedEntityAndPropagateItOutsideUpdateCall(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(PRODUCT)
+					.verifySchemaStrictly()
+					.withAttribute("code", String.class, whichIs -> whichIs.unique())
+					.withAttribute("url", String.class, whichIs -> whichIs.unique().localized())
+					/* finally apply schema changes */
+					.updateVia(session);
+			}
+		);
+
+		final EntityBuilder detachedBuilder = new InitialEntityBuilder(PRODUCT, 1)
+			.setAttribute("code", "siemens")
+			.setAttribute("name", Locale.ENGLISH, SIEMENS_TITLE)
+			.setAttribute("logo", LOGO)
+			.setAttribute("productCount", 1);
+
+		assertThrows(
+			InvalidMutationException.class,
+			() ->
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						// store it to the catalog
+						session.upsertEntity(detachedBuilder);
+					}
+				)
 		);
 	}
 

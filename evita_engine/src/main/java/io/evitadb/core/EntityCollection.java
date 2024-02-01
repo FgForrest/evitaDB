@@ -671,39 +671,49 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 	@Override
 	public SealedEntitySchema updateSchema(@Nonnull CatalogSchemaContract catalogSchema, @Nonnull EntitySchemaMutation... schemaMutation) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
-		final EntitySchema currentSchema = getInternalSchema();
-		EntitySchemaContract updatedSchema = currentSchema;
-		for (EntitySchemaMutation theMutation : schemaMutation) {
-			updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
-			/* TOBEDONE JNO - this should be diverted to separate class and handle all necessary DDL operations */
-			if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
-				if (setHierarchy.isWithHierarchy()) {
-					getGlobalIndexIfExists()
-						.ifPresent(it -> it.initRootNodes(it.getAllPrimaryKeys()));
+		final EntitySchema originalSchema = getInternalSchema();
+		try {
+			EntitySchemaContract updatedSchema = originalSchema;
+			for (EntitySchemaMutation theMutation : schemaMutation) {
+				updatedSchema = theMutation.mutate(catalogSchema, updatedSchema);
+				/* TODO JNO - this should be diverted to separate class and handle all necessary DDL operations */
+				if (theMutation instanceof SetEntitySchemaWithHierarchyMutation setHierarchy) {
+					if (setHierarchy.isWithHierarchy()) {
+						getGlobalIndexIfExists()
+							.ifPresent(it -> it.initRootNodes(it.getAllPrimaryKeys()));
+					}
 				}
 			}
-		}
 
-		final EntitySchemaContract nextSchema = updatedSchema;
-		Assert.isPremiseValid(updatedSchema != null, "Entity collection cannot be dropped by updating schema!");
-		Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
-		if (updatedSchema.version() > currentSchema.version()) {
-			/* TOBEDONE JNO - apply this just before commit happens in case validations are enabled */
-			// assertAllReferencedEntitiesExist(newSchema);
-			// assertReferences(newSchema);
-			final EntitySchema updatedInternalSchema = (EntitySchema) updatedSchema;
+			final EntitySchemaContract nextSchema = updatedSchema;
+			Assert.isPremiseValid(updatedSchema != null, "Entity collection cannot be dropped by updating schema!");
+			Assert.isPremiseValid(updatedSchema instanceof EntitySchema, "Mutation is expected to produce EntitySchema instance!");
+			if (updatedSchema.version() > originalSchema.version()) {
+				/* TODO JNO - apply this just before commit happens in case validations are enabled */
+				// assertAllReferencedEntitiesExist(newSchema);
+				// assertReferences(newSchema);
+				final EntitySchema updatedInternalSchema = (EntitySchema) updatedSchema;
+				final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
+					this.schema.get(),
+					new EntitySchemaDecorator(() -> getCatalog().getSchema(), updatedInternalSchema)
+				);
+				Assert.isTrue(
+					originalSchemaBeforeExchange.version() == originalSchema.version(),
+					() -> new ConcurrentSchemaUpdateException(originalSchema, nextSchema)
+				);
+			}
+		} catch (RuntimeException ex) {
+			// revert all changes in the schema (for current transaction) if anything failed
+			final EntitySchemaDecorator decorator = new EntitySchemaDecorator(() -> getCatalog().getSchema(), originalSchema);
+			this.schema.set(decorator);
+			return decorator;
+		} finally {
+			// finally, store the updated catalog schema to disk
+			final EntitySchema updatedInternalSchema = getInternalSchema();
 			doWithPersistenceService(() -> {
 				this.dataStoreBuffer.update(new EntitySchemaStoragePart(updatedInternalSchema));
 				return null;
 			});
-			final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
-				this.schema.get(),
-				new EntitySchemaDecorator(() -> getCatalog().getSchema(), updatedInternalSchema)
-			);
-			Assert.isTrue(
-				originalSchemaBeforeExchange.version() == currentSchema.version(),
-				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
-			);
 		}
 
 		final SealedEntitySchema schemaResult = getSchema();

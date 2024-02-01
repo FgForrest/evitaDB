@@ -450,7 +450,7 @@ public final class Evita implements EvitaContract {
 		);
 		final CreatedSession createdSession = this.createSessionInternal(commitBehaviour, traits);
 		try {
-			final T resultValue = updater.apply(createdSession.session());
+			final T resultValue = createdSession.session().execute(updater);
 			// join the transaction future and return the result
 			final CompletableFuture<T> result = new CompletableFuture<>();
 			createdSession.closeFuture().whenComplete((txId, ex) -> {
@@ -487,9 +487,9 @@ public final class Evita implements EvitaContract {
 
 		final CreatedSession createdSession = this.createSessionInternal(commitBehaviour, traits);
 		try {
-			final EvitaSessionContract theSession = createdSession.session();
+			final EvitaInternalSessionContract theSession = createdSession.session();
 			final long catalogVersion = theSession.getCatalogVersion();
-			updater.accept(theSession);
+			theSession.execute(updater);
 			// join the transaction future and return
 			final CompletableFuture<Long> result = new CompletableFuture<>();
 			createdSession.closeFuture().whenComplete((txId, ex) -> {
@@ -1095,7 +1095,7 @@ public final class Evita implements EvitaContract {
 	 * @param closeFuture future that gets completed when session is closed
 	 */
 	private record CreatedSession(
-		@Nonnull EvitaSessionContract session,
+		@Nonnull EvitaInternalSessionContract session,
 		@Nonnull CompletableFuture<Long> closeFuture
 	) implements Closeable {
 

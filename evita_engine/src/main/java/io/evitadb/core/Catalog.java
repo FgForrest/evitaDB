@@ -496,93 +496,130 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 	@Override
 	public CatalogSchemaContract updateSchema(@Nonnull LocalCatalogSchemaMutation... schemaMutation) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
-		final CatalogSchema currentSchema = getInternalSchema();
-		final Optional<Transaction> transactionRef = Transaction.getTransaction();
-		ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
-		CatalogSchemaContract updatedSchema = currentSchema;
-		for (CatalogSchemaMutation theMutation : schemaMutation) {
-			transactionRef.ifPresent(it -> it.registerMutation(theMutation));
-			// if the mutation implements entity schema mutation apply it on the appropriate schema
-			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-				final String entityType = modifyEntitySchemaMutation.getEntityType();
-				// if the collection doesn't exist yet - create new one
-				final EntityCollectionContract entityCollection = getOrCreateCollectionForEntityInternal(entityType);
-				final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
-				if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
-					// validate the new schema version before any changes are applied
-					currentEntitySchema.withMutations(modifyEntitySchemaMutation)
-						.toInstance()
-						.validate(updatedSchema);
-					entityCollection.updateSchema(updatedSchema, modifyEntitySchemaMutation.getSchemaMutations());
-				}
-			} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
-				final EntityCollection collectionToRemove = entityCollections.remove(removeEntitySchemaMutation.getName());
-				if (transactionRef.isEmpty()) {
-					this.persistenceService.deleteEntityCollection(removeEntitySchemaMutation.getName());
-				}
-				if (collectionToRemove != null) {
-					if (transactionRef.isPresent()) {
-						collectionToRemove.removeLayer();
+		final CatalogSchema originalSchema = getInternalSchema();
+		try {
+			final Optional<Transaction> transactionRef = Transaction.getTransaction();
+			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
+			CatalogSchema currentSchema = originalSchema;
+			CatalogSchemaContract updatedSchema = originalSchema;
+			for (CatalogSchemaMutation theMutation : schemaMutation) {
+				transactionRef.ifPresent(it -> it.registerMutation(theMutation));
+				// if the mutation implements entity schema mutation apply it on the appropriate schema
+				if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
+					final String entityType = modifyEntitySchemaMutation.getEntityType();
+					// if the collection doesn't exist yet - create new one
+					final EntityCollectionContract entityCollection = getOrCreateCollectionForEntityInternal(entityType);
+					final SealedEntitySchema currentEntitySchema = entityCollection.getSchema();
+					if (!ArrayUtils.isEmpty(modifyEntitySchemaMutation.getSchemaMutations())) {
+						// validate the new schema version before any changes are applied
+						currentEntitySchema.withMutations(modifyEntitySchemaMutation)
+							.toInstance()
+							.validate(updatedSchema);
+						entityCollection.updateSchema(updatedSchema, modifyEntitySchemaMutation.getSchemaMutations());
+					}
+				} else if (theMutation instanceof RemoveEntitySchemaMutation removeEntitySchemaMutation) {
+					final EntityCollection collectionToRemove = entityCollections.remove(removeEntitySchemaMutation.getName());
+					if (transactionRef.isEmpty()) {
+						this.persistenceService.deleteEntityCollection(removeEntitySchemaMutation.getName());
+					}
+					if (collectionToRemove != null) {
+						if (transactionRef.isPresent()) {
+							collectionToRemove.removeLayer();
+						}
+						updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
+							updatedSchema,
+							getEntitySchemaAccessor()
+						);
+						entitySchemaRemoved(collectionToRemove.getEntityType());
+					}
+				} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
+					this.persistenceService.verifyEntityType(
+						this.entityCollections.values(),
+						createEntitySchemaMutation.getName()
+					);
+					final EntityCollection newCollection = new EntityCollection(
+						this,
+						this.entityTypeSequence.incrementAndGet(),
+						0,
+						createEntitySchemaMutation.getName(),
+						persistenceService,
+						cacheSupervisor,
+						sequenceService
+					);
+					this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
+					this.entityCollections.put(newCollection.getEntityType(), newCollection);
+					updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
+						updatedSchema,
+						getEntitySchemaAccessor()
+					);
+					entitySchemaUpdated(newCollection.getSchema());
+				} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
+					if (renameEntitySchemaMutation.isOverwriteTarget() && entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
+						replaceEntityCollectionInternal(transactionRef.isPresent(), renameEntitySchemaMutation);
+					} else {
+						renameEntityCollectionInternal(transactionRef.isPresent(), renameEntitySchemaMutation);
 					}
 					updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
 						updatedSchema,
 						getEntitySchemaAccessor()
 					);
-					entitySchemaRemoved(collectionToRemove.getEntityType());
-				}
-			} else if (theMutation instanceof CreateEntitySchemaMutation createEntitySchemaMutation) {
-				this.persistenceService.verifyEntityType(
-					this.entityCollections.values(),
-					createEntitySchemaMutation.getName()
-				);
-				final EntityCollection newCollection = new EntityCollection(
-					this,
-					this.entityTypeSequence.incrementAndGet(),
-					0,
-					createEntitySchemaMutation.getName(),
-					persistenceService,
-					cacheSupervisor,
-					sequenceService
-				);
-				this.entityCollectionsByPrimaryKey.put(newCollection.getEntityTypePrimaryKey(), newCollection);
-				this.entityCollections.put(newCollection.getEntityType(), newCollection);
-				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
-					updatedSchema,
-					getEntitySchemaAccessor()
-				);
-				entitySchemaUpdated(newCollection.getSchema());
-			} else if (theMutation instanceof ModifyEntitySchemaNameMutation renameEntitySchemaMutation) {
-				if (renameEntitySchemaMutation.isOverwriteTarget() && entityCollections.containsKey(renameEntitySchemaMutation.getNewName())) {
-					replaceEntityCollectionInternal(transactionRef.isPresent(), renameEntitySchemaMutation);
 				} else {
-					renameEntityCollectionInternal(transactionRef.isPresent(), renameEntitySchemaMutation);
+					final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas;
+					if (theMutation instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
+						schemaWithImpactOnEntitySchemas = localCatalogSchemaMutation.mutate(updatedSchema, getEntitySchemaAccessor());
+					} else {
+						schemaWithImpactOnEntitySchemas = theMutation.mutate(updatedSchema);
+					}
+					Assert.isPremiseValid(
+						schemaWithImpactOnEntitySchemas != null && schemaWithImpactOnEntitySchemas.updatedCatalogSchema() != null,
+						"Catalog schema mutation is expected to produce CatalogSchema instance!"
+					);
+					updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
+					modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
+						schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
+						ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
 				}
-				updatedSchema = CatalogSchema._internalBuildWithUpdatedVersion(
-					updatedSchema,
-					getEntitySchemaAccessor()
-				);
-			} else {
-				final CatalogSchemaWithImpactOnEntitySchemas schemaWithImpactOnEntitySchemas;
-				if (theMutation instanceof LocalCatalogSchemaMutation localCatalogSchemaMutation) {
-					schemaWithImpactOnEntitySchemas = localCatalogSchemaMutation.mutate(updatedSchema, getEntitySchemaAccessor());
-				} else {
-					schemaWithImpactOnEntitySchemas = theMutation.mutate(updatedSchema);
-				}
-				Assert.isPremiseValid(
-					schemaWithImpactOnEntitySchemas != null && schemaWithImpactOnEntitySchemas.updatedCatalogSchema() != null,
-					"Catalog schema mutation is expected to produce CatalogSchema instance!"
-				);
-				updatedSchema = schemaWithImpactOnEntitySchemas.updatedCatalogSchema();
-				modifyEntitySchemaMutations = modifyEntitySchemaMutations == null || ArrayUtils.isEmpty(schemaWithImpactOnEntitySchemas.entitySchemaMutations()) ?
-					schemaWithImpactOnEntitySchemas.entitySchemaMutations() :
-					ArrayUtils.mergeArrays(modifyEntitySchemaMutations, schemaWithImpactOnEntitySchemas.entitySchemaMutations());
+
+				// exchange the current catalog schema so that additional entity schema mutations can take advantage of
+				// previous catalog mutations when validated
+				currentSchema = updateCatalogSchema(updatedSchema, currentSchema);
+			}
+			// alter affected entity schemas
+			if (modifyEntitySchemaMutations != null) {
+				updateSchema(modifyEntitySchemaMutations);
+			}
+		} catch (RuntimeException ex) {
+			// revert all changes in the schema (for current transaction) if anything failed
+			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+		} finally {
+			// finally, store the updated catalog schema to disk
+			final CatalogSchema currentSchema = getInternalSchema();
+			if (currentSchema.version() > originalSchema.version()) {
+				this.dataStoreBuffer.update(new CatalogSchemaStoragePart(currentSchema));
 			}
 		}
+		return getSchema();
+	}
+
+	/**
+	 * Replaces reference to the catalog in this instance. The reference is stored in transactional data structure so
+	 * that it doesn't affect parallel clients until committed.
+	 *
+	 * @param updatedSchema updated schema
+	 * @param currentSchema current schema
+	 * @return updated schema
+	 */
+	@Nonnull
+	private CatalogSchema updateCatalogSchema(
+		@Nonnull CatalogSchemaContract updatedSchema,
+		@Nonnull CatalogSchema currentSchema
+	) {
 		final CatalogSchemaContract nextSchema = updatedSchema;
 		Assert.isPremiseValid(updatedSchema != null, "Catalog cannot be dropped by updating schema!");
 		Assert.isPremiseValid(updatedSchema instanceof CatalogSchema, "Mutation is expected to produce CatalogSchema instance!");
+		final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
+
 		if (updatedSchema.version() > currentSchema.version()) {
-			final CatalogSchema updatedInternalSchema = (CatalogSchema) updatedSchema;
 			final CatalogSchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
 				this.schema.get(),
 				new CatalogSchemaDecorator(updatedInternalSchema)
@@ -591,13 +628,8 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				originalSchemaBeforeExchange.version() == currentSchema.version(),
 				() -> new ConcurrentSchemaUpdateException(currentSchema, nextSchema)
 			);
-			this.dataStoreBuffer.update(new CatalogSchemaStoragePart(updatedInternalSchema));
 		}
-		// alter affected entity schemas
-		if (modifyEntitySchemaMutations != null) {
-			updateSchema(modifyEntitySchemaMutations);
-		}
-		return getSchema();
+		return updatedInternalSchema;
 	}
 
 	@Override

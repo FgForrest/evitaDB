@@ -100,6 +100,7 @@ import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -1086,6 +1087,21 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	public Optional<Transaction> getOpenedTransaction() {
 		return ofNullable(transactionAccessor.get())
 			.filter(it -> !it.isClosed());
+	}
+
+	@Override
+	public <T> T execute(@Nonnull Function<EvitaSessionContract, T> logic) {
+		return executeInTransactionIfPossible(logic);
+	}
+
+	@Override
+	public void execute(@Nonnull Consumer<EvitaSessionContract> logic) {
+		executeInTransactionIfPossible(
+			evitaSessionContract -> {
+				logic.accept(evitaSessionContract);
+				return null;
+			}
+		);
 	}
 
 	/**

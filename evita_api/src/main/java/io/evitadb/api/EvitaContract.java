@@ -32,6 +32,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBu
 import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
 import io.evitadb.api.requestResponse.schema.mutation.TopLevelCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.system.SystemStatus;
+import io.evitadb.exception.EvitaInternalError;
+import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -257,7 +259,19 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	) {
-		return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
+		try {
+			return updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
+		} catch (EvitaInvalidUsageException | EvitaInternalError e) {
+			throw e;
+		} catch (Exception e) {
+			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
+				throw invalidUsageException;
+			} else if (e.getCause() instanceof EvitaInternalError internalError) {
+				throw internalError;
+			} else {
+				throw new TransactionException("The transaction was rolled back.", e.getCause());
+			}
+		}
 	}
 
 	/**
@@ -296,7 +310,19 @@ public interface EvitaContract extends AutoCloseable, ClientContext {
 		@Nonnull CommitBehavior commitBehaviour,
 		@Nullable SessionFlags... flags
 	) {
-		updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
+		try {
+			updateCatalogAsync(catalogName, updater, commitBehaviour, flags).join();
+		} catch (EvitaInvalidUsageException | EvitaInternalError e) {
+			throw e;
+		} catch (Exception e) {
+			if (e.getCause() instanceof EvitaInvalidUsageException invalidUsageException) {
+				throw invalidUsageException;
+			} else if (e.getCause() instanceof EvitaInternalError internalError) {
+				throw internalError;
+			} else {
+				throw new TransactionException("The transaction was rolled back.", e.getCause());
+			}
+		}
 	}
 
 	/**
