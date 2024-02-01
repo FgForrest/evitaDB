@@ -70,7 +70,7 @@ To integrate evitaDB into your project, use the following steps:
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_db:0.9.ALPHA'
+implementation 'io.evitadb:evita_db:2024.1.3'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -115,7 +115,7 @@ exception when you enable the corresponding API in evitaDB's configuration.
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_grpc:0.9.ALPHA'
+implementation 'io.evitadb:evita_external_api_grpc:2024.1.3'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -135,7 +135,7 @@ implementation 'io.evitadb:evita_external_api_grpc:0.9.ALPHA'
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_graphql:0.9.ALPHA'
+implementation 'io.evitadb:evita_external_api_graphql:2024.1.3'
 ```
 </CodeTabsBlock>
 </CodeTabs>
@@ -155,7 +155,7 @@ implementation 'io.evitadb:evita_external_api_graphql:0.9.ALPHA'
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_external_api_rest:0.9.ALPHA'
+implementation 'io.evitadb:evita_external_api_rest:2024.1.3'
 ```
 </CodeTabsBlock>
 </CodeTabs>
