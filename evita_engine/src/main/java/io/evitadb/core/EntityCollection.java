@@ -706,7 +706,7 @@ public final class EntityCollection implements TransactionalLayerProducer<DataSt
 			// revert all changes in the schema (for current transaction) if anything failed
 			final EntitySchemaDecorator decorator = new EntitySchemaDecorator(() -> getCatalog().getSchema(), originalSchema);
 			this.schema.set(decorator);
-			return decorator;
+			throw ex;
 		} finally {
 			// finally, store the updated catalog schema to disk
 			final EntitySchema updatedInternalSchema = getInternalSchema();

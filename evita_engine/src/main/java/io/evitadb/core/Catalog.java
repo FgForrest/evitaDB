@@ -591,6 +591,7 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
 			this.schema.set(new CatalogSchemaDecorator(originalSchema));
+			throw ex;
 		} finally {
 			// finally, store the updated catalog schema to disk
 			final CatalogSchema currentSchema = getInternalSchema();
@@ -816,20 +817,23 @@ public final class Catalog implements CatalogContract, TransactionalLayerProduce
 				goingLive.compareAndSet(false, true),
 				"Concurrent call of `goLive` method is not supported!"
 			);
-			Assert.isTrue(state == CatalogState.WARMING_UP, "Catalog has already alive state!");
-			flush();
 
-			newCatalogVersionConsumer.accept(
-				new Catalog(
-					1,
-					CatalogState.ALIVE,
-					this.catalogIndex,
-					this.entityCollections,
-					this.persistenceService,
-					this
-				)
-			);
-			return true;
+			return persistenceService.executeWriteSafely(() -> {
+				Assert.isTrue(state == CatalogState.WARMING_UP, "Catalog has already alive state!");
+				flush();
+
+				newCatalogVersionConsumer.accept(
+					new Catalog(
+						1,
+						CatalogState.ALIVE,
+						this.catalogIndex,
+						this.entityCollections,
+						this.persistenceService,
+						this
+					)
+				);
+				return true;
+			});
 		} finally {
 			goingLive.set(false);
 		}
