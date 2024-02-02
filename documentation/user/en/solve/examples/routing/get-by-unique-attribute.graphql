@@ -1,0 +1,76 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "macbook-pro-13-2022"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          batteryCapacity
+          ratingVotes
+          thickness
+          totalPerformanceSet
+          widthSourceA
+          totalWeight
+          rating
+          catalogNumber
+          isBookAsSet
+          stepOrderQuantity
+          weightMerge
+          brandCode
+          order
+          height
+          totalBatteryLife
+          connectionLength
+          weight
+          displaySize
+          depthInMm
+          codeShort
+          published
+          unit
+          isAlias
+          minOrderQuantity
+          heightSourceA
+          heightInMm
+          maxOrderQuantity
+          status
+          changed
+          relatedFiles
+          widthMerge
+          code
+          batteryLifeHeadset
+          frequencyFrom
+          heightMerge
+          batteryLife
+          availability
+          supplierCode
+          saleRestriction
+          warrantyPeriod
+          cpuFrequency
+          ean
+          depthSourceA
+          productType
+          batteryLifeCase
+          weightSourceA
+          frequencyTo
+          orderedQuantity
+          length
+          weightInKg
+          responseTime
+          refreshRate
+          frontCameraResolut
+          depth
+          ratingUsers
+          snr
+          stockItemPrimaryKey
+          width
+          validity
+          rearCameraResoluti
+          widthInMm
+        }
+      }
+    }
+  }
+}
