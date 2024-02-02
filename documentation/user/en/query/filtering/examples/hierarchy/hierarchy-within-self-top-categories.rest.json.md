@@ -68,19 +68,19 @@
         }
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 5,
-    "first": true,
-    "last": true,
-    "hasPrevious": false,
-    "hasNext": false,
-    "singlePage": true,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 1,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 5
+    "hasNext": false,
+    "hasPrevious": false,
+    "last": true,
+    "lastPageItemNumber": 5,
+    "lastPageNumber": 1,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": true,
+    "totalRecordCount": 5,
+    "type": "PAGE"
   }
 }
 ```

@@ -342,19 +342,19 @@
         }
       }
     ],
-    "type": "PAGE",
-    "totalRecordCount": 537,
-    "first": true,
-    "last": false,
-    "hasPrevious": false,
-    "hasNext": true,
-    "singlePage": false,
     "empty": false,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 27,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 19
+    "hasNext": true,
+    "hasPrevious": false,
+    "last": false,
+    "lastPageItemNumber": 19,
+    "lastPageNumber": 27,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": false,
+    "totalRecordCount": 537,
+    "type": "PAGE"
   }
 }
 ```
