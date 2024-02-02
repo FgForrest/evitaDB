@@ -91,7 +91,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	 * Pattern for searching for <SourceCodeTabs> blocks.
 	 */
 	private static final Pattern SOURCE_CODE_TABS_PATTERN = Pattern.compile(
-		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?(\\s+local)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
+		"<SourceCodeTabs\\s*(requires=\"(.*?)\")?(\\s+langSpecificTabOnly)?(\\s+local)?(\\s+ignoreTest)?>\\s*\\[.*?]\\((.*?)\\)\\s*</SourceCodeTabs>",
 		Pattern.DOTALL | Pattern.MULTILINE
 	);
 	/**
@@ -536,9 +536,9 @@ public class UserDocumentationTest implements EvitaTestSupport {
 
 		final Matcher sourceCodeTabsMatcher = SOURCE_CODE_TABS_PATTERN.matcher(fileContent);
 		while (sourceCodeTabsMatcher.find()) {
-			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(5));
+			final Path referencedFile = createPathRelativeToRootDirectory(rootDirectory, sourceCodeTabsMatcher.group(6));
 			final String referencedFileExtension = getFileNameExtension(referencedFile);
-			if (ofNullable(sourceCodeTabsMatcher.group(2)).map(it -> it.contains("ignoreTest")).orElse(false)) {
+			if (ofNullable(sourceCodeTabsMatcher.group(5)).map(it -> it.contains("ignoreTest")).orElse(false)) {
 				continue;
 			}
 			final boolean isLocal = sourceCodeTabsMatcher.group(4) != null && "local".equals(sourceCodeTabsMatcher.group(4).trim());

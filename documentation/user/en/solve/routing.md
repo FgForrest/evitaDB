@@ -39,6 +39,7 @@ query will return the entity by the code, which is a simple unique attribute of 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Retrieve product by unique attribute](documentation/user/en/solve/examples/routing/get-by-unique-attribute.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
@@ -74,6 +75,7 @@ across the catalog we can search for the entity without specifying the collectio
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" ignoreTest>
 
 [Retrieve product by globaly unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="warning">
@@ -89,6 +91,7 @@ If the URL is unique only within the locale, we need to specify the `entityLocal
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
 [Retrieve product by globaly unique locale specific attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql)
+
 </SourceCodeTabs>
 
 <Note type="info">
