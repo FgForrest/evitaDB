@@ -181,6 +181,29 @@ class FilterIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Test
+	void shouldReturnRecordsStartingWith() {
+		// generate records to verify starts with function
+		stringAttribute.addRecord(1, "Alfa");
+		stringAttribute.addRecord(2, "AlfaBeta");
+		stringAttribute.addRecord(3, "Alfeta");
+		stringAttribute.addRecord(4, "Ab");
+		stringAttribute.addRecord(5, "Beta");
+		stringAttribute.addRecord(6, "Betaversion");
+		stringAttribute.addRecord(7, "Bet");
+		stringAttribute.addRecord(8, "Betamax");
+		stringAttribute.addRecord(9, "Gamma");
+		stringAttribute.addRecord(10, "GammaAlfa");
+		stringAttribute.addRecord(11, "GammaBeta");
+
+		assertArrayEquals(new int[] {1, 2}, stringAttribute.getRecordsWhoseValuesStartWith("Alfa").compute().getArray());
+		assertArrayEquals(new int[] {4}, stringAttribute.getRecordsWhoseValuesStartWith("Ab").compute().getArray());
+		assertArrayEquals(new int[] {5, 6, 7, 8}, stringAttribute.getRecordsWhoseValuesStartWith("Bet").compute().getArray());
+		assertArrayEquals(new int[] {5, 6, 8}, stringAttribute.getRecordsWhoseValuesStartWith("Beta").compute().getArray());
+		assertArrayEquals(new int[] {9, 10, 11}, stringAttribute.getRecordsWhoseValuesStartWith("Gamma").compute().getArray());
+		assertArrayEquals(new int[] {11}, stringAttribute.getRecordsWhoseValuesStartWith("GammaBeta").compute().getArray());
+	}
+
+	@Test
 	void shouldReturnRecordsGreaterThan() {
 		fillStringAttribute();
 		assertArrayEquals(new int[] {1, 3, 4}, stringAttribute.getRecordsGreaterThan("B").getArray());
