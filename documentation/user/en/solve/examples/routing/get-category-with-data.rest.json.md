@@ -1,4 +1,4 @@
-```
+```json
 {
   "primaryKey": 66488,
   "type": "Category",

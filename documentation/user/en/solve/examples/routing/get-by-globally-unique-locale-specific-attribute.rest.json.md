@@ -1,4 +1,4 @@
-```
+```json
 {
   "primaryKey": 63049,
   "type": "Product",
