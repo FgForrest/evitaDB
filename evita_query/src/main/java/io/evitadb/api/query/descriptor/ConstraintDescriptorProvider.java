@@ -46,7 +46,6 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.CollectionUtils.createHashMap;
-import static io.evitadb.utils.CollectionUtils.createHashSet;
 
 /**
  * Provides access to all registered {@link Constraint}s via {@link ConstraintDescriptor}s which serve as generic
@@ -144,10 +143,12 @@ public class ConstraintDescriptorProvider {
 	                                                 @Nullable String suffix) {
 		return getConstraints(constraintClass)
 			.stream()
-			.filter(it -> it.creator()
-				.suffix()
-				.map(it2 -> it2.equals(suffix))
-				.orElse(suffix == null))
+			.filter(it -> {
+				return it.creator()
+					.suffix()
+					.map(it2 -> it2.equals(suffix))
+					.orElse(suffix == null);
+			})
 			.findFirst()
 			.orElseThrow(() ->
 				new EvitaInternalError("Unknown constraint `" + constraintClass.getName() + "` with suffix `" + suffix + "`. Is it properly registered?"));
