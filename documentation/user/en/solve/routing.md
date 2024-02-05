@@ -72,7 +72,7 @@ query will return the entity by the code, which is a simple unique attribute of 
 As you can see, we need to specify the collection name to get the entity through the code. Since the URL is unique 
 across the catalog we can search for the entity without specifying the collection name:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" ignoreTest>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly ignoreTest>
 
 [Retrieve product by globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
 
@@ -109,13 +109,13 @@ If the URL is unique only within the locale, we need to specify the <LS to="e,j,
 
 <LS to="g">
 
-<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.graphql.json.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.rest.json.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -149,7 +149,7 @@ the globally unique attribute query:
 <LS to="g">
 
 In GraphQL, there is no "wildcard" definition to fetch all available data, on the other hand, you can specify exactly
-the data (attributes / associated data etc.) you want to fetch for each entity type separately by leveraging the
+the data (attributes/associated data, etc.) you want to fetch for each entity type separately by using the
 [inline fragments](https://graphql.org/learn/queries/#inline-fragments).
 
 To demonstrate the behavior of such a query, let's define a query that combines unique data from both the `Product` and
@@ -158,9 +158,10 @@ To demonstrate the behavior of such a query, let's define a query that combines 
 </LS>
 <LS to="r">
 
-In REST, you can either use "wildcard" definition to fetch all available data or "wildcard" definition for each entity part
-(attributes / associated data etc.) you want to fetch. But you cannot currently specify individual data to fetch in
-this type of query in the REST. You would usually need to make another query to get detailed data once you know the entity type.
+In REST, you can either use a "wildcard" definition to fetch all available data, or you can use a "wildcard" definition 
+for each entity part (attributes/associated data, etc.) that you want to fetch. 
+However, you cannot currently specify individual data to be fetched in this type of query in REST. You would typically 
+need to make another query to get detailed data once you know the entity type.
 
 To demonstrate the behavior of such a query, let's define a query that requires all data from both the `Product` and
 `Category` collections, but returns different data for each entity type:
@@ -184,13 +185,13 @@ just not returned in the result. The same goes for the `hierarchyContent` requir
 
 This query defines that if the URL belongs to a `Product`, it will return `code`, `available`, and `brandCode` attributes.
 If the URL belongs to a `Category`, it will return `level` attributes. This way you can have completely different
-data structures for each entity type and still get the correct data for an unknown entity, even though it may require a lot of work.
+data structures for each entity type and still get the correct data for an unknown entity, even if it takes a lot of work.
 
 <Note type="info">
 
 <NoteTitle toggles="true">
 
-##### Simplifying the fragments enumeration in real-world use-cases
+##### Simplifying the fragment enumeration in real-world use-cases
 </NoteTitle>
 
 Usually, you won't have to define alternative fragments for all of your entity types. Let's take the `url` attribute for example,
@@ -258,7 +259,7 @@ doesn't make sense for the `product` entity, but does for the `category` entity:
 <LS to="g">
 
 In some cases, you may want to only fetch data that is common to all entity types, such as primary key, type, or common attributes.
-In this case, you don't have to define alternative fragments for each entity type, you 
+In this case, you don't need to define alternative fragments for each entity type; you 
 [can use fields directly on the generic entity object](../use/api/query-data.md#getentity-query).
 
 </LS>

@@ -21,7 +21,7 @@
           primaryKey
         }
       }
-      # ... other entities
+      # ... and possibly other entities
     }
   }
 }
