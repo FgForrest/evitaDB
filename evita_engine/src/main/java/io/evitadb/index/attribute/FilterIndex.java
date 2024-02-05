@@ -31,6 +31,7 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.dataType.Range;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.IndexDataStructure;
@@ -54,6 +55,7 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.Map;
 
 import static io.evitadb.core.Transaction.isTransactionAvailable;
@@ -179,19 +181,57 @@ public class FilterIndex implements VoidTransactionMemoryProducer<FilterIndex>, 
 	}
 
 	/**
-	 * Returns true if this {@link FilterIndex} instance contains range index.
-	 */
-	public boolean hasRangeIndex() {
-		return this.rangeIndex != null;
-	}
-
-	/**
 	 * Returns sorted (ascending, natural) collection of all distinct values present in the filter index.
 	 */
 	@Nonnull
 	public <T extends Comparable<T>> Collection<T> getValues() {
 		//noinspection unchecked
 		return (Collection<T>) getValueIndex().keySet();
+	}
+
+	/**
+	 * Returns sorted (ascending, natural) collection of all distinct values present in the filter index.
+	 */
+	@Nonnull
+	public Formula getRecordsWhoseValuesStartWith(@Nonnull String prefix) {
+		final ValueToRecordBitmap<? extends Comparable<?>>[] buckets = invertedIndex.getValueToRecordBitmap();
+		final int matchIndex = ArrayUtils.binarySearch(
+			buckets,
+			prefix,
+			(valueToRecordBitmap, textToSearch) -> {
+				final String valueA = String.valueOf(valueToRecordBitmap.getValue());
+				final String shortenedA = valueA.substring(0, Math.min(valueA.length(), textToSearch.length()));
+				return shortenedA.compareTo(textToSearch);
+			}
+		);
+		if (matchIndex < 0) {
+			return EmptyFormula.INSTANCE;
+		} else {
+			final LinkedList<Formula> formulas = new LinkedList<>();
+			// find all matching values to the end of the bucket list
+			for (int i = matchIndex; i < buckets.length; i++) {
+				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final String value = String.valueOf(bucket.getValue());
+				if (value.startsWith(prefix)) {
+					formulas.add(new ConstantFormula(bucket.getRecordIds()));
+				} else {
+					// break immediately when the prefix is no longer valid
+					break;
+				}
+			}
+			// find all matching values to the start of the bucket list
+			for (int i = matchIndex - 1; i >= 0; i--) {
+				final ValueToRecordBitmap<? extends Comparable<?>> bucket = buckets[i];
+				final String value = String.valueOf(bucket.getValue());
+				if (value.startsWith(prefix)) {
+					formulas.add(new ConstantFormula(bucket.getRecordIds()));
+				} else {
+					// break immediately when the prefix is no longer valid
+					break;
+				}
+			}
+			return FormulaFactory.or(formulas.toArray(new Formula[0]));
+		}
 	}
 
 	/**

@@ -328,7 +328,9 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 				.isPresent();
 
 		// collect headers for the MarkDown table
-		final String entityType = query.getCollection().getEntityType();
+		final String entityType = ofNullable(query.getCollection())
+			.map(io.evitadb.api.query.head.Collection::getEntityType)
+			.orElseGet(() -> response.getRecordData().get(0).getType());
 		final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrow(entityType);
 		final String[] headers = Stream.of(
 				Stream.of(ENTITY_PRIMARY_KEY),
@@ -427,12 +429,17 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 						Arrays.stream(headers)
 							.filter(it -> !ENTITY_PRIMARY_KEY.equals(it) && !it.startsWith(REF_LINK) && !it.startsWith(PRICE_LINK))
 							.map(EvitaQLExecutable::toAttributeKey)
-							.map(sealedEntity::getAttributeValue)
-							.map(
-								it -> it.map(AttributeValue::value)
-									.map(EvitaQLExecutable::formatValue)
-									.orElse(null)
-							),
+							.map(it -> {
+								if (sealedEntity.getSchema().getAttribute(it.attributeName()).isPresent()) {
+									return sealedEntity.getAttributeValue(it)
+										.map(AttributeValue::value)
+										.map(EvitaQLExecutable::formatValue)
+										.orElse(null);
+								} else {
+									return "N/A";
+								}
+							}
+						),
 						Arrays.stream(headers)
 							.filter(it -> it.startsWith(REF_LINK))
 							.map(it -> {
@@ -441,30 +448,40 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 									// REF_LINK + " " + referenceSchema.getName() + " " + REF_ENTITY_LINK + referenceSchema.getReferencedEntityType()
 									final String[] refEntitySplit = refAttr[0].split(REF_ENTITY_LINK);
 									final String refName = refEntitySplit[0].trim();
-									return sealedEntity.getReferences(refName)
-										.stream()
-										.map(ReferenceContract::getReferencedPrimaryKey)
-										.map(refEntity -> REF_ENTITY_LINK + refEntitySplit[1] + ATTR_LINK + refEntity)
-										.collect(Collectors.joining(", "));
+									if (sealedEntity.getSchema().getReference(refName).isPresent()) {
+										return sealedEntity.getReferences(refName)
+											.stream()
+											.map(ReferenceContract::getReferencedPrimaryKey)
+											.map(refEntity -> REF_ENTITY_LINK + refEntitySplit[1] + ATTR_LINK + refEntity)
+											.collect(Collectors.joining(", "));
+									} else {
+										return "N/A";
+									}
 								} else {
 									final AttributeKey attributeKey = toAttributeKey(refAttr[1]);
 									if (refAttr[0].contains(REF_ENTITY_LINK)) {
 										final String[] refEntitySplit = refAttr[0].split(REF_ENTITY_LINK);
 										final String refName = refEntitySplit[0].trim();
-										return sealedEntity.getReferences(refName)
-											.stream()
-											.map(ReferenceContract::getReferencedEntity)
-											.filter(Optional::isPresent)
-											.map(Optional::get)
-											.filter(refEntity -> refEntity.getAttributeValue(attributeKey).isPresent())
-											.map(refEntity -> {
-												final String formattedValue = formatValue(refEntity.getAttributeValue(attributeKey).get().value());
-												return REF_ENTITY_LINK + refEntitySplit[1] + " " + refEntity.getPrimaryKey() + ATTR_LINK + formattedValue;
-											})
-											.collect(Collectors.joining(", "));
+										final Optional<ReferenceSchemaContract> referenceSchema = sealedEntity.getSchema().getReference(refName);
+										if (referenceSchema.isPresent()) {
+											return sealedEntity.getReferences(refName)
+												.stream()
+												.map(ReferenceContract::getReferencedEntity)
+												.filter(Optional::isPresent)
+												.map(Optional::get)
+												.filter(refEntity -> refEntity.getAttributeValue(attributeKey).isPresent())
+												.map(refEntity -> {
+													final String formattedValue = formatValue(refEntity.getAttributeValue(attributeKey).get().value());
+													return REF_ENTITY_LINK + refEntitySplit[1] + " " + refEntity.getPrimaryKey() + ATTR_LINK + formattedValue;
+												})
+												.collect(Collectors.joining(", "));
+										} else {
+											return "N/A";
+										}
 									} else {
 										return sealedEntity.getReferences(refAttr[0])
 											.stream()
+											.filter(ref -> sealedEntity.getSchema().getReference(ref.getReferenceName()).orElseThrow().getAttribute(attributeKey.attributeName()).isPresent())
 											.filter(ref -> ref.getAttributeValue(attributeKey).isPresent())
 											.map(ref -> {
 												final String formattedValue = formatValue(ref.getAttributeValue(attributeKey).get().value());
@@ -476,11 +493,13 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 							}),
 						Arrays.stream(headers)
 							.filter(PRICE_FOR_SALE::equals)
+							.filter(it -> sealedEntity.getSchema().isWithPrice())
 							.map(it -> sealedEntity.getPriceForSaleIfAvailable()
 								.map(price -> PRICE_LINK + priceFormatter.format(price.priceWithTax()) + " (with " + percentFormatter.format(price.taxRate()) + "% tax) / " + priceFormatter.format(price.priceWithoutTax()))
 								.orElse("N/A")),
 						Arrays.stream(headers)
 							.filter(PRICES::equals)
+							.filter(it -> sealedEntity.getSchema().isWithPrice())
 							.map(it -> {
 								final Collection<PriceContract> prices = sealedEntity.getPrices();
 								if (prices.isEmpty()) {
@@ -627,8 +646,8 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 	) {
 		final boolean localized = schema
 			.getAttribute(attributeName)
-			.orElseThrow()
-			.isLocalized();
+			.map(AttributeSchemaContract::isLocalized)
+			.orElse(false);
 		if (localized) {
 			return entityLocales.stream()
 				.filter(locale -> entityStreamAccessor

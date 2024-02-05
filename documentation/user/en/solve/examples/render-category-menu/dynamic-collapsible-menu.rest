@@ -1,0 +1,36 @@
+POST /rest/evita/Product/query
+
+{
+  "require" : {
+    "hierarchyCategoriesOfReference" : {
+      "emptyHierarchicalEntityBehaviour" : "REMOVE_EMPTY",
+      "requirements" : [
+        {
+          "fromRoot" : {
+            "outputName" : "dynamicMenu",
+            "entityFetch" : {
+              "attributeContent" : [
+                "code"
+              ]
+            },
+            "requirements" : {
+              "stopAt" : {
+                "level" : 1
+              },
+              "statistics" : {
+                "statisticsBase" : "WITHOUT_USER_FILTER",
+                "statisticsType" : [
+                  "CHILDREN_COUNT"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "page" : {
+      "number" : 1,
+      "size" : 0
+    }
+  }
+}

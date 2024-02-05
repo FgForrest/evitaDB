@@ -1,0 +1,15 @@
+query(
+    collection("Product"),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "dynamicMenu",
+                entityFetch(attributeContent("code")),
+                stopAt(level(1)),
+                statistics(CHILDREN_COUNT)
+            )
+        ),
+        page(1, 0)
+    )
+)

@@ -1,0 +1,56 @@
+{
+  queryProduct(
+    filterBy: {
+      hierarchyCategoriesWithin: {
+        ofParent: {
+          attributeCodeEquals: "over-ear"
+        }
+      }
+    }
+  ) {
+    extraResults {
+      hierarchy {
+        categories {
+          topLevel: fromRoot(
+            stopAt: {
+              level: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+          siblings: siblings(
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+          parents: parents {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,19 +2,19 @@
 {
   "recordPage": {
     "data": [ ],
-    "type": "PAGE",
-    "totalRecordCount": 0,
-    "first": true,
-    "last": true,
-    "hasPrevious": false,
-    "hasNext": false,
-    "singlePage": true,
     "empty": true,
-    "pageSize": 20,
-    "pageNumber": 1,
-    "lastPageNumber": 0,
+    "first": true,
     "firstPageItemNumber": 0,
-    "lastPageItemNumber": 0
+    "hasNext": false,
+    "hasPrevious": false,
+    "last": true,
+    "lastPageItemNumber": 0,
+    "lastPageNumber": 0,
+    "pageNumber": 1,
+    "pageSize": 20,
+    "singlePage": true,
+    "totalRecordCount": 0,
+    "type": "PAGE"
   }
 }
 ```

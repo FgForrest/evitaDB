@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.rest.api.builder;
 
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
@@ -109,6 +110,7 @@ public abstract class RestBuildingContext {
 		module.addSerializer(new BigDecimalSerializer());
 		objectMapper.registerModule(module);
 		objectMapper.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
+		objectMapper.setConfig(objectMapper.getSerializationConfig().with(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY));
 
 		return objectMapper;
 	}

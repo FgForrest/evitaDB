@@ -51,7 +51,7 @@ artifact into your project:
 </CodeTabsBlock>
 <CodeTabsBlock>
 ```Gradle
-implementation 'io.evitadb:evita_test_support:0.9.ALPHA'
+implementation 'io.evitadb:evita_test_support:2024.1.3'
 ```
 </CodeTabsBlock>
 </CodeTabs>

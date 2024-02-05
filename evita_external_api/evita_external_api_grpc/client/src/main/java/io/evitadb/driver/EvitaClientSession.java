@@ -250,16 +250,17 @@ public class EvitaClientSession implements EvitaSessionContract {
 			);
 		}
 		if (query.getCollection() == null) {
-			final String entityTypeByExpectedType = extractEntityTypeFromClass(expectedType, reflectionLookup)
-				.orElseGet(() -> ofNullable(query.getCollection())
-					.map(io.evitadb.api.query.head.Collection::getEntityType)
-					.orElseThrow(() -> new CollectionNotFoundException(expectedType)));
-			return Query.query(
-				collection(entityTypeByExpectedType),
-				query.getFilterBy(),
-				query.getOrderBy(),
-				query.getRequire()
-			).normalizeQuery();
+			return extractEntityTypeFromClass(expectedType, reflectionLookup)
+				.or(() -> ofNullable(query.getCollection()).map(io.evitadb.api.query.head.Collection::getEntityType))
+				.map(
+					entityType -> Query.query(
+						collection(entityType),
+						query.getFilterBy(),
+						query.getOrderBy(),
+						query.getRequire()
+					).normalizeQuery()
+				)
+				.orElseGet(query::normalizeQuery);
 		} else {
 			return query.normalizeQuery();
 		}
