@@ -469,7 +469,6 @@ public class EvitaQLExecutable extends JsonExecutable implements Executable, Evi
 												.map(ReferenceContract::getReferencedEntity)
 												.filter(Optional::isPresent)
 												.map(Optional::get)
-												.filter(refEntity -> referenceSchema.orElseThrow().getAttribute(attributeKey.attributeName()).isPresent())
 												.filter(refEntity -> refEntity.getAttributeValue(attributeKey).isPresent())
 												.map(refEntity -> {
 													final String formattedValue = formatValue(refEntity.getAttributeValue(attributeKey).get().value());
