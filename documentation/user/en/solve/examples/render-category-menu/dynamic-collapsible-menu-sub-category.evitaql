@@ -1,0 +1,20 @@
+query(
+    collection("Product"),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromNode(
+                "dynamicMenuSubcategories",
+                node(
+                   filterBy(
+                      entityPrimaryKeyInSet(66482)
+                   )
+                ),
+                entityFetch(attributeContent("code")),
+                stopAt(distance(1)),
+                statistics(CHILDREN_COUNT)
+            )
+        ),
+        page(1, 0)
+    )
+)

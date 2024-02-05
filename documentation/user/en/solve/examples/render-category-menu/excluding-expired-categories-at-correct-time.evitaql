@@ -1,0 +1,25 @@
+query(
+    collection("Product"),
+    filterBy(
+        hierarchyWithin(
+            "categories",
+            attributeEquals("code", "accessories"),
+            having(
+                or(
+                  attributeIs("validity", NULL),
+                  attributeInRange("validity", 2023-12-05T12:00:00+00:00)
+                )
+            )
+        )
+    ),
+    require(
+        hierarchyOfReference(
+            "categories",
+            fromRoot(
+                "topLevel",
+                entityFetch(attributeContent("code")),
+                stopAt(level(2))
+            )
+        )
+    )
+)

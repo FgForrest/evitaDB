@@ -7,7 +7,7 @@ perex: |
   at some approaches to solving routing problems in e-commerce catalogs.
 date: '4.2.2024'
 author: 'Ing. Jan Novotný'
-proofreading: 'needed'
+proofreading: 'done'
 ---
 
 We expect entities that can be reached via URL to have a [String](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/String.html) 
