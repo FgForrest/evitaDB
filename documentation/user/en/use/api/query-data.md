@@ -659,9 +659,9 @@ as they provide quick access to entities.
 #### `getEntity` query
 
 There is also a special variant of the `get` queries with a fixed `entity` classifier in the name -> `getEntity`. This query
-is meant to be used when you need to fetch an entity, but you only have a globally unique identifier and you don't know
+is meant to be used when you need to fetch an entity, but you only have a globally unique identifier, and you don't know
 the target entity collection.
-The query will then return a generic entity object that contain only data common to all entity collections:
+The query will then return a generic entity object that will contain only data common to all entity collections:
 
 <SourceCodeTabs langSpecificTabOnly>
 

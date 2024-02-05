@@ -20,10 +20,10 @@ full absolute URLs in the application.
 ## URL uniqueness
 
 According to the [URL](https://en.wikipedia.org/wiki/URL) standard, the URL is a unique identifier of a resource. So it 
-should be marked as unique in the database. Since we are dealing with multiple entities, we probably need to define 
+should be marked as unique in the database. Since we are dealing with multiple types of entities, we probably need to define 
 a catalog-wide URL attribute to be used by each entity. Then the attribute needs to be marked as either 
 `UNIQUE_WITHIN_CATALOG` or `UNIQUE_WITHIN_CATALOG_LOCALE`, depending on whether the catalog is multilingual or not, and 
-whether the locale is part of the URL or not. In our practice we've encountered both of these scenarios:
+whether the locale is part of the URL or not. In our practice, we've encountered both of these scenarios:
 
 1. the locale is encoded in the relative part of the URL, e.g. `/en/product-name` or `/cs/product-name`
 2. the locale is encoded in the domain part of the URL, e.g. `https://example.com/product-name` or `https://example.cz/product-name`
@@ -46,7 +46,7 @@ query will return the entity by the code, which is a simple unique attribute of 
 
 <NoteTitle toggles="true">
 
-##### Result of the query for the entity by the globally unique attribute
+##### Result of the query for the entity by the unique attribute
 </NoteTitle>
 
 <LS to="e,j,c">
@@ -74,7 +74,7 @@ across the catalog we can search for the entity without specifying the collectio
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" ignoreTest>
 
-[Retrieve product by globaly unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
+[Retrieve product by globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-attribute.evitaql)
 
 </SourceCodeTabs>
 
@@ -86,11 +86,11 @@ uses the `UNIQUE_WITHIN_CATALOG` instead. See the next example.
 
 </Note>
 
-If the URL is unique only within the locale, we need to specify the `entityLocaleEquals` constraint as well:
+If the URL is unique only within the locale, we need to specify the <LS to="e,j,c">`entityLocaleEquals` constraint</LS><LS to="g,r">`locale` parameter</LS> as well:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve product by globaly unique locale specific attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql)
+[Retrieve product by globally unique locale specific attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql)
 
 </SourceCodeTabs>
 
@@ -98,24 +98,24 @@ If the URL is unique only within the locale, we need to specify the `entityLocal
 
 <NoteTitle toggles="true">
 
-##### Result of the query for the entity by the globally unique locale specific attribute
+##### Result of the query for the entity by the globally unique locale-specific attribute
 </NoteTitle>
 
 <LS to="e,j,c">
 
-<MDInclude>[Result for localy specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.md)</MDInclude>
 
 </LS>
 
 <LS to="g">
 
-<MDInclude>[Result for localy specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.graphql.json.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude>[Result for localy specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.rest.json.md)</MDInclude>
+<MDInclude>[Result for locally specific globally unique attribute](documentation/user/en/solve/examples/routing/get-by-globally-unique-locale-specific-attribute.evitaql.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -129,7 +129,7 @@ protocols.
 
 <LS to="e,j,c">
 
-In plain evitaQL you can either use "wildcard" definition to fetch all available data or you can specify exactly 
+In plain evitaQL, you can either use "wildcard" definition to fetch all available data or you can specify exactly 
 the data (attributes / associated data etc.) you want to fetch. When querying for the entity by the globally unique 
 attribute, the query parser doesn't validate the existence of the attribute in the schema and returns only the data 
 it finds for a particular entity.
@@ -141,18 +141,70 @@ the safety net of the query validator is not available for this kind of query.
 
 </Note>
 
-To demonstrate the behavior of such a query, let's define a query that makes no sense for either the `Product` 
-or `Category` collection, but runs successfully for the globally unique attribute query:
+To demonstrate the behavior of such a query, let's define a query that combines unique data from both the `Product` and 
+`Category` collections into a single query that may not make sense for either collection alone, but runs successfully for 
+the globally unique attribute query:
+
+</LS>
+<LS to="g">
+
+In GraphQL, there is no "wildcard" definition to fetch all available data, on the other hand, you can specify exactly
+the data (attributes / associated data etc.) you want to fetch for each entity type separately by leveraging the
+[inline fragments](https://graphql.org/learn/queries/#inline-fragments).
+
+To demonstrate the behavior of such a query, let's define a query that combines unique data from both the `Product` and
+`Category` collections into a single query to return different data for each entity type:
+
+</LS>
+<LS to="r">
+
+In REST, you can either use "wildcard" definition to fetch all available data or "wildcard" definition for each entity part
+(attributes / associated data etc.) you want to fetch. But you cannot currently specify individual data to fetch in
+this type of query in the REST. You would usually need to make another query to get detailed data once you know the entity type.
+
+To demonstrate the behavior of such a query, let's define a query that requires all data from both the `Product` and
+`Category` collections, but returns different data for each entity type:
+
+</LS>
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve product with data by globaly unique locale specific attribute](documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
+[Retrieve product with data by globally unique locale specific attribute](documentation/user/en/solve/examples/routing/get-product-with-data.evitaql)
 </SourceCodeTabs>
+
+<LS to="e,j,c">
 
 Note that the query contains a reference to the `level` attribute, which is certainly not defined in the `Product`
 entity schema. This query would fail if we specified the collection name, but since we don't, the name is accepted and 
 just not returned in the result. The same goes for the `hierarchyContent` requirement, which doesn't make sense for the 
 `Product` entity because it's not hierarchical. Look at the result of the query:
+
+</LS>
+<LS to="g">
+
+This query defines that if the URL belongs to a `Product`, it will return `code`, `available`, and `brandCode` attributes.
+If the URL belongs to a `Category`, it will return `level` attributes. This way you can have completely different
+data structures for each entity type and still get the correct data for an unknown entity, even though it may require a lot of work.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Simplifying the fragments enumeration in real-world use-cases
+</NoteTitle>
+
+Usually, you won't have to define alternative fragments for all of your entity types. Let's take the `url` attribute for example,
+the `url` attribute is typically used only by a few entity types, like `Product`, `Category`, or `Brand`. With this knowledge,
+you only need to define alternative fragments for these 3 entity types.
+
+Even though this may not apply to your application directly, try to find a pattern in your data and use it to simplify these
+queries.
+
+</Note>
+
+The GraphQL server then automatically selects the correct fragment based on the entity type, look at the result of the query:
+
+</LS>
 
 <Note type="info">
 
@@ -161,7 +213,15 @@ just not returned in the result. The same goes for the `hierarchyContent` requir
 ##### Result of the query for the product by the globally unique attribute with data fetch
 </NoteTitle>
 
+<LS to="e,j,c">
 <MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-product-with-data.evitaql.md)</MDInclude>
+</LS>
+<LS to="g">
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-product-with-data.graphql.json.md)</MDInclude>
+</LS>
+<LS to="r">
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-product-with-data.rest.json.md)</MDInclude>
+</LS>
 
 </Note>
 
@@ -170,7 +230,7 @@ Now let's look at the same query, but for the URL of the `Category` entity:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
-[Retrieve category with data by globaly unique locale specific attribute](documentation/user/en/solve/examples/routing/get-category-with-data.evitaql)
+[Retrieve category with data by globally unique locale specific attribute](documentation/user/en/solve/examples/routing/get-category-with-data.evitaql)
 </SourceCodeTabs>
 
 You can see that in the result there is information about the `level` attribute and the `parent` information that 
@@ -183,23 +243,29 @@ doesn't make sense for the `product` entity, but does for the `category` entity:
 ##### Result of the query for the product by the globally unique attribute with data fetch
 </NoteTitle>
 
+<LS to="e,j,c">
 <MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-category-with-data.evitaql.md)</MDInclude>
+</LS>
+<LS to="g">
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-category-with-data.graphql.json.md)</MDInclude>
+</LS>
+<LS to="r">
+<MDInclude>[Result of the query for the product by the globally unique attribute with data fetch](documentation/user/en/solve/examples/routing/get-category-with-data.rest.json.md)</MDInclude>
+</LS>
 
 </Note>
 
-evitaDB concepts try to minimize the number of client-server round trips, but in this case the possibilities are limited
-and you would probably need another query to get detailed data if you know the entity type.
-
-</LS>
-
 <LS to="g">
 
-**Work in progress**
+In some cases, you may want to only fetch data that is common to all entity types, such as primary key, type, or common attributes.
+In this case, you don't have to define alternative fragments for each entity type, you 
+[can use fields directly on the generic entity object](../use/api/query-data.md#getentity-query).
 
 </LS>
 
-<LS to="r">
+<LS to="e,j,c,r">
 
-**Work in progress**
+evitaDB concepts try to minimize the number of client-server round trips, but in this case the possibilities are limited
+and you would probably need another query to get detailed data if you know the entity type.
 
 </LS>

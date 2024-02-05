@@ -1,0 +1,27 @@
+{
+  getEntity(url: "/en/macbook-pro-13-2022") {
+    primaryKey
+    attributes {
+      url
+    }
+    targetEntity {
+      ... on Product {
+        attributes {
+          availability
+        }
+        categories {
+          referencedPrimaryKey
+        }
+      }
+      ... on Category {
+        attributes {
+          level
+        }
+        parents {
+          primaryKey
+        }
+      }
+      # ... other entities
+    }
+  }
+}
