@@ -118,6 +118,7 @@
 		<!--Compatible versions with gRPC could be found here: https://github.com/grpc/grpc-java/blob/master/SECURITY.md#netty -->
 		<nettyHandler.version>4.1.100.Final</nettyHandler.version>
 		<swagger.version>2.2.15</swagger.version>
+		<undertow.version>2.3.10.Final</undertow.version>
 	</properties>
 
 	<modules>
