@@ -57,9 +57,9 @@ module evita.external.api.observability {
 	requires com.fasterxml.jackson.databind;
 	requires java.management;
 
-	requires prometheus.metrics.core;
-	requires prometheus.metrics.instrumentation.jvm;
-	requires prometheus.metrics.exporter.servlet.jakarta;
+	requires io.prometheus.metrics.core;
+	requires io.prometheus.metrics.instrumentation.jvm;
+	requires io.prometheus.metrics.exporter.servlet.jakarta;
 
 	requires undertow.servlet;
 	requires jakarta.servlet;
