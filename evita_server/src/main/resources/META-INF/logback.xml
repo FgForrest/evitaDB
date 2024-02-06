@@ -43,8 +43,8 @@
 			<onMatch>ACCEPT</onMatch>
 			<onMismatch>DENY</onMismatch>
 		</filter>
-		<encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
-			<layout class="io.evitadb.server.log.AppLogJsonLayout" />
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} - %msg%n</pattern>
 		</encoder>
 	</appender>
 
