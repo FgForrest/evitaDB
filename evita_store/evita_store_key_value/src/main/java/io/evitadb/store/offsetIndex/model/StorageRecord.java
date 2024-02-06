@@ -330,7 +330,13 @@ public record StorageRecord<T>(
 	/**
 	 * Constructor that is used for WRITING the record to the passed output stream.
 	 */
-	public <OS extends OutputStream> StorageRecord(@Nonnull Kryo kryo, @Nonnull ObservableOutput<OS> output, long transactionId, boolean closesTransaction, @Nonnull T payload) {
+	public <OS extends OutputStream> StorageRecord(
+		@Nonnull Kryo kryo,
+		@Nonnull ObservableOutput<OS> output,
+		long transactionId,
+		boolean closesTransaction,
+		@Nonnull T payload
+	) {
 		this(
 			transactionId,
 			closesTransaction,
@@ -342,7 +348,12 @@ public record StorageRecord<T>(
 	/**
 	 * Constructor that is used for WRITING the record to the passed output stream.
 	 */
-	public <OS extends OutputStream> StorageRecord(@Nonnull ObservableOutput<OS> output, long transactionId, boolean closesTransaction, @Nonnull Function<ObservableOutput<?>, T> payloadWriter) {
+	public <OS extends OutputStream> StorageRecord(
+		@Nonnull ObservableOutput<OS> output,
+		long transactionId,
+		boolean closesTransaction,
+		@Nonnull Function<ObservableOutput<?>, T> payloadWriter
+	) {
 		this(
 			transactionId,
 			closesTransaction,

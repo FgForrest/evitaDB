@@ -90,7 +90,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 
 	@DisplayName("Hundreds entities should be stored in OffsetIndex and retrieved intact.")
 	@Test
-	void shouldSerializeAndReconstructBigFileOffsetIndex() {
+	OffsetIndexDescriptor shouldSerializeAndReconstructBigFileOffsetIndex() {
 		final StorageOptions options = StorageOptions.temporary();
 		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
 		observableOutputKeeper.prepare();
@@ -140,6 +140,71 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		/* 600 records +1 record for th OffsetIndex itself */
 		assertEquals(601, fileOffsetIndex.verifyContents().getRecordCount());
 		log.info("Average reads: " + StringUtils.formatRequestsPerSec(recordCount, duration));
+
+		return fileOffsetIndexDescriptor;
+	}
+
+	@DisplayName("Half of the entities should be removed, file offset index copied to different file and reconstructed.")
+	@Test
+	void shouldCopySnapshotOfTheBigFileOffsetIndexAndReconstruct() {
+		final StorageOptions options = StorageOptions.temporary();
+		final ObservableOutputKeeper observableOutputKeeper = new ObservableOutputKeeper(options);
+		observableOutputKeeper.prepare();
+
+		final OffsetIndexDescriptor fileOffsetIndexDescriptor = shouldSerializeAndReconstructBigFileOffsetIndex();
+		final OffsetIndex sourceOffsetIndex = new OffsetIndex(
+			new OffsetIndexDescriptor(
+				fileOffsetIndexDescriptor.fileLocation(),
+				fileOffsetIndexDescriptor
+			),
+			options,
+			fileOffsetIndexRecordTypeRegistry,
+			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+		);
+
+		int recordCount = sourceOffsetIndex.count();
+		// delete every other record
+		for (int i = 1; i <= recordCount; i = i + 2) {
+			sourceOffsetIndex.remove(i, EntityBodyStoragePart.class);
+		}
+
+		final OffsetIndexDescriptor updatedOffsetIndexDescriptor = sourceOffsetIndex.flush(2L);
+		final OffsetIndex purgedSourceOffsetIndex = new OffsetIndex(
+			new OffsetIndexDescriptor(
+				updatedOffsetIndexDescriptor.fileLocation(),
+				updatedOffsetIndexDescriptor
+			),
+			options,
+			fileOffsetIndexRecordTypeRegistry,
+			new WriteOnlyFileHandle(targetFile, observableOutputKeeper)
+		);
+
+		// now create a snapshot of the file offset index
+		final Path snapshotPath = Path.of(System.getProperty("java.io.tmpdir") + File.separator + "snapshot.kryo");
+		final File snapshotFile = snapshotPath.toFile();
+		try {
+			final OffsetIndexDescriptor snapshotBootstrapDescriptor = purgedSourceOffsetIndex.copySnapshotTo(snapshotFile, 3L);
+			final OffsetIndex loadedFileOffsetIndex = new OffsetIndex(
+				snapshotBootstrapDescriptor,
+				options,
+				fileOffsetIndexRecordTypeRegistry,
+				new WriteOnlyFileHandle(snapshotPath, observableOutputKeeper)
+			);
+
+			assertEquals(purgedSourceOffsetIndex.count(), loadedFileOffsetIndex.count());
+			assertEquals(purgedSourceOffsetIndex.getTotalSize(), loadedFileOffsetIndex.getTotalSize());
+			for (int i = 2; i <= recordCount; i = i + 2) {
+				final EntityBodyStoragePart actual = loadedFileOffsetIndex.get(i, EntityBodyStoragePart.class);
+				assertEquals(
+					new EntityBodyStoragePart(i),
+					actual
+				);
+			}
+		} finally {
+			snapshotFile.delete();
+		}
+
+		observableOutputKeeper.free();
 	}
 
 	@DisplayName("Existing record can be removed")
@@ -431,7 +496,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		return new InsertionOutput(fileOffsetIndex, Objects.requireNonNull(fileOffsetIndexDescriptor));
 	}
 
-	private int getNonExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
+	private static int getNonExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
 		int recPrimaryKey;
 		do {
 			recPrimaryKey = Math.abs(random.nextInt());
@@ -439,7 +504,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 		return recPrimaryKey;
 	}
 
-	private int getExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
+	private static int getExisting(Set<Integer> recordIds, Set<Integer> touchedInThisRound, Random random) {
 		final Iterator<Integer> it = recordIds.iterator();
 		final int bound = recordIds.size() - 1;
 		if (bound > 0) {
@@ -454,7 +519,7 @@ class OffsetIndexTest implements TimeBoundedTestSupport {
 	}
 
 	@Nonnull
-	private Function<VersionedKryoKeyInputs, VersionedKryo> createKryo() {
+	private static Function<VersionedKryoKeyInputs, VersionedKryo> createKryo() {
 		return (keyInputs) -> VersionedKryoFactory.createKryo(
 			keyInputs.version(),
 			SchemaKryoConfigurer.INSTANCE

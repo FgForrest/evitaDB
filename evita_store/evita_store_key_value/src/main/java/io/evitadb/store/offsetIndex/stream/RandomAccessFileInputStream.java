@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ package io.evitadb.store.offsetIndex.stream;
 
 
 import io.evitadb.store.exception.StorageException;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -40,14 +41,14 @@ import java.util.Objects;
  */
 public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream {
 	private final boolean closeOnClose;
-	private final RandomAccessFile randomAccessFile;
+	@Getter private final RandomAccessFile randomAccessFile;
 
 	/**
 	 * Constructs a new instance configured to leave the underlying file open when this stream is closed.
 	 *
 	 * @param file The file to stream.
 	 */
-	public RandomAccessFileInputStream(final RandomAccessFile file) {
+	public RandomAccessFileInputStream(@Nonnull RandomAccessFile file) {
 		this(file, false);
 	}
 
@@ -57,7 +58,7 @@ public class RandomAccessFileInputStream extends AbstractRandomAccessInputStream
 	 * @param file The file to stream.
 	 * @param closeOnClose Whether to close the underlying file when this stream is closed.
 	 */
-	public RandomAccessFileInputStream(final RandomAccessFile file, final boolean closeOnClose) {
+	public RandomAccessFileInputStream(@Nonnull RandomAccessFile file, boolean closeOnClose) {
 		this.randomAccessFile = Objects.requireNonNull(file, "file");
 		this.closeOnClose = closeOnClose;
 	}

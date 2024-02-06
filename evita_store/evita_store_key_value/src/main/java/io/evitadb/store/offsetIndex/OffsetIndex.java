@@ -48,7 +48,8 @@ import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.store.service.KeyCompressor;
-import io.evitadb.utils.BitUtils;
+import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +57,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
@@ -63,6 +65,7 @@ import java.io.Serializable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -75,8 +78,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.zip.CRC32C;
 
+import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.deserialize;
+import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.serialize;
+import static io.evitadb.store.offsetIndex.OffsetIndexSerializationService.verify;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static io.evitadb.utils.Assert.isTrue;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
@@ -163,7 +168,7 @@ public class OffsetIndex {
 	/**
 	 * Map contains counts for each type of record stored in OffsetIndex.
 	 */
-	private final ConcurrentHashMap<Byte, Integer> histogram;
+	private final Map<Byte, Integer> histogram;
 	/**
 	 * Keeps track of maximum record size ever written to this OffsetIndex. The number doesn't respect record removals and
 	 * should be used only for informational purposes.
@@ -228,10 +233,10 @@ public class OffsetIndex {
 		}
 		this.keyToLocations = fileOffsetIndexBuilder
 			.map(FileOffsetIndexBuilder::getBuiltIndex)
-			.orElseGet(() -> new ConcurrentHashMap<>(KEY_HASH_MAP_INITIAL_SIZE));
+			.orElseGet(() -> CollectionUtils.createHashMap(KEY_HASH_MAP_INITIAL_SIZE));
 		this.histogram = fileOffsetIndexBuilder
 			.map(FileOffsetIndexBuilder::getHistogram)
-			.orElseGet(() -> new ConcurrentHashMap<>(HISTOGRAM_INITIAL_CAPACITY));
+			.orElseGet(() -> CollectionUtils.createHashMap(HISTOGRAM_INITIAL_CAPACITY));
 		fileOffsetIndexBuilder
 			.ifPresent(it -> {
 				this.totalSize.set(it.getTotalSize());
@@ -269,7 +274,7 @@ public class OffsetIndex {
 			)
 		) {
 			final FileOffsetIndexBuilder fileOffsetIndexBuilder = new FileOffsetIndexBuilder();
-			OffsetIndexSerializationService.INSTANCE.deserialize(
+			deserialize(
 				input,
 				fileLocation,
 				fileOffsetIndexBuilder
@@ -310,6 +315,7 @@ public class OffsetIndex {
 
 	/**
 	 * Returns unmodifiable map of current index of compressed keys.
+	 *
 	 * @return unmodifiable map of current index of compressed keys
 	 */
 	@Nonnull
@@ -539,91 +545,7 @@ public class OffsetIndex {
 				inputStream -> {
 					assertOperative();
 					return this.readKryoPool.borrowAndExecute(
-						kryo -> {
-							final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(this.keyToLocations.size(), this.totalSize.get());
-							inputStream.resetToPosition(0);
-							final CRC32C crc32C = storageOptions.computeCRC32C() ? new CRC32C() : null;
-							byte[] buffer = new byte[inputStream.getBuffer().length];
-							int recCount = 0;
-							long startPosition = 0;
-							long prevTransactionId = 0;
-							boolean firstTransaction = true;
-							boolean transactionCleared = true;
-							final long fileLength = readOnlyFileHandle.getLastWrittenPosition();
-							do {
-								recCount++;
-								final int finalRecCount = recCount;
-
-								try {
-									inputStream.resetToPosition(startPosition);
-									// computed record length without CRC32 checksum
-									int recordLength = inputStream.readInt();
-									final byte control = inputStream.readByte();
-									final long catalogVersion = inputStream.readLong();
-									final long finalStartPosition = startPosition;
-
-									// verify that transactional id is monotonically increasing
-									if (!firstTransaction && !(transactionCleared ? catalogVersion > prevTransactionId : catalogVersion >= prevTransactionId)) {
-										throw new CorruptedRecordException(
-											"Transaction id record monotonic row is violated in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
-											prevTransactionId + 1, catalogVersion
-										);
-									}
-									// verify that transaction id stays the same within transaction block
-									if (!transactionCleared && catalogVersion != prevTransactionId) {
-										throw new CorruptedRecordException(
-											"Transaction id was not cleared with control bit record id in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
-											prevTransactionId, catalogVersion
-										);
-									}
-
-									ofNullable(crc32C).ifPresent(CRC32C::reset);
-									// first 4 bytes of length are not part of the CRC check
-									int processedRecordLength = StorageRecord.CRC_NOT_COVERED_HEAD;
-									inputStream.resetToPosition(startPosition + processedRecordLength);
-									// we have to avoid reading last 8 bytes of CRC check value
-									while (processedRecordLength < recordLength - ObservableOutput.TAIL_MANDATORY_SPACE) {
-										final int read = inputStream.read(buffer, 0, Math.min(recordLength - processedRecordLength - ObservableOutput.TAIL_MANDATORY_SPACE, buffer.length));
-										ofNullable(crc32C).ifPresent(it -> it.update(buffer, 0, read));
-										processedRecordLength += read;
-									}
-									// verify CRC32-C checksum
-									if (crc32C != null) {
-										crc32C.update(control);
-										final long computedChecksum = crc32C.getValue();
-										inputStream.resetToPosition(startPosition + recordLength - ObservableOutput.TAIL_MANDATORY_SPACE);
-										final long storedChecksum = inputStream.readLong();
-										processedRecordLength += ObservableOutput.TAIL_MANDATORY_SPACE;
-										if (computedChecksum != storedChecksum) {
-											throw new CorruptedRecordException(
-												"Invalid checksum for record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B]", computedChecksum, storedChecksum
-											);
-										}
-									}
-
-									if (processedRecordLength != recordLength) {
-										throw new CorruptedRecordException(
-											"Record no. " + finalRecCount + " prematurely ended -  file position: [" + finalStartPosition + ", length " + recordLength + "B]", processedRecordLength, recordLength
-										);
-									}
-
-									startPosition += recordLength;
-									prevTransactionId = catalogVersion;
-									transactionCleared = BitUtils.isBitSet(control, StorageRecord.TRANSACTION_CLOSING_BIT);
-									if (transactionCleared && catalogVersion > 0L) {
-										firstTransaction = false;
-									}
-									result.registerRecord(recordLength);
-
-								} catch (KryoException ex) {
-									throw new CorruptedRecordException(
-										"Record no. " + finalRecCount + " cannot be read!", ex
-									);
-								}
-							} while (fileLength > result.getTotalSize());
-
-							return result;
-						}
+						kryo -> verify(this, inputStream, readOnlyFileHandle.getLastWrittenPosition())
 					);
 				}
 			)
@@ -640,6 +562,48 @@ public class OffsetIndex {
 		assertOperative();
 		this.fileOffsetDescriptor = doFlush(catalogVersion, fileOffsetDescriptor, false);
 		return fileOffsetDescriptor;
+	}
+
+	/**
+	 * Copies entire living data set to the target file. The file must exist and must be prepared for re-writing.
+	 * File must not be used by any other process.
+	 *
+	 * @param newFile       target file
+	 * @param transactionId will be propagated to {@link StorageRecord#transactionId()}
+	 * @return length of the copied data
+	 */
+	@Nonnull
+	public OffsetIndexDescriptor copySnapshotTo(@Nonnull File newFile, long transactionId) {
+		// flush all non-flushed values to the disk
+		this.doSoftFlush();
+		// copy the active parts to a new file
+		return readOnlyHandlePool.borrowAndExecute(
+			readOnlyFileHandle -> readOnlyFileHandle.execute(
+				// by requesting write-handle we enforce no other thread can write to the source file while we are copying
+				inputStream -> writeHandle.checkAndExecute(
+					"Writing mem table",
+					this::assertOperative,
+					output -> this.readKryoPool.borrowAndExecute(
+						kryo -> {
+							Assert.isTrue(inputStream.getInputStream() instanceof RandomAccessFileInputStream, "Input stream must be RandomAccessFileInputStream!");
+							@SuppressWarnings("unchecked") final ObservableInput<RandomAccessFileInputStream> randomAccessFileInputStream =
+								(ObservableInput<RandomAccessFileInputStream>) inputStream;
+							final FileLocation fileLocation = OffsetIndexSerializationService.copySnapshotTo(
+								this,
+								randomAccessFileInputStream,
+								transactionId,
+								newFile
+							);
+							return new OffsetIndexDescriptor(
+								fileLocation,
+								this.getCompressedKeys(),
+								this.fileOffsetDescriptor.getKryoFactory()
+							);
+						}
+					)
+				)
+			)
+		);
 	}
 
 	/**
@@ -720,6 +684,16 @@ public class OffsetIndex {
 		return recordTypeRegistry.idFor(storagePartClass);
 	}
 
+	/**
+	 * Returns the total size of records held in this OffsetIndex. This number reflect the gross size of all ACTIVE
+	 * records except the OffsetIndex index. The removals and dead data are not reflected by this property.
+	 *
+	 * @return the total size
+	 */
+	public long getTotalSize() {
+		return this.totalSize.get();
+	}
+
 	/*
 		PRIVATE METHODS
 	 */
@@ -752,7 +726,7 @@ public class OffsetIndex {
 					assertOperative();
 					final FileOffsetIndexBuilder builder = new FileOffsetIndexBuilder();
 					return readKryoPool.borrowAndExecute(kryo -> {
-						OffsetIndexSerializationService.INSTANCE.deserialize(
+						deserialize(
 							exclusiveReadAccess,
 							location,
 							builder
@@ -780,10 +754,12 @@ public class OffsetIndex {
 				this::assertOperative,
 				outputStream -> {
 					// serialize all non-flushed values to the output stream
-					return OffsetIndexSerializationService.INSTANCE.serialize(
-						this,
+					return serialize(
 						outputStream,
-						catalogVersion
+						catalogVersion,
+						this.getNonFlushedEntries(),
+						this.getFileOffsetIndexLocation(),
+						this.getStorageOptions()
 					);
 				},
 				(outputStream, fileLocation) -> {
@@ -1092,8 +1068,8 @@ public class OffsetIndex {
 	 */
 	@Getter
 	public static class FileOffsetIndexBuilder {
-		private final ConcurrentHashMap<RecordKey, FileLocation> builtIndex = new ConcurrentHashMap<>(KEY_HASH_MAP_INITIAL_SIZE);
-		private final ConcurrentHashMap<Byte, Integer> histogram = new ConcurrentHashMap<>(HISTOGRAM_INITIAL_CAPACITY);
+		private final HashMap<RecordKey, FileLocation> builtIndex = CollectionUtils.createHashMap(KEY_HASH_MAP_INITIAL_SIZE);
+		private final HashMap<Byte, Integer> histogram = CollectionUtils.createHashMap(HISTOGRAM_INITIAL_CAPACITY);
 		private long totalSize;
 		private int maxSize;
 

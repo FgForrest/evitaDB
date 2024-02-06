@@ -24,25 +24,42 @@
 package io.evitadb.store.offsetIndex;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.model.FileLocation;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexBuilder;
+import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
+import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.NonFlushedValue;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.offsetIndex.stream.RandomAccessFileInputStream;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.BitUtils;
 import lombok.Data;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.CRC32C;
+
+import static java.util.Optional.ofNullable;
 
 /**
  * This service allows to (de)serialize {@link OffsetIndex} using {@link Kryo} from data file. Data file contains chain
@@ -62,7 +79,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @ThreadSafe
 public class OffsetIndexSerializationService {
-	public static final OffsetIndexSerializationService INSTANCE = new OffsetIndexSerializationService();
 	/**
 	 * Length of single mem table record is 12B: startingPosition (long), length (int)
 	 */
@@ -73,18 +89,198 @@ public class OffsetIndexSerializationService {
 	public static final int MEM_TABLE_RECORD_SIZE = 8 + 1 + 8 + 4;
 
 	/**
+	 * Verifies the integrity of the offset index file by calculating CRC32 checksum on each record content (if enabled)
+	 * and performing control byte checks.
+	 *
+	 * @param offsetIndex The offset index to be verified.
+	 * @param inputStream The input stream containing the offset index file.
+	 * @param fileLength  The length of the offset index file.
+	 * @return The statistics about the offset index file after verification.
+	 */
+	@Nonnull
+	public static FileOffsetIndexStatistics verify(
+		@Nonnull OffsetIndex offsetIndex,
+		@Nonnull ObservableInput<?> inputStream,
+		long fileLength
+	) {
+		final FileOffsetIndexStatistics result = new FileOffsetIndexStatistics(offsetIndex.count(), offsetIndex.getTotalSize());
+		inputStream.resetToPosition(0);
+		final CRC32C crc32C = offsetIndex.getStorageOptions().computeCRC32C() ? new CRC32C() : null;
+		byte[] buffer = new byte[inputStream.getBuffer().length];
+		int recCount = 0;
+		long startPosition = 0;
+		long prevTransactionId = 0;
+		boolean firstTransaction = true;
+		boolean transactionCleared = true;
+		do {
+			recCount++;
+			final int finalRecCount = recCount;
+
+			try {
+				inputStream.resetToPosition(startPosition);
+				// computed record length without CRC32 checksum
+				int recordLength = inputStream.readInt();
+				final byte control = inputStream.readByte();
+				final long catalogVersion = inputStream.readLong();
+				final long finalStartPosition = startPosition;
+
+				// verify that transactional id is monotonically increasing
+				if (!firstTransaction && !(transactionCleared ? catalogVersion > prevTransactionId : catalogVersion >= prevTransactionId)) {
+					throw new CorruptedRecordException(
+						"Transaction id record monotonic row is violated in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
+						prevTransactionId + 1, catalogVersion
+					);
+				}
+				// verify that transaction id stays the same within transaction block
+				if (!transactionCleared && catalogVersion != prevTransactionId) {
+					throw new CorruptedRecordException(
+						"Transaction id was not cleared with control bit record id in record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B], previous transaction id is " + prevTransactionId + ", current is " + catalogVersion,
+						prevTransactionId, catalogVersion
+					);
+				}
+
+				ofNullable(crc32C).ifPresent(CRC32C::reset);
+				// first 4 bytes of length are not part of the CRC check
+				int processedRecordLength = StorageRecord.CRC_NOT_COVERED_HEAD;
+				inputStream.resetToPosition(startPosition + processedRecordLength);
+				// we have to avoid reading last 8 bytes of CRC check value
+				while (processedRecordLength < recordLength - ObservableOutput.TAIL_MANDATORY_SPACE) {
+					final int read = inputStream.read(buffer, 0, Math.min(recordLength - processedRecordLength - ObservableOutput.TAIL_MANDATORY_SPACE, buffer.length));
+					ofNullable(crc32C).ifPresent(it -> it.update(buffer, 0, read));
+					processedRecordLength += read;
+				}
+				// verify CRC32-C checksum
+				if (crc32C != null) {
+					crc32C.update(control);
+					final long computedChecksum = crc32C.getValue();
+					inputStream.resetToPosition(startPosition + recordLength - ObservableOutput.TAIL_MANDATORY_SPACE);
+					final long storedChecksum = inputStream.readLong();
+					processedRecordLength += ObservableOutput.TAIL_MANDATORY_SPACE;
+					if (computedChecksum != storedChecksum) {
+						throw new CorruptedRecordException(
+							"Invalid checksum for record no. " + finalRecCount + " file position: [" + finalStartPosition + ", length " + recordLength + "B]", computedChecksum, storedChecksum
+						);
+					}
+				}
+
+				if (processedRecordLength != recordLength) {
+					throw new CorruptedRecordException(
+						"Record no. " + finalRecCount + " prematurely ended - file position: [" + finalStartPosition + ", length " + recordLength + "B]", processedRecordLength, recordLength
+					);
+				}
+
+				startPosition += recordLength;
+				prevTransactionId = catalogVersion;
+				transactionCleared = BitUtils.isBitSet(control, StorageRecord.TRANSACTION_CLOSING_BIT);
+				if (transactionCleared && catalogVersion > 0L) {
+					firstTransaction = false;
+				}
+				result.registerRecord(recordLength);
+
+			} catch (KryoException ex) {
+				throw new CorruptedRecordException(
+					"Record no. " + finalRecCount + " cannot be read!", ex
+				);
+			}
+		} while (fileLength > result.getTotalSize());
+
+		return result;
+	}
+
+	/**
+	 * Copies a snapshot of an offset index to a new file.
+	 *
+	 * @param offsetIndex   The original offset index to copy.
+	 * @param inputStream   The input stream containing the offset index file.
+	 * @param transactionId The transaction ID of the snapshot.
+	 * @param newFile       The file to copy the snapshot to.
+	 *
+	 * @return The length of the copied snapshot.
+	 */
+	public static FileLocation copySnapshotTo(
+		@Nonnull OffsetIndex offsetIndex,
+		@Nonnull ObservableInput<RandomAccessFileInputStream> inputStream,
+		long transactionId,
+		@Nonnull File newFile
+	) {
+		// this file won't be closed so that we don't damage the original input stream (read-handle)
+		final RandomAccessFile sourceFile = inputStream.getInputStream().getRandomAccessFile();
+		try (
+			final FileChannel sourceChannel = sourceFile.getChannel();
+			final RandomAccessFile destFile = new RandomAccessFile(newFile, "rw");
+			final FileChannel destChannel = destFile.getChannel();
+		) {
+			final Collection<Entry<RecordKey, FileLocation>> entries = offsetIndex.getEntries();
+			final Collection<NonFlushedValue> nonFlushedValues = new ArrayList<>(entries.size());
+			long position = 0;
+			for (Entry<RecordKey, FileLocation> entry : entries) {
+				final FileLocation fileLocation = entry.getValue();
+				final long written = sourceChannel.transferTo(
+					fileLocation.startingPosition(),
+					fileLocation.recordLength(),
+					destChannel
+				);
+
+				Assert.isPremiseValid(
+					written == fileLocation.recordLength(),
+					"Written length does not match the expected length!"
+				);
+
+				// finally, register non-flushed value
+				final RecordKey key = entry.getKey();
+				nonFlushedValues.add(
+					new NonFlushedValue(
+						key.primaryKey(), key.recordType(),
+						new FileLocation(position, Math.toIntExact(written))
+					)
+				);
+
+				position += written;
+			}
+
+			// now serialize the information about the values to the final record of the file and return its location
+			try (
+				final ObservableOutput<FileOutputStream> observableOutput = new ObservableOutput<>(
+					new FileOutputStream(newFile, true),
+					offsetIndex.getStorageOptions().outputBufferSize(),
+					newFile.length()
+				)
+			) {
+				return serialize(
+					observableOutput,
+					transactionId,
+					nonFlushedValues,
+					null,
+					offsetIndex.getStorageOptions()
+				);
+			}
+		} catch (IOException e) {
+			throw new UnexpectedIOException(
+				"Error occurred while copying the snapshot to the new file: " + e.getMessage(),
+				"Error occurred while copying the snapshot to the new file.",
+				e
+			);
+		}
+	}
+
+	/**
 	 * Serializes entire {@link OffsetIndex} to the file. Only active keys are stored to the data file.
 	 */
 	@Nonnull
-	public FileLocation serialize(@Nonnull OffsetIndex fileOffsetIndex, @Nonnull ObservableOutput<?> output, long transactionId) {
-		final Collection<NonFlushedValue> nonFlushedEntries = fileOffsetIndex.getNonFlushedEntries();
+	public static FileLocation serialize(
+		@Nonnull ObservableOutput<?> output,
+		long transactionId,
+		@Nonnull Collection<NonFlushedValue> nonFlushedEntries,
+		@Nullable FileLocation lastFileOffsetIndexLocation,
+		@Nonnull StorageOptions storageOptions
+	) {
 		final Iterator<NonFlushedValue> entries = nonFlushedEntries.iterator();
 
 		// start with full buffer
 		output.flush();
 		// this holds file location pointer to the last stored OffsetIndex fragment and is used to allow single direction pointing
-		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(fileOffsetIndex.getFileOffsetIndexLocation());
-		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(fileOffsetIndex.getStorageOptions(), nonFlushedEntries.size());
+		final AtomicReference<FileLocation> lastStorageRecordLocation = new AtomicReference<>(lastFileOffsetIndexLocation);
+		final ExpectedCounts fileOffsetIndexRecordCount = computeExpectedRecordCount(storageOptions, nonFlushedEntries.size());
 		for (int i = 0; i < fileOffsetIndexRecordCount.getFragments(); i++) {
 			lastStorageRecordLocation.set(
 				new StorageRecord<>(
@@ -111,7 +307,7 @@ public class OffsetIndexSerializationService {
 							stream.writeLong(fileLocation.startingPosition());
 							stream.writeInt(fileLocation.recordLength());
 						}
-						return fileOffsetIndex;
+						return null;
 					}
 				).fileLocation()
 			);
@@ -133,7 +329,7 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Deserializes {@link OffsetIndex} from the fragment identified by `fileLocation`.
 	 */
-	public void deserialize(@Nonnull ObservableInput<?> input, @Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexBuilder fileOffsetIndexBuilder) {
+	public static void deserialize(@Nonnull ObservableInput<?> input, @Nonnull FileLocation fileLocation, @Nonnull FileOffsetIndexBuilder fileOffsetIndexBuilder) {
 		// this set holds all record keys that were removed
 		final Set<RecordKey> removedEntries = new HashSet<>(16_384);
 		// this variable holds location of the previous mem table fragment
@@ -208,7 +404,7 @@ public class OffsetIndexSerializationService {
 	/**
 	 * Computes number of records that are required to store OffsetIndex record pointers of specified count.
 	 */
-	ExpectedCounts computeExpectedRecordCount(@Nonnull StorageOptions storageOptions, int recordCount) {
+	static ExpectedCounts computeExpectedRecordCount(@Nonnull StorageOptions storageOptions, int recordCount) {
 		final int maxRecordCountPerStorageRecords = (storageOptions.outputBufferSize() - StorageRecord.getOverheadSize() - PREVIOUS_MEM_TABLE_FRAGMENT_POINTER_SIZE) / MEM_TABLE_RECORD_SIZE;
 		return new ExpectedCounts(
 			maxRecordCountPerStorageRecords == 0 ? 0 : (recordCount + maxRecordCountPerStorageRecords - 1) / maxRecordCountPerStorageRecords,
