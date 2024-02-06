@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,8 +38,12 @@ public class AdditionalHeaders {
 	public static final String ACCESS_CONTROL_ALLOW_ORIGIN_STRING = "Access-Control-Allow-Origin";
 	public static final String ACCESS_CONTROL_ALLOW_METHODS_STRING = "Access-Control-Allow-Methods";
 	public static final String ACCESS_CONTROL_ALLOW_HEADERS_STRING = "Access-Control-Allow-Headers";
+	public static final String OPENTELEMETRY_TRACEPARENT_STRING = "traceparent";
+	public static final String EVITADB_CLIENTID_HEADER_STRING = "X-EvitaDB-ClientID";
 
 	public static final HttpString ACCESS_CONTROL_ALLOW_ORIGIN = new HttpString(ACCESS_CONTROL_ALLOW_ORIGIN_STRING);
 	public static final HttpString ACCESS_CONTROL_ALLOW_METHODS = new HttpString(ACCESS_CONTROL_ALLOW_METHODS_STRING);
 	public static final HttpString ACCESS_CONTROL_ALLOW_HEADERS = new HttpString(ACCESS_CONTROL_ALLOW_HEADERS_STRING);
+	public static final HttpString OPENTELEMETRY_TRACEPARENT = new HttpString(OPENTELEMETRY_TRACEPARENT_STRING);
+	public static final HttpString EVITADB_CLIENTID_HEADER = new HttpString(EVITADB_CLIENTID_HEADER_STRING);
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,31 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.externalApi.observability.io;
 
-import io.evitadb.api.ClientContext;
-import io.evitadb.externalApi.utils.ExternalApiClientContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.evitadb.externalApi.http.JsonApiExceptionHandler;
+import io.evitadb.externalApi.observability.ObservabilityProvider;
+import io.undertow.server.HttpHandler;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 
 /**
- * Implementation of {@link ExternalApiClientContext} for GraphQL API.
+ * Handles exception that occurred during processing of HTTP request outside LoggingEndpointHandler execution.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class GraphQLClientContext extends ExternalApiClientContext {
+@Slf4j
+public class ObservabilityExceptionHandler extends JsonApiExceptionHandler {
 
-	private static final String PROTOCOL = "GQL";
-
-	public GraphQLClientContext(@Nonnull ClientContext internalClientContext) {
-		super(internalClientContext);
+	public ObservabilityExceptionHandler(@Nonnull ObjectMapper objectMapper, @Nonnull HttpHandler next) {
+		super(objectMapper, next);
 	}
 
 	@Nonnull
 	@Override
-	protected String getProtocol() {
-		return PROTOCOL;
+	protected String getExternalApiCode() {
+		return ObservabilityProvider.CODE;
 	}
 }

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,29 +21,21 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io;
+package io.evitadb.externalApi.observability.logging;
 
-import io.evitadb.api.ClientContext;
-import io.evitadb.externalApi.utils.ExternalApiClientContext;
+import io.evitadb.externalApi.http.EndpointExchange;
+import io.undertow.server.HttpServerExchange;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
- * Implementation of {@link ExternalApiClientContext} for REST API.
+ * Implementation of {@link EndpointExchange} for Observation API.
  *
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public class RestClientContext extends ExternalApiClientContext {
-
-	private static final String PROTOCOL = "REST";
-
-	public RestClientContext(@Nonnull ClientContext internalClientContext) {
-		super(internalClientContext);
-	}
-
-	@Nonnull
-	@Override
-	protected String getProtocol() {
-		return PROTOCOL;
-	}
-}
+public record LoggingEndpointExchange(@Nonnull HttpServerExchange serverExchange,
+                                      @Nonnull String httpMethod,
+                                      @Nullable String requestBodyContentType,
+                                      @Nullable String preferredResponseContentType) implements EndpointExchange {
+};

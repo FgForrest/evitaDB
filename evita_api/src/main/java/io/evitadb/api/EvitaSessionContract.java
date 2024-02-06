@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -78,7 +78,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -99,7 +98,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @NotThreadSafe
-public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, ClientContext, AutoCloseable {
+public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, AutoCloseable {
 
 	/**
 	 * Returns Evita instance this session is connected to.
@@ -1062,46 +1061,4 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 */
 	@Nonnull
 	ProxyFactory getProxyFactory();
-
-	@Override
-	default void executeWithClientAndRequestId(@Nonnull String clientId, @Nonnull String requestId, @Nonnull Runnable lambda) {
-		getEvita().executeWithClientAndRequestId(clientId, requestId, lambda);
-	}
-
-	@Override
-	default void executeWithClientId(@Nonnull String clientId, @Nonnull Runnable lambda) {
-		getEvita().executeWithClientId(clientId, lambda);
-	}
-
-	@Override
-	default void executeWithRequestId(@Nonnull String requestId, @Nonnull Runnable lambda) {
-		getEvita().executeWithRequestId(requestId, lambda);
-	}
-
-	@Override
-	default <T> T executeWithClientAndRequestId(@Nonnull String clientId, @Nonnull String requestId, @Nonnull Supplier<T> lambda) {
-		return getEvita().executeWithClientAndRequestId(clientId, requestId, lambda);
-	}
-
-	@Override
-	default <T> T executeWithClientId(@Nonnull String clientId, @Nonnull Supplier<T> lambda) {
-		return getEvita().executeWithClientId(clientId, lambda);
-	}
-
-	@Override
-	default <T> T executeWithRequestId(@Nonnull String requestId, @Nonnull Supplier<T> lambda) {
-		return getEvita().executeWithRequestId(requestId, lambda);
-	}
-
-	@Nonnull
-	@Override
-	default Optional<String> getClientId() {
-		return getEvita().getClientId();
-	}
-
-	@Nonnull
-	@Override
-	default Optional<String> getRequestId() {
-		return getEvita().getRequestId();
-	}
 }

@@ -7,7 +7,7 @@
   ~             |  __/\ V /| | || (_| | |_| | |_) |
   ~              \___| \_/ |_|\__\__,_|____/|____/
   ~
-  ~   Copyright (c) 2023
+  ~   Copyright (c) 2023-2024
   ~
   ~   Licensed under the Business Source License, Version 1.1 (the "License");
   ~   you may not use this file except in compliance with the License.
@@ -43,13 +43,23 @@
 			<onMatch>ACCEPT</onMatch>
 			<onMismatch>DENY</onMismatch>
 		</filter>
-		<encoder>
-			<pattern>%d{HH:mm:ss.SSS} %-5level %logger{10} - %msg%n</pattern>
+		<encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+			<layout class="io.evitadb.server.log.AppLogJsonLayout" />
+		</encoder>
+	</appender>
+
+	<appender name="FILE" class="ch.qos.logback.core.FileAppender">
+		<filter class="io.evitadb.server.log.AppLogFilter" />
+			<file>/tmp/evita-temp/evita_server.log</file>
+
+		<encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+			<layout class="io.evitadb.server.log.AppLogJsonLayout" />
 		</encoder>
 	</appender>
 
 	<root level="INFO">
 		<appender-ref ref="STDOUT" />
+		<appender-ref ref="FILE" />
 		<appender-ref ref="STDERR" />
 	</root>
 

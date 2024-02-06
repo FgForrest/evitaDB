@@ -9,7 +9,7 @@ EvitaResponse<ISealedEntity> entities = evita.QueryCatalog(
         		PriceValidInNow()
         	),
         	Require(
-        		PriceHistogram(10)
+        		PriceHistogram(20, Standard)
         	)
         )
 	)

@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -36,10 +36,12 @@ import io.evitadb.externalApi.grpc.services.EvitaSessionService;
 import io.evitadb.externalApi.grpc.services.interceptors.AccessLogInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.evitadb.externalApi.grpc.services.interceptors.ServerSessionInterceptor;
+import io.evitadb.externalApi.trace.ExternalApiTracingContextProvider;
 import io.evitadb.utils.CertificateUtils;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerCredentials;
+import io.grpc.ServerInterceptor;
 import io.grpc.TlsServerCredentials;
 import io.grpc.netty.NettyServerBuilder;
 import lombok.Getter;
@@ -124,11 +126,15 @@ public class GrpcServer {
 		final NettyServerBuilder serverBuilder = NettyServerBuilder.forAddress(new InetSocketAddress(hosts[0].host(), hosts[0].port()), tlsServerCredentials)
 			.executor(evita.getExecutor())
 			.addService(new EvitaService(evita))
-			.addService(new EvitaSessionService(evita))
+			.addService(new EvitaSessionService())
 			.intercept(new ServerSessionInterceptor(evita))
 			.intercept(new GlobalExceptionHandlerInterceptor());
 		if (apiOptions.accessLog()) {
 			serverBuilder.intercept(new AccessLogInterceptor());
+		}
+		final ServerInterceptor serverInterceptor = ExternalApiTracingContextProvider.getContext().getServerInterceptor(ServerInterceptor.class);
+		if (serverInterceptor != null) {
+			serverBuilder.intercept(serverInterceptor);
 		}
 		server = serverBuilder.build();
 	}

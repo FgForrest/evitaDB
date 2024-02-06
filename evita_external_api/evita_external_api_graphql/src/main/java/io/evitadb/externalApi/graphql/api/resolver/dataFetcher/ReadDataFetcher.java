@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -25,15 +25,14 @@ package io.evitadb.externalApi.graphql.api.resolver.dataFetcher;
 
 import graphql.schema.DataFetcher;
 import graphql.schema.DataFetchingEnvironment;
+import io.evitadb.api.trace.TracingContext;
 import io.evitadb.externalApi.graphql.exception.GraphQLInternalError;
-import io.evitadb.api.ClientContext;
 import io.evitadb.thread.ShortRunningSupplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -54,7 +53,7 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 	/**
 	 * Client context provider. We need to pass the current client context to the async data fetcher.
 	 */
-	@Nonnull private final ClientContext clientContext;
+	@Nonnull private final TracingContext tracingContext;
 	/**
 	 * Executor responsible for executing data fetcher asynchronously. If null, data fetcher will work synchronously.
 	 */
@@ -68,12 +67,9 @@ public class ReadDataFetcher implements DataFetcher<Object> {
 			return delegate.get(environment);
 		}
 
-		final Optional<String> currentClientId = clientContext.getClientId();
-		final Optional<String> currentRequestId = clientContext.getRequestId();
 		return CompletableFuture.supplyAsync(
-			new ShortRunningSupplier<>(() -> clientContext.executeWithClientAndRequestId(
-				currentClientId.orElse(null),
-				currentRequestId.orElse(null),
+			new ShortRunningSupplier<>(() -> tracingContext.executeWithinBlock(
+				null,
 				() -> {
 					try {
 						return delegate.get(environment);

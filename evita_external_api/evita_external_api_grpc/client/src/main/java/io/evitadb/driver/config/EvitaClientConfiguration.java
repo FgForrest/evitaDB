@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -76,7 +76,9 @@ public record EvitaClientConfiguration(
 	@Nullable String trustStorePassword,
 	@Nonnull ReflectionCachingBehaviour reflectionLookupBehaviour,
 	long waitForClose,
-	@Nonnull TimeUnit waitForCloseUnit
+	@Nonnull TimeUnit waitForCloseUnit,
+	@Nullable String traceEndpointUrl,
+	@Nullable String traceEndpointProtocol
 ) {
 
 	private static final int DEFAULT_GRPC_API_PORT = 5555;
@@ -110,6 +112,8 @@ public record EvitaClientConfiguration(
 		private Path certificateFolderPath = ClientCertificateManager.getDefaultClientCertificateFolderPath();
 		private String trustStorePassword = "trustStorePassword";
 		private ReflectionCachingBehaviour reflectionCachingBehaviour = ReflectionCachingBehaviour.CACHE;
+		private String traceEndpointUrl = null;
+		private String traceEndpointProtocol = null;
 
 		Builder() {
 			try {
@@ -196,6 +200,16 @@ public record EvitaClientConfiguration(
 			return this;
 		}
 
+		public EvitaClientConfiguration.Builder traceEndpointUrl(@Nullable String traceEndpointUrl) {
+			this.traceEndpointUrl = traceEndpointUrl;
+			return this;
+		}
+
+		public EvitaClientConfiguration.Builder traceEndpointProtocol(@Nullable String traceEndpointProtocol) {
+			this.traceEndpointProtocol = traceEndpointProtocol;
+			return this;
+		}
+
 		public EvitaClientConfiguration build() {
 			return new EvitaClientConfiguration(
 				clientId,
@@ -213,7 +227,9 @@ public record EvitaClientConfiguration(
 				trustStorePassword,
 				reflectionCachingBehaviour,
 				waitForClose,
-				TimeUnit.SECONDS
+				TimeUnit.SECONDS,
+				traceEndpointUrl,
+				traceEndpointProtocol
 			);
 		}
 
