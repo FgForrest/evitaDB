@@ -1,0 +1,16 @@
+{
+  queryProduct(
+    filterBy: {
+      attributeCodeEquals: "macbook-pro-13-2022"
+    }
+  ) {
+    recordPage {
+      data {
+        primaryKey
+        attributes {
+          code
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  queryProduct {
+    recordPage(
+      number: 1
+      size: 0
+    ) {
+      data {
+        primaryKey
+      }
+    }
+    extraResults {
+      hierarchy {
+        categories {
+          dynamicMenuSubcategories: fromNode(
+            node: {
+              filterBy: {
+                entityPrimaryKeyInSet: [
+                  66482
+                ]
+              }
+            }
+            stopAt: {
+              distance: 1
+            }
+          ) {
+            level
+            entity {
+              primaryKey
+              attributes {
+                code
+              }
+            }
+            requested
+            childrenCount
+          }
+        }
+      }
+    }
+  }
+}

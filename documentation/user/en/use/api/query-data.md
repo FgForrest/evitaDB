@@ -90,7 +90,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/Query.java</SourceClass> and
 <SourceClass>evita_query/src/main/java/io/evitadb/api/query/QueryConstraints.java</SourceClass>.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Java query example](/documentation/user/en/use/api/example/java-query-example.java)
 </SourceCodeTabs>
@@ -99,7 +99,7 @@ This is an example of how the query is composed and how evitaDB is called. The e
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Java dirty query example](/documentation/user/en/use/api/example/java-dirty-query-example.java)
 </SourceCodeTabs>
@@ -145,7 +145,7 @@ represented by the
 <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/data/EntityReferenceContract.java</SourceClass>
 interface.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.java)
 </SourceCodeTabs>
@@ -179,7 +179,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.java)
 </SourceCodeTabs>
@@ -200,7 +200,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.java)
 </SourceCodeTabs>
@@ -505,7 +505,7 @@ This is an example of how the query is composed and how evitaDB is called.
 The example imports previously mentioned interface
 <SourceClass>EvitaDB.Client/Queries/IQueryConstraints.cs</SourceClass> statically.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [C# query example](/documentation/user/en/use/api/example/csharp-query-example.cs)
 </SourceCodeTabs>
@@ -514,7 +514,7 @@ The example imports previously mentioned interface
 
 The query may also contain "dirty" parts - that is, null constraints and unnecessary parts:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [C# dirty query example](/documentation/user/en/use/api/example/csharp-dirty-query-example.cs)
 </SourceCodeTabs>
@@ -537,7 +537,7 @@ represented by the
 <SourceClass>EvitaDB.Client/Models/Data/IEntityReference.cs</SourceClass>
 interface.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Default query example](/documentation/user/en/use/api/example/default-query-example.cs)
 </SourceCodeTabs>
@@ -571,7 +571,7 @@ Although there are simpler variants for querying entities, the typical method is
 
 The next example documents fetching the second page of products in a category with calculated facet statistics:
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Fetching example](/documentation/user/en/use/api/example/query-example.cs)
 </SourceCodeTabs>
@@ -592,7 +592,7 @@ To enrich, a.k.a. lazy fetch missing data to an existing entity, you must pass t
 method and specify a set of additional require constraints that should be satisfied. Due to immutability properties
 enforced by database design, enriching an entity object returns a new instance of the entity.
 
-<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" local>
+<SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java">
 
 [Lazy loading example](/documentation/user/en/use/api/example/lazy-fetch-example.cs)
 </SourceCodeTabs>
@@ -659,9 +659,9 @@ as they provide quick access to entities.
 #### `getEntity` query
 
 There is also a special variant of the `get` queries with a fixed `entity` classifier in the name -> `getEntity`. This query
-is meant to be used when you need to fetch an entity, but you only have a globally unique identifier and you don't know
+is meant to be used when you need to fetch an entity, but you only have a globally unique identifier, and you don't know
 the target entity collection.
-The query will then return a generic entity object that contain only data common to all entity collections:
+The query will then return a generic entity object that will contain only data common to all entity collections:
 
 <SourceCodeTabs langSpecificTabOnly>
 
