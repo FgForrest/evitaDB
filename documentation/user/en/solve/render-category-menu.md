@@ -15,7 +15,7 @@ Menu is a common way to navigate through the catalog. It is often used to displa
 chapter provides examples of how to render a category menu in typical scenarios. Menus can be rendered along with 
 the listed items in a single request. You shouldn't need to issue a separate request to render the menu unless you are
 pre-rendering the menu for caching purposes (which is a good practice for large menu variants such as [mega-menu](#mega-menu)). 
-All examples in this chapter will query the `Product' collection to retrieve the associated category menu, but will 
+All examples in this chapter will query the `Product` collection to retrieve the associated category menu, but will 
 not list the products themselves, as would be the case in a real-world scenario.
 
 The sample queries also don't include any filtering constraints on the products. In a real-world scenario, you would 
@@ -50,18 +50,18 @@ Which produces the following result:
 
 <LS to="g">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examples/render-category-menu/mega-menu.evitaql.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examples/render-category-menu/mega-menu.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examplesrender-category-menu/mega-menu.evitaql.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examples/render-category-menu/mega-menu.rest.json.md)</MDInclude>
 
 </LS>
 
-Sometimes you'll want to list the number of products in each category. This can be accomplished by adding the requirement 
-[`statistics`](../query/requirements/hierarchy#statistics) to the query:
+Sometimes you'll want to list the number of products in each category. 
+This can be accomplished by adding the <LS to="e,j,c,r">[`QUERIED_ENTITY_COUNT` statistics](../query/requirements/hierarchy#statistics)</LS><LS to="g">[`queriedEntityCount` statistics](../query/requirements/hierarchy#statistics)</LS> request to the query:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -89,13 +89,13 @@ The results now also include the number of products matching the filter in each 
 
 <LS to="g">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examples/render-category-menu/mega-menu-with-product-statistics.evitaql.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examples/render-category-menu/mega-menu-with-product-statistics.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examplesrender-category-menu/mega-menu-with-product-statistics.evitaql.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.categories.megaMenu">[Result for mega-menu](documentation/user/en/solve/examples/render-category-menu/mega-menu-with-product-statistics.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -108,7 +108,7 @@ in administration interfaces. To illustrate this type of menu, take a look at th
 
 The menu shows only a single level of categories with the option to open each of them on demand. To render such a menu, 
 you'd need a very simple query, but it must contain a request to calculate 
-the [`CHILDREN_COUNT` statistics](../query/requests/hierarchy#statistics):
+the <LS to="e,j,c,r">[`CHILDREN_COUNT` statistics](../query/requests/hierarchy#statistics)</LS><LS to="g">[`childrenCount` statistics](../query/requests/hierarchy#statistics)</LS>:
 
 <SourceCodeTabs requires="evita_functional_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -127,13 +127,13 @@ the category name to allow the user to expand the category:
 
 <LS to="g">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.dynamicMenu">[Result for top level of dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu.evitaql.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.dynamicMenu">[Result for top level of dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.dynamicMenu">[Result for top level of dynamic menu](documentation/user/en/solve/examplesrender-category-menu/dynamic-collapsible-menu.evitaql.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.categories.dynamicMenu">[Result for top level of dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -147,8 +147,9 @@ categories in a similar way:
 </SourceCodeTabs>
 
 Note that the primary key of the parent category is used in the filter of the subhierarchy calculation requirement. 
-Also, `stop(level(1))` has been replaced by `stop(distance(1))` because level is different for each category parent,
-while distance is relative to the parent node and allows us to express the retrieved depth in a more general way. 
+Also, <LS to="e,j,c">`stop(level(1))`</LS><LS to="g,r">`stopAt: { level: 1 }`</LS> has been replaced by <LS to="e,j,c">`stop(distance(1))`</LS><LS to="g,r">`stopAt: { distance: 1 }`</LS>
+because level is different for each category parent, while distance is relative to the parent node and allows us to 
+express the retrieved depth in a more general way. 
 The result will be identical to the root category listing:
 
 <LS to="e,j,c">
@@ -159,13 +160,13 @@ The result will be identical to the root category listing:
 
 <LS to="g">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.dynamicMenuSubcategories">[Result for nested categories in the dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu-sub-category.evitaql.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.dynamicMenuSubcategories">[Result for nested categories in the dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu-sub-category.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.dynamicMenuSubcategories">[Result for nested categories in the dynamic menu](documentation/user/en/solve/examplesrender-category-menu/dynamic-collapsible-menu-sub-category.evitaql.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.categories.dynamicMenuSubcategories">[Result for nested categories in the dynamic menu](documentation/user/en/solve/examples/render-category-menu/dynamic-collapsible-menu-sub-category.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -185,7 +186,7 @@ The following query will help you retrieve such a list for any of the rendered c
 </SourceCodeTabs>
 
 Because we're using the [`children`](../query/requirements/hierarchy#children) requirement, the result will be computed 
-correctly even if the current category is changed in the `hierarchyWithin' filter part, and will always contain 
+correctly even if the current category is changed in the `hierarchyWithin` filter part, and will always contain 
 the currently filtered category along with the single level of its subcategories:
 
 <LS to="e,j,c">
@@ -196,13 +197,13 @@ the currently filtered category along with the single level of its subcategories
 
 <LS to="g">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Result for sub-categories listing](documentation/user/en/solve/examples/render-category-menu/sub-categories-listing.evitaql.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories.subcategories">[Result for sub-categories listing](documentation/user/en/solve/examples/render-category-menu/sub-categories-listing.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories.subcategories">[Result for sub-categories listing](documentation/user/en/solve/examples/render-category-menu/sub-categories-listing.evitaql.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.categories.subcategories">[Result for sub-categories listing](documentation/user/en/solve/examples/render-category-menu/sub-categories-listing.rest.json.md)</MDInclude>
 
 </LS>
 
@@ -235,13 +236,13 @@ The result will be the root level categories and the siblings of the currently s
 
 <LS to="g">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories">[Result for hybrid menu](documentation/user/en/solve/examples/render-category-menu/hybrid-menu.evitaql.graphql.json.md)</MDInclude>
+<MDInclude sourceVariable="data.queryProduct.extraResults.hierarchy.categories">[Result for hybrid menu](documentation/user/en/solve/examples/render-category-menu/hybrid-menu.graphql.json.md)</MDInclude>
 
 </LS>
 
 <LS to="r">
 
-<MDInclude sourceVariable="extraResults.Hierarchy.referenceHierarchies.categories">[Result for hybrid menu](documentation/user/en/solve/examples/render-category-menu/hybrid-menu.evitaql.rest.json.md)</MDInclude>
+<MDInclude sourceVariable="extraResults.hierarchy.categories">[Result for hybrid menu](documentation/user/en/solve/examples/render-category-menu/hybrid-menu.rest.json.md)</MDInclude>
 
 </LS>
 

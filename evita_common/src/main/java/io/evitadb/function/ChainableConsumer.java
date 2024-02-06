@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,29 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.graphql.io;
+package io.evitadb.function;
 
-
-import io.evitadb.exception.EvitaError;
-
-import javax.annotation.Nonnull;
+import java.util.function.Consumer;
 
 /**
- * DTO returned as description of exception in system outside of GraphQL API.
+ * Custom implementation of {@link Consumer} with {@link #andThen(ChainableConsumer)} functionality that allows to chain
+ * multiple consumer calls.
  *
- * @param errorCode error code classifying error ({@link EvitaError#getErrorCode()})
- * @param message descriptive message of exception for client ({@link EvitaError#getPublicMessage()})
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
+ * @see java.util.function.Predicate
+ * @param <T> inner class type
+ *
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public record ErrorDto(@Nonnull String errorCode, @Nonnull String message) {}
+
+@FunctionalInterface
+public interface ChainableConsumer<T> extends Consumer<T> {
+
+	// Method to chain another Consumer
+	default ChainableConsumer<T> andThen(ChainableConsumer<? super T> after) {
+		return (t) ->
+		{
+			this.accept(t);
+			after.accept(t);
+		};
+	}
+}

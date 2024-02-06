@@ -1544,29 +1544,25 @@ public class EvitaClientSession implements EvitaSessionContract {
 		@Nonnull AsyncCallFunction<S, T> lambda,
 		@Nonnull Function<ManagedChannel, S> stubFactory
 	) {
-		return executeWithClientId(
-			clientId,
-			() -> {
-				final ManagedChannel managedChannel = this.channelPool.getChannel();
-				try {
-					SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
-					return lambda.apply(stubFactory.apply(managedChannel));
-				} catch (StatusRuntimeException statusRuntimeException) {
-					throw transformStatusRuntimeException(statusRuntimeException);
-				} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
-					throw evitaError;
-				} catch (Throwable e) {
-					log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
-					throw new EvitaInternalError(
-						"Unexpected internal Evita error occurred: " + e.getMessage(),
-						"Unexpected internal Evita error occurred.",
-						e
-					);
-				} finally {
-					this.channelPool.releaseChannel(managedChannel);
-					SessionIdHolder.reset();
-				}
-			});
+		final ManagedChannel managedChannel = this.channelPool.getChannel();
+		try {
+			SessionIdHolder.setSessionId(getCatalogName(), getId().toString());
+			return lambda.apply(stubFactory.apply(managedChannel));
+		} catch (StatusRuntimeException statusRuntimeException) {
+			throw transformStatusRuntimeException(statusRuntimeException);
+		} catch (EvitaInvalidUsageException | EvitaInternalError evitaError) {
+			throw evitaError;
+		} catch (Throwable e) {
+			log.error("Unexpected internal Evita error occurred: {}", e.getMessage(), e);
+			throw new EvitaInternalError(
+				"Unexpected internal Evita error occurred: " + e.getMessage(),
+				"Unexpected internal Evita error occurred.",
+				e
+			);
+		} finally {
+			this.channelPool.releaseChannel(managedChannel);
+			SessionIdHolder.reset();
+		}
 	}
 
 	/**

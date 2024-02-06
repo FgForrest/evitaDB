@@ -405,7 +405,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 					final List<DynamicTest> tests = this.createTests(
 						Environment.DEMO_SERVER,
 						it,
-						new ExampleFilter[]{
+						new ExampleFilter[] {
 							ExampleFilter.CSHARP,
 							ExampleFilter.JAVA,
 							ExampleFilter.REST,
@@ -439,7 +439,7 @@ public class UserDocumentationTest implements EvitaTestSupport {
 	Stream<DynamicTest> testSingleFileDocumentation() {
 		return this.createTests(
 			Environment.DEMO_SERVER,
-			getRootDirectory().resolve("documentation/user/en/query/requirements/facet.md"),
+			getRootDirectory().resolve("documentation/user/en/query/requirements/histogram.md"),
 			ExampleFilter.values()
 		).stream();
 	}

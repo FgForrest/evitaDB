@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,18 +21,41 @@
  *   limitations under the License.
  */
 
-package io.evitadb.externalApi.rest.io;
+package io.evitadb.externalApi.observability;
 
-import io.evitadb.exception.EvitaError;
+import io.evitadb.externalApi.http.ExternalApiProvider;
+import io.evitadb.externalApi.observability.configuration.ObservabilityConfig;
+import io.undertow.server.HttpHandler;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 
 /**
- * DTO returned as description of exception in system outside of OpenAPI.
+ * Descriptor of external API provider that provides Metrics API.
  *
- * @param errorCode error code classifying error ({@link EvitaError#getErrorCode()})
- * @param message descriptive message of exception for client ({@link EvitaError#getPublicMessage()})
- * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
- * @author Martin Veska, FG Forrest a.s. (c) 2022
+ * @see ObservabilityProviderRegistrar
+ * @author Tomáš Pozler, FG Forrest a.s. (c) 2024
  */
-public record ErrorDto(@Nonnull String errorCode, @Nonnull String message) {}
+@RequiredArgsConstructor
+public class ObservabilityProvider implements ExternalApiProvider<ObservabilityConfig> {
+	public static final String CODE = "observability";
+
+	@Nonnull
+	@Getter
+	private final ObservabilityConfig configuration;
+
+	@Nonnull
+	@Getter
+	private final HttpHandler apiHandler;
+
+	@Nonnull
+	@Getter
+	private final String[] serverNameUrls;
+
+	@Nonnull
+	@Override
+	public String getCode() {
+		return CODE;
+	}
+}

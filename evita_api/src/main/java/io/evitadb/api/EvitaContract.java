@@ -60,7 +60,7 @@ import java.util.function.Function;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @ThreadSafe
-public interface EvitaContract extends AutoCloseable, ClientContext {
+public interface EvitaContract extends AutoCloseable {
 
 	/**
 	 * Creates {@link EvitaSessionContract} for querying the database.

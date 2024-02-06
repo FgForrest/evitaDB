@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023
+ *   Copyright (c) 2023-2024
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -59,9 +59,6 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
 @Slf4j
 public abstract class RestEndpointHandler<CTX extends RestHandlingContext> extends EndpointHandler<RestEndpointExchange> {
 
-    private static final String CLIENT_ID_HEADER = "X-EvitaDB-ClientID";
-    private static final String REQUEST_ID_HEADER = "X-EvitaDB-RequestID";
-
     @Nonnull
     protected final CTX restHandlingContext;
     @Nonnull
@@ -84,13 +81,9 @@ public abstract class RestEndpointHandler<CTX extends RestHandlingContext> exten
      * Process every request with client context, so we can classify it in evitaDB.
      */
     private void handleRequestWithClientContext(@Nonnull HttpServerExchange serverExchange) {
-        final String clientId = serverExchange.getRequestHeaders().getFirst(CLIENT_ID_HEADER);
-        final String requestId = serverExchange.getRequestHeaders().getFirst(REQUEST_ID_HEADER);
-
-        restHandlingContext.getClientContext().executeWithClientAndRequestId(
-            serverExchange.getSourceAddress(),
-            clientId,
-            requestId,
+        restHandlingContext.getClientContext().executeWithinBlock(
+            "REST",
+            serverExchange,
             () -> super.handleRequest(serverExchange)
         );
     }
